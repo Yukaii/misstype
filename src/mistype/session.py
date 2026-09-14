@@ -26,6 +26,11 @@ class SessionCoordinator:
     def committed_text(self) -> str:
         return self._committed
 
+    @property
+    def events(self) -> tuple[RawEvent, ...]:
+        """Read-only view of the uncommitted raw trace."""
+        return tuple(self._events)
+
     def ingest(self, event: RawEvent) -> None:
         if self._last_timestamp_ns is not None and event.timestamp_ns < self._last_timestamp_ns:
             raise ValueError("events must use monotonic timestamps")
