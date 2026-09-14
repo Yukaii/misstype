@@ -36,9 +36,9 @@ Exit: replay is deterministic; Chinese, English, and mixed fixtures produce an i
 
 ### M1 — Zhuyin capture *(prototype slice complete)*
 
-The first keyboard adapter now maps standard physical Zhuyin keys into phonetic tokens and attaches tone keys to the preceding symbol. The adapter is still a trace source, not a system IME.
+The first keyboard adapter maps standard physical Zhuyin keys into phonetic tokens and attaches tone keys to the preceding symbol. The session coordinator now provides preview, explicit commit, pause commit, revision tracking, and model fallback. The adapter is still a trace source, not a system IME.
 
-Remaining exit work: add a session coordinator with debounce/commit and measure a short paragraph without per-syllable candidate selection.
+Remaining exit work: measure a short paragraph without per-syllable candidate selection.
 
 ### M2 — Split touch prototype
 
@@ -50,13 +50,13 @@ Exit: replaying a touch trace gives the same normalized phonetic events; compare
 
 ### M3 — Fuzzy spatial decoding *(keyboard-neighborhood prototype started)*
 
-The first fuzzy layer now maps a physical key to weighted neighboring Zhuyin symbols and lets phrase decoding choose among alternatives. `tools/noise.py` measures the rescue rate on seeded jittered taps (run: `PYTHONPATH=src python tools/noise.py`). Coordinate-based uncertainty and user measurements remain to be added.
+The first fuzzy layer now maps a physical key to weighted neighboring Zhuyin symbols and lets phrase decoding choose among alternatives. Coordinate-aware payloads are preferred over static keyboard neighborhoods. Phrase lookup uses a bounded same-length dictionary scan rather than Cartesian expansion, so unknown long input remains responsive. `tools/noise.py` measures the rescue rate on seeded uniform-disk jittered taps (run: `PYTHONPATH=src python tools/noise.py`). User measurements remain to be added.
 
 Finding (synthetic, 20 seeds × 2 phrases): jitter radius ≤ 0.05 decodes at
 100% with no fuzzy help needed; radius 0.08–0.15 is the fuzzy band
-(+10 to +35pp over the ablated decoder, e.g. ni-hao at 0.15: 0.50 vs
-0.15); radius ≥ 0.20 collapses both paths (0.00–0.15). Longer phrases
-degrade faster, as expected from compounding per-tap error.
+(+5 to +55pp over the ablated decoder, e.g. ni-hao at 0.15: 0.55 vs
+0.00); radius 0.20 remains degraded (0.30–0.35 fuzzy, 0.00 ablated).
+Longer phrases degrade faster, as expected from compounding per-tap error.
 
 Follow-up, coordinate-aware payloads: distance-ranked spatial neighbors in
 the touch payload (normalizer prefers them, keyboard neighborhoods remain
@@ -70,7 +70,7 @@ Exit: report accuracy, correction rate, latency, and the point at which fuzzines
 
 Add a local sentence decoder behind the same interface. An explicitly enabled LLM adapter may rerank or repair a completed trace, but must time out to the offline result and never block capture.
 
-The adapter seam has landed without weights: `DecodeContext` (revision + deadline), `DecoderProtocol`, `decode_with_fallback` (offline-first, rejects slow/failed/stale adapter results), and a `StubModelAdapter` proving a 5 s model behind a 10 ms deadline still returns the offline text in well under a second. Remaining: model choice, latency budgets, and provenance surfacing.
+The adapter seam has landed without weights: `DecodeContext` (revision + deadline + cancellation), `DecoderProtocol`, and `decode_with_fallback` (offline-first, bounded to one cancellable adapter slot, rejects slow/failed/stale results). A `StubModelAdapter` proves a 5 s model behind a 10 ms deadline still returns the offline text in well under a second. Remaining: model choice, latency budgets, and provenance surfacing.
 
 Exit: offline mode is useful on its own; model provenance and timing are visible in measurements.
 

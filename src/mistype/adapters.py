@@ -9,8 +9,9 @@ is chosen.
 
 import time
 from collections.abc import Sequence
-from concurrent import futures
+from concurrent.futures import Future
 from dataclasses import replace
+from threading import Lock, Thread
 from typing import Protocol, runtime_checkable
 
 from .decoder import OfflineDecoder
@@ -45,7 +46,9 @@ class StubModelAdapter:
         if self._fail:
             raise RuntimeError("stub model failure")
         if self._latency_ms > 0:
-            time.sleep(self._latency_ms / 1000)
+            if context is not None and context.cancel_event.wait(self._latency_ms / 1000):
+                raise TimeoutError("model request cancelled")
+            time.sleep(0)
         revision = context.revision if context is not None else 0
         if self._wrong_revision:
             revision += 1
@@ -54,23 +57,61 @@ class StubModelAdapter:
                        decoder_version=self.decoder_version)
 
 
+class AdapterRunner:
+    """One cancellable, daemon-backed adapter slot.
+
+    Python cannot safely kill an arbitrary model thread. The runner therefore
+    admits at most one request, signals cancellation on timeout, and refuses
+    new work while an uncooperative adapter is still finishing.
+    """
+
+    def __init__(self) -> None:
+        self._lock = Lock()
+        self._busy = False
+        self._cancel: object | None = None
+
+    def run(self, adapter: DecoderProtocol, tokens: Sequence[PhoneticToken],
+            context: DecodeContext, timeout_s: float) -> DecodeResult | None:
+        with self._lock:
+            if self._busy:
+                return None
+            self._busy = True
+            self._cancel = context.cancel_event
+        future: Future[DecodeResult] = Future()
+
+        def work() -> None:
+            try:
+                future.set_result(adapter.decode(list(tokens), context))
+            except BaseException as error:
+                future.set_exception(error)
+            finally:
+                with self._lock:
+                    self._busy = False
+                    self._cancel = None
+
+        Thread(target=work, daemon=True, name="mistype-adapter").start()
+        try:
+            return future.result(timeout=timeout_s)
+        except Exception:
+            context.cancel_event.set()
+            return None
+
+
+_DEFAULT_RUNNER = AdapterRunner()
+
+
 def decode_with_fallback(tokens: Sequence[PhoneticToken], context: DecodeContext,
                          adapter: DecoderProtocol,
-                         offline: OfflineDecoder | None = None) -> DecodeResult:
+                         offline: OfflineDecoder | None = None,
+                         runner: AdapterRunner | None = None) -> DecodeResult:
     """Decode offline immediately; accept the adapter result only when it is
     on time, healthy, and stamped for the current revision."""
     offline = offline or OfflineDecoder()
     fallback = offline.decode(tokens, context)
-    executor = futures.ThreadPoolExecutor(max_workers=1)
-    future = executor.submit(adapter.decode, list(tokens), context)
-    try:
-        candidate = future.result(timeout=max(0.0, context.deadline_ms) / 1000)
-    except Exception:
-        # Timeout, adapter crash, cancellation: keep the offline result and
-        # let the stray worker finish in the background, off the capture path.
+    candidate = (runner or _DEFAULT_RUNNER).run(
+        adapter, tokens, context, max(0.0, context.deadline_ms) / 1000)
+    if candidate is None:
         return fallback
-    finally:
-        executor.shutdown(wait=False)
     if candidate.revision != context.revision:
         return fallback
     return candidate
