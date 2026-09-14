@@ -20,11 +20,12 @@ The first slice uses Python 3.11+ and has no runtime dependencies:
 PYTHONPATH=src python -m unittest discover -s tests -v
 PYTHONPATH=src python -m mistype.cli examples/hello.jsonl
 PYTHONPATH=src python -m mistype.cli examples/keyboard-ni.jsonl
+PYTHONPATH=src python -m mistype.cli examples/touch-ni-hao.jsonl
 ```
 
-The fixture format is JSONL so traces can be recorded, redacted, diffed, and replayed independently of the eventual UI or hardware.
+The fixture format is JSONL so traces can be recorded, redacted, diffed, and replayed independently of the eventual UI or hardware. Replayable phrase fixtures (touch + keyboard, with expected text in `manifest.json`) live under `tests/fixtures/`.
 
-The touch prototype is currently a pure-Python mapper: `mistype.touch.nearest_key(surface, x, y)` accepts normalized coordinates and returns a replayable hypothesis.
+The touch prototype is a versioned full-split mapper (`LAYOUT_VERSION = "full-split-1"` in `mistype.touch`): `nearest_key(surface, x, y)` accepts normalized coordinates and returns a replayable hypothesis, `layout_keys`/`key_position` expose the layout for rendering and tests, and tone-key touches emit exact codes so the normalizer can attach the tone.
 
 For a complete simulator path, use `mistype.touch_session.TouchSession`, which exposes `touch`, `preview`, and `commit` while keeping event sequencing and normalization internal.
 

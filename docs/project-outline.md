@@ -44,6 +44,8 @@ Remaining exit work: add a session coordinator with debounce/commit and measure 
 
 Replace buttons with two visual surfaces. Start with a known layout, then add configurable regions and generous hit areas. Record coordinates and contact trajectories, not only recognized symbols.
 
+The known layout has landed as `full-split-1` (all 37 Zhuyin keys plus tone keys, legacy compact positions preserved), with replayable touch/keyboard fixtures under `tests/fixtures/`. Still open: configurable regions, trajectory recording, and a neutral-tone touch gesture.
+
 Exit: replaying a touch trace gives the same normalized phonetic events; compare error rate and subjective interruption against M1.
 
 ### M3 — Fuzzy spatial decoding *(keyboard-neighborhood prototype started)*
