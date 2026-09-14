@@ -44,7 +44,7 @@ Remaining exit work: add a session coordinator with debounce/commit and measure 
 
 Replace buttons with two visual surfaces. Start with a known layout, then add configurable regions and generous hit areas. Record coordinates and contact trajectories, not only recognized symbols.
 
-The known layout has landed as `full-split-1` (all 37 Zhuyin keys plus tone keys, legacy compact positions preserved), with replayable touch/keyboard fixtures under `tests/fixtures/`. Still open: configurable regions, trajectory recording, and a neutral-tone touch gesture.
+The known layout has landed as `full-split-1` (all 37 Zhuyin keys plus tone keys, legacy compact positions preserved), with replayable touch/keyboard fixtures under `tests/fixtures/`. Contact trajectories (`touch_move`/`touch_up`) are recorded as raw evidence without affecting decode. Still open: configurable regions. The neutral-tone gesture is answered, not open — tones are optional, see Open questions.
 
 Exit: replaying a touch trace gives the same normalized phonetic events; compare error rate and subjective interruption against M1.
 
@@ -75,6 +75,11 @@ The main comparison is not raw key accuracy. It is whether users can capture tho
 ## Open questions
 
 - Does tone input improve segmentation enough to justify a dedicated gesture?
+  Finding (fixture-backed, 9-phrase table): no. Tones are optional hints —
+  exact-tone matches decode at confidence 1.0, unique toneless matches at
+  0.6, ambiguous toneless input stays a visible bracket fallback. No
+  dedicated neutral-tone gesture while ambiguity stays near zero; revisit
+  with a larger table or user data.
 - Which split layouts match existing Zhuyin muscle memory across hand sizes?
 - Should a pause commit automatically, or only preview a reconstruction?
 - How should Latin text, numbers, punctuation, and code tokens interrupt a Zhuyin span?
