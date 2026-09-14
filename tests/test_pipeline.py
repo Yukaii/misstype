@@ -3,6 +3,7 @@ import unittest
 from mistype.decoder import OfflineDecoder
 from mistype.models import RawEvent
 from mistype.normalize import normalize_events
+from mistype.session import SessionCoordinator
 
 
 class PipelineTests(unittest.TestCase):
@@ -28,6 +29,23 @@ class PipelineTests(unittest.TestCase):
         tokens = normalize_events(self.events("BPMF:s", "BPMF:u", "BPMF:3"))
         self.assertEqual([token.value for token in tokens], ["ㄋ", "ㄧ"])
         self.assertEqual(tokens[-1].tone, "ˇ")
+
+    def test_session_commits_after_pause_and_keeps_revision(self):
+        session = SessionCoordinator(pause_ms=100)
+        for event in self.events("BPMF:s", "BPMF:u", "BPMF:3"):
+            session.ingest(event)
+        self.assertIsNone(session.maybe_commit(50_000_000))
+        result = session.maybe_commit(101_000_000)
+        self.assertIsNotNone(result)
+        self.assertEqual(result.text, "你")
+        self.assertEqual(session.committed_text, "你")
+        self.assertEqual(session.preview().text, "")
+
+    def test_session_rejects_non_monotonic_events(self):
+        session = SessionCoordinator()
+        session.ingest(self.events("BPMF:s")[0])
+        with self.assertRaises(ValueError):
+            session.ingest(RawEvent("test", 2, -1, "left", "key", "BPMF:u"))
 
 
 if __name__ == "__main__":

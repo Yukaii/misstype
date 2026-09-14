@@ -46,6 +46,8 @@ decode(PhoneticSpan, DecodeContext) -> DecodeResult
 
 Owns pause detection, explicit commit, revision, and cancellation. Capture events are accepted while a decode is running. A stale result must never overwrite a newer session revision.
 
+The M1 coordinator currently exposes `ingest`, `preview`, `maybe_commit`, and `commit`. It uses event monotonic timestamps and a configurable pause threshold; model-backed asynchronous cancellation remains future work.
+
 ### Presentation adapters
 
 The prototype UI shows the live trace, optional preview, committed text, and decoder status. A future IME adapter can consume committed text without changing the core pipeline.
