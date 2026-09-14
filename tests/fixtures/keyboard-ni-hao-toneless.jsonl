@@ -1,0 +1,4 @@
+{"code": "BPMF:s", "kind": "key", "sequence": 0, "session_id": "keyboard-ni-hao-toneless", "surface": "left", "timestamp_ns": 0}
+{"code": "BPMF:u", "kind": "key", "sequence": 1, "session_id": "keyboard-ni-hao-toneless", "surface": "right", "timestamp_ns": 90000000}
+{"code": "BPMF:c", "kind": "key", "sequence": 2, "session_id": "keyboard-ni-hao-toneless", "surface": "left", "timestamp_ns": 180000000}
+{"code": "BPMF:l", "kind": "key", "sequence": 3, "session_id": "keyboard-ni-hao-toneless", "surface": "right", "timestamp_ns": 270000000}
