@@ -73,11 +73,21 @@ def key_position(key: str) -> tuple[str, tuple[float, float]]:
     raise KeyError(f"unknown touch key: {key!r}")
 
 
-def nearest_key(surface: str, x: float, y: float) -> TouchHypothesis:
-    """Map normalized coordinates to a key and neighboring alternatives."""
-    layout = LEFT_KEYS if surface == "left" else RIGHT_KEYS
+def _check_surface(surface: str) -> None:
+    if surface not in ("left", "right"):
+        raise ValueError("surface must be 'left' or 'right'")
+
+
+def _check_coordinates(x: float, y: float) -> None:
     if not 0 <= x <= 1 or not 0 <= y <= 1:
         raise ValueError("touch coordinates must be normalized to [0, 1]")
+
+
+def nearest_key(surface: str, x: float, y: float) -> TouchHypothesis:
+    """Map normalized coordinates to a key and neighboring alternatives."""
+    _check_surface(surface)
+    _check_coordinates(x, y)
+    layout = LEFT_KEYS if surface == "left" else RIGHT_KEYS
     ranked = sorted(((hypot(x - px, y - py), key) for key, (px, py) in layout.items()))
     distance, key = ranked[0]
     confidence = max(0.1, 1.0 - distance * 1.5)
@@ -96,3 +106,25 @@ def touch_event(session_id: str, sequence: int, timestamp_ns: int,
                     code=hypothesis.code,
                     payload={"x": x, "y": y, "confidence": hypothesis.confidence,
                              "key": hypothesis.key, "layout": LAYOUT_VERSION})
+
+
+def touch_move(session_id: str, sequence: int, timestamp_ns: int,
+               surface: str, x: float, y: float, pressure: float | None = None) -> RawEvent:
+    """Record one raw contact-trajectory point. Moves carry no hypothesis;
+    the normalizer skips them, so decode results are unaffected."""
+    _check_surface(surface)
+    _check_coordinates(x, y)
+    payload: dict[str, object] = {"x": x, "y": y, "layout": LAYOUT_VERSION}
+    if pressure is not None:
+        payload["pressure"] = pressure
+    return RawEvent(session_id, sequence, timestamp_ns, surface, "touch_move",
+                    payload=payload)
+
+
+def touch_up(session_id: str, sequence: int, timestamp_ns: int,
+             surface: str, x: float, y: float) -> RawEvent:
+    """Record a contact lift. Like moves, lifts are raw evidence only."""
+    _check_surface(surface)
+    _check_coordinates(x, y)
+    return RawEvent(session_id, sequence, timestamp_ns, surface, "touch_up",
+                    payload={"x": x, "y": y, "layout": LAYOUT_VERSION})
