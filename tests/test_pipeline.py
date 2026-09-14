@@ -4,6 +4,7 @@ from mistype.decoder import OfflineDecoder
 from mistype.models import RawEvent
 from mistype.normalize import normalize_events
 from mistype.session import SessionCoordinator
+from mistype.touch import nearest_key
 
 
 class PipelineTests(unittest.TestCase):
@@ -55,6 +56,15 @@ class PipelineTests(unittest.TestCase):
     def test_fuzzy_phrase_uses_context_to_correct_typo(self):
         tokens = normalize_events(self.events("BPMF_FUZZY:d", "BPMF:u", "BPMF:3"))
         self.assertEqual(OfflineDecoder().decode(tokens).text, "你")
+
+    def test_touch_surface_maps_coordinates_to_nearest_key(self):
+        hypothesis = nearest_key("left", 0.30, 0.50)
+        self.assertEqual(hypothesis.key, "a")
+        self.assertTrue(hypothesis.alternatives)
+
+    def test_touch_rejects_out_of_range_coordinates(self):
+        with self.assertRaises(ValueError):
+            nearest_key("right", 1.1, 0.5)
 
 
 if __name__ == "__main__":
