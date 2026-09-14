@@ -42,13 +42,13 @@ All decoders implement the same asynchronous contract:
 decode(PhoneticSpan, DecodeContext) -> DecodeResult
 ```
 
-`DecodeResult` contains text, token alignment, confidence, decoder name/version, latency, and optional alternatives. The offline decoder is always available. Local models and remote LLMs are adapters with deadlines and cancellation.
+`DecodeResult` contains text, token alignment, confidence, decoder name/version, latency, and optional alternatives. The offline decoder is always available. Local models and remote LLMs are adapters behind `DecoderProtocol`, invoked via `decode_with_fallback`: the offline result is computed first, and an adapter result is accepted only when on time, healthy, and stamped for the current revision. `DecodeContext` carries the revision plus the deadline in milliseconds; `StubModelAdapter` locks the timeout/staleness behavior until a real model is chosen.
 
 ### Session coordinator
 
 Owns pause detection, explicit commit, revision, and cancellation. Capture events are accepted while a decode is running. A stale result must never overwrite a newer session revision.
 
-The M1 coordinator currently exposes `ingest`, `preview`, `maybe_commit`, and `commit`. It uses event monotonic timestamps and a configurable pause threshold; model-backed asynchronous cancellation remains future work.
+The M1 coordinator currently exposes `ingest`, `preview`, `maybe_commit`, and `commit`, plus `preview_with_adapter` for a deadline-bounded model preview that can only fall back to offline, never block past the deadline. It uses event monotonic timestamps and a configurable pause threshold; fully asynchronous model cancellation remains future work.
 
 ### Presentation adapters
 
