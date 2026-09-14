@@ -24,7 +24,7 @@ preview and committed text adapters
 
 Platform-specific adapters emit `RawEvent` values for both surfaces. The first implementation may be a desktop or mobile simulator. It must not know Chinese rules or call a model.
 
-The M2 touch mapper accepts normalized surface coordinates and returns a nearest physical key plus weighted neighbors. It is deliberately independent of rendering and emits the same `BPMF_FUZZY:<key>` representation used by keyboard fuzzy input.
+The M2 touch mapper accepts normalized surface coordinates and returns a nearest physical key plus weighted neighbors. It is deliberately independent of rendering and emits the same `BPMF_FUZZY:<key>` representation used by keyboard fuzzy input. The current layout is versioned (`LAYOUT_VERSION = "full-split-1"`: 20 left-hand keys plus tones 3/4, 21 right-hand keys plus tones 6/7); every event payload keeps the raw `(x, y)` evidence alongside the hypothesis. Tone-key touches emit exact `BPMF:<key>` codes so the normalizer can attach the tone. Neutral tone (˙) via touch is a known gap — SPACE remains a keyboard boundary gesture until a dedicated touch region or swipe is prototyped.
 
 ### Trace store and replay
 
