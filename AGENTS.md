@@ -33,7 +33,7 @@ A change is ready when its behavior is covered by a replayable test or documente
 
 ## Canonical commands
 
-The M0 implementation uses Python 3.11+ with no runtime dependencies:
+The current prototype uses Python 3.11+ with no runtime dependencies:
 
 ```sh
 PYTHONPATH=src python -m unittest discover -s tests -v

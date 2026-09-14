@@ -1,4 +1,7 @@
 import json
+import os
+import subprocess
+import sys
 import unittest
 from pathlib import Path
 
@@ -76,6 +79,26 @@ class FixtureTests(unittest.TestCase):
         events = [RawEvent("test", 0, 0, "left", "key", "BPMF:g")]
         ambiguous = Ambiguous().decode(normalize_events(events))
         self.assertEqual(ambiguous.text, "[ㄕ]")
+
+    def test_long_unknown_fuzzy_input_has_a_bounded_decode(self):
+        script = """
+from mistype.models import RawEvent
+from mistype.normalize import normalize_events
+from mistype.decoder import OfflineDecoder
+events = [RawEvent('long', i, i, 'left', 'key', 'BPMF_FUZZY:d') for i in range(14)]
+OfflineDecoder().decode(normalize_events(events))
+"""
+        env = dict(os.environ, PYTHONPATH="src")
+        completed = subprocess.run([sys.executable, "-c", script], env=env,
+                                   capture_output=True, text=True, timeout=2)
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+
+    def test_fuzzy_toneless_input_uses_context(self):
+        codes = ["BPMF_FUZZY:d", "BPMF:u"]
+        events = [RawEvent("test", i, i, "left", "key", code)
+                  for i, code in enumerate(codes)]
+        result = OfflineDecoder().decode(normalize_events(events))
+        self.assertEqual((result.text, result.confidence), ("你", 0.6))
 
     def test_manifest_fixtures_replay_deterministically(self):
         manifest = json.loads((FIXTURES / "manifest.json").read_text(encoding="utf-8"))

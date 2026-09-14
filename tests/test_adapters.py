@@ -1,9 +1,11 @@
 import time
 import unittest
+from threading import Event, Thread
 
 from mistype.adapters import (
     DecoderProtocol,
     StubModelAdapter,
+    AdapterRunner,
     decode_with_fallback,
 )
 from mistype.decoder import OfflineDecoder
@@ -69,6 +71,45 @@ class AdapterTests(unittest.TestCase):
         self.assertEqual(result.text, "你好")
         committed = session.commit()
         self.assertEqual(session.committed_text, committed.text)
+
+    def test_runner_cancels_timeout_and_refuses_overlapping_work(self):
+        runner = AdapterRunner()
+        context = DecodeContext(revision=0, deadline_ms=1)
+        result = decode_with_fallback([], context, StubModelAdapter(latency_ms=500),
+                                      runner=runner)
+        self.assertEqual(result.decoder_id, "offline-fixture")
+        self.assertTrue(context.cancel_event.is_set())
+        # The cancelled worker may still be unwinding; no second worker is
+        # admitted until that slot is free.
+        second = decode_with_fallback([], DecodeContext(deadline_ms=1),
+                                      StubModelAdapter(latency_ms=500), runner=runner)
+        self.assertEqual(second.decoder_id, "offline-fixture")
+
+    def test_coordinator_rejects_model_result_after_new_input(self):
+        started, release = Event(), Event()
+
+        class Controlled:
+            decoder_id = "controlled"
+            decoder_version = "1"
+
+            def decode(self, tokens, context=None):
+                started.set()
+                release.wait(1)
+                return StubModelAdapter().decode(tokens, context)
+
+        session = SessionCoordinator()
+        for event in ni_hao_events():
+            session.ingest(event)
+        result_box = []
+        thread = Thread(target=lambda: result_box.append(
+            session.preview_with_adapter(Controlled(), deadline_ms=1000)))
+        thread.start()
+        self.assertTrue(started.wait(1))
+        session.ingest(RawEvent("test", 6, 600_000_000, "left", "key", "LATIN:AI"))
+        release.set()
+        thread.join(1)
+        self.assertEqual(result_box[0].text, "你好AI")
+        self.assertEqual(result_box[0].revision, session.revision)
 
 
 if __name__ == "__main__":

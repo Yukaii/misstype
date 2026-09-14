@@ -42,13 +42,13 @@ All decoders implement the same asynchronous contract:
 decode(PhoneticSpan, DecodeContext) -> DecodeResult
 ```
 
-`DecodeResult` contains text, token alignment, confidence, decoder name/version, latency, and optional alternatives. The offline decoder is always available. Local models and remote LLMs are adapters behind `DecoderProtocol`, invoked via `decode_with_fallback`: the offline result is computed first, and an adapter result is accepted only when on time, healthy, and stamped for the current revision. `DecodeContext` carries the revision plus the deadline in milliseconds; `StubModelAdapter` locks the timeout/staleness behavior until a real model is chosen.
+`DecodeResult` contains text, token alignment, confidence, decoder name/version, latency, and optional alternatives. The offline decoder is always available. Local models and remote LLMs are adapters behind `DecoderProtocol`, invoked via `decode_with_fallback`: the offline result is computed first, and an adapter result is accepted only when on time, healthy, and stamped for the current revision. `DecodeContext` carries the revision, deadline in milliseconds, and cooperative cancellation event. `AdapterRunner` admits one adapter request at a time; a timeout signals cancellation and later requests fall back while an uncooperative worker unwinds. `StubModelAdapter` locks the timeout/staleness behavior until a real model is chosen.
 
 ### Session coordinator
 
 Owns pause detection, explicit commit, revision, and cancellation. Capture events are accepted while a decode is running. A stale result must never overwrite a newer session revision.
 
-The M1 coordinator currently exposes `ingest`, `preview`, `maybe_commit`, and `commit`, plus `preview_with_adapter` for a deadline-bounded model preview that can only fall back to offline, never block past the deadline. It uses event monotonic timestamps and a configurable pause threshold; fully asynchronous model cancellation remains future work.
+The coordinator exposes `ingest`, `preview`, `maybe_commit`, and `commit`, plus `preview_with_adapter` for a deadline-bounded model preview. It snapshots the request revision and rechecks it before returning, so input received while a model runs always wins. It uses event monotonic timestamps and a configurable pause threshold.
 
 ### Presentation adapters
 
@@ -91,8 +91,8 @@ Use monotonic timestamps for ordering and a separate wall-clock field only for d
 4. Tone marks are optional hints: an exact-tone match commits at full
    confidence, a unique toneless match at reduced confidence, and an
    ambiguous toneless match stays a visible fallback for later repair.
-5. If explicitly enabled, send the completed phonetic span to a local model or remote LLM adapter with a strict deadline.
-6. Accept an enhanced result only if it belongs to the current revision; otherwise retain the offline result.
+5. If explicitly enabled, send the completed phonetic span to a local model or remote LLM adapter with a strict deadline and cooperative cancellation.
+6. Accept an enhanced result only if it belongs to the current revision; otherwise decode the latest offline snapshot.
 
 Remote input is opt-in and should be represented in the UI and event metadata. No remote call is required for correctness.
 

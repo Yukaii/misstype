@@ -8,7 +8,7 @@ radius r (normalized units, seeded, clamped to the surface), replay
 through the real pipeline, and report the match rate per radius — once
 with fuzzy alternatives and once with alternatives stripped (ablation).
 The gap between the two columns is the measured contribution of
-keyboard-neighborhood fuzziness. Offline only; exits 0 (report, not gate).
+spatial/keyboard fuzziness. Offline only; exits 0 (report, not gate).
 """
 
 import argparse
@@ -47,7 +47,7 @@ def jitter_trace(keys: list[str], radius: float, seed: int,
         surface, (x, y) = key_position(key)
         if radius > 0:
             angle = rng.uniform(0, 2 * math.pi)
-            distance = rng.uniform(0, radius)
+            distance = radius * math.sqrt(rng.random())
             x = min(1.0, max(0.0, x + distance * math.cos(angle)))
             y = min(1.0, max(0.0, y + distance * math.sin(angle)))
         events.append(touch_event(session_id, i, i * STEP_NS, surface, x, y))

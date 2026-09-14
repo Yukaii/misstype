@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from threading import Event
 from typing import Any, Literal
 
 
@@ -39,6 +40,7 @@ class DecodeContext:
 
     revision: int = 0
     deadline_ms: float = 200.0
+    cancel_event: Event = field(default_factory=Event, compare=False, repr=False)
 
 
 @dataclass(frozen=True)
@@ -50,4 +52,3 @@ class DecodeResult:
     decoder_version: str
     latency_ms: float
     alignment: tuple[tuple[str, str], ...] = ()
-
