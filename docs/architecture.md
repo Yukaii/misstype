@@ -88,8 +88,11 @@ Use monotonic timestamps for ordering and a separate wall-clock field only for d
 1. Normalize and segment without blocking capture.
 2. Produce an offline preview after a short debounce.
 3. On commit or a longer pause, run phrase-level offline decoding.
-4. If explicitly enabled, send the completed phonetic span to a local model or remote LLM adapter with a strict deadline.
-5. Accept an enhanced result only if it belongs to the current revision; otherwise retain the offline result.
+4. Tone marks are optional hints: an exact-tone match commits at full
+   confidence, a unique toneless match at reduced confidence, and an
+   ambiguous toneless match stays a visible fallback for later repair.
+5. If explicitly enabled, send the completed phonetic span to a local model or remote LLM adapter with a strict deadline.
+6. Accept an enhanced result only if it belongs to the current revision; otherwise retain the offline result.
 
 Remote input is opt-in and should be represented in the UI and event metadata. No remote call is required for correctness.
 
