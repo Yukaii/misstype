@@ -70,6 +70,8 @@ Exit: report accuracy, correction rate, latency, and the point at which fuzzines
 
 Add a local sentence decoder behind the same interface. An explicitly enabled LLM adapter may rerank or repair a completed trace, but must time out to the offline result and never block capture.
 
+The adapter seam has landed without weights: `DecodeContext` (revision + deadline), `DecoderProtocol`, `decode_with_fallback` (offline-first, rejects slow/failed/stale adapter results), and a `StubModelAdapter` proving a 5 s model behind a 10 ms deadline still returns the offline text in well under a second. Remaining: model choice, latency budgets, and provenance surfacing.
+
 Exit: offline mode is useful on its own; model provenance and timing are visible in measurements.
 
 ### M5 — macOS Input Method adapter
