@@ -1,0 +1,6 @@
+{"code": "BPMF:s", "kind": "key", "sequence": 0, "session_id": "keyboard-mixed-ni-ai", "surface": "left", "timestamp_ns": 0}
+{"code": "BPMF:u", "kind": "key", "sequence": 1, "session_id": "keyboard-mixed-ni-ai", "surface": "right", "timestamp_ns": 90000000}
+{"code": "BPMF:3", "kind": "key", "sequence": 2, "session_id": "keyboard-mixed-ni-ai", "surface": "left", "timestamp_ns": 180000000}
+{"code": "SPACE", "kind": "key", "sequence": 3, "session_id": "keyboard-mixed-ni-ai", "surface": "left", "timestamp_ns": 270000000}
+{"code": "LATIN:AI", "kind": "key", "sequence": 4, "session_id": "keyboard-mixed-ni-ai", "surface": "right", "timestamp_ns": 360000000}
+{"code": "LATIN:!", "kind": "key", "sequence": 5, "session_id": "keyboard-mixed-ni-ai", "surface": "right", "timestamp_ns": 450000000}
