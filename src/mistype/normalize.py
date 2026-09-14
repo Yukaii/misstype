@@ -3,6 +3,7 @@ from collections.abc import Iterable
 from .models import PhoneticToken, RawEvent
 from .phonetic import TONE_KEYS, key_to_token
 from .fuzzy import fuzzy_candidates
+from .touch import payload_candidates
 
 
 def normalize_events(events: Iterable[RawEvent]) -> list[PhoneticToken]:
@@ -40,7 +41,10 @@ def normalize_events(events: Iterable[RawEvent]) -> list[PhoneticToken]:
                                             previous.value, TONE_KEYS[key], previous.confidence,
                                             previous.alternatives)
                 continue
-            candidates = fuzzy_candidates(key)
+            # Prefer coordinate-aware candidates carried in the touch payload;
+            # fall back to keyboard neighborhoods for the keyboard path and
+            # traces recorded before spatial payloads existed.
+            candidates = payload_candidates(event.payload) or fuzzy_candidates(key)
             if candidates:
                 value, confidence = candidates[0]
                 tokens.append(PhoneticToken(span, index, "zhuyin", value, None,

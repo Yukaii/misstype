@@ -104,7 +104,7 @@ def main(argv: list[str] | None = None) -> int:
               f"{row['fuzzy_match']:<6.2f} {row['ablated_match']:<8.2f} "
               f"{row['exact_confidence']:<10.2f}")
     print("---")
-    print("fuzzy - no-fuzzy = measured rescue rate of keyboard-neighborhood fuzziness")
+    print("fuzzy - no-fuzzy = measured rescue rate of spatial/keyboard fuzziness")
     return 0
 
 

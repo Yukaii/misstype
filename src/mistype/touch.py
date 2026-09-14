@@ -45,6 +45,8 @@ class TouchHypothesis:
     key: str
     confidence: float
     alternatives: tuple[tuple[str, float], ...]
+    spatial: tuple[tuple[str, float], ...] = ()
+    """Distance-ranked (key, weight) starting with the nearest key itself."""
 
     @property
     def code(self) -> str:
@@ -83,6 +85,36 @@ def _check_coordinates(x: float, y: float) -> None:
         raise ValueError("touch coordinates must be normalized to [0, 1]")
 
 
+# How many distance-ranked neighbors (beyond the nearest key itself) travel
+# in the event payload for coordinate-aware decoding.
+SPATIAL_NEIGHBOR_COUNT = 4
+
+
+def _weight(distance: float) -> float:
+    return max(0.1, 1.0 - distance * 1.5)
+
+
+def payload_candidates(payload: object) -> tuple[tuple[str, float], ...]:
+    """Extract spatial Zhuyin candidates from a touch payload.
+
+    Returns () when the payload carries no usable neighbor ranking, so the
+    caller falls back to keyboard neighborhoods (keyboard path, old traces).
+    """
+    if not isinstance(payload, dict):
+        return ()
+    neighbors = payload.get("neighbors")
+    if not isinstance(neighbors, list):
+        return ()
+    candidates = []
+    for entry in neighbors:
+        if (isinstance(entry, (list, tuple)) and len(entry) == 2
+                and isinstance(entry[0], str) and isinstance(entry[1], (int, float))):
+            key, weight = entry
+            if key in KEY_TO_ZHUYIN:
+                candidates.append((KEY_TO_ZHUYIN[key], max(0.1, min(1.0, float(weight)))))
+    return tuple(candidates)
+
+
 def nearest_key(surface: str, x: float, y: float) -> TouchHypothesis:
     """Map normalized coordinates to a key and neighboring alternatives."""
     _check_surface(surface)
@@ -90,12 +122,13 @@ def nearest_key(surface: str, x: float, y: float) -> TouchHypothesis:
     layout = LEFT_KEYS if surface == "left" else RIGHT_KEYS
     ranked = sorted(((hypot(x - px, y - py), key) for key, (px, py) in layout.items()))
     distance, key = ranked[0]
-    confidence = max(0.1, 1.0 - distance * 1.5)
+    confidence = _weight(distance)
     alternatives = []
     for alt in KEY_NEIGHBORS.get(key, ()):
         if alt in KEY_TO_ZHUYIN:
             alternatives.append((alt, max(0.1, confidence - 0.2)))
-    return TouchHypothesis(key, confidence, tuple(alternatives))
+    spatial = tuple((other, _weight(dist)) for dist, other in ranked[:SPATIAL_NEIGHBOR_COUNT + 1])
+    return TouchHypothesis(key, confidence, tuple(alternatives), spatial)
 
 
 def touch_event(session_id: str, sequence: int, timestamp_ns: int,
@@ -105,7 +138,8 @@ def touch_event(session_id: str, sequence: int, timestamp_ns: int,
     return RawEvent(session_id, sequence, timestamp_ns, surface, "touch_down",
                     code=hypothesis.code,
                     payload={"x": x, "y": y, "confidence": hypothesis.confidence,
-                             "key": hypothesis.key, "layout": LAYOUT_VERSION})
+                             "key": hypothesis.key, "layout": LAYOUT_VERSION,
+                             "neighbors": [list(pair) for pair in hypothesis.spatial]})
 
 
 def touch_move(session_id: str, sequence: int, timestamp_ns: int,
