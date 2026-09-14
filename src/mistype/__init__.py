@@ -5,5 +5,6 @@ from .normalize import normalize_events
 from .decoder import OfflineDecoder
 from .session import SessionCoordinator
 from .touch import TouchHypothesis, nearest_key
+from .touch_session import TouchSession
 
-__all__ = ["RawEvent", "PhoneticToken", "DecodeResult", "normalize_events", "OfflineDecoder", "SessionCoordinator", "TouchHypothesis", "nearest_key"]
+__all__ = ["RawEvent", "PhoneticToken", "DecodeResult", "normalize_events", "OfflineDecoder", "SessionCoordinator", "TouchHypothesis", "nearest_key", "TouchSession"]

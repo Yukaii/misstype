@@ -5,6 +5,7 @@ from mistype.models import RawEvent
 from mistype.normalize import normalize_events
 from mistype.session import SessionCoordinator
 from mistype.touch import nearest_key, touch_event
+from mistype.touch_session import TouchSession
 
 
 class PipelineTests(unittest.TestCase):
@@ -71,6 +72,13 @@ class PipelineTests(unittest.TestCase):
         tokens = normalize_events([event])
         self.assertEqual(tokens[0].kind, "zhuyin")
         self.assertEqual(tokens[0].value, "ㄇ")
+
+    def test_touch_session_provides_preview_and_commit(self):
+        session = TouchSession()
+        session.touch("left", 0.30, 0.50, 0)
+        self.assertEqual(session.preview().text, "[ㄇ]")
+        self.assertEqual(session.commit().text, "[ㄇ]")
+        self.assertEqual(session.committed_text, "[ㄇ]")
 
 
 if __name__ == "__main__":

@@ -26,4 +26,6 @@ The fixture format is JSONL so traces can be recorded, redacted, diffed, and rep
 
 The touch prototype is currently a pure-Python mapper: `mistype.touch.nearest_key(surface, x, y)` accepts normalized coordinates and returns a replayable hypothesis.
 
+For a complete simulator path, use `mistype.touch_session.TouchSession`, which exposes `touch`, `preview`, and `commit` while keeping event sequencing and normalization internal.
+
 The eventual macOS version will be an InputMethodKit adapter around this core. System-wide IME integration is intentionally an M5 milestone; the simulator and replay pipeline run earlier on macOS without installing an input method.
