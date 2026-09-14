@@ -31,6 +31,13 @@ This repository is an experimental input device and decoder. The current goal is
 
 A change is ready when its behavior is covered by a replayable test or documented manual check, the relevant command has passed, and the docs describe any new assumption or limitation. Prefer small reversible changes over speculative abstractions.
 
-## Suggested initial commands
+## Canonical commands
 
-The implementation language and package manager are intentionally undecided. Once selected, add the canonical commands here and keep them runnable from the repository root. Until then, use scripts under `tools/` for deterministic replay and measurement rather than ad-hoc notebooks.
+The M0 implementation uses Python 3.11+ with no runtime dependencies:
+
+```sh
+PYTHONPATH=src python -m unittest discover -s tests -v
+PYTHONPATH=src python -m mistype.cli examples/hello.jsonl
+```
+
+Use scripts under `tools/` for deterministic replay and measurement rather than ad-hoc notebooks. Keep these commands runnable from the repository root when the implementation language changes.
