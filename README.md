@@ -21,6 +21,7 @@ PYTHONPATH=src python -m unittest discover -s tests -v
 PYTHONPATH=src python -m mistype.cli examples/hello.jsonl
 PYTHONPATH=src python -m mistype.cli examples/keyboard-ni.jsonl
 PYTHONPATH=src python -m mistype.cli examples/touch-ni-hao.jsonl
+PYTHONPATH=src python tools/bench.py
 ```
 
 The fixture format is JSONL so traces can be recorded, redacted, diffed, and replayed independently of the eventual UI or hardware. Replayable phrase fixtures (touch + keyboard, with expected text in `manifest.json`) live under `tests/fixtures/`.
