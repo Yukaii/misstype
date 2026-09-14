@@ -2,15 +2,42 @@ from dataclasses import dataclass
 from math import hypot
 
 from .fuzzy import KEY_NEIGHBORS
-from .phonetic import KEY_TO_ZHUYIN
+from .phonetic import KEY_TO_ZHUYIN, TONE_KEYS
 from .models import RawEvent
 
 
-# A compact split-friendly layout in normalized surface coordinates.
-LEFT_KEYS = {"1": (0.15, 0.20), "q": (0.30, 0.20), "a": (0.30, 0.50), "z": (0.30, 0.80),
-             "2": (0.50, 0.20), "w": (0.50, 0.50), "s": (0.50, 0.80)}
-RIGHT_KEYS = {"8": (0.15, 0.20), "i": (0.30, 0.20), "k": (0.30, 0.50), ",": (0.30, 0.80),
-              "9": (0.50, 0.20), "o": (0.50, 0.50), "l": (0.50, 0.80)}
+# Full split layout, versioned for replay. Normalized [0, 1] per surface.
+# The left surface owns the left-hand QWERTY columns plus tones 3/4;
+# the right surface owns the right-hand columns plus tones 6/7.
+# Legacy compact positions are preserved exactly so old traces replay.
+LAYOUT_VERSION = "full-split-1"
+
+LEFT_KEYS = {
+    # Legacy compact positions (kept for replay compatibility).
+    "1": (0.15, 0.20), "q": (0.30, 0.20), "a": (0.30, 0.50), "z": (0.30, 0.80),
+    "2": (0.50, 0.20), "w": (0.50, 0.50), "s": (0.50, 0.80),
+    # Number/tone row and QWERTY middle columns.
+    "3": (0.70, 0.10), "4": (0.88, 0.10),
+    "e": (0.70, 0.23), "r": (0.88, 0.23),
+    "d": (0.70, 0.36), "f": (0.88, 0.36),
+    "c": (0.70, 0.49), "v": (0.88, 0.49),
+    "x": (0.70, 0.62), "g": (0.88, 0.62),
+    "5": (0.70, 0.75), "b": (0.88, 0.75),
+    "t": (0.70, 0.88),
+}
+RIGHT_KEYS = {
+    # Legacy compact positions (kept for replay compatibility).
+    "8": (0.15, 0.20), "i": (0.30, 0.20), "k": (0.30, 0.50), ",": (0.30, 0.80),
+    "9": (0.50, 0.20), "o": (0.50, 0.50), "l": (0.50, 0.80),
+    # Right-hand columns and tone keys.
+    "6": (0.70, 0.10), "7": (0.88, 0.10),
+    "y": (0.70, 0.23), "u": (0.88, 0.23),
+    "h": (0.70, 0.36), "j": (0.88, 0.36),
+    "n": (0.70, 0.49), "m": (0.88, 0.49),
+    "0": (0.70, 0.62), "/": (0.88, 0.62),
+    "p": (0.70, 0.75), ".": (0.88, 0.75),
+    ";": (0.70, 0.88), "-": (0.88, 0.88),
+}
 
 
 @dataclass(frozen=True)
@@ -21,7 +48,29 @@ class TouchHypothesis:
 
     @property
     def code(self) -> str:
+        # Tone keys have no fuzzy Zhuyin neighbors; emit them exactly so the
+        # normalizer can attach the tone to the preceding symbol.
+        if self.key in TONE_KEYS:
+            return f"BPMF:{self.key}"
         return f"BPMF_FUZZY:{self.key}"
+
+
+def layout_keys(surface: str) -> dict[str, tuple[float, float]]:
+    """Return the key positions for one surface, for UI rendering and tests."""
+    if surface == "left":
+        return dict(LEFT_KEYS)
+    if surface == "right":
+        return dict(RIGHT_KEYS)
+    raise ValueError("surface must be 'left' or 'right'")
+
+
+def key_position(key: str) -> tuple[str, tuple[float, float]]:
+    """Return (surface, (x, y)) for a physical key; raises KeyError if unknown."""
+    if key in LEFT_KEYS:
+        return "left", LEFT_KEYS[key]
+    if key in RIGHT_KEYS:
+        return "right", RIGHT_KEYS[key]
+    raise KeyError(f"unknown touch key: {key!r}")
 
 
 def nearest_key(surface: str, x: float, y: float) -> TouchHypothesis:
@@ -45,4 +94,5 @@ def touch_event(session_id: str, sequence: int, timestamp_ns: int,
     hypothesis = nearest_key(surface, x, y)
     return RawEvent(session_id, sequence, timestamp_ns, surface, "touch_down",
                     code=hypothesis.code,
-                    payload={"x": x, "y": y, "confidence": hypothesis.confidence})
+                    payload={"x": x, "y": y, "confidence": hypothesis.confidence,
+                             "key": hypothesis.key, "layout": LAYOUT_VERSION})
