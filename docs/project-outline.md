@@ -50,7 +50,13 @@ Exit: replaying a touch trace gives the same normalized phonetic events; compare
 
 ### M3 — Fuzzy spatial decoding *(keyboard-neighborhood prototype started)*
 
-The first fuzzy layer now maps a physical key to weighted neighboring Zhuyin symbols and lets phrase decoding choose among alternatives. Coordinate-based uncertainty and user measurements remain to be added.
+The first fuzzy layer now maps a physical key to weighted neighboring Zhuyin symbols and lets phrase decoding choose among alternatives. `tools/noise.py` measures the rescue rate on seeded jittered taps (run: `PYTHONPATH=src python tools/noise.py`). Coordinate-based uncertainty and user measurements remain to be added.
+
+Finding (synthetic, 20 seeds × 2 phrases): jitter radius ≤ 0.05 decodes at
+100% with no fuzzy help needed; radius 0.08–0.15 is the fuzzy band
+(+10 to +35pp over the ablated decoder, e.g. ni-hao at 0.15: 0.50 vs
+0.15); radius ≥ 0.20 collapses both paths (0.00–0.15). Longer phrases
+degrade faster, as expected from compounding per-tap error.
 
 Exit: report accuracy, correction rate, latency, and the point at which fuzziness stops helping.
 
