@@ -1,7 +1,7 @@
 from collections.abc import Iterable
 
 from .models import PhoneticToken, RawEvent
-from .phonetic import key_to_token
+from .phonetic import TONE_KEYS, key_to_token
 from .fuzzy import fuzzy_candidates
 
 
@@ -33,6 +33,13 @@ def normalize_events(events: Iterable[RawEvent]) -> list[PhoneticToken]:
                 index += 1
         elif code.startswith("BPMF_FUZZY:"):
             key = code[11:]
+            if key in TONE_KEYS and tokens and tokens[-1].kind == "zhuyin":
+                # Older touch traces emitted tone keys as fuzzy hypotheses.
+                previous = tokens[-1]
+                tokens[-1] = PhoneticToken(previous.span_id, previous.index, previous.kind,
+                                            previous.value, TONE_KEYS[key], previous.confidence,
+                                            previous.alternatives)
+                continue
             candidates = fuzzy_candidates(key)
             if candidates:
                 value, confidence = candidates[0]
