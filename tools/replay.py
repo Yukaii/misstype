@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 
 from mistype.decoder import OfflineDecoder
-from mistype.models import DecodeResult, PhoneticToken, RawEvent
+from mistype.models import DecodeContext, DecodeResult, PhoneticToken, RawEvent
 from mistype.normalize import normalize_events
 
 
@@ -29,7 +29,7 @@ def load_events(path: str | Path) -> list[RawEvent]:
 def run(events: list[RawEvent], revision: int = 0) -> tuple[DecodeResult, list[PhoneticToken]]:
     """Replay events through normalization and offline decoding."""
     tokens = normalize_events(events)
-    return OfflineDecoder().decode(tokens, revision=revision), tokens
+    return OfflineDecoder().decode(tokens, DecodeContext(revision=revision)), tokens
 
 
 def summarize(path: str | Path) -> dict:

@@ -1,7 +1,7 @@
 import unittest
 
 from mistype.decoder import OfflineDecoder
-from mistype.models import RawEvent
+from mistype.models import DecodeContext, RawEvent
 from mistype.normalize import normalize_events
 from mistype.session import SessionCoordinator
 from mistype.touch import nearest_key, touch_event
@@ -14,7 +14,7 @@ class PipelineTests(unittest.TestCase):
 
     def test_replay_decodes_zhuyin_phrase(self):
         tokens = normalize_events(self.events("ZH:ㄋ", "ZH:ㄧˇ", "SPACE", "ZH:ㄏ", "ZH:ㄠˇ"))
-        result = OfflineDecoder().decode(tokens, revision=3)
+        result = OfflineDecoder().decode(tokens, DecodeContext(revision=3))
         self.assertEqual(result.text, "你好")
         self.assertEqual(result.revision, 3)
         self.assertEqual(result.decoder_id, "offline-fixture")

@@ -2,7 +2,7 @@ import time
 from itertools import product
 from collections.abc import Sequence
 
-from .models import DecodeResult, PhoneticToken
+from .models import DecodeContext, DecodeResult, PhoneticToken
 
 
 TONE_MARKS = "ˊˇˋ˙"
@@ -41,7 +41,9 @@ class OfflineDecoder:
         for key, value in self.phrases.items():
             self._toneless_index.setdefault(strip_tone(key), []).append((key, value))
 
-    def decode(self, tokens: Sequence[PhoneticToken], revision: int = 0) -> DecodeResult:
+    def decode(self, tokens: Sequence[PhoneticToken],
+               context: DecodeContext | None = None) -> DecodeResult:
+        revision = context.revision if context is not None else 0
         started = time.perf_counter_ns()
         rendered: list[str] = []
         alignment: list[tuple[str, str]] = []
