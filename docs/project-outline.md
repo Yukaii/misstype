@@ -58,6 +58,12 @@ Finding (synthetic, 20 seeds × 2 phrases): jitter radius ≤ 0.05 decodes at
 0.15); radius ≥ 0.20 collapses both paths (0.00–0.15). Longer phrases
 degrade faster, as expected from compounding per-tap error.
 
+Follow-up, coordinate-aware payloads: distance-ranked spatial neighbors in
+the touch payload (normalizer prefers them, keyboard neighborhoods remain
+the fallback) widened the rescue band — ni-hao at 0.15: 0.50 → 0.70, at
+0.20: 0.15 → 0.50; zao-shang-hao at 0.15: 0.25 → 0.45, at 0.20: 0.00 →
+0.25. Old traces without spatial payloads replay unchanged.
+
 Exit: report accuracy, correction rate, latency, and the point at which fuzziness stops helping.
 
 ### M4 — Local model and optional LLM
