@@ -58,9 +58,11 @@ Add a local sentence decoder behind the same interface. An explicitly enabled LL
 
 Exit: offline mode is useful on its own; model provenance and timing are visible in measurements.
 
-### M5 — Platform adapter decision
+### M5 — macOS Input Method adapter
 
-Only after the interaction passes the above gates, choose a desktop/mobile shell and investigate IME integration or dedicated hardware.
+Package the stable core behind a thin macOS InputMethodKit adapter. `IMKServer` and `IMKInputController` own system integration; they forward key events into the core and send committed text back to the client app. Keep marked text, commit/cancel, language switching, and preferences in the adapter. Do not put fuzzy decoding or model calls in AppKit code.
+
+The macOS adapter is deliberately deferred until M2–M4 establish interaction quality and latency. A simulator can run on macOS earlier, but system-wide IME installation is a separate milestone.
 
 ## Measures
 
