@@ -1,1 +1,1 @@
-{"expected_text": {"keyboard-mixed-ni-ai.jsonl": "你AI!", "keyboard-wo-shi-xue-sheng.jsonl": "我是學生", "keyboard-zhe-shi-you-qu.jsonl": "這是有趣的實驗", "touch-ni-hao.jsonl": "你好", "touch-zao-shang-hao.jsonl": "早上好"}, "layout_version": "full-split-1", "version": 1}
+{"expected_text": {"keyboard-mixed-ni-ai.jsonl": "你AI!", "keyboard-ni-hao-toneless.jsonl": "你好", "keyboard-wo-shi-xue-sheng.jsonl": "我是學生", "keyboard-zhe-shi-you-qu.jsonl": "這是有趣的實驗", "touch-ni-hao.jsonl": "你好", "touch-zao-shang-hao.jsonl": "早上好"}, "layout_version": "full-split-1", "version": 1}

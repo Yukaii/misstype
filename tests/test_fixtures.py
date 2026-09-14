@@ -32,6 +32,13 @@ PHRASE_SEQUENCES = {
 }
 
 
+def drop_tone_keys(codes):
+    """Return the tone-optional variant: no tone taps, neutral-tone SPACE
+    becomes a plain syllable separator."""
+    return ["SPACE" if code == "BPMF:SPACE" else code for code in codes
+            if code not in ("BPMF:3", "BPMF:4", "BPMF:6", "BPMF:7")]
+
+
 def decode_codes(codes):
     events = [RawEvent("test", i, i * 90_000_000, "left", "key", code)
               for i, code in enumerate(codes)]
@@ -46,6 +53,29 @@ class FixtureTests(unittest.TestCase):
                 result = decode_codes(codes)
                 self.assertEqual(result.text, expected)
                 self.assertEqual(result.decoder_id, "offline-fixture")
+
+    def test_toned_input_decodes_at_full_confidence(self):
+        for expected, codes in PHRASE_SEQUENCES.items():
+            with self.subTest(phrase=expected):
+                result = decode_codes(codes)
+                self.assertEqual(result.text, expected)
+                self.assertEqual(result.confidence, 1.0)
+
+    def test_toneless_input_resolves_unique_phrases_at_reduced_confidence(self):
+        for expected, codes in PHRASE_SEQUENCES.items():
+            with self.subTest(phrase=expected):
+                result = decode_codes(drop_tone_keys(codes))
+                self.assertEqual(result.text, expected)
+                self.assertEqual(result.confidence, 0.6)
+                self.assertEqual(result.decoder_id, "offline-fixture")
+
+    def test_ambiguous_toneless_input_stays_a_visible_fallback(self):
+        class Ambiguous(OfflineDecoder):
+            phrases = {"ㄕˋ": "是", "ㄕˊ": "十"}
+
+        events = [RawEvent("test", 0, 0, "left", "key", "BPMF:g")]
+        ambiguous = Ambiguous().decode(normalize_events(events))
+        self.assertEqual(ambiguous.text, "[ㄕ]")
 
     def test_manifest_fixtures_replay_deterministically(self):
         manifest = json.loads((FIXTURES / "manifest.json").read_text(encoding="utf-8"))

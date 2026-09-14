@@ -1,12 +1,15 @@
 import unittest
 
 from mistype.phonetic import KEY_TO_ZHUYIN
+from mistype.normalize import normalize_events
 from mistype.touch import (
     LAYOUT_VERSION,
     key_position,
     layout_keys,
     nearest_key,
     touch_event,
+    touch_move,
+    touch_up,
 )
 from mistype.touch_session import TouchSession
 
@@ -69,6 +72,30 @@ class TouchLayoutTests(unittest.TestCase):
             timestamp += 90_000_000
         self.assertEqual(session.preview().text, "你好")
         self.assertEqual(session.commit().text, "你好")
+
+    def test_trajectory_points_are_kept_raw_without_changing_decode(self):
+        session = TouchSession()
+        surface, (x, y) = key_position("s")
+        session.touch(surface, x, y, 0)
+        session.move(surface, x + 0.02, y + 0.01, 10_000_000, pressure=0.5)
+        session.move(surface, x + 0.04, y + 0.02, 20_000_000)
+        session.release(surface, x + 0.04, y + 0.02, 30_000_000)
+        kinds = [event.kind for event in session.events]
+        self.assertEqual(kinds, ["touch_down", "touch_move", "touch_move", "touch_up"])
+        move = session.events[1]
+        self.assertEqual(move.payload["x"], x + 0.02)
+        self.assertEqual(move.payload["pressure"], 0.5)
+        # Trajectory points carry no hypothesis and are skipped downstream.
+        self.assertIsNone(move.code)
+        self.assertEqual(normalize_events(session.events)[0].value, "ㄋ")
+
+    def test_trajectory_helpers_validate_surface_and_coordinates(self):
+        with self.assertRaises(ValueError):
+            nearest_key("middle", 0.5, 0.5)
+        with self.assertRaises(ValueError):
+            touch_move("trace", 0, 0, "left", 1.5, 0.5)
+        with self.assertRaises(ValueError):
+            touch_up("trace", 0, 0, "right", 0.5, -0.1)
 
 
 if __name__ == "__main__":
