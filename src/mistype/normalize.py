@@ -11,7 +11,7 @@ def normalize_events(events: Iterable[RawEvent]) -> list[PhoneticToken]:
     span = 0
     index = 0
     for event in sorted(events, key=lambda item: item.sequence):
-        if event.kind not in {"key", "gesture"} or not event.code:
+        if event.kind not in {"key", "gesture", "touch_down"} or not event.code:
             continue
         code = event.code
         if code in {"SPACE", "ENTER", "COMMIT"}:

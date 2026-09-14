@@ -3,6 +3,7 @@ from math import hypot
 
 from .fuzzy import KEY_NEIGHBORS
 from .phonetic import KEY_TO_ZHUYIN
+from .models import RawEvent
 
 
 # A compact split-friendly layout in normalized surface coordinates.
@@ -36,3 +37,12 @@ def nearest_key(surface: str, x: float, y: float) -> TouchHypothesis:
         if alt in KEY_TO_ZHUYIN:
             alternatives.append((alt, max(0.1, confidence - 0.2)))
     return TouchHypothesis(key, confidence, tuple(alternatives))
+
+
+def touch_event(session_id: str, sequence: int, timestamp_ns: int,
+                surface: str, x: float, y: float) -> RawEvent:
+    """Create a replayable raw event from one normalized touch point."""
+    hypothesis = nearest_key(surface, x, y)
+    return RawEvent(session_id, sequence, timestamp_ns, surface, "touch_down",
+                    code=hypothesis.code,
+                    payload={"x": x, "y": y, "confidence": hypothesis.confidence})

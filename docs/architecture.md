@@ -54,6 +54,10 @@ The M1 coordinator currently exposes `ingest`, `preview`, `maybe_commit`, and `c
 
 The prototype UI shows the live trace, optional preview, committed text, and decoder status. A future IME adapter can consume committed text without changing the core pipeline.
 
+### macOS adapter (M5)
+
+The macOS system integration is a thin InputMethodKit target. `IMKServer` manages client connections and `IMKInputController` owns per-client input sessions; the adapter translates incoming key events into `RawEvent` and sends only committed text back to the client. Candidate UI, preferences, and language switching belong at this boundary. The core remains platform-independent and testable through replay.
+
 ## Core data contracts
 
 ```text

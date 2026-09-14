@@ -4,7 +4,7 @@ from mistype.decoder import OfflineDecoder
 from mistype.models import RawEvent
 from mistype.normalize import normalize_events
 from mistype.session import SessionCoordinator
-from mistype.touch import nearest_key
+from mistype.touch import nearest_key, touch_event
 
 
 class PipelineTests(unittest.TestCase):
@@ -65,6 +65,12 @@ class PipelineTests(unittest.TestCase):
     def test_touch_rejects_out_of_range_coordinates(self):
         with self.assertRaises(ValueError):
             nearest_key("right", 1.1, 0.5)
+
+    def test_touch_event_replays_through_normalizer(self):
+        event = touch_event("touch", 0, 0, "left", 0.30, 0.50)
+        tokens = normalize_events([event])
+        self.assertEqual(tokens[0].kind, "zhuyin")
+        self.assertEqual(tokens[0].value, "ㄇ")
 
 
 if __name__ == "__main__":
