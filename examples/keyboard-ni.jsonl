@@ -1,0 +1,3 @@
+{"session_id":"keyboard-demo","sequence":0,"timestamp_ns":0,"surface":"left","kind":"key","code":"BPMF:s"}
+{"session_id":"keyboard-demo","sequence":1,"timestamp_ns":1,"surface":"right","kind":"key","code":"BPMF:u"}
+{"session_id":"keyboard-demo","sequence":2,"timestamp_ns":2,"surface":"left","kind":"key","code":"BPMF:3"}

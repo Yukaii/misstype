@@ -24,6 +24,11 @@ class PipelineTests(unittest.TestCase):
         tokens = normalize_events(self.events("ZH:ㄅ", "ZH:ㄚ"))
         self.assertEqual(OfflineDecoder().decode(tokens).text, "[ㄅ ㄚ]")
 
+    def test_physical_zhuyin_keys_are_normalized_with_tone(self):
+        tokens = normalize_events(self.events("BPMF:s", "BPMF:u", "BPMF:3"))
+        self.assertEqual([token.value for token in tokens], ["ㄋ", "ㄧ"])
+        self.assertEqual(tokens[-1].tone, "ˇ")
+
 
 if __name__ == "__main__":
     unittest.main()

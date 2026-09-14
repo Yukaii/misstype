@@ -30,7 +30,7 @@ class OfflineDecoder:
                 # SPACE is a phonetic syllable separator during capture. Keep
                 # collecting until a non-Zhuyin token or explicit commit.
             elif token.kind == "zhuyin":
-                current.append(token.value)
+                current.append(token.value + (token.tone or ""))
             else:
                 self._flush(current, rendered, alignment)
                 rendered.append(token.value)

@@ -1,6 +1,7 @@
 from collections.abc import Iterable
 
 from .models import PhoneticToken, RawEvent
+from .phonetic import key_to_token
 
 
 def normalize_events(events: Iterable[RawEvent]) -> list[PhoneticToken]:
@@ -19,6 +20,16 @@ def normalize_events(events: Iterable[RawEvent]) -> list[PhoneticToken]:
         elif code.startswith("ZH:"):
             tokens.append(PhoneticToken(span, index, "zhuyin", code[3:]))
             index += 1
+        elif (mapped := key_to_token(code)):
+            kind, value = mapped
+            if kind == "tone" and tokens and tokens[-1].kind == "zhuyin":
+                previous = tokens[-1]
+                tokens[-1] = PhoneticToken(previous.span_id, previous.index, previous.kind,
+                                            previous.value, value, previous.confidence,
+                                            previous.alternatives)
+            else:
+                tokens.append(PhoneticToken(span, index, kind, value))
+                index += 1
         elif code.startswith("LATIN:"):
             tokens.append(PhoneticToken(span, index, "latin", code[6:]))
             index += 1

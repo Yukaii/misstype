@@ -19,6 +19,7 @@ The first slice uses Python 3.11+ and has no runtime dependencies:
 ```sh
 PYTHONPATH=src python -m unittest discover -s tests -v
 PYTHONPATH=src python -m mistype.cli examples/hello.jsonl
+PYTHONPATH=src python -m mistype.cli examples/keyboard-ni.jsonl
 ```
 
 The fixture format is JSONL so traces can be recorded, redacted, diffed, and replayed independently of the eventual UI or hardware.
