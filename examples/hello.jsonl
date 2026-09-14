@@ -1,0 +1,5 @@
+{"session_id":"demo","sequence":0,"timestamp_ns":0,"surface":"left","kind":"key","code":"ZH:ㄋ"}
+{"session_id":"demo","sequence":1,"timestamp_ns":1,"surface":"right","kind":"key","code":"ZH:ㄧˇ"}
+{"session_id":"demo","sequence":2,"timestamp_ns":2,"surface":"left","kind":"key","code":"SPACE"}
+{"session_id":"demo","sequence":3,"timestamp_ns":3,"surface":"right","kind":"key","code":"ZH:ㄏ"}
+{"session_id":"demo","sequence":4,"timestamp_ns":4,"surface":"left","kind":"key","code":"ZH:ㄠˇ"}

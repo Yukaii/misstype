@@ -11,3 +11,14 @@ The first target is Bopomofo (Zhuyin), with English mixing and a local decoder. 
 - [Development guide](AGENTS.md): working loop, privacy rules, and definition of done.
 
 The design takes inspiration from [Qingjian](https://github.com/qingjian-team/qingjian), especially its platform-independent core and delayed whole-phrase reconstruction. Mistype is a separate experiment; compatibility with Qingjian is a milestone, not a promise.
+
+## Run the M0 replay
+
+The first slice uses Python 3.11+ and has no runtime dependencies:
+
+```sh
+PYTHONPATH=src python -m unittest discover -s tests -v
+PYTHONPATH=src python -m mistype.cli examples/hello.jsonl
+```
+
+The fixture format is JSONL so traces can be recorded, redacted, diffed, and replayed independently of the eventual UI or hardware.
