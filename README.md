@@ -23,3 +23,5 @@ PYTHONPATH=src python -m mistype.cli examples/keyboard-ni.jsonl
 ```
 
 The fixture format is JSONL so traces can be recorded, redacted, diffed, and replayed independently of the eventual UI or hardware.
+
+The touch prototype is currently a pure-Python mapper: `mistype.touch.nearest_key(surface, x, y)` accepts normalized coordinates and returns a replayable hypothesis.
