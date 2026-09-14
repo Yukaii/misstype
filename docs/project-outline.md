@@ -46,9 +46,9 @@ Replace buttons with two visual surfaces. Start with a known layout, then add co
 
 Exit: replaying a touch trace gives the same normalized phonetic events; compare error rate and subjective interruption against M1.
 
-### M3 — Fuzzy spatial decoding
+### M3 — Fuzzy spatial decoding *(keyboard-neighborhood prototype started)*
 
-Map uncertain coordinates to weighted Zhuyin symbols. Keep top-k alternatives and pass them to the phrase decoder. Test whether larger forgiving regions improve speed without unacceptable ambiguity.
+The first fuzzy layer now maps a physical key to weighted neighboring Zhuyin symbols and lets phrase decoding choose among alternatives. Coordinate-based uncertainty and user measurements remain to be added.
 
 Exit: report accuracy, correction rate, latency, and the point at which fuzziness stops helping.
 

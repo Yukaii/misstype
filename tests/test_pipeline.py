@@ -47,6 +47,15 @@ class PipelineTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             session.ingest(RawEvent("test", 2, -1, "left", "key", "BPMF:u"))
 
+    def test_fuzzy_key_keeps_alternatives(self):
+        tokens = normalize_events(self.events("BPMF_FUZZY:s", "BPMF:u", "BPMF:3"))
+        self.assertEqual(tokens[0].value, "ㄋ")
+        self.assertTrue(tokens[0].alternatives)
+
+    def test_fuzzy_phrase_uses_context_to_correct_typo(self):
+        tokens = normalize_events(self.events("BPMF_FUZZY:d", "BPMF:u", "BPMF:3"))
+        self.assertEqual(OfflineDecoder().decode(tokens).text, "你")
+
 
 if __name__ == "__main__":
     unittest.main()

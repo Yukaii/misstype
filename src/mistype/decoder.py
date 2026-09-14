@@ -1,4 +1,5 @@
 import time
+from itertools import product
 from collections.abc import Sequence
 
 from .models import DecodeResult, PhoneticToken
@@ -30,7 +31,8 @@ class OfflineDecoder:
                 # SPACE is a phonetic syllable separator during capture. Keep
                 # collecting until a non-Zhuyin token or explicit commit.
             elif token.kind == "zhuyin":
-                current.append(token.value + (token.tone or ""))
+                primary = token.value + (token.tone or "")
+                current.append((primary,) + tuple(value + (token.tone or "") for value, _ in token.alternatives))
             else:
                 self._flush(current, rendered, alignment)
                 rendered.append(token.value)
@@ -42,8 +44,25 @@ class OfflineDecoder:
     def _flush(self, current: list[str], rendered: list[str], alignment: list[tuple[str, str]]) -> None:
         if not current:
             return
-        key = " ".join(current)
-        value = self.phrases.get(key, "[" + key + "]")
+        key = " ".join(item[0] if isinstance(item, tuple) else item for item in current)
+        value = self._lookup(current, key)
         rendered.append(value)
         alignment.append((key, value))
         current.clear()
+
+    def _lookup(self, current: list[str], primary: str) -> str:
+        if primary in self.phrases:
+            return self.phrases[primary]
+        # Search bounded alternatives. This is intentionally phrase-level:
+        # fuzzy correction should use context, not silently rewrite each key.
+        choices = []
+        for item in current:
+            if isinstance(item, tuple):
+                choices.append(item)
+            else:
+                choices.append((item,))
+        for candidate in product(*choices):
+            phrase = " ".join(candidate)
+            if phrase in self.phrases:
+                return self.phrases[phrase]
+        return "[" + primary + "]"
