@@ -1,7 +1,8 @@
 from dataclasses import dataclass
 
+from .adapters import DecoderProtocol, decode_with_fallback
 from .decoder import OfflineDecoder
-from .models import DecodeResult, RawEvent
+from .models import DecodeContext, DecodeResult, RawEvent
 from .normalize import normalize_events
 
 
@@ -41,6 +42,14 @@ class SessionCoordinator:
     def preview(self) -> DecodeResult:
         return self._decode()
 
+    def preview_with_adapter(self, adapter: DecoderProtocol,
+                             deadline_ms: float = 200.0) -> DecodeResult:
+        """Preview through a model adapter without blocking capture past the
+        deadline; falls back to the offline result on timeout or staleness."""
+        context = DecodeContext(revision=self._revision, deadline_ms=deadline_ms)
+        return decode_with_fallback(normalize_events(self._events), context,
+                                    adapter, self._decoder)
+
     def maybe_commit(self, now_ns: int) -> DecodeResult | None:
         if self._last_timestamp_ns is None:
             return None
@@ -57,4 +66,4 @@ class SessionCoordinator:
 
     def _decode(self) -> DecodeResult:
         tokens = normalize_events(self._events)
-        return self._decoder.decode(tokens, revision=self._revision)
+        return self._decoder.decode(tokens, DecodeContext(revision=self._revision))

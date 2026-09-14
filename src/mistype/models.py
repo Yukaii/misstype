@@ -33,6 +33,15 @@ class PhoneticToken:
 
 
 @dataclass(frozen=True)
+class DecodeContext:
+    """Per-request decode budget. Adapters must respect the deadline and
+    stamp the revision so stale results can be rejected downstream."""
+
+    revision: int = 0
+    deadline_ms: float = 200.0
+
+
+@dataclass(frozen=True)
 class DecodeResult:
     revision: int
     text: str
