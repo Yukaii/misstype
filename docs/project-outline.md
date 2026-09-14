@@ -1,0 +1,77 @@
+# Project outline
+
+## Problem
+
+Conventional touch keyboards make the user divide attention between composing and locating small, exact targets. Chinese input adds another interruption: choosing candidates while the thought is still forming. Mistype explores whether a forgiving split surface can preserve a user's learned hand motion and postpone linguistic decisions until a phrase is complete.
+
+## Product thesis
+
+Capture a continuous, timestamped trace of two-handed input. Interpret it as a phonetic stream with uncertainty, then decode the whole phrase. The user should be able to keep moving, pause, and receive a committed result without navigating a candidate list for every syllable.
+
+## Scope for the first prototype
+
+Included:
+
+- Two independent virtual touch pads with configurable split layouts.
+- Raw touch coordinates, pressure/contact state when available, timestamps, and explicit gesture boundaries.
+- Zhuyin input, tone keys as optional syllable boundaries, English mode, and mixed-language spans.
+- A delayed commit action and an inactivity timeout.
+- Deterministic offline decoding with an optional local-model adapter.
+- Trace replay, metrics, and side-by-side comparison with a conventional keyboard.
+
+Deferred:
+
+- Custom electronics, force sensors, haptics, and low-power firmware.
+- System-wide IME integration.
+- Cloud inference, accounts, sync, and social features.
+- Automatic learning from personal text without an explicit opt-in and export path.
+
+## Milestones
+
+### M0 — Decoder seam
+
+Feed a complete delayed phonetic stream into a decoder and emit one sentence. Use hand-authored fixtures first. This validates the core UX independently of touch hardware.
+
+Exit: replay is deterministic; Chinese, English, and mixed fixtures produce an inspectable result; raw input remains available.
+
+### M1 — Zhuyin capture
+
+Add a normal keyboard or button-based Zhuyin source with tone and boundary events. Measure phrase-level accuracy and end-to-end latency.
+
+Exit: a user can compose a short paragraph without per-syllable candidate selection, then commit or revise the full phrase.
+
+### M2 — Split touch prototype
+
+Replace buttons with two visual surfaces. Start with a known layout, then add configurable regions and generous hit areas. Record coordinates and contact trajectories, not only recognized symbols.
+
+Exit: replaying a touch trace gives the same normalized phonetic events; compare error rate and subjective interruption against M1.
+
+### M3 — Fuzzy spatial decoding
+
+Map uncertain coordinates to weighted Zhuyin symbols. Keep top-k alternatives and pass them to the phrase decoder. Test whether larger forgiving regions improve speed without unacceptable ambiguity.
+
+Exit: report accuracy, correction rate, latency, and the point at which fuzziness stops helping.
+
+### M4 — Local model and optional LLM
+
+Add a local sentence decoder behind the same interface. An explicitly enabled LLM adapter may rerank or repair a completed trace, but must time out to the offline result and never block capture.
+
+Exit: offline mode is useful on its own; model provenance and timing are visible in measurements.
+
+### M5 — Platform adapter decision
+
+Only after the interaction passes the above gates, choose a desktop/mobile shell and investigate IME integration or dedicated hardware.
+
+## Measures
+
+Track phrase-level character error rate, syllable error rate, commit latency, p50/p95 decode latency, backspaces or replays, candidate interruptions, and task completion time. Log confidence and decoder source for every result. Run a fixed synthetic fixture set plus consented user sessions kept outside the repository.
+
+The main comparison is not raw key accuracy. It is whether users can capture thoughts with fewer interruptions at an acceptable final reconstruction quality.
+
+## Open questions
+
+- Does tone input improve segmentation enough to justify a dedicated gesture?
+- Which split layouts match existing Zhuyin muscle memory across hand sizes?
+- Should a pause commit automatically, or only preview a reconstruction?
+- How should Latin text, numbers, punctuation, and code tokens interrupt a Zhuyin span?
+- What local model size meets the latency budget on the target device?
