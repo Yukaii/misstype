@@ -1,0 +1,11 @@
+{"code": "BPMF:j", "kind": "key", "sequence": 0, "session_id": "keyboard-wo-shi-xue-sheng", "surface": "left", "timestamp_ns": 0}
+{"code": "BPMF:i", "kind": "key", "sequence": 1, "session_id": "keyboard-wo-shi-xue-sheng", "surface": "right", "timestamp_ns": 90000000}
+{"code": "BPMF:3", "kind": "key", "sequence": 2, "session_id": "keyboard-wo-shi-xue-sheng", "surface": "left", "timestamp_ns": 180000000}
+{"code": "BPMF:g", "kind": "key", "sequence": 3, "session_id": "keyboard-wo-shi-xue-sheng", "surface": "left", "timestamp_ns": 270000000}
+{"code": "BPMF:4", "kind": "key", "sequence": 4, "session_id": "keyboard-wo-shi-xue-sheng", "surface": "left", "timestamp_ns": 360000000}
+{"code": "BPMF:v", "kind": "key", "sequence": 5, "session_id": "keyboard-wo-shi-xue-sheng", "surface": "left", "timestamp_ns": 450000000}
+{"code": "BPMF:m", "kind": "key", "sequence": 6, "session_id": "keyboard-wo-shi-xue-sheng", "surface": "right", "timestamp_ns": 540000000}
+{"code": "BPMF:,", "kind": "key", "sequence": 7, "session_id": "keyboard-wo-shi-xue-sheng", "surface": "right", "timestamp_ns": 630000000}
+{"code": "BPMF:6", "kind": "key", "sequence": 8, "session_id": "keyboard-wo-shi-xue-sheng", "surface": "right", "timestamp_ns": 720000000}
+{"code": "BPMF:g", "kind": "key", "sequence": 9, "session_id": "keyboard-wo-shi-xue-sheng", "surface": "left", "timestamp_ns": 810000000}
+{"code": "BPMF:/", "kind": "key", "sequence": 10, "session_id": "keyboard-wo-shi-xue-sheng", "surface": "right", "timestamp_ns": 900000000}
