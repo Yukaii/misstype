@@ -34,11 +34,11 @@ Feed a complete delayed phonetic stream into a decoder and emit one sentence. Us
 
 Exit: replay is deterministic; Chinese, English, and mixed fixtures produce an inspectable result; raw input remains available.
 
-### M1 — Zhuyin capture
+### M1 — Zhuyin capture *(prototype slice complete)*
 
-Add a normal keyboard or button-based Zhuyin source with tone and boundary events. Measure phrase-level accuracy and end-to-end latency.
+The first keyboard adapter now maps standard physical Zhuyin keys into phonetic tokens and attaches tone keys to the preceding symbol. The adapter is still a trace source, not a system IME.
 
-Exit: a user can compose a short paragraph without per-syllable candidate selection, then commit or revise the full phrase.
+Remaining exit work: add a session coordinator with debounce/commit and measure a short paragraph without per-syllable candidate selection.
 
 ### M2 — Split touch prototype
 
