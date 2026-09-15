@@ -56,7 +56,7 @@ The prototype UI shows the live trace, optional preview, committed text, and dec
 
 ### macOS adapter (M5)
 
-The macOS system integration is a thin InputMethodKit target. `IMKServer` manages client connections and `IMKInputController` owns per-client input sessions; the adapter translates incoming key events into `RawEvent` and sends only committed text back to the client. Candidate UI, preferences, and language switching belong at this boundary. The core remains platform-independent and testable through replay.
+The macOS system integration is an InputMethodKit target. `IMKServer` manages client connections and `IMKInputController` owns per-client input sessions. The current native slice keeps a Swift `MistypeCore` boundary for keyboard parsing, composition state, trie-based phrase segmentation, and conservative one-key fuzzy rescue; it sends marked preview text and only committed text back to the client. Candidate UI, preferences, and language switching belong at this boundary. The Python core remains the replay and experiment reference until the contracts are unified.
 
 ## Core data contracts
 
