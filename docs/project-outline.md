@@ -74,11 +74,11 @@ The adapter seam has landed without weights: `DecodeContext` (revision + deadlin
 
 Exit: offline mode is useful on its own; model provenance and timing are visible in measurements.
 
-### M5 — macOS Input Method adapter
+### M5 — macOS Input Method adapter *(prototype slice landed)*
 
 Package the stable core behind a thin macOS InputMethodKit adapter. `IMKServer` and `IMKInputController` own system integration; they forward key events into the core and send committed text back to the client app. Keep marked text, commit/cancel, language switching, and preferences in the adapter. Do not put fuzzy decoding or model calls in AppKit code.
 
-The macOS adapter is deliberately deferred until M2–M4 establish interaction quality and latency. A simulator can run on macOS earlier, but system-wide IME installation is a separate milestone.
+The first native InputMethodKit bundle is installable through `script/install_ime.sh`. It uses a pinned offline dictionary, whole-composition segmentation, conservative fuzzy rescue, marked text, Return/Space commit, Backspace, Escape, and Latin passthrough. It is a real system-wide experiment, but not yet a production IME: user phrase learning, richer punctuation, robust candidate UI, signing/notarization, and shared Python/Rust decoder integration remain open.
 
 ## Measures
 

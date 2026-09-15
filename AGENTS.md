@@ -40,4 +40,16 @@ PYTHONPATH=src python -m unittest discover -s tests -v
 PYTHONPATH=src python -m mistype.cli examples/hello.jsonl
 ```
 
+The macOS IME target is package-first SwiftPM:
+
+```sh
+swift test
+./script/build_and_run.sh --build-only
+./script/install_ime.sh
+```
+
+`script/prepare_lexicon.py` downloads only the pinned public dictionary sources
+listed in `third_party/McBopomofo/sources.json`; it must never receive user
+input. Do not commit `.cache/`, `.build/`, or `dist/` artifacts.
+
 Use scripts under `tools/` for deterministic replay and measurement rather than ad-hoc notebooks. Keep these commands runnable from the repository root when the implementation language changes.

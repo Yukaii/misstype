@@ -31,3 +31,32 @@ The touch prototype is a versioned full-split mapper (`LAYOUT_VERSION = "full-sp
 For a complete simulator path, use `mistype.touch_session.TouchSession`, which exposes `touch`, `preview`, and `commit` while keeping event sequencing and normalization internal.
 
 The eventual macOS version will be an InputMethodKit adapter around this core. System-wide IME integration is intentionally an M5 milestone; the simulator and replay pipeline run earlier on macOS without installing an input method.
+
+## macOS IME prototype
+
+The native prototype is now available as a SwiftPM InputMethodKit bundle. It
+uses a pinned, checksum-verified McBopomofo-derived dictionary at build time,
+then performs local phrase segmentation and conservative fuzzy rescue without
+network access or per-syllable candidate selection.
+
+```sh
+swift test
+./script/build_and_run.sh --build-only
+./script/install_ime.sh
+```
+
+After installation, select `Mistype` → `Zhuyin` from the macOS input-source
+menu. Type with the normal Zhuyin keyboard: tone keys finish syllables, Space
+finishes a first-tone syllable, Return commits the sentence, Tab cycles the
+small set of sentence alternatives, Backspace edits the raw composition, and
+Escape cancels it. Shift-Space commits and toggles Latin passthrough.
+
+The diagnostic path exercises the packaged dictionary without an IME client:
+
+```sh
+dist/MistypeIME.app/Contents/MacOS/MistypeIME --decode su3cl3
+```
+
+The installer keeps the previous bundle at `.cache/MistypeIME-previous.app`
+when replacing an existing Mistype installation. Disable the source with
+`swift run -c release MistypeSourceTool disable` if needed.
