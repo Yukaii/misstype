@@ -12,5 +12,5 @@ if [[ -d "$DEST" ]]; then
 fi
 /usr/bin/ditto "$ROOT_DIR/dist/MistypeIME.app" "$DEST"
 BIN_DIR="$(swift build -c release --show-bin-path)"
-"$BIN_DIR/MistypeSourceTool" register "$DEST"
+"$BIN_DIR/MistypeSourceTool" register "$DEST" --select
 echo "Installed Mistype. Select it from the macOS input-source menu to try it."
