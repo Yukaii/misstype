@@ -143,11 +143,12 @@ window out of the critical path):
    the composition first, then inserts; Cmd shortcuts never hijacked.
    Follow-up: … needs a conflict-free key (Option layer).
 5. Seamless mixed input (v1 landed): backtick toggles a latin run — letters
-   append verbatim (`L:`-marked keys, case preserved), tones/space/punct/
-   digits/Return end the run, one commit at the end. No Shift toggle, no
-   pause: `` `hello su3cl3 `` → `hello 你好`. Guessing is impossible by
+   append verbatim (`L:`-marked keys, case preserved), spaces stay inside
+   multi-word runs (`` `hello world` ``), tones/punct/digits/Return end the
+   run, one commit at the end. No Shift toggle, no pause:
+   `` `hello world`su3cl3 `` → `hello world你好`. Guessing is impossible by
    construction (bare keys stay Zhuyin), so `hello`-as-keys still decodes
-   Chinese — auto-detect with English scoring stays future work, as does
+   Chinese — auto-detect with English scoring stays future work, as do
    digits-inside-latin.
 
 ## Measures
