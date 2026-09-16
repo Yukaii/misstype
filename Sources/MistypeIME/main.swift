@@ -174,29 +174,32 @@ final class MistypeInputController: IMKInputController {
         }
         // Shift+digit selects a candidate: digits are Zhuyin keys, so this
         // runs only while the window is up (candidates>1); otherwise digits
-        // stay phonetic or punctuate. The pick sticks across continued
-        // typing (see refresh) and commits on Return/Space.
-        // Order 1..8 on an ANSI keyboard.
-        let digitOrder = [18, 19, 20, 21, 23, 22, 26, 28]
+        // stay phonetic or punctuate. Shift+1 is always ！ (candidate #1
+        // needs no shortcut — it is the default), so selection starts at 2.
+        // Order 2..8 on an ANSI keyboard.
+        let digitOrder = [19, 20, 21, 23, 22, 26, 28]
         if modifiers.contains(.shift), !modifiers.contains(.command),
            !modifiers.contains(.control), !modifiers.contains(.option),
            !english, !composition.isEmpty, candidates.count > 1,
-           let pick = digitOrder.firstIndex(of: keyCode), pick < candidates.count {
-            selected = pick
+           let digit = digitOrder.firstIndex(of: keyCode), digit + 1 < candidates.count {
+            selected = digit + 1
             pinnedPick = candidates[selected].text
             mark(previewText, client)
             syncPanel(client)
             return true
         }
-        // CJK punctuation joins the running composition (no commit — mixed
-        // spans commit once at the end). Checked before the generic modifier
-        // passthrough and the phonetic path. Cmd shortcuts are never
-        // hijacked: the table only matches listed combos and Cmd is excluded.
+        // CJK punctuation locks the current pick and continues: pin the
+        // selection, append the mark, refresh. Never commits — commit is
+        // Return's job. Checked before the generic modifier passthrough and
+        // the phonetic path. Cmd shortcuts are never hijacked: the table
+        // only matches listed combos and Cmd is excluded.
         if !modifiers.contains(.command),
            let punct = Punctuation.output(keyCode: keyCode,
                                           shift: modifiers.contains(.shift),
                                           ctrl: modifiers.contains(.control)) {
-            selected = 0
+            if candidates.indices.contains(selected) {
+                pinnedPick = candidates[selected].text
+            }
             if composition.appendLiteral(punct) {
                 refresh(client)
             } else {
@@ -235,12 +238,21 @@ final class MistypeInputController: IMKInputController {
         }
         if let key = ZhuyinKeyboard.labels[keyCode] {
             if key == " " {
-                // Space is a boundary, never a commit: tone mark after
-                // pending keys, literal separator otherwise. An empty
+                // Space with pending keys is a tone mark (continue).
+                // Otherwise Space pins the current pick and continues as a
+                // literal separator — commit is Return's job. Empty
                 // composition passes the space straight through.
                 guard !composition.isEmpty else {
                     client.insertText(" ", replacementRange: missingRange)
                     return true
+                }
+                if !composition.parsed.pending.isEmpty {
+                    if composition.appendSpace() { refresh(client); return true }
+                    NSSound.beep()
+                    return true
+                }
+                if candidates.indices.contains(selected) {
+                    pinnedPick = candidates[selected].text
                 }
                 if composition.appendSpace() { refresh(client); return true }
                 NSSound.beep()
@@ -267,14 +279,8 @@ final class MistypeInputController: IMKInputController {
     private func refresh(_ client: IMKTextInput) {
         // Preview converts terminated runs (punctuation passes through in
         // place); the trailing pending run stays raw Bopomofo until commit.
-        // Pinned pick survives continued typing: exact match first, then the
-        // first candidate extending it. Fresh evidence that matches neither
-        // clears the pin (top-1 floats again).
         let previous = candidates.map(\.text)
         candidates = Runtime.decoder.decodeSegments(composition.segments, pendingKeys: [])
-        // Pinned pick survives continued typing: exact match first, then the
-        // first candidate extending it. Fresh evidence that matches neither
-        // clears the pin (top-1 floats again).
         if let pin = pinnedPick, !pin.isEmpty {
             if let exact = candidates.firstIndex(where: { $0.text == pin }) {
                 selected = exact
