@@ -270,8 +270,20 @@ final class CoreTests: XCTestCase {
         punct.dropThroughLastBoundary()
         XCTAssertEqual(punct.rawKeys, ["c"])
     }
-    func testMixedLatinRunPassesThrough() {
-        // `hello toneless 你好: latin seps join, Zhuyin runs decode.
+    func testMultiWordLatinRunSurvivesSpaces() {
+        // `hello world su3cl3: spaces stay inside the latin run; the whole
+        // span still commits once.
+        var input = Composition()
+        for key in ["h", "e", "l", "l", "o"] { _ = input.appendLatin(String(key)) }
+        _ = input.appendSpace()
+        for key in ["w", "o", "r", "l", "d"] { _ = input.appendLatin(String(key)) }
+        _ = input.appendSpace()
+        for key in ["s", "u", "3", "c", "l", "3"] { _ = input.append(String(key)) }
+        let result = decoder.decodeSegments(input.segments, pendingKeys: input.parsed.pending)
+        XCTAssertEqual(result.first?.text, "hello world 你好")
+        XCTAssertEqual(result.first?.unresolved, 0)
+    }
+    func testMixedLatinRunPassesThrough() {        // `hello toneless 你好: latin seps join, Zhuyin runs decode.
         var input = Composition()
         for key in ["h", "e", "l", "l", "o"] { _ = input.appendLatin(String(key)) }
         _ = input.appendSpace()

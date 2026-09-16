@@ -65,8 +65,9 @@ final class MistypeInputController: IMKInputController {
             return true
         }
         if english || modifiers.contains(.capsLock) { commit(client); return false }
-        // Latin mode ends on anything but letters (and the backtick toggle):
-        // tones, space, punctuation, digits and commit keys resume Zhuyin.
+        // Latin mode ends on anything but letters, space (multi-word runs
+        // stay latin: `hello world`), and the backtick toggle: tones,
+        // punctuation, digits and commit keys resume Zhuyin.
         let latinLetter: Bool = {
             guard latinMode, !english,
                   !modifiers.contains(.command), !modifiers.contains(.control),
@@ -76,7 +77,7 @@ final class MistypeInputController: IMKInputController {
                   CharacterSet.letters.contains(scalar) else { return false }
             return true
         }()
-        if !latinLetter && keyCode != 50 { latinMode = false }
+        if !latinLetter && keyCode != 50 && keyCode != 49 { latinMode = false }
         // Destructive editing is handled before the generic modifier
         // commit-passthrough further below, so deleting phonetic evidence
         // never commits the composition first.
@@ -211,10 +212,21 @@ final class MistypeInputController: IMKInputController {
             NSSound.beep()
             return true
         }
-        // Shift-hold Latin passthrough applies only outside Zhuyin keys or
-        // with an empty composition. Mid-composition Shift brush (overlapping
-        // keystrokes while typing fast) must not accept the sentence — the
-        // Shift is ignored and the key stays phonetic.
+        // Shift-hold Latin: Shift+letter always appends the literal inline
+        // (case from the event) and keeps composing — no commit, no mode
+        // toggle. A fast-typing Shift brush leaves a stray capital in marked
+        // text instead of chopping the sentence.
+        if modifiers.contains(.shift), !modifiers.contains(.command),
+           !modifiers.contains(.control), !modifiers.contains(.option),
+           let label = ZhuyinKeyboard.labels[keyCode],
+           label.count == 1,
+           label.unicodeScalars.first.map(CharacterSet.letters.contains) == true,
+           string.count == 1, let char = string.first,
+           char.isASCII, char.isLetter {
+            if composition.appendLatin(String(char)) { refresh(client); return true }
+            NSSound.beep()
+            return true
+        }
         if modifiers.contains(.shift) {
             if ZhuyinKeyboard.labels[keyCode] == nil || composition.isEmpty {
                 commit(client)
@@ -363,12 +375,17 @@ if CommandLine.arguments.count == 3 && CommandLine.arguments[1] == "--decode" {
             continue
         }
         if label == " " {
-            latin = false
             if !composition.isEmpty { _ = composition.appendSpace() }
             continue
         }
         if latin, label.count == 1, let char = label.first,
            char.isASCII, char.isLetter {
+            _ = composition.appendLatin(label)
+            continue
+        }
+        // Uppercase ASCII mirrors Shift+letter (inline latin, no commit).
+        if !latin, label.count == 1, let char = label.first,
+           char.isASCII, char.isUppercase {
             _ = composition.appendLatin(label)
             continue
         }
