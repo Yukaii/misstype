@@ -99,6 +99,36 @@ decoder's job is recall (truth in top-N, now top-8), and any generative
 adapter ships only with the verification gate. Next lever with proven
 ROI is a visible candidate window over the existing top-8.
 
+Finding (scoring rerank falsified for qwen2.5 ≤1.5b instruct,
+`tools/lm_rerank.py`, llama.cpp server + local GGUF, char-trie edge
+scoring): bare-prefix scoring flipped 打對 but was methodologically
+unsound (instruct model without template puts mass on 答案/Engl-style
+continuations; targets routinely miss top-200). Chat-template scoring
+is clean and fast (4–6 requests, 60–840 ms) but flips nothing —
+0.5b and 1.5b agree, controls hold. Verdict: instruct-tuned ≤1.5b
+models cannot rank single-character continuations reliably; rerank
+needs base (non-instruct) weights or bigger iron. The seam, protocol,
+and fixtures stay — the model choice (M4 open question) is still open.
+
+Finding (corpus bigram falsified decisively, 6.8M-dialogue LCCC/MIT
+counts via `tools/corpus_bigram.py`, same uniform mechanism as the
+wordlist run): the table loads (2.2M pairs) and the mechanism runs,
+but full sentences degenerate into common-char soup
+(A-case: 策是一下回不回答對 repairs=3; long: 好哦先在看看回不回…),
+because per-char bigram variance (±several points × 26 syllables)
+steamrolls word scores, tone exactness, and repair penalties alike.
+Pair margins confirm it: 不打/不大 11784/10663 (Δlog 0.1, needs β>12
+against word Δ1.18 — no sane weight works), 以辨/以便 17/308 and
+識成/是成 0/4009 (adversarial both sides), 功嗎/功麼 unattested.
+QingJian ships this shape successfully — likely because pinyin input
+has no tones, so bigram carries load that tones already carry for us,
+and because of careful interpolation we did not build. Lesson: for
+tonal Zhuyin fuzzy input, n-gram context is the wrong lever; the
+residual ties (不大/便是/麼/大隊) need user signals — phrase learning
+(explicit opt-in) or the visible window — not a bigger count table.
+Reverted fully (scores byte-identical to pre-experiment); the script
+and counts stay under ~/.cache as the negative-result record.
+
 Exit: offline mode is useful on its own; model provenance and timing are visible in measurements.
 
 ### M5 — macOS Input Method adapter *(prototype slice landed)*
@@ -123,26 +153,33 @@ window out of the critical path):
    (vertical list, caret-following, click-to-pick); highlight is single
    source of truth by construction. Remaining polish: single-column vs
    current rows styling, Spotlight-level edge cases.
-2. Digit selection (landed): Shift+1..8 selects without committing (same as
+2. Digit selection (landed, superseded by item 3 below): Shift+2..8 selects without committing (same as
    click/Tab; typing on commits via the sticky pick), active only while the
-   window is up so digits stay phonetic otherwise.
+   window is up so digits stay phonetic otherwise. Shift+1 stays ！ —
+   candidate #1 needs no shortcut.
+3. Letter-row selection (designed, not built): switch to `asdfghjkl;`
+   selection keys, user-configurable string like McBopomofo's
+   `candidateKeys` preference. Conflict analysis: those keys ARE Zhuyin
+   initials, so modeless auto-show + letter-select cannot coexist — pair
+   this with a Tab-first-show invocation model: the window appears only on
+   explicit Tab, and only then do letter keys select; Esc or typing outside
+   the key set resumes composing. This retires Shift+digit entirely
+   (digits return fully to phonetic/punct) and ends the last Shift
+   conflict. Falsify with: Tab → `a` picks #1 without committing; `m`
+   with window closed still types ㄇ.
    Page turning needs candidates beyond the visible 8: widen the beam only
    after measuring that missing truths (不打/嗎) rank within reach —
    otherwise paging just flips through junk.
-2. Digit selection: `setSelectionKeys` is the sanctioned path, but digits
-   are Zhuyin keys — decide the invocation model first (show panel only
-   after explicit Tab vs auto-show) so digits keep typing ㄅㄉ when the
-   user never asked for candidates.
-3. English switching: Shift-hold Latin passthrough and Shift+Space toggle
-   exist; collect the exact broken cases (mode indicator? CapsLock?
+4. English switching: Shift-hold Latin appends inline and Shift+Space
+   toggles exist; collect the exact broken cases (mode indicator? CapsLock?
    toggle state after commit?) before changing behavior.
-4. Punctuation (v1+v2 landed): CJK table in `Sources/MistypeCore/Punctuation.swift`
+5. Punctuation (v1+v2 landed + pin-continue): CJK table in `Sources/MistypeCore/Punctuation.swift`
    (，的那 Shift+`,`/`.`/`/`/`;`/`1`, 「」『』 on quote/bracket keys,
    、· on `\`, ； on Ctrl+`;`, —— on Shift+`-`). Zhuyin-position keys stay
-   phonetic so syllable-initial ㄝㄡㄥㄤㄦ keep working; punctuation commits
-   the composition first, then inserts; Cmd shortcuts never hijacked.
-   Follow-up: … needs a conflict-free key (Option layer).
-5. Seamless mixed input (v1 landed): backtick toggles a latin run — letters
+   phonetic so syllable-initial ㄝㄡㄥㄤㄦ keep working; separators pin the
+   current pick and continue (commit is Return's job); Cmd shortcuts never
+   hijacked. Follow-up: … needs a conflict-free key (Option layer).
+6. Seamless mixed input (v1 landed): backtick toggles a latin run — letters
    append verbatim (`L:`-marked keys, case preserved), spaces stay inside
    multi-word runs (`` `hello world` ``), tones/punct/digits/Return end the
    run, one commit at the end. No Shift toggle, no pause:

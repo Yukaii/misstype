@@ -306,6 +306,17 @@ final class CoreTests: XCTestCase {
         mixed.deleteLastSyllable()
         XCTAssertEqual(mixed.rawKeys, ["s", "u", "3"])
     }
+    func testHasUnfinishedTail() {
+        XCTAssertFalse(composition("su3cl3").hasUnfinishedTail)
+        XCTAssertTrue(composition("su3cl").hasUnfinishedTail)
+        var latin = composition("su3")
+        _ = latin.appendLatin("x")
+        XCTAssertTrue(latin.hasUnfinishedTail)
+        var punct = composition("su3")
+        punct.appendLiteral("，")
+        XCTAssertFalse(punct.hasUnfinishedTail)
+        XCTAssertFalse(Composition().hasUnfinishedTail)
+    }
     func testCaptureIsBoundedAndClearRemovesActiveInput() {
         var input = composition(String(repeating: "a", count: 300))
         XCTAssertEqual(input.rawKeys.count, 256)

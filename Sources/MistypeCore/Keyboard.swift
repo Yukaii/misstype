@@ -221,9 +221,21 @@ public struct Composition {
         rawKeys[rawKeys.count - 1] = toneKey
         return true
     }
+    /// Unfinished tail (symbols or latin) after the last tone/punctuation
+    /// mark. Powers separator settle: punctuation commits the converted
+    /// head and keeps this tail typing.
+    public var hasUnfinishedTail: Bool {
+        for key in rawKeys.reversed() {
+            if ZhuyinKeyboard.tones[key] != nil || Punctuation.literals.contains(key) {
+                return false
+            }
+            return true
+        }
+        return false
+    }
     /// Drop everything through the last boundary, keeping the trailing
-    /// unfinished run: powers digit-select (commit the picked conversion,
-    /// keep typing the rest without pause).
+    /// unfinished run. Reserved for partial-commit flows (commit the picked
+    /// head, keep typing the tail); currently exercised by unit tests.
     public mutating func dropThroughLastBoundary() {
         var tail: [String] = []
         while let last = rawKeys.last,
