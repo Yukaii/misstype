@@ -129,6 +129,17 @@ residual ties (不大/便是/麼/大隊) need user signals — phrase learning
 Reverted fully (scores byte-identical to pre-experiment); the script
 and counts stay under ~/.cache as the negative-result record.
 
+Finding (trigram rerank falsified, same protocol via `tools/tri_rerank.py`,
+18M distinct trigrams from the same LCCC run): 0 flips, active damage —
+打對 falls to 測試以下會不會大對, 辨識 to the 哦-variant. Mechanism:
+only 2 of 17 needed trigrams are attested (formal phrasing absent from
+casual dialogue), so floors decide and the colloquial bias (哦, 以下)
+wins ties; controls hold only via the acoustic tiebreak. The count
+family is dead for this job (wordlist-bigram adversarial, corpus-bigram
+steamrolls, trigram sparse-and-colloquial). Remaining honest levers:
+user phrase learning (deterministic, explicit opt-in) and the visible
+window (shipped); neural rerank needs base weights or bigger iron.
+
 Exit: offline mode is useful on its own; model provenance and timing are visible in measurements.
 
 ### M5 — macOS Input Method adapter *(prototype slice landed)*
