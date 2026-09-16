@@ -56,7 +56,20 @@ The prototype UI shows the live trace, optional preview, committed text, and dec
 
 ### macOS adapter (M5)
 
-The macOS system integration is an InputMethodKit target. `IMKServer` manages client connections and `IMKInputController` owns per-client input sessions. The current native slice keeps a Swift `MistypeCore` boundary for keyboard parsing, composition state, trie-based phrase segmentation, and conservative one-key fuzzy rescue; it sends marked preview text and only committed text back to the client. Candidate UI, preferences, and language switching belong at this boundary. The Python core remains the replay and experiment reference until the contracts are unified.
+The macOS system integration is an InputMethodKit target. `IMKServer` manages client connections and `IMKInputController` owns per-client input sessions. The current native slice keeps a Swift `MistypeCore` boundary for keyboard parsing, composition state, trie-based phrase segmentation, and conservative one-key fuzzy rescue; it sends marked preview text and only committed text back to the client. Space is a boundary, never a commit: after pending keys it marks first tone, otherwise it stays a literal separator (empty composition passes it straight through); only Return commits, trailing whitespace trimmed. Continuous toneless pending keys are jointly segmented in `decodeComposition`, fused tone-terminated runs are repaired onto the trailing piece, explicit tones are soft hints (same-base variants stay viable with a penalty, late tones re-hit via `retoneLast`), invalid readings get tiered edit repair (transpose 4.0, neighbor- and
+phonetic-confusion substitute 5.0 — ㄧㄨㄩ / 捲平舌 / n-l / nasals ride
+along even on valid bases, cost-capped so exact input keeps winning;
+insert/delete 6.0 stay gated on no-clean-reading), and destructive editing
+(plain Backspace erases one converted syllable when nothing is pending,
+else one raw key; Option+Backspace one syllable; Cmd+Backspace clears)
+never commits first. An explicitly picked candidate pins by text (Tab/arrows/
+digit/click set `pinnedPick`): continued typing keeps the exact match, else
+the first candidate extending it; only unmatched fresh evidence clears the
+pin. Panel echoes are muted 150 ms around our own data-set/drive, and
+refresh skips identical panel updates (`displayedTexts`) — the file trace
+showed every keystroke's setCandidateData auto-firing Changed(first), which
+used to drag selection back to 0; mid-composition Shift brush is ignored for
+phonetic keys instead of committing, so fast typing never accepts early. A custom borderless `CandidatesPanel` (own NSPanel, vertical 1–8 list) mirrors the top-8: single source of truth for the highlight, so no IMK sync loop is possible. Tab/Up/Down step, Shift+digit and click pick, Return commits, Escape hides; caret via `IMKTextInput.attributes(forCharacterIndex:lineHeightRectangle:)` walking back from marked end (McBopomofo-style, no permission needed — an Accessibility detour was tried and reverted the same day), falling back to last anchor then mouse. `IMKCandidates` proved undrivable (selectCandidateWithIdentifier: returns YES and moves nothing; synthesized stepping events only beep) and was removed. Punctuation literals stay inside the composition — `decodeSegments` converts Zhuyin runs and passes punctuation through in place, one commit at the end — matching the Python mixed-span model. Latin runs work the same way via backtick-toggle (`L:`-marked keys, verbatim, tone/space/punct-terminated). Candidate UI, preferences, and language switching belong at this boundary. The Python core remains the replay and experiment reference until the contracts are unified.
 
 ## Core data contracts
 
