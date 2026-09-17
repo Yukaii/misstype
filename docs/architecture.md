@@ -117,7 +117,8 @@ Use monotonic timestamps for ordering and a separate wall-clock field only for d
    ambiguous toneless match stays a visible fallback for later repair.
 5. If explicitly enabled, send the completed phonetic span to a local model or remote LLM adapter with a strict deadline and cooperative cancellation.
 6. Accept an enhanced result only if it belongs to the current revision; otherwise decode the latest offline snapshot.
-7. User phrase learning (explicit opt-in, default off): committing an
+7. User phrase learning (default on, opt-out in Preferences; local JSON
+   only, never network): committing an
    explicitly picked candidate (Tab/arrows/digit/click — never separator
    pinning) on a single pure-Zhuyin run records its (readings → text) pair
    into a local capped JSON store
