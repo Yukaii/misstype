@@ -10,6 +10,7 @@ final class CandidatesPanel: NSPanel {
     private var onPick: (Int) -> Void = { _ in }
     private let rowHeight: CGFloat = 28
     private var lastAnchor: NSRect?
+    private let footer = NSTextField(labelWithString: "")
 
     init(onPick: @escaping (Int) -> Void) {
         self.onPick = onPick
@@ -53,10 +54,16 @@ final class CandidatesPanel: NSPanel {
             rows.append(row)
             stack.addArrangedSubview(row)
         }
+        footer.font = .systemFont(ofSize: 11)
+        footer.textColor = .tertiaryLabelColor
+        footer.alignment = .right
+        footer.translatesAutoresizingMaskIntoConstraints = false
+        footer.heightAnchor.constraint(equalToConstant: 16).isActive = true
+        stack.addArrangedSubview(footer)
     }
 
     @objc private func rowClicked(_ sender: NSButton) {
-        onPick(sender.tag)
+        onPick(page * 8 + sender.tag)
     }
 
     /// Max chars per row. Candidates share long prefixes and differ at the
@@ -89,39 +96,52 @@ final class CandidatesPanel: NSPanel {
 
     /// Rebuild rows, move highlight, follow the caret. No-op animations.
     /// Anchor chain: fresh caret rect > last good rect > mouse position.
+    /// Paging is a window over the list: 8 rows show the page holding
+    /// `selected` (Tab/arrows/digits walk the full list, no page keys).
+    private(set) var page = 0
+
     func update(candidates: [String], selected: Int, anchor: NSRect?) {
-        let shown = Array(candidates.prefix(8))
+        let total = Array(candidates.prefix(16))
+        page = min(max(selected, 0) / 8, max(total.count - 1, 0) / 8)
+        let shown = Array(total.dropFirst(page * 8).prefix(8))
         for (index, text) in shown.enumerated() {
             let row = rows[index]
             row.title = ""
             row.attributedTitle = rowTitle(index: index, text: displayText(text),
-                                           highlighted: index == selected)
+                                           highlighted: index == selected - page * 8)
             row.isHidden = false
             row.wantsLayer = true
             row.layer?.cornerRadius = 6
             // Neutral gray highlight on purpose: selectedContentBackgroundColor
             // follows the system accent (pink on this machine) and looks drunk.
-            row.layer?.backgroundColor = index == selected
+            row.layer?.backgroundColor = index == selected - page * 8
                 ? NSColor.unemphasizedSelectedContentBackgroundColor.cgColor
                 : CGColor.clear
         }
         for index in shown.count..<rows.count { rows[index].isHidden = true }
-        // Self-sized: ask the buttons, not a guessed padding constant.
-        var width: CGFloat = 0
+        // Dynamic width: fit the widest visible row (buttons measure
+        // themselves, insets included), clamped to the screen. No floor —
+        // single-character lists stay narrow.
+        var contentWidth: CGFloat = 0
         for row in rows where !row.isHidden {
-            width = max(width, row.fittingSize.width)
+            contentWidth = max(contentWidth, row.fittingSize.width)
         }
-        width = min(max(width + 8, 44), 360)
-        let height = CGFloat(shown.count) * rowHeight + 6
+        contentWidth += 8 // stack leading/trailing insets
+        let pages = max((total.count + 7) / 8, 1)
+        footer.stringValue = pages > 1 ? "\(page + 1) / \(pages)" : ""
+        let height = CGFloat(shown.count) * rowHeight + 6 + 16
         if let anchor = anchor { lastAnchor = anchor }
         let target = anchor ?? lastAnchor
         if let anchor = target,
            let screen = NSScreen.screens.first(where: { $0.frame.contains(anchor.origin) })
             ?? NSScreen.main {
             let visible = screen.visibleFrame
-            var origin = NSPoint(x: anchor.minX, y: anchor.minY - height - 6)
+            let width = min(contentWidth, visible.width)
+            // Fixed direction: always above the caret (never covers the text
+            // being typed); flip below only when clipped at the top.
+            var origin = NSPoint(x: anchor.minX, y: anchor.maxY + 6)
             origin.x = min(max(origin.x, visible.minX), visible.maxX - width)
-            if origin.y < visible.minY { origin.y = anchor.maxY + 6 }
+            if origin.y + height > visible.maxY { origin.y = anchor.minY - height - 6 }
             setFrame(NSRect(origin: origin, size: NSSize(width: width, height: height)), display: true)
         } else {
             // No caret info at all (client without firstRect): park near the
@@ -130,12 +150,13 @@ final class CandidatesPanel: NSPanel {
             if let screen = NSScreen.screens.first(where: { $0.frame.contains(mouse) })
                 ?? NSScreen.main {
                 let visible = screen.visibleFrame
-                var origin = NSPoint(x: mouse.x, y: mouse.y - height - 12)
+                let width = min(contentWidth, visible.width)
+                var origin = NSPoint(x: mouse.x, y: mouse.y + 12)
                 origin.x = min(max(origin.x, visible.minX), visible.maxX - width)
-                origin.y = min(max(origin.y, visible.minY), visible.maxY - height)
+                if origin.y + height > visible.maxY { origin.y = mouse.y - height - 12 }
                 setFrame(NSRect(origin: origin, size: NSSize(width: width, height: height)), display: true)
             } else {
-                setContentSize(NSSize(width: width, height: height))
+                setContentSize(NSSize(width: contentWidth, height: height))
             }
         }
         orderFront(nil)

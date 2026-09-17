@@ -41,7 +41,7 @@ public final class LexiconDecoder {
         String(text.filter { !"ˊˇˋ˙".contains($0) })
     }
 
-    private func alternatives(_ syllable: Syllable, fuzzy: Bool) -> [(String, Double, Int)] {
+    private func alternatives(_ syllable: Syllable, fuzzy: Bool, toneTolerance: Bool = true) -> [(String, Double, Int)] {
         let reading = syllable.reading
         // Clean readings first; repair classes join the same list when fuzzy
         // is on (never gated: a valid-base typo like 更-for-功 or 業-for-越
@@ -58,15 +58,23 @@ public final class LexiconDecoder {
             // misplace tones, so the same base in other tones stays viable
             // at a penalty between toneless (0.5) and fuzzy repair (5).
             if readings.contains(reading) { add(reading, 0, 0) }
-            if let variants = toneless[Self.withoutTone(reading)] {
+            if toneTolerance, let variants = toneless[Self.withoutTone(reading)] {
                 for variant in variants where variant != reading { add(variant, 2.0, 1) }
             }
         }
-        // No tone evidence (nil) and boundary-only space ("") are the same
-        // input contract: the engine, not the terminator, picks the tone.
-        if syllable.tone == nil || syllable.tone == "" {
+        // Toneless (nil) leaves the tone fully to the engine. A space
+        // terminator ("") is stronger: an exact first-tone reading ranks at
+        // cost 0, other tones stay viable below it — so explicit first tone
+        // wins, while toneless-with-spaces still decodes (bases without an
+        // exact first-tone form fall through to variants alone).
+        if syllable.tone == nil {
             if let variants = toneless[Self.withoutTone(reading)] {
                 for variant in variants { add(variant, 0.5, 0) }
+            }
+        } else if syllable.tone == "" {
+            if readings.contains(reading) { add(reading, 0, 0) }
+            if toneTolerance, let variants = toneless[Self.withoutTone(reading)] {
+                for variant in variants where variant != reading { add(variant, 0.5, 0) }
             }
         }
         if fuzzy {
@@ -145,7 +153,7 @@ public final class LexiconDecoder {
     /// syllable no longer vetoes the whole run and caps prune by cost,
     /// never by arrival order. Mixed clean+repaired segmentations compete
     /// in a single lattice.
-    private func segmentations(of keys: [String], fuzzy: Bool) -> [[Syllable]] {
+    private func segmentations(of keys: [String], fuzzy: Bool, toneTolerance: Bool = true) -> [[Syllable]] {
         guard !keys.isEmpty else { return [[]] }
         var lattice: [[(syllables: [Syllable], cost: Double)]] =
             Array(repeating: [], count: keys.count + 1)
@@ -158,7 +166,7 @@ public final class LexiconDecoder {
                 let slice = Array(keys[start..<start + len])
                 guard slice.allSatisfy({ ZhuyinKeyboard.symbols[$0] != nil }) else { continue }
                 let probe = Syllable(keys: slice, tone: nil)
-                let options = alternatives(probe, fuzzy: fuzzy)
+                let options = alternatives(probe, fuzzy: fuzzy, toneTolerance: toneTolerance)
                 guard let cheapest = options.map(\.1).min() else { continue }
                 for prefix in lattice[start].prefix(8) {
                     lattice[start + len].append((prefix.syllables + [probe], prefix.cost + cheapest))
@@ -176,15 +184,15 @@ public final class LexiconDecoder {
     /// whole pending run into a single giant syllable and everything falls
     /// back to raw Bopomofo. Falls back to the original syllable (fuzzy rescue
     /// in decode) when no clean split exists.
-    private func repairComplete(_ syllable: Syllable) -> [[Syllable]] {
+    private func repairComplete(_ syllable: Syllable, toneTolerance: Bool = true) -> [[Syllable]] {
         if !alternatives(syllable, fuzzy: false).isEmpty { return [[syllable]] }
         guard syllable.keys.count > 1 else { return [] }
         var out: [[Syllable]] = []
         for tailLen in 1...min(Self.maxSyllableKeys, syllable.keys.count - 1) {
             let tail = Syllable(keys: Array(syllable.keys.suffix(tailLen)), tone: syllable.tone)
-            guard !alternatives(tail, fuzzy: false).isEmpty else { continue }
+            guard !alternatives(tail, fuzzy: false, toneTolerance: toneTolerance).isEmpty else { continue }
             let leadKeys = Array(syllable.keys.prefix(syllable.keys.count - tailLen))
-            for lead in segmentations(of: leadKeys, fuzzy: false).prefix(6) {
+            for lead in segmentations(of: leadKeys, fuzzy: false, toneTolerance: toneTolerance).prefix(6) {
                 out.append(lead + [tail])
                 if out.count >= 12 { return out }
             }
@@ -196,11 +204,11 @@ public final class LexiconDecoder {
     /// Complete runs fused by a mid-sentence tone key are repaired first.
     /// Falls back to the legacy single-syllable reading
     /// (surfaced as unresolved) when nothing segments.
-    public func decodeComposition(complete: [Syllable], pendingKeys: [String], fuzzy: Bool = true) -> [SentenceCandidate] {
+    public func decodeComposition(complete: [Syllable], pendingKeys: [String], fuzzy: Bool = true, toneTolerance: Bool = true) -> [SentenceCandidate] {
         // Expand fused complete runs (usually a no-op of one option each).
         var expandedComplete: [[Syllable]] = [[]]
         for syllable in complete {
-            let options = repairComplete(syllable)
+            let options = repairComplete(syllable, toneTolerance: toneTolerance)
             let chosen = options.isEmpty ? [[syllable]] : options
             var next: [[Syllable]] = []
             for prefix in expandedComplete.prefix(6) {
@@ -214,24 +222,24 @@ public final class LexiconDecoder {
         }
         var segmentOptions: [[Syllable]] = [[]]
         if !pendingKeys.isEmpty {
-            segmentOptions = segmentations(of: pendingKeys, fuzzy: false)
+            segmentOptions = segmentations(of: pendingKeys, fuzzy: false, toneTolerance: toneTolerance)
             if segmentOptions.isEmpty && fuzzy {
-                segmentOptions = segmentations(of: pendingKeys, fuzzy: true)
+                segmentOptions = segmentations(of: pendingKeys, fuzzy: true, toneTolerance: toneTolerance)
             }
             if segmentOptions.isEmpty {
-                return decode(complete + [Syllable(keys: pendingKeys, tone: nil)], fuzzy: fuzzy)
+                return decode(complete + [Syllable(keys: pendingKeys, tone: nil)], fuzzy: fuzzy, toneTolerance: toneTolerance)
             }
         }
         var merged: [SentenceCandidate] = []
         func merge(_ syllables: [Syllable], budget: inout Int) {
-            for candidate in decode(syllables, fuzzy: fuzzy) {
+            for candidate in decode(syllables, fuzzy: fuzzy, toneTolerance: toneTolerance) {
                 if let same = merged.firstIndex(where: { $0.text == candidate.text }) {
                     if merged[same].score >= candidate.score { continue }
                     merged.remove(at: same)
                 }
                 merged.append(candidate)
                 merged.sort { $0.score == $1.score ? $0.text < $1.text : $0.score > $1.score }
-                merged = Array(merged.prefix(8))
+                merged = Array(merged.prefix(16))
             }
             budget -= 1
         }
@@ -251,7 +259,7 @@ public final class LexiconDecoder {
            merged.first.map({ $0.unresolved > 0 || $0.repairs > 0 }) ?? true {
             let cleanForms = Set(segmentOptions.map { $0.map(\.reading).joined(separator: " ") })
             var extra = 0
-            for segmentation in segmentations(of: pendingKeys, fuzzy: true) {
+            for segmentation in segmentations(of: pendingKeys, fuzzy: true, toneTolerance: toneTolerance) {
                 if extra >= 6 || budget <= 0 { break }
                 if cleanForms.contains(segmentation.map(\.reading).joined(separator: " ")) { continue }
                 extra += 1
@@ -268,7 +276,7 @@ public final class LexiconDecoder {
     /// through in place, one commit at the end. Words never span punctuation,
     /// but the trailing unfinished run still decodes jointly with its own
     /// run — so punct-free input behaves exactly like decodeComposition.
-    public func decodeSegments(_ segments: [Composition.Segment], pendingKeys: [String], fuzzy: Bool = true) -> [SentenceCandidate] {
+    public func decodeSegments(_ segments: [Composition.Segment], pendingKeys: [String], fuzzy: Bool = true, toneTolerance: Bool = true) -> [SentenceCandidate] {
         var runs: [[Syllable]] = [[]]
         var seps: [String] = []
         for segment in segments {
@@ -289,7 +297,7 @@ public final class LexiconDecoder {
             let trailing = index == runs.count - 1
             let tops = decodeComposition(complete: run,
                                          pendingKeys: trailing ? pendingKeys : [],
-                                         fuzzy: fuzzy)
+                                         fuzzy: fuzzy, toneTolerance: toneTolerance)
             runTops.append(tops.isEmpty ? [empty] : tops)
         }
         func render(_ picks: [SentenceCandidate]) -> SentenceCandidate {
@@ -318,11 +326,11 @@ public final class LexiconDecoder {
             if out.count >= 64 { break }
         }
         out.sort { $0.score == $1.score ? $0.text < $1.text : $0.score > $1.score }
-        return Array(out.prefix(8))
+        return Array(out.prefix(16))
     }
 
-    public func decode(_ syllables: [Syllable], fuzzy: Bool = true) -> [SentenceCandidate] {        guard !syllables.isEmpty else { return [] }
-        let options = syllables.map { alternatives($0, fuzzy: fuzzy) }
+    public func decode(_ syllables: [Syllable], fuzzy: Bool = true, toneTolerance: Bool = true) -> [SentenceCandidate] {        guard !syllables.isEmpty else { return [] }
+        let options = syllables.map { alternatives($0, fuzzy: fuzzy, toneTolerance: toneTolerance) }
         var paths = Array(repeating: [SentenceCandidate](), count: syllables.count + 1)
         paths[0] = [SentenceCandidate(text: "", score: 0, repairs: 0, unresolved: 0)]
         func add(_ candidate: SentenceCandidate, at index: Int) {
@@ -332,7 +340,7 @@ public final class LexiconDecoder {
             }
             paths[index].append(candidate)
             paths[index].sort { $0.score == $1.score ? $0.text < $1.text : $0.score > $1.score }
-            paths[index] = Array(paths[index].prefix(8))
+            paths[index] = Array(paths[index].prefix(16))
         }
         for start in syllables.indices {
             guard !paths[start].isEmpty else { continue }

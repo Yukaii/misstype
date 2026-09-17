@@ -118,8 +118,29 @@ final class MistypeInputController: IMKInputController {
             commit(client)
             return false
         }
-        if keyCode == 123 || keyCode == 124 { // Left/Right step when picking
+        // Opt+Right locks the converted head (Rime-style segment lock) and
+        // keeps the tail typing. Plain Opt combinations still pass through.
+        // Placed before Left/Right stepping, which must not swallow it.
+        if keyCode == 124 && modifiers.contains(.option) && !modifiers.contains(.command)
+            && !modifiers.contains(.control) {
             guard !composition.isEmpty else { return false }
+            lockHead(client)
+            return true
+        }
+        if keyCode == 123 || keyCode == 124 { // Left/Right flip pages
+            guard !composition.isEmpty else { return false }
+            let pages = (candidates.count + 7) / 8
+            if pages > 1 {
+                let row = selected % 8
+                let newPage = (selected / 8 + (keyCode == 124 ? 1 : pages - 1)) % pages
+                var index = newPage * 8 + row
+                if index >= candidates.count { index = candidates.count - 1 }
+                selected = index
+                pinnedPick = candidates[selected].text
+                mark(previewText, client)
+                syncPanel(client)
+                return true
+            }
             if candidates.count > 1 {
                 selected = (selected + (keyCode == 124 ? 1 : candidates.count - 1)) % candidates.count
                 pinnedPick = candidates[selected].text
@@ -181,12 +202,17 @@ final class MistypeInputController: IMKInputController {
         if modifiers.contains(.shift), !modifiers.contains(.command),
            !modifiers.contains(.control), !modifiers.contains(.option),
            !english, !composition.isEmpty, candidates.count > 1,
-           let digit = digitOrder.firstIndex(of: keyCode), digit + 1 < candidates.count {
-            selected = digit + 1
-            pinnedPick = candidates[selected].text
-            mark(previewText, client)
-            syncPanel(client)
-            return true
+           let digit = digitOrder.firstIndex(of: keyCode) {
+            // Digits address the visible page (panel shows 8 of up to 16);
+            // out-of-range digits fall through to punct/phonetic below.
+            let global = (selected / 8) * 8 + digit + 1
+            if global < candidates.count {
+                selected = global
+                pinnedPick = candidates[selected].text
+                mark(previewText, client)
+                syncPanel(client)
+                return true
+            }
         }
         // CJK punctuation locks the current pick and continues: pin the
         // selection, append the mark, refresh. Never commits — commit is
@@ -280,7 +306,7 @@ final class MistypeInputController: IMKInputController {
         // Preview converts terminated runs (punctuation passes through in
         // place); the trailing pending run stays raw Bopomofo until commit.
         let previous = candidates.map(\.text)
-        candidates = Runtime.decoder.decodeSegments(composition.segments, pendingKeys: [])
+        candidates = Runtime.decoder.decodeSegments(composition.segments, pendingKeys: [], fuzzy: MistypePrefs.fuzzyRepair, toneTolerance: MistypePrefs.toneTolerance)
         if let pin = pinnedPick, !pin.isEmpty {
             if let exact = candidates.firstIndex(where: { $0.text == pin }) {
                 selected = exact
@@ -347,7 +373,9 @@ final class MistypeInputController: IMKInputController {
             text = candidates[selected].text
         } else {
             text = Runtime.decoder.decodeSegments(composition.segments,
-                                                  pendingKeys: composition.parsed.pending).first?.text
+                                                  pendingKeys: composition.parsed.pending,
+                                                  fuzzy: MistypePrefs.fuzzyRepair,
+                                                  toneTolerance: MistypePrefs.toneTolerance).first?.text
                 ?? composition.rawPhonetic
         }
         while text.last?.isWhitespace == true { text.removeLast() }
@@ -360,7 +388,42 @@ final class MistypeInputController: IMKInputController {
         latinMode = false
         candidatePanel.hidePanel()
     }
-    override func composedString(_ sender: Any!) -> Any! { previewText }
+    override func menu() -> NSMenu! {
+        let menu = NSMenu(title: "Mistype")
+        let prefs = NSMenuItem(title: "Mistype Preferences…", action: #selector(openPreferences(_:)), keyEquivalent: "")
+        prefs.target = self
+        menu.addItem(prefs)
+        return menu
+    }
+
+    @objc func openPreferences(_ sender: Any?) {
+        PreferencesPanel.shared.show()
+    }
+
+    private func lockHead(_ client: IMKTextInput) {
+        // Rime-style segment lock: commit the converted head with the current
+        // selection, keep the unfinished tail typing.
+        guard !composition.parsed.complete.isEmpty, candidates.indices.contains(selected) else {
+            NSSound.beep()
+            return
+        }
+        var text = candidates[selected].text
+        let latin = composition.trailingLatin
+        if !latin.isEmpty {
+            guard text.hasSuffix(latin) else {
+                NSSound.beep()
+                return
+            }
+            text = String(text.dropLast(latin.count))
+        }
+        guard !text.isEmpty else {
+            NSSound.beep()
+            return
+        }
+        client.insertText(text, replacementRange: missingRange)
+        composition.dropHeadKeepingTail()
+        refresh(client)
+    }
     override func originalString(_ sender: Any!) -> NSAttributedString { NSAttributedString(string: composition.rawPhonetic) }
     override func commitComposition(_ sender: Any!) {
         if let client = sender as? IMKTextInput { commit(client) }
@@ -406,7 +469,7 @@ if CommandLine.arguments.count == 3 && CommandLine.arguments[1] == "--decode" {
     let decoder = Runtime.decoder
     let loaded = Date()
     let parsed = composition.parsed
-    let results = decoder.decodeSegments(composition.segments, pendingKeys: parsed.pending)
+    let results = decoder.decodeSegments(composition.segments, pendingKeys: parsed.pending, fuzzy: MistypePrefs.fuzzyRepair, toneTolerance: MistypePrefs.toneTolerance)
     print("entries=\(decoder.entryCount) load_ms=\(loaded.timeIntervalSince(started) * 1000) decode_ms=\(Date().timeIntervalSince(loaded) * 1000)")
     for candidate in results { print("\(candidate.text)\t\(candidate.score)\trepairs=\(candidate.repairs) unresolved=\(candidate.unresolved)") }
     exit(0)
@@ -425,4 +488,5 @@ weak var activeController: MistypeInputController?
 var candidatePanel = CandidatesPanel(onPick: { index in
     activeController?.pickCandidate(at: index)
 })
+MistypePrefs.register()
 withExtendedLifetime((server, candidatePanel)) { app.run() }
