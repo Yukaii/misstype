@@ -11,6 +11,8 @@ final class CoreTests: XCTestCase {
         LexiconDecoder(tsv: """
         ㄋㄧˇ\t你\t-5
         ㄋㄧˇ\t妳\t-6
+        ㄋㄧˇ\t尼\t-7
+        ㄋㄧˇ\t泥\t-8
         ㄏㄠˇ\t好\t-5
         ㄋㄧˇ-ㄏㄠˇ\t你好\t-3
         ㄇㄚ˙\t嗎\t-4
@@ -534,8 +536,19 @@ final class CoreTests: XCTestCase {
         let segmentations = decoder.segmentKeys(["s", "u", "c", "l"], fuzzy: false)
         XCTAssertEqual(segmentations.first?.map(\.reading), ["ㄋㄧ", "ㄏㄠ"])
     }
-    func testPreeditWithCursorMarksPosition() {
-        XCTAssertEqual(preeditWithCursor("你好嗎", caretUTF16: 0), "|你好嗎")
+    func testNodeCapKeepsBeyondTopThree() {
+        // Regression: per-node cap 3 hid daily chars (鍵 sat at #22 under
+        // ㄐㄧㄢˋ, unreachable by paging or learning). Fixture 尼/泥 are 4th/
+        // 5th under ㄋㄧˇ and must be reachable; top-1 must not move.
+        let syllables = composition("su3").syllables(finishing: true)
+        let options = decoder.segmentOptions(syllables, span: 0..<1)
+        XCTAssertTrue(options.contains(where: { $0.text == "尼" }))
+        XCTAssertTrue(options.contains(where: { $0.text == "泥" }))
+        let decoded = decoder.decode(syllables)
+        XCTAssertTrue(decoded.contains(where: { $0.text == "尼" }))
+        XCTAssertEqual(decoded.first?.text, "你")
+    }
+    func testPreeditWithCursorMarksPosition() {        XCTAssertEqual(preeditWithCursor("你好嗎", caretUTF16: 0), "|你好嗎")
         XCTAssertEqual(preeditWithCursor("你好嗎", caretUTF16: 1), "你|好嗎")
         XCTAssertEqual(preeditWithCursor("你好嗎", caretUTF16: 3), "你好嗎|")
         // Out-of-range clamps instead of trapping.

@@ -541,7 +541,11 @@ final class MistypeInputController: IMKInputController {
         guard composition.learnableKey != nil,
               candidates.indices.contains(selected) else { return nil }
         let top = candidates[selected]
-        guard top.repairs == 0 && top.unresolved == 0,
+        // No repairs gate: alignment is filled on every path and the
+        // word-in-options check below already guards correctness — repaired
+        // (typo'd) words are exactly what the cursor is for. Unresolved
+        // (raw fallback) spans stay out: nothing to offer there.
+        guard top.unresolved == 0,
               let end = top.alignment.last?.syllables.upperBound, end > 0 else { return nil }
         let parsed = composition.parsed
         var rebuilt = parsed.complete

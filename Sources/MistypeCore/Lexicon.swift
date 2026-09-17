@@ -52,6 +52,21 @@ public final class LexiconDecoder {
         var children: [String: Node] = [:]
         var entries: [(text: String, score: Double)] = []
     }
+    /// Full per-reading entries, best-first (was: top 3). +5% entries
+    /// corpus-wide, so frequency-buried daily chars (鍵 is #22 under
+    /// ㄐㄧㄢˋ) exist in the trie at all — single-char queries page real
+    /// homophones via segmentOptions instead of repair junk, and one
+    /// explicit pick (+6) can then lock them top-1.
+    /// The hot decode loop does NOT walk all of these (see
+    /// decodeEntriesPerNode); beam paths stay top-16, so sentences
+    /// barely notice.
+    /// Decode-time entries per node. Multi-syllable beams only ever show
+    /// 16, so iterating past a few buys nothing but latency (measured ~2x
+    /// at 8, ~3x at full walk on 9–26 syllables); single-syllable queries
+    /// walk the full node below (they have no lattice to explode: ~1 ms
+    /// for 68 entries). Deep homophone paging walks the full node via
+    /// segmentOptions instead.
+    private static let decodeEntriesPerNode = 4
     private let root = Node()
     private var readings: Set<String> = []
     private var toneless: [String: Set<String>] = [:]
@@ -72,7 +87,6 @@ public final class LexiconDecoder {
             }
             node.entries.append((String(fields[1]), score))
             node.entries.sort { $0.score == $1.score ? $0.text < $1.text : $0.score > $1.score }
-            node.entries = Array(node.entries.prefix(3))
             entryCount += 1
         }
     }
@@ -229,9 +243,13 @@ public final class LexiconDecoder {
     /// Distinct word options covering one syllable span, for the cursor's
     /// focused segment. Same option/trie/score scale as decode, restricted
     /// to spans exactly equal to `span` — deterministic, beam-independent.
+    /// Single-syllable spans list up to 64 (the homophone browser: every IME
+    /// lets you page through 同音字; multi-char spans cap at 16 like the
+    /// beam — deep word lists never pay off).
     public func segmentOptions(_ syllables: [Syllable], span: Range<Int>, fuzzy: Bool = true, toneTolerance: Bool = true) -> [(text: String, score: Double)] {
         guard !span.isEmpty, span.count <= 8,
               span.lowerBound >= 0, span.upperBound <= syllables.count else { return [] }
+        let cap = span.count == 1 ? 64 : 16
         let options = syllables.map { alternatives($0, fuzzy: fuzzy, toneTolerance: toneTolerance) }
         var found: [String: Double] = [:]
         func walk(_ node: Node, _ index: Int, _ penalty: Double) {
@@ -251,7 +269,7 @@ public final class LexiconDecoder {
         walk(root, span.lowerBound, 0)
         return found.sorted {
             $0.value == $1.value ? $0.key < $1.key : $0.value > $1.value
-        }.prefix(16).map { (text: $0.key, score: $0.value) }
+        }.prefix(cap).map { (text: $0.key, score: $0.value) }
     }
     /// Split a tone-terminated run that is not viable as one syllable: the tone
     /// belongs to the trailing piece (the syllable just finished), the lead is
@@ -450,7 +468,11 @@ public final class LexiconDecoder {
                         guard let child = node.children[reading] else { continue }
                         let span = readings + [reading]
                         next.append((child, penalty + cost, repairs + correction, span))
-                        for entry in child.entries {
+                        // Single-syllable inputs ARE homophone browsing: walk
+                        // the full node (cheap, no lattice). Longer spans pay
+                        // per extra entry with zero beam benefit past a few.
+                        let cap = syllables.count == 1 ? child.entries.count : Self.decodeEntriesPerNode
+                        for entry in child.entries.prefix(cap) {
                             let spanKey = UserLexicon.key(forReadings: span)
                             // Session pin: a decisive bonus for the pinned
                             // (span, text) pair — paths through it always win
