@@ -30,6 +30,23 @@ public struct WordSpan: Equatable {
     }
 }
 
+/// Preedit string with a visible cursor marker, for panels that must not
+/// depend on the client drawing the marked-text caret (some apps never do —
+/// vChewing ships a floating composition buffer for the same reason).
+/// `caret` is a UTF-16 offset; out-of-range clamps, misaligned offsets fall
+/// back to appending rather than splitting a unit. The marker is "|" (not a
+/// block element: those carry a full advance width and trail a blank gap).
+public func preeditWithCursor(_ text: String, caretUTF16 caret: Int,
+                              marker: Character = "|") -> String {
+    let units = text.utf16
+    let clamped = max(0, min(caret, units.count))
+    let utf16Index = units.index(units.startIndex, offsetBy: clamped)
+    if let index = String.Index(utf16Index, within: text) {
+        return String(text[..<index]) + String(marker) + String(text[index...])
+    }
+    return text + String(marker)
+}
+
 public final class LexiconDecoder {
     private final class Node {
         var children: [String: Node] = [:]

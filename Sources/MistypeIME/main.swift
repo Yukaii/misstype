@@ -375,6 +375,13 @@ final class MistypeInputController: IMKInputController {
         let converted = candidates.indices.contains(selected) ? candidates[selected].text : ""
         return converted + composition.pendingText
     }
+    /// Caret shared by marked text and the panel header: focused word start,
+    /// else after the last unit. UTF-16 offsets throughout.
+    private var caretOffset: Int {
+        let len = previewText.utf16.count
+        if let focused = segmentChars?.lowerBound { return min(focused, len) }
+        return len
+    }
     private func refresh(_ client: IMKTextInput, keepCursor: Bool = false) {
         // Preview converts terminated runs (punctuation passes through in
         // place); the trailing pending run stays raw Bopomofo until commit.
@@ -413,10 +420,16 @@ final class MistypeInputController: IMKInputController {
     private func syncPanel(_ client: IMKTextInput) {
         let texts = segmentTexts ?? candidates.map(\.text)
         let sel = segmentTexts != nil ? segmentSelected : selected
-        if texts.count > 1 {
+        // Focused mode shows even a single option: the header carries the
+        // cursor, which is the whole point of going back. End mode keeps the
+        // out-of-the-way policy (only >1 candidate).
+        let show = segmentTexts != nil ? !texts.isEmpty : texts.count > 1
+        if show {
             candidatePanel.update(candidates: texts,
                                   selected: sel,
-                                  anchor: caretAnchor(client))
+                                  anchor: caretAnchor(client),
+                                  preedit: previewText,
+                                  caret: caretOffset)
         } else {
             candidatePanel.hidePanel()
         }
@@ -457,7 +470,9 @@ final class MistypeInputController: IMKInputController {
         }
     }
     private func mark(_ text: String, _ client: IMKTextInput) {
-        client.setMarkedText(text, selectionRange: NSRange(location: text.utf16.count, length: 0),
+        // Focused mode parks the caret at the start of the focused word;
+        // end mode keeps it after the last unit (converted or pending raw).
+        client.setMarkedText(text, selectionRange: NSRange(location: caretOffset, length: 0),
                              replacementRange: missingRange)
     }
     private func commit(_ client: IMKTextInput) {
