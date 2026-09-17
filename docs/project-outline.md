@@ -146,7 +146,16 @@ Exit: offline mode is useful on its own; model provenance and timing are visible
 
 Package the stable core behind a thin macOS InputMethodKit adapter. `IMKServer` and `IMKInputController` own system integration; they forward key events into the core and send committed text back to the client app. Keep marked text, commit/cancel, language switching, and preferences in the adapter. Do not put fuzzy decoding or model calls in AppKit code.
 
-The first native InputMethodKit bundle is installable through `script/install_ime.sh`. It uses a pinned offline dictionary, whole-composition segmentation, conservative fuzzy rescue, marked text, Return/Space commit, Backspace, Escape, and Latin passthrough. It is a real system-wide experiment, but not yet a production IME: user phrase learning, richer punctuation, robust candidate UI, signing/notarization, and shared Python/Rust decoder integration remain open.
+The first native InputMethodKit bundle is installable through `script/install_ime.sh`. It uses a pinned offline dictionary, whole-composition segmentation, conservative fuzzy rescue, marked text, Return/Space commit, Backspace, Escape, and Latin passthrough. It is a real system-wide experiment, but not yet a production IME: richer punctuation, robust candidate UI, signing/notarization, and shared Python/Rust decoder integration remain open.
+
+User phrase learning v1 has landed (explicit opt-in, default off): an
+explicitly picked candidate committed on a single pure-Zhuyin run is
+recorded locally and boosted next time (+6 / +1 per repeat / cap +10).
+Falsified with `--decode --user-lexicon`: one 妳好 record flips top-1
+(#4 → #1, 9 syllables, decode stays <1 ms, offline source). v1 limits:
+pure runs only (mixed/latin/space-separated spans skip), commits with a
+pending tail skip, segment-lock heads never train, 500-entry LRU cap.
+Measure with: `MistypeIME --decode "<keys>" --user-lexicon <path>`.
 
 ### M5 roadmap — candidate window v1 landed, refinements queued
 

@@ -12,6 +12,13 @@ enum Runtime {
         }
         return LexiconDecoder(tsv: data)
     }()
+    /// Explicit-opt-in user overlay, loaded once at startup and reloaded
+    /// when the preference flips on. Gated per keystroke by
+    /// MistypePrefs.userLearning — off means nil, i.e. byte-identical decode.
+    static var userLexicon = UserLexicon.load()
+    static var activeUserLexicon: UserLexicon? {
+        MistypePrefs.userLearning ? userLexicon : nil
+    }
     /// File trace for routing diagnosis (~/Library/Logs/MistypeIME-debug.log).
     /// NSLog is a black hole under TIS-launched ad-hoc builds, so diagnosis
     /// goes here instead. Codes and indices only — never text content.
@@ -48,7 +55,11 @@ final class MistypeInputController: IMKInputController {
     /// Explicitly picked text (Tab/arrows/digit/click). Survives continued
     /// typing by prefix match: longer candidates extending the pick keep it.
     /// Cleared on commit/clear/Escape or when no candidate extends it.
+    /// `explicitPick` is the learning-grade subset: true only when the pick
+    /// came from a deliberate selection gesture — separator/punctuation
+    /// pinning sets pinnedPick without it, so routine commits never train.
     private var pinnedPick: String?
+    private var explicitPick = false
     private let missingRange = NSRange(location: NSNotFound, length: 0)
 
     override func inputText(_ string: String!, key keyCode: Int, modifiers flags: Int, client sender: Any!) -> Bool {
@@ -88,6 +99,7 @@ final class MistypeInputController: IMKInputController {
                 composition.clear()
                 candidates = []
                 pinnedPick = nil
+                explicitPick = false
                 selected = 0
                 latinMode = false
                 mark("", client)
@@ -111,6 +123,7 @@ final class MistypeInputController: IMKInputController {
             if candidates.count > 1 {
                 selected = (selected + (keyCode == 125 ? 1 : candidates.count - 1)) % candidates.count
                 pinnedPick = candidates[selected].text
+                explicitPick = true
                 mark(previewText, client)
                 syncPanel(client)
                 return true
@@ -137,6 +150,7 @@ final class MistypeInputController: IMKInputController {
                 if index >= candidates.count { index = candidates.count - 1 }
                 selected = index
                 pinnedPick = candidates[selected].text
+                explicitPick = true
                 mark(previewText, client)
                 syncPanel(client)
                 return true
@@ -144,6 +158,7 @@ final class MistypeInputController: IMKInputController {
             if candidates.count > 1 {
                 selected = (selected + (keyCode == 124 ? 1 : candidates.count - 1)) % candidates.count
                 pinnedPick = candidates[selected].text
+                explicitPick = true
                 mark(previewText, client)
                 syncPanel(client)
                 return true
@@ -156,6 +171,7 @@ final class MistypeInputController: IMKInputController {
             composition.clear()
             candidates = []
             pinnedPick = nil
+            explicitPick = false
             selected = 0
             latinMode = false
             mark("", client)
@@ -179,6 +195,7 @@ final class MistypeInputController: IMKInputController {
                 let backward = modifiers.contains(.shift)
                 selected = (selected + (backward ? candidates.count - 1 : 1)) % candidates.count
                 pinnedPick = candidates[selected].text
+                explicitPick = true
                 mark(previewText, client)
                 syncPanel(client)
             }
@@ -209,6 +226,7 @@ final class MistypeInputController: IMKInputController {
             if global < candidates.count {
                 selected = global
                 pinnedPick = candidates[selected].text
+                explicitPick = true
                 mark(previewText, client)
                 syncPanel(client)
                 return true
@@ -306,7 +324,7 @@ final class MistypeInputController: IMKInputController {
         // Preview converts terminated runs (punctuation passes through in
         // place); the trailing pending run stays raw Bopomofo until commit.
         let previous = candidates.map(\.text)
-        candidates = Runtime.decoder.decodeSegments(composition.segments, pendingKeys: [], fuzzy: MistypePrefs.fuzzyRepair, toneTolerance: MistypePrefs.toneTolerance)
+        candidates = Runtime.decoder.decodeSegments(composition.segments, pendingKeys: [], fuzzy: MistypePrefs.fuzzyRepair, toneTolerance: MistypePrefs.toneTolerance, userLexicon: Runtime.activeUserLexicon)
         if let pin = pinnedPick, !pin.isEmpty {
             if let exact = candidates.firstIndex(where: { $0.text == pin }) {
                 selected = exact
@@ -315,6 +333,7 @@ final class MistypeInputController: IMKInputController {
             } else {
                 selected = 0
                 pinnedPick = nil
+                explicitPick = false
             }
         } else if candidates.map(\.text) != previous || !candidates.indices.contains(selected) {
             selected = 0
@@ -357,6 +376,7 @@ final class MistypeInputController: IMKInputController {
         guard candidates.indices.contains(index) else { return }
         selected = index
         pinnedPick = candidates[index].text
+        explicitPick = true
         if let client = lastClient {
             mark(previewText, client)
             syncPanel(client)
@@ -369,21 +389,35 @@ final class MistypeInputController: IMKInputController {
     private func commit(_ client: IMKTextInput) {
         guard !composition.isEmpty else { return }
         var text: String
-        if composition.parsed.pending.isEmpty && candidates.indices.contains(selected) {
+        // Learning-grade commit: the user saw exactly candidates[selected]
+        // (no pending tail re-decode) and explicitly picked it. Anything
+        // else — pending re-decode, separator pinning, raw fallback — never
+        // trains, so routine typing leaves the overlay untouched.
+        let learnable = composition.parsed.pending.isEmpty
+            && candidates.indices.contains(selected)
+        if learnable {
             text = candidates[selected].text
         } else {
             text = Runtime.decoder.decodeSegments(composition.segments,
                                                   pendingKeys: composition.parsed.pending,
                                                   fuzzy: MistypePrefs.fuzzyRepair,
-                                                  toneTolerance: MistypePrefs.toneTolerance).first?.text
+                                                  toneTolerance: MistypePrefs.toneTolerance,
+                                                  userLexicon: Runtime.activeUserLexicon).first?.text
                 ?? composition.rawPhonetic
         }
         while text.last?.isWhitespace == true { text.removeLast() }
         guard !text.isEmpty else { return }
+        if MistypePrefs.userLearning && explicitPick && learnable
+            && candidates[selected].unresolved == 0,
+            let key = composition.learnableKey {
+            Runtime.userLexicon.record(key: key, text: text)
+            Runtime.userLexicon.save()
+        }
         client.insertText(text, replacementRange: missingRange)
         composition.clear()
         candidates = []
         pinnedPick = nil
+        explicitPick = false
         selected = 0
         latinMode = false
         candidatePanel.hidePanel()
@@ -434,10 +468,11 @@ final class MistypeInputController: IMKInputController {
     }
 }
 
-if CommandLine.arguments.count == 3 && CommandLine.arguments[1] == "--decode" {
+if let decodeIndex = CommandLine.arguments.firstIndex(of: "--decode"),
+   decodeIndex + 1 < CommandLine.arguments.count {
     var composition = Composition()
     var latin = false
-    for key in CommandLine.arguments[2] {
+    for key in CommandLine.arguments[decodeIndex + 1] {
         let label = String(key)
         if label == "`" {
             latin.toggle()
@@ -469,8 +504,13 @@ if CommandLine.arguments.count == 3 && CommandLine.arguments[1] == "--decode" {
     let decoder = Runtime.decoder
     let loaded = Date()
     let parsed = composition.parsed
-    let results = decoder.decodeSegments(composition.segments, pendingKeys: parsed.pending, fuzzy: MistypePrefs.fuzzyRepair, toneTolerance: MistypePrefs.toneTolerance)
-    print("entries=\(decoder.entryCount) load_ms=\(loaded.timeIntervalSince(started) * 1000) decode_ms=\(Date().timeIntervalSince(loaded) * 1000)")
+    var userLexicon: UserLexicon?
+    if let flagIndex = CommandLine.arguments.firstIndex(of: "--user-lexicon"),
+       flagIndex + 1 < CommandLine.arguments.count {
+        userLexicon = UserLexicon.load(from: URL(fileURLWithPath: CommandLine.arguments[flagIndex + 1]))
+    }
+    let results = decoder.decodeSegments(composition.segments, pendingKeys: parsed.pending, fuzzy: MistypePrefs.fuzzyRepair, toneTolerance: MistypePrefs.toneTolerance, userLexicon: userLexicon)
+    print("entries=\(decoder.entryCount) user=\(userLexicon?.count ?? 0) load_ms=\(loaded.timeIntervalSince(started) * 1000) decode_ms=\(Date().timeIntervalSince(loaded) * 1000)")
     for candidate in results { print("\(candidate.text)\t\(candidate.score)\trepairs=\(candidate.repairs) unresolved=\(candidate.unresolved)") }
     exit(0)
 }

@@ -379,4 +379,102 @@ final class CoreTests: XCTestCase {
         XCTAssertTrue(input.isEmpty)
         XCTAssertFalse(input.append("3"))
     }
+    // MARK: - User phrase learning (explicit opt-in overlay)
+    func testUserLexiconFlipsTopOneAfterOneExplicitPick() {
+        // Fixture prefers 你 (-5) over 妳 (-6); one explicit record (+6)
+        // must flip the tie deterministically.
+        var learned = UserLexicon()
+        learned.record(key: UserLexicon.key(for: [Syllable(keys: ["s", "u"], tone: "ˇ")]),
+                       text: "妳", at: Date(timeIntervalSince1970: 1))
+        let result = decoder.decode(composition("su3").syllables(finishing: true),
+                                    userLexicon: learned)
+        XCTAssertEqual(result.first?.text, "妳")
+        XCTAssertEqual(result.first?.score ?? 0, 0, accuracy: 1e-9) // -6 + 6
+    }
+    func testUserLexiconTonelessRetypeHitsTonedLearn() {
+        // Toneless-continuous retype must hit the toned learn: the key is
+        // toneless-concatenated on both sides.
+        var learned = UserLexicon()
+        learned.record(key: UserLexicon.key(for: [Syllable(keys: ["s", "u"], tone: "ˇ")]),
+                       text: "妳", at: Date(timeIntervalSince1970: 1))
+        let parsed = composition("su").parsed
+        let result = decoder.decodeComposition(complete: parsed.complete,
+                                               pendingKeys: parsed.pending,
+                                               userLexicon: learned)
+        XCTAssertEqual(result.first?.text, "妳")
+    }
+    func testUserLexiconBonusCapsWithRepeats() {
+        var learned = UserLexicon()
+        let key = UserLexicon.key(for: [Syllable(keys: ["s", "u"], tone: "ˇ")])
+        for second in 1...6 {
+            learned.record(key: key, text: "妳", at: Date(timeIntervalSince1970: Double(second)))
+        }
+        XCTAssertEqual(learned.bonus(key: key, text: "妳"), 10.0, accuracy: 1e-9)
+        let result = decoder.decode(composition("su3").syllables(finishing: true),
+                                    userLexicon: learned)
+        XCTAssertEqual(result.first?.score ?? 0, 4.0, accuracy: 1e-9) // -6 + 10
+    }
+    func testUserLexiconLeavesUnrelatedInputAlone() {
+        // Empty overlay and unrelated learns must be byte-identical.
+        var learned = UserLexicon()
+        learned.record(key: UserLexicon.key(for: [Syllable(keys: ["s", "u"], tone: "ˇ")]),
+                       text: "妳", at: Date(timeIntervalSince1970: 1))
+        let plain = decoder.decodeComposition(
+            complete: [Syllable(keys: ["s", "u"], tone: "ˇ"),
+                       Syllable(keys: ["c", "l"], tone: "ˇ")], pendingKeys: [])
+        let empty = decoder.decodeComposition(
+            complete: [Syllable(keys: ["s", "u"], tone: "ˇ"),
+                       Syllable(keys: ["c", "l"], tone: "ˇ")], pendingKeys: [],
+            userLexicon: UserLexicon())
+        XCTAssertEqual(plain.map(\.text), empty.map(\.text))
+        XCTAssertEqual(plain.map(\.score), empty.map(\.score))
+        let boosted = decoder.decodeComposition(
+            complete: [Syllable(keys: ["s", "u"], tone: "ˇ"),
+                       Syllable(keys: ["c", "l"], tone: "ˇ")], pendingKeys: [],
+            userLexicon: learned)
+        XCTAssertEqual(boosted.first?.text, "你好") // 妳-learn does not leak here
+        XCTAssertEqual(boosted.first?.score ?? 0, plain.first?.score ?? 0, accuracy: 1e-9)
+    }
+    func testUserLexiconBoostsMultiSyllableSpan() {
+        var learned = UserLexicon()
+        learned.record(key: "ㄋㄧㄏㄠ", text: "你好", at: Date(timeIntervalSince1970: 1))
+        let parsed = composition("su3cl3").parsed
+        let result = decoder.decodeComposition(complete: parsed.complete,
+                                               pendingKeys: parsed.pending,
+                                               userLexicon: learned)
+        XCTAssertEqual(result.first?.text, "你好")
+        XCTAssertEqual(result.first?.score ?? 0, 3.0, accuracy: 1e-9) // -3 + 6
+    }
+    func testLearnableKeyGatesMixedSpans() {
+        XCTAssertEqual(composition("su3cl3").learnableKey, "ㄋㄧㄏㄠ")
+        // Pending tail blob joins the key (toneless-continuous learns).
+        XCTAssertEqual(composition("su3cl").learnableKey, "ㄋㄧㄏㄠ")
+        // Punctuation, latin, and separator spaces veto v1 learning.
+        var punct = composition("su3")
+        punct.appendLiteral("，")
+        XCTAssertNil(punct.learnableKey)
+        var latin = composition("su3")
+        _ = latin.appendLatin("x")
+        XCTAssertNil(latin.learnableKey)
+        var spaced = composition("su3")
+        _ = spaced.appendSpace()
+        _ = spaced.append("c")
+        XCTAssertNil(spaced.learnableKey)
+        XCTAssertNil(Composition().learnableKey)
+    }
+    func testUserLexiconStoreRoundTripAndEviction() throws {        var learned = UserLexicon()
+        learned.record(key: "ㄋㄧ", text: "妳", at: Date(timeIntervalSince1970: 7))
+        let restored = try UserLexicon.decoded(from: learned.encoded())
+        XCTAssertEqual(restored, learned)
+        XCTAssertEqual(restored.bonus(key: "ㄋㄧ", text: "妳"), 6.0, accuracy: 1e-9)
+        // Cap is enforced deterministically: oldest lowest-count entry goes.
+        var full = UserLexicon()
+        for index in 0...UserLexicon.entryCap {
+            full.record(key: "k\(index)", text: "文",
+                        at: Date(timeIntervalSince1970: Double(index)))
+        }
+        XCTAssertEqual(full.count, UserLexicon.entryCap)
+        XCTAssertNil(full.entries["k0"])
+        XCTAssertNotNil(full.entries["k\(UserLexicon.entryCap)"])
+    }
 }
