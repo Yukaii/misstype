@@ -276,8 +276,17 @@ window out of the critical path):
     resizes ease instead of snapping; height fits shown rows (plus the
     preedit header) with a page-footer reserve. Direction is fixed above the
     caret (never covers typed text), flipping below only when clipped.
-   Junk below #12 (策是/測是…) is the documented price; truths deeper
-   than 16 stay out of reach by design.
+    Junk below #12 (策是/測是…) is the documented price; truths deeper
+    than 16 stay out of reach by design.
+    Update (measured, landed): per-reading entries 3 → full trie (daily
+    chars buried by frequency become reachable — 鍵 sat at #22 under
+    ㄐㄧㄢˋ, invisible to paging and learning alike). Decode walks 4 per
+    node on multi-syllable spans (+20% latency: dada 32→39 ms, 26-syl
+    71→86 ms; full walk measured 3x, rejected) and the full node on
+    single-syllable spans (~0.3 ms, no lattice to explode), so ㄐㄧㄢˋ pages
+    間建見件健漸監鍵… instead of repair junk; 12-point top-1 battery
+    byte-identical. Segment lists: single-span cap 64 (homophone browser),
+    multi-span 16; panel pages up to 64.
 4. English switching: Shift-hold Latin appends inline and Shift+Space
    toggles exist; collect the exact broken cases (mode indicator? CapsLock?
    toggle state after commit?) before changing behavior.
@@ -309,8 +318,9 @@ window out of the critical path):
    on; any edit returns to end, Return still commits once. Rime alignment
    so far: offline-first ✓, candidateKeys pref stored ✓, segmented lock-in
    via pins ✓ (soft — no early partial insertText yet); per-segment paging
-   + span cursor beyond the pure-run gate stay future (our cursor needs a
-   clean top-1 with validated alignment; mixed/space-separated spans keep
+   + span cursor beyond the pure-run gate stay future (the cursor needs a
+   fully-resolved top-1 — repaired welcome, raw fallback out — with
+   validated alignment; mixed/space-separated spans keep
    whole-span paging).
 
 ## Measures

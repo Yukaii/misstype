@@ -138,7 +138,9 @@ final class CandidatesPanel: NSPanel {
 
     func update(candidates: [String], selected: Int, anchor: NSRect?,
                 preedit: String? = nil, caret: Int = 0) {
-        let total = Array(candidates.prefix(16))
+        // Up to 64 rows pageable (single-char homophone lists); the visible
+        // window stays 8, paging math below is count-generic.
+        let total = Array(candidates.prefix(64))
         page = min(max(selected, 0) / 8, max(total.count - 1, 0) / 8)
         let shown = Array(total.dropFirst(page * 8).prefix(8))
         for (index, text) in shown.enumerated() {
