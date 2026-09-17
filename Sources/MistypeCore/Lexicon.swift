@@ -177,7 +177,6 @@ public final class LexiconDecoder {
         lattice[keys.count].sort { $0.cost < $1.cost }
         return Array(lattice[keys.count].prefix(12).map(\.syllables))
     }
-
     /// Split a tone-terminated run that is not viable as one syllable: the tone
     /// belongs to the trailing piece (the syllable just finished), the lead is
     /// segmented tonelessly. Without this, one mid-sentence tone key fuses the
@@ -204,7 +203,7 @@ public final class LexiconDecoder {
     /// Complete runs fused by a mid-sentence tone key are repaired first.
     /// Falls back to the legacy single-syllable reading
     /// (surfaced as unresolved) when nothing segments.
-    public func decodeComposition(complete: [Syllable], pendingKeys: [String], fuzzy: Bool = true, toneTolerance: Bool = true) -> [SentenceCandidate] {
+    public func decodeComposition(complete: [Syllable], pendingKeys: [String], fuzzy: Bool = true, toneTolerance: Bool = true, userLexicon: UserLexicon? = nil) -> [SentenceCandidate] {
         // Expand fused complete runs (usually a no-op of one option each).
         var expandedComplete: [[Syllable]] = [[]]
         for syllable in complete {
@@ -227,12 +226,12 @@ public final class LexiconDecoder {
                 segmentOptions = segmentations(of: pendingKeys, fuzzy: true, toneTolerance: toneTolerance)
             }
             if segmentOptions.isEmpty {
-                return decode(complete + [Syllable(keys: pendingKeys, tone: nil)], fuzzy: fuzzy, toneTolerance: toneTolerance)
+                return decode(complete + [Syllable(keys: pendingKeys, tone: nil)], fuzzy: fuzzy, toneTolerance: toneTolerance, userLexicon: userLexicon)
             }
         }
         var merged: [SentenceCandidate] = []
         func merge(_ syllables: [Syllable], budget: inout Int) {
-            for candidate in decode(syllables, fuzzy: fuzzy, toneTolerance: toneTolerance) {
+            for candidate in decode(syllables, fuzzy: fuzzy, toneTolerance: toneTolerance, userLexicon: userLexicon) {
                 if let same = merged.firstIndex(where: { $0.text == candidate.text }) {
                     if merged[same].score >= candidate.score { continue }
                     merged.remove(at: same)
@@ -276,7 +275,7 @@ public final class LexiconDecoder {
     /// through in place, one commit at the end. Words never span punctuation,
     /// but the trailing unfinished run still decodes jointly with its own
     /// run — so punct-free input behaves exactly like decodeComposition.
-    public func decodeSegments(_ segments: [Composition.Segment], pendingKeys: [String], fuzzy: Bool = true, toneTolerance: Bool = true) -> [SentenceCandidate] {
+    public func decodeSegments(_ segments: [Composition.Segment], pendingKeys: [String], fuzzy: Bool = true, toneTolerance: Bool = true, userLexicon: UserLexicon? = nil) -> [SentenceCandidate] {
         var runs: [[Syllable]] = [[]]
         var seps: [String] = []
         for segment in segments {
@@ -297,7 +296,8 @@ public final class LexiconDecoder {
             let trailing = index == runs.count - 1
             let tops = decodeComposition(complete: run,
                                          pendingKeys: trailing ? pendingKeys : [],
-                                         fuzzy: fuzzy, toneTolerance: toneTolerance)
+                                         fuzzy: fuzzy, toneTolerance: toneTolerance,
+                                         userLexicon: userLexicon)
             runTops.append(tops.isEmpty ? [empty] : tops)
         }
         func render(_ picks: [SentenceCandidate]) -> SentenceCandidate {
@@ -329,7 +329,7 @@ public final class LexiconDecoder {
         return Array(out.prefix(16))
     }
 
-    public func decode(_ syllables: [Syllable], fuzzy: Bool = true, toneTolerance: Bool = true) -> [SentenceCandidate] {        guard !syllables.isEmpty else { return [] }
+    public func decode(_ syllables: [Syllable], fuzzy: Bool = true, toneTolerance: Bool = true, userLexicon: UserLexicon? = nil) -> [SentenceCandidate] {        guard !syllables.isEmpty else { return [] }
         let options = syllables.map { alternatives($0, fuzzy: fuzzy, toneTolerance: toneTolerance) }
         var paths = Array(repeating: [SentenceCandidate](), count: syllables.count + 1)
         paths[0] = [SentenceCandidate(text: "", score: 0, repairs: 0, unresolved: 0)]
@@ -350,17 +350,25 @@ public final class LexiconDecoder {
                     score: prefix.score - 100, repairs: prefix.repairs,
                     unresolved: prefix.unresolved + 1), at: start + 1)
             }
-            var states: [(Node, Double, Int)] = [(root, 0, 0)]
+            var states: [(node: Node, penalty: Double, repairs: Int, readings: [String])] = [(root, 0, 0, [])]
             for end in start..<min(syllables.count, start + 8) {
-                var next: [(Node, Double, Int)] = []
-                for (node, penalty, repairs) in states {
+                var next: [(node: Node, penalty: Double, repairs: Int, readings: [String])] = []
+                for (node, penalty, repairs, readings) in states {
                     for (reading, cost, correction) in options[end] {
                         guard let child = node.children[reading] else { continue }
-                        next.append((child, penalty + cost, repairs + correction))
+                        let span = readings + [reading]
+                        next.append((child, penalty + cost, repairs + correction, span))
                         for entry in child.entries {
+                            let spanKey = UserLexicon.key(forReadings: span)
+                            // User overlay: bonus keys on the dictionary span
+                            // readings (stable trie path), toneless-joined so
+                            // toned learns hit toneless retypes and vice versa.
+                            // Only boosts produced candidates — never new paths.
+                            let boost = userLexicon?.bonus(key: spanKey,
+                                text: entry.text) ?? 0
                             for prefix in prefixes {
                                 add(SentenceCandidate(text: prefix.text + entry.text,
-                                    score: prefix.score + entry.score - penalty - cost,
+                                    score: prefix.score + entry.score - penalty - cost + boost,
                                     repairs: prefix.repairs + repairs + correction,
                                     unresolved: prefix.unresolved), at: end + 1)
                             }

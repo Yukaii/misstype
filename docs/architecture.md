@@ -42,7 +42,7 @@ All decoders implement the same asynchronous contract:
 decode(PhoneticSpan, DecodeContext) -> DecodeResult
 ```
 
-`DecodeResult` contains text, token alignment, confidence, decoder name/version, latency, and optional alternatives. The offline decoder is always available. Local models and remote LLMs are adapters behind `DecoderProtocol`, invoked via `decode_with_fallback`: the offline result is computed first, and an adapter result is accepted only when on time, healthy, and stamped for the current revision. `DecodeContext` carries the revision, deadline in milliseconds, and cooperative cancellation event. `AdapterRunner` admits one adapter request at a time; a timeout signals cancellation and later requests fall back while an uncooperative worker unwinds. `StubModelAdapter` locks the timeout/staleness behavior until a real model is chosen.
+`DecodeResult` contains text, token alignment, confidence, decoder name/version, latency, and optional alternatives. The offline decoder is always available. Local models and remote LLMs are adapters behind `DecoderProtocol`, invoked via `decode_with_fallback`: the offline result is computed first, and an adapter result is accepted only when on time, healthy, and stamped for the current revision. `DecodeContext` carries the revision, deadline in milliseconds, and cooperative cancellation event. `AdapterRunner` admits one adapter request at a time; a timeout signals cancellation and later requests fall back while an uncooperative worker unwinds. `StubModelAdapter` locks the timeout/staleness behavior until a real model is chosen. An optional `UserLexicon` overlay adds a deterministic bonus to produced candidates for explicitly learned (readings → text) pairs; nil (the default) means byte-identical decode.
 
 ### Session coordinator
 
@@ -106,6 +106,15 @@ Use monotonic timestamps for ordering and a separate wall-clock field only for d
    ambiguous toneless match stays a visible fallback for later repair.
 5. If explicitly enabled, send the completed phonetic span to a local model or remote LLM adapter with a strict deadline and cooperative cancellation.
 6. Accept an enhanced result only if it belongs to the current revision; otherwise decode the latest offline snapshot.
+7. User phrase learning (explicit opt-in, default off): committing an
+   explicitly picked candidate (Tab/arrows/digit/click — never separator
+   pinning) on a single pure-Zhuyin run records its (readings → text) pair
+   into a local capped JSON store
+   (`~/Library/Application Support/Mistype/user_phrases.json`, portable —
+   copy it to export, Reveal/Clear in Preferences). The next decode of the
+   same readings boosts the learned text (+6 first pick, +1 per repeat,
+   cap +10). Learning never creates new segmentations, only re-ranks
+   produced candidates.
 
 Remote input is opt-in and should be represented in the UI and event metadata. No remote call is required for correctness.
 

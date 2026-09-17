@@ -1,4 +1,5 @@
 import Cocoa
+import MistypeCore
 
 /// User preferences: UserDefaults-backed, read live (no caching, so the
 /// panel and `defaults write` take effect on the next keystroke).
@@ -31,6 +32,15 @@ enum MistypePrefs {
         get { UserDefaults.standard.string(forKey: "MistypeCandidateKeys") ?? "asdfghjkl;" }
         set { UserDefaults.standard.set(newValue, forKey: "MistypeCandidateKeys") }
     }
+
+    /// User phrase learning: explicit opt-in, default OFF. When on, an
+    /// explicitly picked candidate (Tab/arrows/digit/click, not separator
+    /// pinning) is recorded on commit as (readings → text) with a score
+    /// bonus next time. Local JSON only — see UserLexicon.defaultURL.
+    static var userLearning: Bool {
+        get { UserDefaults.standard.bool(forKey: "MistypeUserLearning") }
+        set { UserDefaults.standard.set(newValue, forKey: "MistypeUserLearning") }
+    }
 }
 
 /// Minimal preferences panel (utility window, no dock presence needed).
@@ -39,10 +49,12 @@ final class PreferencesPanel: NSPanel {
 
     private var fuzzyBox: NSButton!
     private var toneBox: NSButton!
+    private var learnBox: NSButton!
+    private var learnStatus: NSTextField!
     private var keysField: NSTextField!
 
     private init() {
-        super.init(contentRect: NSRect(x: 0, y: 0, width: 360, height: 210),
+        super.init(contentRect: NSRect(x: 0, y: 0, width: 360, height: 300),
                    styleMask: [.titled, .closable, .utilityWindow],
                    backing: .buffered, defer: false)
         title = "Mistype Preferences"
@@ -75,6 +87,29 @@ final class PreferencesPanel: NSPanel {
         toneBox = tone
         stack.addArrangedSubview(tone)
 
+        let learn = NSButton(checkboxWithTitle: "記住明確選擇 Learn from explicit picks (local only)",
+                             target: self, action: #selector(learnToggled(_:)))
+        learn.state = MistypePrefs.userLearning ? .on : .off
+        learnBox = learn
+        stack.addArrangedSubview(learn)
+
+        let status = NSTextField(labelWithString: "")
+        status.font = .systemFont(ofSize: 12)
+        status.textColor = .secondaryLabelColor
+        learnStatus = status
+        stack.addArrangedSubview(status)
+
+        let learnRow = NSStackView()
+        learnRow.orientation = .horizontal
+        learnRow.spacing = 8
+        let reveal = NSButton(title: "Reveal phrases file", target: self, action: #selector(revealPhrases(_:)))
+        reveal.bezelStyle = .rounded
+        learnRow.addArrangedSubview(reveal)
+        let clear = NSButton(title: "Clear learned phrases", target: self, action: #selector(clearPhrases(_:)))
+        clear.bezelStyle = .rounded
+        learnRow.addArrangedSubview(clear)
+        stack.addArrangedSubview(learnRow)
+
         let keysLabel = NSTextField(labelWithString: "候選鍵 Candidate keys (reserved for letter-row selection):")
         keysLabel.font = .systemFont(ofSize: 12)
         keysLabel.textColor = .secondaryLabelColor
@@ -100,6 +135,30 @@ final class PreferencesPanel: NSPanel {
         MistypePrefs.toneTolerance = sender.state == .on
     }
 
+    @objc private func learnToggled(_ sender: NSButton) {
+        MistypePrefs.userLearning = sender.state == .on
+        if sender.state == .on {
+            Runtime.userLexicon = UserLexicon.load()
+        }
+        refreshLearnStatus()
+    }
+
+    @objc private func revealPhrases(_ sender: NSButton) {
+        Runtime.userLexicon.save() // flush before revealing
+        NSWorkspace.shared.activateFileViewerSelecting([UserLexicon.defaultURL])
+    }
+
+    @objc private func clearPhrases(_ sender: NSButton) {
+        Runtime.userLexicon = UserLexicon()
+        Runtime.userLexicon.save()
+        refreshLearnStatus()
+    }
+
+    private func refreshLearnStatus() {
+        learnStatus.stringValue =
+            "Learned phrases: \(Runtime.userLexicon.count) (local JSON, portable — copy it to export)"
+    }
+
     @objc private func keysEdited(_ sender: NSTextField) {
         let value = sender.stringValue.trimmingCharacters(in: .whitespaces)
         MistypePrefs.candidateKeys = value.isEmpty ? "asdfghjkl;" : value
@@ -110,7 +169,9 @@ final class PreferencesPanel: NSPanel {
         // Re-sync controls: defaults may change via `defaults write` too.
         fuzzyBox.state = MistypePrefs.fuzzyRepair ? .on : .off
         toneBox.state = MistypePrefs.toneTolerance ? .on : .off
+        learnBox.state = MistypePrefs.userLearning ? .on : .off
         keysField.stringValue = MistypePrefs.candidateKeys
+        refreshLearnStatus()
         center()
         makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
