@@ -1,6 +1,8 @@
 import Foundation
 
-/// Explicit-opt-in user phrase overlay (M4/M5 follow-up).
+/// User phrase overlay (M4/M5 follow-up): explicit picks only, local only.
+/// Default ON (see MistypePrefs.userLearning), opt-out anytime; the store
+/// stays a portable local JSON the user can reveal or clear.
 ///
 /// Thesis: corpus frequency cannot break residual ties (不大/不打, 嗎/麼,
 /// 大隊/打對 — see project-outline M4 findings). The only honest signal is

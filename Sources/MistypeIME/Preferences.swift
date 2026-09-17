@@ -15,6 +15,7 @@ enum MistypePrefs {
             "MistypeFuzzyRepair": true,
             "MistypeToneTolerance": true,
             "MistypeCandidateKeys": "asdfghjkl;",
+            "MistypeUserLearning": true,
         ])
     }
 
@@ -33,10 +34,12 @@ enum MistypePrefs {
         set { UserDefaults.standard.set(newValue, forKey: "MistypeCandidateKeys") }
     }
 
-    /// User phrase learning: explicit opt-in, default OFF. When on, an
-    /// explicitly picked candidate (Tab/arrows/digit/click, not separator
-    /// pinning) is recorded on commit as (readings → text) with a score
-    /// bonus next time. Local JSON only — see UserLexicon.defaultURL.
+    /// User phrase learning: ON by default (single-user prototype, local
+    /// JSON only — see UserLexicon.defaultURL), opt-out in Preferences or
+    /// via `defaults write`. When on, an explicitly picked candidate
+    /// (Tab/arrows/digit/click, not separator pinning) is recorded on commit
+    /// as (readings → text) with a score bonus next time. No network, no
+    /// inference.
     static var userLearning: Bool {
         get { UserDefaults.standard.bool(forKey: "MistypeUserLearning") }
         set { UserDefaults.standard.set(newValue, forKey: "MistypeUserLearning") }
