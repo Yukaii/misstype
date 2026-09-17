@@ -534,4 +534,13 @@ final class CoreTests: XCTestCase {
         let segmentations = decoder.segmentKeys(["s", "u", "c", "l"], fuzzy: false)
         XCTAssertEqual(segmentations.first?.map(\.reading), ["ㄋㄧ", "ㄏㄠ"])
     }
+    func testPreeditWithCursorMarksPosition() {
+        XCTAssertEqual(preeditWithCursor("你好嗎", caretUTF16: 0), "|你好嗎")
+        XCTAssertEqual(preeditWithCursor("你好嗎", caretUTF16: 1), "你|好嗎")
+        XCTAssertEqual(preeditWithCursor("你好嗎", caretUTF16: 3), "你好嗎|")
+        // Out-of-range clamps instead of trapping.
+        XCTAssertEqual(preeditWithCursor("你好", caretUTF16: 99), "你好|")
+        XCTAssertEqual(preeditWithCursor("你好", caretUTF16: -2), "|你好")
+        XCTAssertEqual(preeditWithCursor("", caretUTF16: 0), "|")
+    }
 }

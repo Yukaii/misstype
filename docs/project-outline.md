@@ -193,10 +193,12 @@ window out of the critical path):
    Update (measured, landed): width-16 keeps 不打 #14, 嗎 #9, 打對 #8 at
    ~50 ms for 26 syllables, so the beam widened to 16 and the panel shows
    a window of 8 around the selection — Tab/arrows/digits walk the full
-   list, Left/Right flip pages (same row, clamped), footer shows `n / m`.
-   Panel width fits content (buttons self-measure, no floor); height fits
-   shown rows with a page-footer reserve. Direction is fixed above the
-   caret (never covers typed text), flipping below only when clipped.
+    list, Left/Right flip pages (same row, clamped), footer shows `n / m`.
+    Panel frame hugs content (rows or preedit header, 300pt cap) with x
+    sticky per visible session and y bottom-anchored to the caret line —
+    resizes ease instead of snapping; height fits shown rows (plus the
+    preedit header) with a page-footer reserve. Direction is fixed above the
+    caret (never covers typed text), flipping below only when clipped.
    Junk below #12 (策是/測是…) is the documented price; truths deeper
    than 16 stay out of reach by design.
 4. English switching: Shift-hold Latin appends inline and Shift+Space
