@@ -8,3 +8,6 @@ build/
 .build/
 .cache/
 .swiftpm/
+# Local secrets (API keys for opt-in tools-only experiments). Never commit.
+.env
+.env.local

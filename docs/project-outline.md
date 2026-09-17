@@ -140,6 +140,82 @@ steamrolls, trigram sparse-and-colloquial). Remaining honest levers:
 user phrase learning (deterministic, explicit opt-in) and the visible
 window (shipped); neural rerank needs base weights or bigger iron.
 
+Finding (choice rerank falsified, `tools/lm_choose.py`, localhost ollama,
+temp 0, strict index-parse with abstain-to-offline): repair asked for
+generation and scoring asked for calibration — choice asks only
+discrimination (pick one number from the offline top-8, hallucinations
+unrepresentable). Still dead. 1.5b: 0 flips (dada truth #8 打對 sits in
+the list, model picks #6 答對), 1 WORSE — the lone clean control 你好
+gets replaced by ㄋㄧˇ好, junk containing raw Bopomofo: the model cannot
+even recognize well-formed Chinese. 0.5b: 0 flips, 3 WORSE (你好→擬好,
+大對→大堆), always-vote-#3 position bias, 0 abstentions across both
+models (they always vote, even wrongly). yue (truth outside top-16) stays
+junk→junk as designed. Warmed latency 73–485 ms (1.5b; first call 5.4 s
+cold) — faster than repair-mode, moot on quality. Verdict: instruct-tuned
+≤1.5b is now 0-for-3 framings (generation, scoring, choice); neural rerank
+still needs base weights or bigger iron. Side calibration: nihao-wrongtone
+resolves to 泥好 (CER 0.5) on the real 112k lexicon — the old "wrong tone
+recovers to 你" finding was fixture-lexicon-backed and does not transfer;
+future controls must be cut against the real table.
+
+Finding (Jev choice, `tools/lm_choose.py --backend jev` + `tools/jev_choice.cjs`,
+Vercel AI Gateway `typesafe-ai/jev`, 5 cases x 3 reps): architecturally the
+cleanest fit yet — typed Choice over the top-8 (no text, no parse), native
+probabilities, 307–585 ms in-model, ~8.6k input tokens total (~$0.0004).
+Behaviorally: safe but useless. 0 flips, 0 WORSE, 0 abstains, bit-identical
+picks across reps. Controls hold at sane confidences (你好 1.0 x3,
+junk-vs-junk ~0.5). But dada repeats the qwen miss almost exactly — #6 答對
+at 0.97 x3 with truth #8 打對 sitting in the list. A 0.97 on the wrong
+answer is a calibration data point against RLCD claims outside their
+workflow distribution (n=1 case, not a calibration study — stated as such).
+Confidence-threshold abstain changes nothing on this set (all picks >= 0.5,
+nothing WORSE to save). Verdict: Jev passes the safety bar qwen failed
+(never regresses, deterministic) but fails the flip bar all the same;
+the 答對/打對 class needs a user signal (learning/window), not a better
+voter. Toolchain note: Gateway evaluation is AI-SDK-only (no REST), so the
+backend is Python-orchestrated + thin node helper with a self-bootstrapping
+`ai` package (never vendored); ESM import ignores NODE_PATH, hence `.cjs`.
+
+Follow-up (flow design falsified too, `--jev-mode noul`): TypeSafe's own
+guidance says to decompose into parallel atomic questions combined in code,
+so the same 5 cases ran as 8 parallel boolean Nouls per request with code
+argmax. Identical picks to single-Choice on all decidable cases (long #1,
+dada #6 答對 at 0.86–0.88 with truth #8 at 0.16–0.18, wrongtone #1, toned
+#1 at 0.89–0.90); only pure-junk yue wobbles (#1 vs #6, max ~0.3 — honest
+low-confidence disagreement, same CER). Mechanism is not the blocker: two
+flows agree, both confidently wrong on dada. One constructive signal: Noul
+max-prob reads as a usable uncertainty meter (0.9 clean / ~0.5 mid / ~0.3
+junk), better behaved than Choice's 0.97-on-wrong — if Jev ever assists,
+Noul-argmax with a threshold is the right shape. Standing verdict across 2
+models x 4 framings (generation, scoring, choice, decomposed-noul): the
+答對/打對 class needs a user signal, not a better voter.
+
+Pilot (triage, NOT a finding yet, `--jev-mode trust`, n=5, threshold 0.6
+read post-hoc): one boolean on offline top-1 ("候選1是最正確的嗎")
+separates 10/10 — right top-1 trusts 0.82+ (hide-panel), wrong top-1
+0.10–0.52 (show-panel), 293–598 ms, one question per pause. Partially
+right long-toneless lands 0.52, i.e. the meter tracks graded correctness,
+not just binary. If this holds on the wider keynoise battery with a FROZEN
+threshold, the honest Jev job is interruption triage (drive panel
+auto-show), never reranking: a miss-show is status quo, a miss-hide is a
+regression vs today, so the threshold must bias toward showing. Remote use
+stays explicit opt-in per repo policy; nothing wired into the IME yet.
+
+Battery (`tools/lm_trust_battery.py`, frozen 0.6, 4 probes x 6 configs x
+10 seeds = 240, ~$0.005): hits=213, miss_show=0, miss_hide=27 -> DO NOT
+WIRE. trust|correct floor holds beautifully (mean 0.91, min 0.81, n=108 —
+the meter never doubts a right top-1), but trust|wrong reaches 0.96: the
+meter measures fluency, not correctness, so fluent-but-wrong ties (dada
+sub/swap cells) hide the panel exactly where the user needs it most. Dump
+(`--dump-misses`) shows it is worse than subtle ties: trusted top-1s at
+0.60–0.87 include literal Bopomofo fallback (會ㄅˊ會, ㄏㄨㄟㄅˋ無會,
+打ㄨㄉㄟˋ, 測字一蝦) from realistic single-key typos — a trust gate blind
+to visible garbage is unusable, not just unhelpful. Same
+root cause as every prior falsification, one level up. No threshold rescue
+claimed here (tuning on this battery would be overfitting; a new threshold
+needs fresh seeds). Standing order: triage stays an offline meter until a
+replacement signal separates fluent-wrong from fluent-right.
+
 Exit: offline mode is useful on its own; model provenance and timing are visible in measurements.
 
 ### M5 — macOS Input Method adapter *(prototype slice landed)*
