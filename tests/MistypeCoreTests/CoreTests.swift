@@ -49,7 +49,7 @@ final class CoreTests: XCTestCase {
         let result = decoder.decode(input.syllables(finishing: true))
         XCTAssertEqual(result.first?.text, "你好嗎謝謝")
         XCTAssertEqual(result.first?.unresolved, 0)
-        XCTAssertLessThanOrEqual(result.count, 8)
+        XCTAssertLessThanOrEqual(result.count, 16)
     }
     func testFuzzyRescuesInvalidSyllableWithoutTone() {
         let input = composition("du") // ㄎㄧ has adjacent ㄋㄧ as a hypothesis
@@ -316,6 +316,61 @@ final class CoreTests: XCTestCase {
         punct.appendLiteral("，")
         XCTAssertFalse(punct.hasUnfinishedTail)
         XCTAssertFalse(Composition().hasUnfinishedTail)
+    }
+    func testSpaceTerminatedFirstToneRanksExactFirst() {
+        // "vm, g/ " (space-terminated): exact ㄕㄥ scores 0 while ㄒㄩㄝ has
+        // no first-tone form (0.5), so 學生 lands at -3.5; the toneless-nil
+        // twin pays 0.5+0.5 and lands at -4.0. Either way top-1 holds.
+        let spaced = decoder.decode([Syllable(keys: ["v", "m", ","], tone: ""),
+                                     Syllable(keys: ["g", "/"], tone: "")])
+        XCTAssertEqual(spaced.first?.text, "學生")
+        XCTAssertEqual(spaced.first?.score ?? 0, -3.5, accuracy: 1e-9)
+        let bare = decoder.decode([Syllable(keys: ["v", "m", ","], tone: nil),
+                                   Syllable(keys: ["g", "/"], tone: nil)])
+        XCTAssertEqual(bare.first?.text, "學生")
+        XCTAssertEqual(bare.first?.score ?? 0, -4.0, accuracy: 1e-9)
+        let tonelessSpace = decoder.decodeComposition(
+            complete: [Syllable(keys: ["s", "u"], tone: ""),
+                       Syllable(keys: ["c", "l"], tone: "")], pendingKeys: [])
+        XCTAssertEqual(tonelessSpace.first?.text, "你好")
+    }
+    func testStrictToneRejectsMismatch() {
+        // toneTolerance:false — su4 (ㄋㄧˋ) must NOT resolve to 你; with
+        // tolerance it does (repairs 1). Ultra-strict falls back to raw.
+        let strict = decoder.decode([Syllable(keys: ["s", "u"], tone: "ˋ")],
+                                    fuzzy: true, toneTolerance: false)
+        XCTAssertEqual(strict.first?.text, "ㄋㄧˋ")
+        XCTAssertEqual(strict.first?.unresolved, 1)
+        let tolerant = decoder.decode([Syllable(keys: ["s", "u"], tone: "ˋ")],
+                                      fuzzy: true, toneTolerance: true)
+        XCTAssertEqual(tolerant.first?.text, "你")
+        XCTAssertEqual(tolerant.first?.repairs, 1)
+    }
+    func testFuzzyRepairOffKeepsToneless() {
+        // fuzzyRepair:false — du (ㄎㄧ) cannot rescue to 你, but toneless
+        // lookup still works (policy gates rescue, not toneless decoding).
+        let off = decoder.decode(composition("du").syllables(finishing: true),
+                                 fuzzy: false, toneTolerance: true)
+        XCTAssertEqual(off.first?.text, "ㄎㄧ")
+        XCTAssertEqual(off.first?.unresolved, 1)
+        let toneless = decoder.decode(composition("sucl").syllables(finishing: true),
+                                      fuzzy: false, toneTolerance: true)
+        XCTAssertEqual(toneless.first?.text, "ㄋㄧㄏㄠ")
+    }
+    func testDropHeadKeepingTail() {
+        var input = composition("su3cl")
+        input.dropHeadKeepingTail()
+        XCTAssertEqual(input.rawKeys, ["c", "l"])
+        var done = composition("su3cl3")
+        done.dropHeadKeepingTail()
+        XCTAssertTrue(done.isEmpty)
+        var latin = composition("su3")
+        _ = latin.appendLatin("x")
+        _ = latin.appendLatin("y")
+        latin.dropHeadKeepingTail()
+        XCTAssertEqual(latin.rawKeys, ["L:x", "L:y"])
+        XCTAssertEqual(latin.trailingLatin, "xy")
+        XCTAssertEqual(composition("su3").trailingLatin, "")
     }
     func testCaptureIsBoundedAndClearRemovesActiveInput() {
         var input = composition(String(repeating: "a", count: 300))

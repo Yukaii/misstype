@@ -193,6 +193,21 @@ public struct Composition {
         return true
     }
     public mutating func backspace() { if !rawKeys.isEmpty { rawKeys.removeLast() } }
+    /// Drop the converted head, keeping the unfinished tail typing.
+    /// Powers Opt+Right segment lock (Rime-style): the head commits with the
+    /// current selection, the tail recomputes fresh.
+    public mutating func dropHeadKeepingTail() {
+        var index = rawKeys.endIndex
+        while index > rawKeys.startIndex {
+            let key = rawKeys[index - 1]
+            if ZhuyinKeyboard.symbols[key] != nil || Composition.isLatinKey(key) {
+                index -= 1
+            } else {
+                break
+            }
+        }
+        rawKeys.removeFirst(index)
+    }
     /// Append one Latin letter into the running composition (no commit).
     /// Stored marked so bare symbol keys stay unambiguously Zhuyin.
     @discardableResult public mutating func appendLatin(_ text: String) -> Bool {
@@ -232,6 +247,16 @@ public struct Composition {
             return true
         }
         return false
+    }
+    /// Trailing latin run verbatim ("" when the tail holds none). The latin
+    /// segment lock reads this to keep the tail while committing the head.
+    public var trailingLatin: String {
+        var out = ""
+        for key in rawKeys.reversed() {
+            guard Composition.isLatinKey(key) else { break }
+            out = Composition.latinChar(key) + out
+        }
+        return out
     }
     /// Drop everything through the last boundary, keeping the trailing
     /// unfinished run. Reserved for partial-commit flows (commit the picked

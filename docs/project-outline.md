@@ -181,6 +181,15 @@ window out of the critical path):
    Page turning needs candidates beyond the visible 8: widen the beam only
    after measuring that missing truths (不打/嗎) rank within reach —
    otherwise paging just flips through junk.
+   Update (measured, landed): width-16 keeps 不打 #14, 嗎 #9, 打對 #8 at
+   ~50 ms for 26 syllables, so the beam widened to 16 and the panel shows
+   a window of 8 around the selection — Tab/arrows/digits walk the full
+   list, Left/Right flip pages (same row, clamped), footer shows `n / m`.
+   Panel width fits content (buttons self-measure, no floor); height fits
+   shown rows with a page-footer reserve. Direction is fixed above the
+   caret (never covers typed text), flipping below only when clipped.
+   Junk below #12 (策是/測是…) is the documented price; truths deeper
+   than 16 stay out of reach by design.
 4. English switching: Shift-hold Latin appends inline and Shift+Space
    toggles exist; collect the exact broken cases (mode indicator? CapsLock?
    toggle state after commit?) before changing behavior.
@@ -190,14 +199,26 @@ window out of the critical path):
    phonetic so syllable-initial ㄝㄡㄥㄤㄦ keep working; separators pin the
    current pick and continue (commit is Return's job); Cmd shortcuts never
    hijacked. Follow-up: … needs a conflict-free key (Option layer).
-6. Seamless mixed input (v1 landed): backtick toggles a latin run — letters
-   append verbatim (`L:`-marked keys, case preserved), spaces stay inside
+6. Seamless mixed input (v1 landed): backtick toggles a latin run — letters   append verbatim (`L:`-marked keys, case preserved), spaces stay inside
    multi-word runs (`` `hello world` ``), tones/punct/digits/Return end the
    run, one commit at the end. No Shift toggle, no pause:
    `` `hello world`su3cl3 `` → `hello world你好`. Guessing is impossible by
    construction (bare keys stay Zhuyin), so `hello`-as-keys still decodes
    Chinese — auto-detect with English scoring stays future work, as do
    digits-inside-latin.
+7. Preferences (v1 landed): UserDefaults-backed `MistypePrefs`
+   (fuzzyRepair / toneTolerance / candidateKeys-reserved), read live per
+   keystroke, editable from the input-menu Preferences panel or
+   `defaults write`. Strict tone = explicit tones must match exactly
+   (toneless still decodes); fuzzy off = no edit rescue. Falsify by
+   toggling mid-session: behavior changes on the next key, no relaunch.
+8. Segment lock v1 + Rime alignment targets: Opt+Right commits the
+   converted head with the current selection and keeps the tail typing
+   (`dropHeadKeepingTail`, latin tail preserved) — progressive lock-in
+   without a span cursor. Rime (librime) alignment so far: segmented
+   lock-in ✓, offline-first ✓, candidateKeys pref stored ✓, per-segment
+   paging + span cursor stay future (our candidates are whole-span texts;
+   paging needs beam proof per item 2b).
 
 ## Measures
 
