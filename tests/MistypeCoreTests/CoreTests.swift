@@ -477,4 +477,61 @@ final class CoreTests: XCTestCase {
         XCTAssertNil(full.entries["k0"])
         XCTAssertNotNil(full.entries["k\(UserLexicon.entryCap)"])
     }
+    // MARK: - Syllable cursor groundwork (alignment, locks, segments)
+    func testDecodeFillsWordAlignment() {
+        let result = decoder.decode(composition("su3cl3").syllables(finishing: true))
+        XCTAssertEqual(result.first?.text, "你好")
+        XCTAssertEqual(result.first?.alignment,
+                       [WordSpan(syllables: 0..<2, chars: 0..<2)])
+    }
+    func testAlignmentCoversUnresolvedInput() {
+        // "zzzz3" parses as ONE fused syllable (tone-terminated), so the raw
+        // fallback covers a single span — contiguity over 0..<1.
+        let result = decoder.decode(composition("zzzz3").syllables(finishing: true))
+        let top = result.first
+        XCTAssertEqual(top?.unresolved, 1)
+        let covered = top?.alignment.map(\.syllables) ?? []
+        XCTAssertEqual(covered.first?.lowerBound, 0)
+        XCTAssertEqual(covered.last?.upperBound, 1)
+        for pair in zip(covered, covered.dropFirst()) {
+            XCTAssertEqual(pair.0.upperBound, pair.1.lowerBound)
+        }
+    }
+    func testHardLockForcesPinnedWord() {
+        // 妳 (-6) loses to 你 (-5) without help; a session pin on the span
+        // must force it, while other spans stay free.
+        var pins = UserLexicon()
+        pins.entries[UserLexicon.key(for: [Syllable(keys: ["s", "u"], tone: "ˇ")])] = [
+            "妳": UserLexicon.Record(count: 1, updatedAt: 1)]
+        let result = decoder.decode(composition("su3cl3").syllables(finishing: true),
+                                    locked: pins)
+        XCTAssertEqual(result.first?.text, "妳好")
+        // No starvation: the unpinned rival stays available below the pin.
+        XCTAssertTrue(result.contains(where: { $0.text == "你好" }))
+    }
+    func testHardLockLeavesUnpinnedSpansAlone() {
+        var pins = UserLexicon()
+        pins.entries["ㄅㄨ"] = ["不": UserLexicon.Record(count: 1, updatedAt: 1)]
+        let plain = decoder.decode(composition("su3cl3").syllables(finishing: true))
+        let locked = decoder.decode(composition("su3cl3").syllables(finishing: true),
+                                    locked: pins)
+        XCTAssertEqual(locked.map(\.text), plain.map(\.text))
+        XCTAssertEqual(locked.map(\.score), plain.map(\.score))
+    }
+    func testSegmentOptionsCoverFocusedSpan() {
+        let syllables = composition("su3cl3").syllables(finishing: true)
+        let head = decoder.segmentOptions(syllables, span: 0..<1)
+        XCTAssertTrue(head.contains(where: { $0.text == "你" }))
+        XCTAssertTrue(head.contains(where: { $0.text == "妳" }))
+        XCTAssertEqual(head.map(\.score), head.map(\.score).sorted(by: >))
+        let whole = decoder.segmentOptions(syllables, span: 0..<2)
+        XCTAssertEqual(whole.first?.text, "你好")
+        XCTAssertTrue(whole.count <= 16)
+        XCTAssertTrue(decoder.segmentOptions(syllables, span: 1..<1).isEmpty)
+        XCTAssertTrue(decoder.segmentOptions(syllables, span: 0..<9).isEmpty)
+    }
+    func testSegmentKeysSplitsPendingRun() {
+        let segmentations = decoder.segmentKeys(["s", "u", "c", "l"], fuzzy: false)
+        XCTAssertEqual(segmentations.first?.map(\.reading), ["ㄋㄧ", "ㄏㄠ"])
+    }
 }

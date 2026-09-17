@@ -221,13 +221,18 @@ window out of the critical path):
    `defaults write`. Strict tone = explicit tones must match exactly
    (toneless still decodes); fuzzy off = no edit rescue. Falsify by
    toggling mid-session: behavior changes on the next key, no relaunch.
-8. Segment lock v1 + Rime alignment targets: Opt+Right commits the
-   converted head with the current selection and keeps the tail typing
-   (`dropHeadKeepingTail`, latin tail preserved) — progressive lock-in
-   without a span cursor. Rime (librime) alignment so far: segmented
-   lock-in ✓, offline-first ✓, candidateKeys pref stored ✓, per-segment
-   paging + span cursor stay future (our candidates are whole-span texts;
-   paging needs beam proof per item 2b).
+8. Segment lock v1 + Rime alignment targets: RETIRED as Opt+Right (falsified
+   in the file trace: toneless input beeped, fully toned input committed
+   exactly like Return — the only case it served was toned-head plus
+   pending-tail). Replaced by the syllable cursor: plain Left/Right walk
+   back over the converted span, the panel shows that word's options,
+   Tab/digit/click/Return pin the pick (session-only, never disk) and move
+   on; any edit returns to end, Return still commits once. Rime alignment
+   so far: offline-first ✓, candidateKeys pref stored ✓, segmented lock-in
+   via pins ✓ (soft — no early partial insertText yet); per-segment paging
+   + span cursor beyond the pure-run gate stay future (our cursor needs a
+   clean top-1 with validated alignment; mixed/space-separated spans keep
+   whole-span paging).
 
 ## Measures
 
