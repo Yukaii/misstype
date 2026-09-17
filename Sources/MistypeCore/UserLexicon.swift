@@ -42,11 +42,15 @@ public struct UserLexicon: Codable, Equatable {
     public static let baseBonus = 6.0
     public static let repeatBonus = 1.0
     public static let maxBonus = 10.0
+    /// Session-pin bonus: dwarfs any word-score gap, so a pinned segment
+    /// always wins its span. Session-only (never persisted) — see `locked`.
+    public static let pinBonus = 1000.0
 
     public init() {}
     public init(entries: [String: [String: Record]]) { self.entries = entries }
 
     public var count: Int { entries.values.reduce(0) { $0 + $1.count } }
+    public var isEmpty: Bool { entries.isEmpty }
 
     /// Toneless-concatenated key for a syllable run.
     public static func key(for syllables: [Syllable]) -> String {
