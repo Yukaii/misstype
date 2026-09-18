@@ -44,6 +44,11 @@ for source in sources {
         let status = TISDisableInputSource(source)
         if status != noErr { fputs("Disable failed: \(status)\n", stderr); exit(1) }
     }
+    if args.first == "select" && identifier == "org.mistype.inputmethod.Mistype.Zhuyin" {
+        let status = TISSelectInputSource(source)
+        if status != noErr { fputs("Select failed: \(status)\n", stderr); exit(1) }
+        print("Selected \(identifier)")
+    }
     let enabled = TISGetInputSourceProperty(source, kTISPropertyInputSourceIsEnabled).map {
         CFBooleanGetValue(Unmanaged<CFBoolean>.fromOpaque($0).takeUnretainedValue())
     } ?? false
