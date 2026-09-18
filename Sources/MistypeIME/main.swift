@@ -630,15 +630,25 @@ final class MistypeInputController: IMKInputController {
         candidatePanel.hidePanel()
     }
     override func menu() -> NSMenu! {
+        Runtime.debugLog("[ime] menu() requested")
         let menu = NSMenu(title: "Mistype")
+        menu.autoenablesItems = false
         let prefs = NSMenuItem(title: "Mistype Preferences…", action: #selector(openPreferences(_:)), keyEquivalent: "")
         prefs.target = self
+        prefs.isEnabled = true
         menu.addItem(prefs)
         return menu
     }
 
+    @objc func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        return true
+    }
+
     @objc func openPreferences(_ sender: Any?) {
-        PreferencesPanel.shared.show()
+        Runtime.debugLog("[ime] openPreferences called")
+        DispatchQueue.main.async {
+            PreferencesPanel.shared.show()
+        }
     }
 
     // MARK: - Syllable cursor (go back and pick a word, no modifiers)
@@ -750,7 +760,17 @@ final class MistypeInputController: IMKInputController {
     override func commitComposition(_ sender: Any!) {
         if let client = sender as? IMKTextInput { commit(client) }
     }
+    override func activateServer(_ sender: Any!) {
+        super.activateServer(sender)
+        activeController = self
+        if let client = sender as? IMKTextInput {
+            lastClient = client
+        }
+        Runtime.debugLog("[ime] activateServer")
+    }
+
     override func deactivateServer(_ sender: Any!) {
+        Runtime.debugLog("[ime] deactivateServer")
         commitComposition(sender)
         super.deactivateServer(sender)
     }

@@ -11,6 +11,9 @@ if [[ -d "$DEST" ]]; then
   rm -rf "$DEST"
 fi
 /usr/bin/ditto "$ROOT_DIR/dist/MistypeIME.app" "$DEST"
+killall -9 MistypeIME 2>/dev/null || true
+killall TextInputMenuAgent TextInputSwitcher 2>/dev/null || true
+sleep 0.5
 BIN_DIR="$(swift build -c release --show-bin-path)"
 "$BIN_DIR/MistypeSourceTool" register "$DEST"
 "$BIN_DIR/MistypeSourceTool" select
