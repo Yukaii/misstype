@@ -311,6 +311,7 @@ final class PreferencesPanel: NSPanel {
         center()
         makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+        NSRunningApplication.current.activate(options: .activateIgnoringOtherApps)
     }
 
     required init?(coder: NSCoder) {
