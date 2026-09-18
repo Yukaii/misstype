@@ -117,7 +117,7 @@ final class ModeIndicator: NSPanel {
     private var generation = 0
 
     private init() {
-        super.init(contentRect: NSRect(x: 0, y: 0, width: 120, height: 120),
+        super.init(contentRect: NSRect(x: 0, y: 0, width: 44, height: 44),
                    styleMask: [.borderless, .nonactivatingPanel],
                    backing: .buffered, defer: false)
         isOpaque = false
@@ -127,16 +127,21 @@ final class ModeIndicator: NSPanel {
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         animationBehavior = .none
 
-        let body = NSView(frame: NSRect(x: 0, y: 0, width: 120, height: 120))
+        let body = NSView(frame: NSRect(x: 0, y: 0, width: 44, height: 44))
         body.wantsLayer = true
-        body.layer?.cornerRadius = 24
+        body.layer?.cornerRadius = 11
         body.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
         contentView = body
 
-        label.font = .systemFont(ofSize: 56)
+        // NSTextField draws top-aligned in its frame — center the frame
+        // itself vertically (metrics fixed once: 中/英 share fullwidth size).
+        label.font = .systemFont(ofSize: 22)
         label.alignment = .center
-        label.frame = body.bounds
-        label.autoresizingMask = [.width, .height]
+        label.stringValue = "中"
+        label.sizeToFit()
+        label.frame = NSRect(x: 0, y: (44 - label.frame.height) / 2,
+                             width: 44, height: label.frame.height)
+        label.autoresizingMask = []
         body.addSubview(label)
     }
 
@@ -144,18 +149,34 @@ final class ModeIndicator: NSPanel {
         fatalError("init(coder:) has not been implemented")
     }
 
-    func flash(english: Bool) {
+    /// - anchor: caret rect in screen coordinates (same source the
+    ///   candidate panel uses). Same placement policy: above the caret,
+    ///   flipping below only when clipped at the top; mouse fallback when
+    ///   the client reports no caret (e.g. empty composition).
+    func flash(english: Bool, anchor: NSRect?) {
         generation += 1
         let current = generation
         label.stringValue = english ? "英" : "中"
-        let mouse = NSEvent.mouseLocation
-        if let screen = NSScreen.screens.first(where: { $0.frame.contains(mouse) })
+        let size = NSSize(width: 44, height: 44)
+        if let anchor = anchor,
+           let screen = NSScreen.screens.first(where: { $0.frame.contains(anchor.origin) })
             ?? NSScreen.main {
             let visible = screen.visibleFrame
-            var origin = NSPoint(x: mouse.x - 60, y: mouse.y + 16)
-            origin.x = min(max(origin.x, visible.minX), visible.maxX - 120)
-            origin.y = min(max(origin.y, visible.minY + 120), visible.maxY)
+            var origin = NSPoint(x: anchor.minX, y: anchor.maxY + 6)
+            if origin.y + size.height > visible.maxY { origin.y = anchor.minY - size.height - 6 }
+            origin.x = min(max(origin.x, visible.minX), visible.maxX - size.width)
+            origin.y = min(max(origin.y, visible.minY), visible.maxY - size.height)
             setFrameOrigin(origin)
+        } else {
+            let mouse = NSEvent.mouseLocation
+            if let screen = NSScreen.screens.first(where: { $0.frame.contains(mouse) })
+                ?? NSScreen.main {
+                let visible = screen.visibleFrame
+                var origin = NSPoint(x: mouse.x - 22, y: mouse.y + 12)
+                origin.x = min(max(origin.x, visible.minX), visible.maxX - size.width)
+                origin.y = min(max(origin.y, visible.minY + size.height), visible.maxY)
+                setFrameOrigin(origin)
+            }
         }
         orderFront(nil)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
@@ -216,10 +237,13 @@ final class MistypeInputController: IMKInputController {    private var composit
     /// Shared 中/英 toggle entry (Shift-tap and Shift+Space): commit first
     /// so no composition is lost, then flip the global mode with a flash.
     private func setEnglish(_ on: Bool, client: IMKTextInput) {
+        // Anchor BEFORE commit: afterwards the marked text (and its caret
+        // rect) is gone and the pill would fall back to the mouse.
+        let anchor = caretAnchor(client)
         commit(client)
         Runtime.english = on
         latinMode = false
-        ModeIndicator.shared.flash(english: on)
+        ModeIndicator.shared.flash(english: on, anchor: anchor)
     }
 
     /// Raw event inlet (vChewing parity): this controller deliberately does
