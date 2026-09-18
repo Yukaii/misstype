@@ -21,6 +21,12 @@ enum Runtime {
     /// when the preference flips on. Gated per keystroke by
     /// MistypePrefs.userLearning — off means nil, i.e. byte-identical decode.
     static var userLexicon = UserLexicon.load()
+    /// 中/英 mode: GLOBAL, not per-controller — one physical keyboard, all
+    /// clients. (Per-controller state surprised users: toggling in one app
+    /// never reached another.) Default Chinese on every launch.
+    static var english = false
+    /// Lone-Shift-tap state (single keyboard truth; reset on focus change).
+    static var shiftTap = ShiftTapTracker()
     static var activeUserLexicon: UserLexicon? {
         MistypePrefs.userLearning ? userLexicon : nil
     }
@@ -101,10 +107,66 @@ enum Runtime {
     }
 }
 
+/// Transient 中/英 mode pill: flashes on every toggle (a blind toggle is
+/// unusable). Borderless nonactivating panel like CandidatesPanel — never
+/// steals focus; generation counter avoids hide-races on quick re-toggles.
+final class ModeIndicator: NSPanel {
+    static let shared = ModeIndicator()
+
+    private let label = NSTextField(labelWithString: "")
+    private var generation = 0
+
+    private init() {
+        super.init(contentRect: NSRect(x: 0, y: 0, width: 120, height: 120),
+                   styleMask: [.borderless, .nonactivatingPanel],
+                   backing: .buffered, defer: false)
+        isOpaque = false
+        backgroundColor = .clear
+        hasShadow = true
+        level = .popUpMenu
+        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        animationBehavior = .none
+
+        let body = NSView(frame: NSRect(x: 0, y: 0, width: 120, height: 120))
+        body.wantsLayer = true
+        body.layer?.cornerRadius = 24
+        body.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+        contentView = body
+
+        label.font = .systemFont(ofSize: 56)
+        label.alignment = .center
+        label.frame = body.bounds
+        label.autoresizingMask = [.width, .height]
+        body.addSubview(label)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func flash(english: Bool) {
+        generation += 1
+        let current = generation
+        label.stringValue = english ? "英" : "中"
+        let mouse = NSEvent.mouseLocation
+        if let screen = NSScreen.screens.first(where: { $0.frame.contains(mouse) })
+            ?? NSScreen.main {
+            let visible = screen.visibleFrame
+            var origin = NSPoint(x: mouse.x - 60, y: mouse.y + 16)
+            origin.x = min(max(origin.x, visible.minX), visible.maxX - 120)
+            origin.y = min(max(origin.y, visible.minY + 120), visible.maxY)
+            setFrameOrigin(origin)
+        }
+        orderFront(nil)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+            guard let self, self.generation == current else { return }
+            self.orderOut(nil)
+        }
+    }
+}
+
 @objc(MistypeInputController)
-final class MistypeInputController: IMKInputController {
-    private var composition = Composition()
-    private var english = false
+final class MistypeInputController: IMKInputController {    private var composition = Composition()
     private var candidates: [SentenceCandidate] = []
     private var selected = 0
     private weak var lastClient: IMKTextInput?
@@ -151,25 +213,104 @@ final class MistypeInputController: IMKInputController {
         return jevRequestID
     }
 
-    override func inputText(_ string: String!, key keyCode: Int, modifiers flags: Int, client sender: Any!) -> Bool {
+    /// Shared 中/英 toggle entry (Shift-tap and Shift+Space): commit first
+    /// so no composition is lost, then flip the global mode with a flash.
+    private func setEnglish(_ on: Bool, client: IMKTextInput) {
+        commit(client)
+        Runtime.english = on
+        latinMode = false
+        ModeIndicator.shared.flash(english: on)
+    }
+
+    /// Raw event inlet (vChewing parity): this controller deliberately does
+    /// NOT implement `inputText:key:modifiers:client:` — when it does, the
+    /// server takes the managed path and `handleEvent` never fires (verified
+    /// 2026-09-18: mask queried fresh, inputText served, handleEvent dead).
+    /// Without it, the server delivers raw NSEvents here for every masked
+    /// type, and text is parsed below exactly once. NSEvent shadow classes:
+    /// never touch `.characters` on non-keyDown events (throws).
+    override func handle(_ event: NSEvent!, client sender: Any!) -> Bool {
+        guard let event else { return false }
+        let keyCode = Int(event.keyCode)
+        let flags = event.modifierFlags
+        let shiftHeld = flags.contains(.shift)
+        let isShiftKey = ShiftTapTracker.shiftKeyCodes.contains(keyCode)
+        let otherMods = flags.contains(.command) || flags.contains(.control)
+            || flags.contains(.option) || flags.contains(.capsLock)
+        switch event.type {
+        case .flagsChanged, .keyUp:
+            // Modifier-only signals: tap bookkeeping, then consume (no text).
+            let tap = Runtime.shiftTap.feed(keyCode: keyCode, shiftHeld: shiftHeld,
+                                            isRealKeyDown: false, otherMods: otherMods)
+            if tap, MistypePrefs.shiftToggle, let client = sender as? IMKTextInput {
+                lastClient = client
+                activeController = self
+                setEnglish(!Runtime.english, client: client)
+            }
+            return true
+        case .keyDown:
+            if isShiftKey {
+                // Bare-modifier press (press-as-keyDown delivery): arm only.
+                _ = Runtime.shiftTap.feed(keyCode: keyCode, shiftHeld: shiftHeld,
+                                          isRealKeyDown: false, otherMods: otherMods)
+                return true
+            }
+            _ = Runtime.shiftTap.feed(keyCode: keyCode, shiftHeld: shiftHeld,
+                                      isRealKeyDown: true, otherMods: otherMods)
+            guard let client = sender as? IMKTextInput else { return false }
+            lastClient = client
+            activeController = self
+            // Bare-modifier keyDowns (Caps/Opt/Ctrl alone) carry no text:
+            // consume silently instead of committing the composition first
+            // (the old managed path committed+passed them through).
+            guard !Self.isBareModifier(keyCode: keyCode, string: event.characters) else { return true }
+            return handleInputText(event.characters, key: keyCode,
+                                   modifiers: Int(flags.rawValue), client: client)
+        default:
+            return false
+        }
+    }
+
+    /// Modifier keyCodes that never produce text on their own keyDown.
+    private static func isBareModifier(keyCode: Int, string: String?) -> Bool {
+        if let string, !string.isEmpty { return false }
+        // ANSI modifiers: Shift 56/60, Ctrl 59/62, Opt 58/61, Cmd 55/54, Caps 57, Fn 63, Help 114.
+        return [55, 54, 56, 57, 58, 59, 60, 61, 62, 63, 114].contains(keyCode)
+    }
+
+    override func recognizedEvents(_ sender: Any!) -> Int {
+        Int(NSEvent.EventTypeMask.keyDown.rawValue
+            | NSEvent.EventTypeMask.flagsChanged.rawValue
+            | NSEvent.EventTypeMask.keyUp.rawValue)
+    }
+
+    /// Text inlet, called ONLY from handleEvent above (never by the server:
+    /// this name deliberately differs from `inputText:key:modifiers:client:`
+    /// so the server takes the raw handleEvent path — see handle(_:client:)).
+    /// Identical contract to the old override: string may be nil (special
+    /// keys), keyCode is the ANSI code, flags the modifier bits.
+    func handleInputText(_ string: String!, key keyCode: Int, modifiers flags: Int, client sender: Any!) -> Bool {
         guard let client = sender as? IMKTextInput else { return false }
         lastClient = client
         activeController = self
         let modifiers = NSEvent.ModifierFlags(rawValue: UInt(flags))
         // Key trace for routing diagnosis (codes only, never text content).
         Runtime.debugLog("key=\(keyCode) flags=\(flags) comp=\(composition.isEmpty ? 0 : 1) sel=\(selected) n=\(candidates.count) cur=\(cursor ?? -1) seg=\(segmentTexts == nil ? 0 : 1)")
-        if keyCode == 49 && modifiers.contains(.shift) {
-            commit(client)
-            english.toggle()
-            latinMode = false
+        // Defensive nil-guard: string is implicitly unwrapped and later code
+        // calls string.count — an empty/nil event carries no text either way.
+        if string == nil || string!.isEmpty {
             return true
         }
-        if english || modifiers.contains(.capsLock) { commit(client); return false }
+        if keyCode == 49 && modifiers.contains(.shift) {
+            setEnglish(!Runtime.english, client: client)
+            return true
+        }
+        if Runtime.english || modifiers.contains(.capsLock) { commit(client); return false }
         // Latin mode ends on anything but letters, space (multi-word runs
         // stay latin: `hello world`), and the backtick toggle: tones,
         // punctuation, digits and commit keys resume Zhuyin.
         let latinLetter: Bool = {
-            guard latinMode, !english,
+            guard latinMode, !Runtime.english,
                   !modifiers.contains(.command), !modifiers.contains(.control),
                   !modifiers.contains(.option),
                   let label = ZhuyinKeyboard.labels[keyCode],
@@ -310,7 +451,7 @@ final class MistypeInputController: IMKInputController {
         // mode off): following letters append verbatim. Swallowed silently —
         // the letters themselves are the feedback. Shift+` stays ASCII ~.
         if keyCode == 50 && !modifiers.contains(.shift) && !modifiers.contains(.command)
-            && !modifiers.contains(.control) && !modifiers.contains(.option) && !english {
+            && !modifiers.contains(.control) && !modifiers.contains(.option) && !Runtime.english {
             latinMode.toggle()
             Runtime.debugLog("latin=\(latinMode ? 1 : 0)")
             return true
@@ -323,7 +464,7 @@ final class MistypeInputController: IMKInputController {
         let digitOrder = [19, 20, 21, 23, 22, 26, 28]
         if modifiers.contains(.shift), !modifiers.contains(.command),
            !modifiers.contains(.control), !modifiers.contains(.option),
-           !english, !composition.isEmpty,
+           !Runtime.english, !composition.isEmpty,
            candidates.count > 1 || (segmentTexts?.count ?? 0) > 1,
            let digit = digitOrder.firstIndex(of: keyCode) {
             // Digits address the visible page (panel shows 8 of up to 16);
@@ -706,6 +847,12 @@ final class MistypeInputController: IMKInputController {
         Runtime.debugLog("[ime] menu() requested")
         let menu = NSMenu(title: "Mistype")
         menu.autoenablesItems = false
+        // Persistent mode readout (the flash pill is transient): which
+        // language bare keys will produce right now.
+        let mode = NSMenuItem(title: Runtime.english ? "英文 English ✓" : "中文 Chinese ✓",
+                              action: nil, keyEquivalent: "")
+        mode.isEnabled = false
+        menu.addItem(mode)
         let prefs = NSMenuItem(title: "Mistype Preferences…", action: #selector(openPreferences(_:)), keyEquivalent: "")
         prefs.target = nil
         prefs.isEnabled = true
@@ -858,11 +1005,13 @@ final class MistypeInputController: IMKInputController {
         if let client = sender as? IMKTextInput {
             lastClient = client
         }
+        Runtime.shiftTap.reset()
         Runtime.debugLog("[ime] activateServer")
     }
 
     override func deactivateServer(_ sender: Any!) {
         Runtime.debugLog("[ime] deactivateServer")
+        Runtime.shiftTap.reset()
         commitComposition(sender)
         super.deactivateServer(sender)
     }

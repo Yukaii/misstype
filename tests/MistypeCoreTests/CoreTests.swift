@@ -888,6 +888,52 @@ final class CoreTests: XCTestCase {
         XCTAssertEqual(tops.first?.unresolved, 0)
     }
 
+    // MARK: - Shift-tap 中/英 toggle (state transitions + timing)
+
+    func testShiftTapPressReleaseWithinLimitToggles() {
+        var tracker = ShiftTapTracker()
+        XCTAssertFalse(tracker.feed(keyCode: 56, shiftHeld: true, isRealKeyDown: false, otherMods: false, now: 100.0))
+        XCTAssertTrue(tracker.feed(keyCode: 56, shiftHeld: false, isRealKeyDown: false, otherMods: false, now: 100.1))
+        // One-shot: release without press does nothing.
+        XCTAssertFalse(tracker.feed(keyCode: 56, shiftHeld: false, isRealKeyDown: false, otherMods: false, now: 100.2))
+    }
+
+    func testShiftTapHoldPastLimitDoesNotToggle() {
+        var tracker = ShiftTapTracker()
+        XCTAssertFalse(tracker.feed(keyCode: 60, shiftHeld: true, isRealKeyDown: false, otherMods: false, now: 100.0))
+        XCTAssertFalse(tracker.feed(keyCode: 60, shiftHeld: false, isRealKeyDown: false, otherMods: false, now: 100.5))
+    }
+
+    func testShiftTapCancelledByInterveningKeyDown() {
+        // Shift+A capital inline: press, real keyDown, release → no toggle.
+        var tracker = ShiftTapTracker()
+        XCTAssertFalse(tracker.feed(keyCode: 56, shiftHeld: true, isRealKeyDown: false, otherMods: false, now: 100.0))
+        XCTAssertFalse(tracker.feed(keyCode: 0, shiftHeld: true, isRealKeyDown: true, otherMods: false, now: 100.05))
+        XCTAssertFalse(tracker.feed(keyCode: 56, shiftHeld: false, isRealKeyDown: false, otherMods: false, now: 100.1))
+    }
+
+    func testShiftTapRejectsChordsAndMismatchedKeys() {
+        var tracker = ShiftTapTracker()
+        // Cmd+Shift press never arms.
+        XCTAssertFalse(tracker.feed(keyCode: 56, shiftHeld: true, isRealKeyDown: false, otherMods: true, now: 100.0))
+        XCTAssertFalse(tracker.feed(keyCode: 56, shiftHeld: false, isRealKeyDown: false, otherMods: false, now: 100.1))
+        // Left press + right release never completes.
+        XCTAssertFalse(tracker.feed(keyCode: 56, shiftHeld: true, isRealKeyDown: false, otherMods: false, now: 101.0))
+        XCTAssertFalse(tracker.feed(keyCode: 60, shiftHeld: false, isRealKeyDown: false, otherMods: false, now: 101.1))
+    }
+
+    func testShiftTapDuplicateCycleGuard() {
+        // Electron-style duplicate press/release pair right after a trigger.
+        var tracker = ShiftTapTracker()
+        XCTAssertFalse(tracker.feed(keyCode: 56, shiftHeld: true, isRealKeyDown: false, otherMods: false, now: 100.0))
+        XCTAssertTrue(tracker.feed(keyCode: 56, shiftHeld: false, isRealKeyDown: false, otherMods: false, now: 100.1))
+        XCTAssertFalse(tracker.feed(keyCode: 56, shiftHeld: true, isRealKeyDown: false, otherMods: false, now: 100.12))
+        XCTAssertFalse(tracker.feed(keyCode: 56, shiftHeld: false, isRealKeyDown: false, otherMods: false, now: 100.14))
+        // After cooldown, tapping works again.
+        XCTAssertFalse(tracker.feed(keyCode: 56, shiftHeld: true, isRealKeyDown: false, otherMods: false, now: 101.0))
+        XCTAssertTrue(tracker.feed(keyCode: 56, shiftHeld: false, isRealKeyDown: false, otherMods: false, now: 101.1))
+    }
+
     // MARK: - Local phrase supplement (lexicon gaps like 選詞)
     func testSupplementConcatenationParsesAndCompetes() {
         let base = "ㄒㄩㄢˇ\t選\t-12\n"
