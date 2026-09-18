@@ -726,5 +726,86 @@ final class CoreTests: XCTestCase {
         XCTAssertEqual(context.precedingText, "context")
         XCTAssertEqual(context.bundleIdentifier, "com.apple.dt.Xcode")
     }
+
+    // MARK: - JevClient tests
+    func testJevClientBuildRequestHeadersAndBody() throws {
+        let config = JevConfig(enabled: true, apiKey: "test-secret-key", model: "typesafe-ai/jev")
+        let evidence = [JevState.Evidence(base: "ㄅㄧㄢ", tone: "ˋ"), JevState.Evidence(base: "ㄕ", tone: "ˋ")]
+        let candidates = [
+            (text: "便是", score: -10.0, repairs: 0, unresolved: 0),
+            (text: "辨識", score: -12.0, repairs: 0, unresolved: 0)
+        ]
+        let request = try JevClient.buildRequest(
+            config: config,
+            rawKeys: "1u04g4",
+            evidence: evidence,
+            candidates: candidates,
+            userContext: "人臉",
+            richContext: true
+        )
+
+        XCTAssertEqual(request.url, JevClient.endpoint)
+        XCTAssertEqual(request.httpMethod, "POST")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "authorization"), "Bearer test-secret-key")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "content-type"), "application/json")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "ai-model-id"), "typesafe-ai/jev")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "ai-evaluation-model-specification-version"), "4")
+
+        guard let body = request.httpBody,
+              let json = try JSONSerialization.jsonObject(with: body) as? [String: Any] else {
+            XCTFail("Missing or invalid HTTP body")
+            return
+        }
+
+        XCTAssertNotNil(json["state"])
+        guard let questions = json["questions"] as? [String: Any],
+              let pick = questions["pick"] as? [String: Any],
+              let criteria = pick["criteria"] as? [String: String] else {
+            XCTFail("Missing questions.pick.criteria")
+            return
+        }
+        XCTAssertEqual(criteria["1"], "便是")
+        XCTAssertEqual(criteria["2"], "辨識")
+    }
+
+    func testJevClientParseValidResponse() throws {
+        let candidates = [
+            (text: "便是", score: -10.0, repairs: 0, unresolved: 0),
+            (text: "辨識", score: -12.0, repairs: 0, unresolved: 0)
+        ]
+        let jsonString = """
+        {
+          "answers": {
+            "pick": {
+              "type": "choice",
+              "choice": "2",
+              "probabilities": { "1": 0.04, "2": 0.96 }
+            }
+          },
+          "providerMetadata": {
+            "typesafe": {
+              "confidence": { "pick": 0.92 }
+            }
+          }
+        }
+        """
+        let data = jsonString.data(using: .utf8)!
+        let result = try JevClient.parseResponse(data: data, candidates: candidates, latencyMs: 320)
+
+        XCTAssertEqual(result.pickedIndex, 2)
+        XCTAssertEqual(result.pickedText, "辨識")
+        XCTAssertEqual(result.confidence, 0.92, accuracy: 0.001)
+        XCTAssertEqual(result.latencyMs, 320)
+    }
+
+    func testJevClientRequiresEnabledAndKey() {
+        let configNoKey = JevConfig(enabled: true, apiKey: "")
+        let candidates = [(text: "便", score: -5.0, repairs: 0, unresolved: 0)]
+        XCTAssertThrowsError(
+            try JevClient.buildRequest(config: configNoKey, rawKeys: "1", evidence: [], candidates: candidates)
+        ) { error in
+            XCTAssertEqual(error as? JevClientError, .disabledOrMissingKey)
+        }
+    }
 }
 

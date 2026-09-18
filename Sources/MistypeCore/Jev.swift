@@ -15,7 +15,7 @@ import Foundation
 /// - apiKey: gateway key from Preferences (or env fallback at call sites);
 ///   presence is logged, value never is.
 /// - model: gateway model id (default typesafe-ai/jev).
-public struct JevConfig: Equatable {
+public struct JevConfig: Equatable, Sendable {
     public var enabled: Bool
     public var allowRichContext: Bool
     public var apiKey: String
@@ -69,7 +69,7 @@ public struct JevConfig: Equatable {
 ///
 /// No network happens here — this is pure data shaping behind the gate.
 public enum JevState {
-    public struct Evidence: Equatable {
+    public struct Evidence: Equatable, Sendable {
         public var base: String
         public var tone: String?
         public init(base: String, tone: String?) {

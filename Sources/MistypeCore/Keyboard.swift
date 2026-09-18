@@ -54,10 +54,11 @@ public enum ZhuyinKeyboard {
     }
 }
 
-public struct Syllable {
+public struct Syllable: Sendable {
     public let keys: [String]
     public let tone: String? // nil = no tone evidence; "" = explicit first tone
-    public var reading: String { keys.compactMap { ZhuyinKeyboard.symbols[$0] }.joined() + (tone ?? "") }
+    public var base: String { keys.compactMap { ZhuyinKeyboard.symbols[$0] }.joined() }
+    public var reading: String { base + (tone ?? "") }
 }
 
 public struct Composition {

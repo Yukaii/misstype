@@ -1,6 +1,6 @@
 import Cocoa
-import Carbon
-import InputMethodKit
+@preconcurrency import Carbon
+@preconcurrency import InputMethodKit
 import MistypeCore
 
 enum Runtime {
@@ -88,6 +88,21 @@ final class MistypeInputController: IMKInputController {
     private var segmentChars: Range<Int>?
     private var sessionPins = UserLexicon()
     private let missingRange = NSRange(location: NSNotFound, length: 0)
+    private var jevRequestID = 0
+    private let jevLock = NSLock()
+
+    private func nextJevID() -> Int {
+        jevLock.lock()
+        defer { jevLock.unlock() }
+        jevRequestID += 1
+        return jevRequestID
+    }
+
+    private func currentJevID() -> Int {
+        jevLock.lock()
+        defer { jevLock.unlock() }
+        return jevRequestID
+    }
 
     override func inputText(_ string: String!, key keyCode: Int, modifiers flags: Int, client sender: Any!) -> Bool {
         guard let client = sender as? IMKTextInput else { return false }
@@ -123,6 +138,7 @@ final class MistypeInputController: IMKInputController {
             guard !composition.isEmpty else { return false }
             selected = 0
             if modifiers.contains(.command) {
+                _ = nextJevID()
                 composition.clear()
                 candidates = []
                 pinnedPick = nil
@@ -209,6 +225,7 @@ final class MistypeInputController: IMKInputController {
         }
         if keyCode == 53 {
             guard !composition.isEmpty else { return false }
+            _ = nextJevID()
             composition.clear()
             candidates = []
             pinnedPick = nil
@@ -439,6 +456,7 @@ final class MistypeInputController: IMKInputController {
         }
         syncPanel(client)
         mark(previewText, client)
+        scheduleJevEvaluation(context: context)
     }
     /// Push our truth to the panel (highlight included — single owner, no
     /// echo loop possible since the panel never calls back). Focused mode
@@ -501,6 +519,72 @@ final class MistypeInputController: IMKInputController {
         client.setMarkedText(text, selectionRange: NSRange(location: caretOffset, length: 0),
                              replacementRange: missingRange)
     }
+    private func scheduleJevEvaluation(context: ClientContext) {
+        let requestID = nextJevID()
+        let config = MistypePrefs.jevConfig
+        guard config.canAttempt,
+              !composition.isEmpty,
+              candidates.count > 1,
+              pinnedPick == nil,
+              !explicitPick,
+              segmentTexts == nil else { return }
+
+        let rawKeys = composition.rawKeys.joined()
+        let evidence: [JevState.Evidence] = composition.segments.compactMap { seg in
+            if case .syllable(let s) = seg {
+                return JevState.Evidence(base: s.base, tone: s.tone)
+            }
+            return nil
+        }
+        let candTuples = Array(candidates.prefix(8)).map {
+            (text: $0.text, score: $0.score, repairs: $0.repairs, unresolved: $0.unresolved)
+        }
+        let userCtx = context.precedingText
+
+        Task.detached { [weak self] in
+            // Debounce 120ms: fast typing supersedes this request without hitting the network
+            try? await Task.sleep(nanoseconds: 120_000_000)
+            guard let self = self, self.currentJevID() == requestID else { return }
+
+            Runtime.debugLog("[jev-api] start model=\(config.model) cands=\(candTuples.count) ctxChars=\(userCtx.count)")
+            let t0 = DispatchTime.now()
+            do {
+                let result = try await JevClient.evaluate(
+                    config: config,
+                    rawKeys: rawKeys,
+                    evidence: evidence,
+                    candidates: candTuples,
+                    userContext: userCtx,
+                    richContext: config.allowRichContext,
+                    timeoutInterval: 1.2
+                )
+                let elapsedMs = Int(Double(DispatchTime.now().uptimeNanoseconds - t0.uptimeNanoseconds) / 1_000_000)
+                DispatchQueue.main.async {
+                    guard let client = self.lastClient,
+                          self.currentJevID() == requestID,
+                          !self.composition.isEmpty,
+                          self.pinnedPick == nil,
+                          !self.explicitPick,
+                          self.segmentTexts == nil else {
+                        Runtime.debugLog("[jev-api] stale ms=\(elapsedMs)ms (superseded)")
+                        return
+                    }
+                    let targetIndex = result.pickedIndex - 1
+                    let flip = targetIndex != self.selected
+                    Runtime.debugLog("[jev-api] ok ms=\(elapsedMs)ms pick=\(result.pickedIndex):\(result.pickedText) conf=\(String(format: "%.2f", result.confidence)) flip=\(flip ? 1 : 0)")
+                    if flip && self.candidates.indices.contains(targetIndex) {
+                        self.selected = targetIndex
+                        self.syncPanel(client)
+                        self.mark(self.previewText, client)
+                    }
+                }
+            } catch {
+                let elapsedMs = Int(Double(DispatchTime.now().uptimeNanoseconds - t0.uptimeNanoseconds) / 1_000_000)
+                Runtime.debugLog("[jev-api] err ms=\(elapsedMs)ms \(error.localizedDescription)")
+            }
+        }
+    }
+
     private func commit(_ client: IMKTextInput) {
         guard !composition.isEmpty else { return }
         var text: String
@@ -533,6 +617,7 @@ final class MistypeInputController: IMKInputController {
             Runtime.userLexicon.save()
         }
         client.insertText(text, replacementRange: missingRange)
+        _ = nextJevID()
         composition.clear()
         candidates = []
         pinnedPick = nil
