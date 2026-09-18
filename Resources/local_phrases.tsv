@@ -1,0 +1,9 @@
+# Local phrase supplement: high-frequency words missing from the pinned
+# upstream dictionary (third_party/McBopomofo, Traditional-leaning corpus).
+# Same TSV shape as lexicon.tsv: reading(s, hyphen-separated)\ttext\tscore.
+# Scores are negative log-ish like upstream: calibrate against sibling words
+# (選擇 -8.78, 候選 -10.24, 賄選 -11.60) so newcomers compete honestly instead
+# of steamrolling. Comment lines and blank lines are ignored by the parser.
+# Policy: add only words a user demonstrably hit (debug trace / fixture);
+# never bulk-import. Learned picks (UserLexicon) remain the per-user layer.
+ㄒㄩㄢˇ-ㄘˊ	選詞	-9.2

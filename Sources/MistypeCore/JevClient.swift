@@ -39,7 +39,7 @@ public enum JevClientError: LocalizedError, Equatable {
 public enum JevClient {
     public static let endpoint = URL(string: "https://ai-gateway.vercel.sh/v4/ai/evaluation-model")!
     public static let defaultInstructions =
-        "先檢查候選是否符合 phonetic_input 的注音音節與聲調；再使用 user_context 和句意判斷。只在證據與上下文足以區分時選一項。若多個候選都同樣符合、或無法判斷使用者意圖，選最保守的候選，不要因為單純更常見就假裝確定。"
+        "先檢查候選是否符合 phonetic_input 的注音音節與聲調；再使用 user_context、user_preferences（使用者過去親選的用字，優先於一般常見度）與 recent_commits 的話題連貫判斷。只在證據與上下文足以區分時選一項。若多個候選都同樣符合、或無法判斷使用者意圖，選最保守的候選，不要因為單純更常見就假裝確定。"
 
     /// Builds the URLRequest for evaluate without sending it (useful for testing & inspection).
     public static func buildRequest(
@@ -49,6 +49,7 @@ public enum JevClient {
         candidates: [(text: String, score: Double, repairs: Int, unresolved: Int)],
         userContext: String = "",
         userPreferences: [[String: String]] = [],
+        recentCommits: [String] = [],
         instructions: String = defaultInstructions,
         richContext: Bool = false,
         timeoutInterval: TimeInterval = 1.2
@@ -66,6 +67,7 @@ public enum JevClient {
             candidates: candidates,
             userContext: userContext,
             userPreferences: userPreferences,
+            recentCommits: recentCommits,
             richContext: richContext
         )
         let stateData = try JSONSerialization.data(withJSONObject: stateDict, options: [.sortedKeys])
@@ -155,6 +157,7 @@ public enum JevClient {
         candidates: [(text: String, score: Double, repairs: Int, unresolved: Int)],
         userContext: String = "",
         userPreferences: [[String: String]] = [],
+        recentCommits: [String] = [],
         instructions: String = defaultInstructions,
         richContext: Bool = false,
         timeoutInterval: TimeInterval = 1.2,
@@ -167,6 +170,7 @@ public enum JevClient {
             candidates: candidates,
             userContext: userContext,
             userPreferences: userPreferences,
+            recentCommits: recentCommits,
             instructions: instructions,
             richContext: richContext,
             timeoutInterval: timeoutInterval

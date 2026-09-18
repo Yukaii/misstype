@@ -22,6 +22,7 @@ replay = load_tool("replay")
 noise = load_tool("noise")
 lm_rescore = load_tool("lm_rescore")
 lm_choose = load_tool("lm_choose")
+jev_success = load_tool("jev_success")
 
 
 class ToolTests(unittest.TestCase):
@@ -151,6 +152,35 @@ class ToolTests(unittest.TestCase):
         self.assertEqual(len(set(prompts.values())), 4)
         with self.assertRaises(ValueError):
             lm_choose.phonetic_instructions("missing")
+
+    def test_jev_success_grades_acceptance_without_text(self):
+        lines = [
+            "1789702306.9 [jev-api] start model=x cands=8 ctxChars=0",
+            "1789702307.0 [jev-api] ok ms=200ms pick=1:xxx conf=0.96 flip=0",
+            "1789702307.1 [jev-api] stale ms=150ms (superseded)",
+            "1789702307.2 [jev-api] err ms=1200ms boom",
+            "1789702307.3 [jev-api] ok ms=200ms pick=2:yyy conf=0.70 flip=1",
+            "1789702308.0 jev-grade accept=1 flip=0 conf=0.96",
+            "1789702308.1 jev-grade accept=0 flip=1 conf=0.70",
+            "1789702308.2 jev skip=short",
+            "1789702308.3 jev skip=decisive",
+        ]
+        summary = jev_success.summarize(lines)
+        self.assertEqual(summary["starts"], 1)
+        self.assertEqual(summary["ok"], 2)
+        self.assertEqual(summary["stale"], 1)
+        self.assertEqual(summary["err"], 1)
+        self.assertEqual(summary["flips"], 1)
+        self.assertAlmostEqual(summary["flip_rate"], 0.5)
+        self.assertEqual(summary["grades"], 2)
+        self.assertAlmostEqual(summary["accept_rate"], 0.5)
+        self.assertAlmostEqual(summary["flip_accept_rate"], 0.0)
+        self.assertAlmostEqual(summary["mean_conf_accept"], 0.96)
+        self.assertAlmostEqual(summary["mean_conf_reject"], 0.70)
+        self.assertEqual(summary["skips"], {"short": 1, "decisive": 1})
+        rendered = jev_success.report(summary)
+        self.assertIn("accept_rate=0.50", rendered)
+        self.assertNotIn("xxx", rendered + "yyy")
 
 
 if __name__ == "__main__":

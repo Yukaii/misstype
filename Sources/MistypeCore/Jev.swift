@@ -57,6 +57,45 @@ public struct JevConfig: Equatable, Sendable {
     }
 }
 
+/// Trigger policy: when is a gateway call worth its cost? Pure predicate so
+/// the IME call site and unit tests share one definition. Three filters,
+/// cheapest first:
+///
+/// - Span: a lone syllable with no surrounding context is a guess either
+///   way (offline top-1 and any rerank both) — ask only when the sentence
+///   has company or the document gives context.
+    /// - Margin: measured 2026-09-18 on the bundled lexicon with live flags
+    ///   (fuzzy + tone tolerance): genuine ties sit 0.0–3.1 apart (馬/嗎 0.04,
+    ///   不大/部大 1.57, 你好/妳好 2.03, 好你/好妳 2.58, 這個/這各 3.06)
+    ///   while decided rankings lead by 5.9+ (打電話/大電話 5.9, 打電話/打電化
+    ///   10.3 without repair rivals). Repair costs top out at 6.0, so a lead
+    ///   past that means even the best repair-based challenger can't catch
+    ///   up — don't spend a call confirming the obvious.
+///
+/// Cheap client/session pre-checks (enabled+key, non-empty composition,
+/// >1 candidate, no pins/picks/focus) stay at the call site.
+public enum JevTrigger {
+    public static let minSyllablesWithoutContext = 2
+    public static let decisiveMargin = 6.0
+    public static let maxPreferences = 5
+
+    public static func shouldAttempt(syllableCount: Int,
+                                     topMargin: Double,
+                                     hasContext: Bool) -> Bool {
+        guard syllableCount >= minSyllablesWithoutContext || hasContext else { return false }
+        return topMargin < decisiveMargin
+    }
+
+    /// Measurement code for the file trace (numbers only, never text):
+    /// which filter rejected the call, or "" when it passes.
+    public static func skipCode(syllableCount: Int,
+                                topMargin: Double,
+                                hasContext: Bool) -> String {
+        if !(syllableCount >= minSyllablesWithoutContext || hasContext) { return "short" }
+        if !(topMargin < decisiveMargin) { return "decisive" }
+        return ""
+    }
+}
 /// Decision state serialized for an explicit Jev run. Mirrors the Python
 /// harness (`tools/lm_choose.build_jev_state`) shape so experiments and any
 /// future native caller share one contract:
@@ -83,6 +122,7 @@ public enum JevState {
                              candidates: [(text: String, score: Double, repairs: Int, unresolved: Int)],
                              userContext: String = "",
                              userPreferences: [[String: String]] = [],
+                             recentCommits: [String] = [],
                              richContext: Bool = false) -> [String: Any] {
         var rows: [[String: Any]] = []
         let baseline = candidates.first?.text ?? ""
@@ -109,6 +149,7 @@ public enum JevState {
             "candidates": rows,
             "user_context": userContext.isEmpty ? NSNull() : userContext,
             "user_preferences": userPreferences,
+            "recent_commits": recentCommits,
         ]
         if richContext {
             state["decoder_contract"] = [

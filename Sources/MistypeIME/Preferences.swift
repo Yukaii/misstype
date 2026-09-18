@@ -104,7 +104,7 @@ final class PreferencesPanel: NSPanel {
     private var jevStatus: NSTextField!
 
     private init() {
-        super.init(contentRect: NSRect(x: 0, y: 0, width: 360, height: 470),
+        super.init(contentRect: NSRect(x: 0, y: 0, width: 360, height: 550),
                    styleMask: [.titled, .closable, .utilityWindow],
                    backing: .buffered, defer: false)
         title = "Mistype Preferences"
@@ -187,6 +187,17 @@ final class PreferencesPanel: NSPanel {
         jevBox = jev
         stack.addArrangedSubview(jev)
 
+        // Always-visible egress disclosure: what leaves the device per
+        // evaluation, when, and the password caution. The checkbox alone
+        // ("needs key") never said any of this — informed consent needs the
+        // payload list where the switch is.
+        let disclosure = NSTextField(wrappingLabelWithString:
+            "開啟後、候選糾結時，每次評估會傳送：注音按鍵、候選句、游標前最多 60 字、你的親選用字、最近 5 句已提交文字。預設關閉；請勿在密碼欄使用。")
+        disclosure.font = .systemFont(ofSize: 11)
+        disclosure.textColor = .tertiaryLabelColor
+        disclosure.preferredMaxLayoutWidth = 328
+        stack.addArrangedSubview(disclosure)
+
         let rich = NSButton(checkboxWithTitle: "允許豐富上下文 Allow richer context (alignment/diff/contract)",
                             target: self, action: #selector(richToggled(_:)))
         rich.state = MistypePrefs.jevRichContext ? .on : .off
@@ -215,9 +226,10 @@ final class PreferencesPanel: NSPanel {
         modelField = model
         stack.addArrangedSubview(model)
 
-        let jevStatusField = NSTextField(labelWithString: "")
+        let jevStatusField = NSTextField(wrappingLabelWithString: "")
         jevStatusField.font = .systemFont(ofSize: 12)
         jevStatusField.textColor = .secondaryLabelColor
+        jevStatusField.preferredMaxLayoutWidth = 328
         jevStatus = jevStatusField
         stack.addArrangedSubview(jevStatusField)
     }
@@ -239,6 +251,25 @@ final class PreferencesPanel: NSPanel {
     }
 
     @objc private func jevToggled(_ sender: NSButton) {
+        // Explicit consent at the moment of enabling: flipping this switch
+        // starts sending text to a remote model (once a key is present), so
+        // an accidental click must not silently arm it. Turning off is
+        // immediate and needs no confirmation.
+        if sender.state == .on {
+            let alert = NSAlert()
+            alert.alertStyle = .warning
+            alert.messageText = "啟用 Jev 遠端協助？"
+            alert.informativeText =
+                "開啟後、候選糾結時，每次評估會傳送：注音按鍵、候選句、游標前最多 60 字、你的親選用字、最近 5 句已提交文字。只有提供 gateway key 後才會真正傳送；關閉即回到離線解碼。請勿在密碼欄使用。"
+            alert.addButton(withTitle: "啟用 Enable")
+            alert.addButton(withTitle: "取消 Cancel")
+            guard alert.runModal() == .alertFirstButtonReturn else {
+                sender.state = .off
+                MistypePrefs.jevEnabled = false
+                refreshJevStatus()
+                return
+            }
+        }
         MistypePrefs.jevEnabled = sender.state == .on
         refreshJevStatus()
     }
@@ -287,6 +318,7 @@ final class PreferencesPanel: NSPanel {
         } else {
             jevStatus.stringValue = "Jev: ready (\(config.model))"
                 + (config.allowRichContext ? " + richer context" : " (minimal context)")
+                + " — sends the listed text on each tied pick"
         }
     }
 
