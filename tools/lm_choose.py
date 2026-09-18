@@ -58,10 +58,57 @@ from lm_rescore import (cer, load_char_bases, load_toneless_bases,
 
 OLLAMA_URL = "http://localhost:11434/api/chat"
 
-CASES = RESCORE_CASES + [
+BASELINE_CASES = RESCORE_CASES + [
     {"name": "yue-recall-absent", "model": None,
      "keys": "u,4x96u,4", "expected": "越來越"},
 ]
+
+CONTEXT_CASES = [
+    {
+        "name": "dada-ime-context",
+        "keys": "hkguvu8cjo1jcjo282jo",
+        "expected": "測試一下會不會打對",
+        "context": "我在測試新輸入法在長句子下的選字表現，",
+    },
+    {
+        "name": "dada-quiz-context",
+        "keys": "hkguvu8cjo1jcjo282jo",
+        "expected": "測試一下會不會答對",
+        "context": "這道題目難度非常高，老師想透過隨堂測驗，",
+    },
+    {
+        "name": "bianshi-ai-context",
+        "keys": "1u04g4",
+        "expected": "辨識",
+        "context": "我們系統導入了最新的深度學習模型來進行人臉",
+    },
+    {
+        "name": "buda-rain-context",
+        "keys": "1j28",
+        "expected": "不打",
+        "context": "今天下午突然下起傾盆大雨，這場戶外網球賽我們先",
+    },
+    {
+        "name": "buda-size-control",
+        "keys": "1j28",
+        "expected": "不大",
+        "context": "這件大衣的版型比預期合身很多，穿起來一點都",
+    },
+    {
+        "name": "qianbao-shopping-context",
+        "keys": "294fu061l ",
+        "expected": "帶錢包",
+        "context": "出門去超市結帳買東西時，千萬別忘了隨身要",
+    },
+    {
+        "name": "zuoye-homework-context",
+        "keys": "yji4yji4u,4",
+        "expected": "做作業",
+        "context": "老師叮嚀大家放學回家後，一定要專心",
+    },
+]
+
+CASES = BASELINE_CASES + CONTEXT_CASES
 
 
 def build_jev_state(raw_keys: str, evidence: list[dict[str, str | None]],
@@ -568,6 +615,10 @@ def main() -> int:
     parser.add_argument("--min-confidence", type=float, default=0.0,
                         help="jev only: picks below this max-probability "
                              "abstain (post-hoc analysis still prints)")
+    parser.add_argument(
+        "--suite", choices=["baseline", "context", "all"], default="all",
+        help="test suite to evaluate (baseline, context, or all)",
+    )
     args = parser.parse_args()
     if args.backend == "jev" and args.api_key_env == "OPENAI_API_KEY":
         args.api_key_env = "AI_GATEWAY_API_KEY"
@@ -587,7 +638,10 @@ def main() -> int:
     toneless_bases = load_toneless_bases() if args.backend == "jev" else None
     char_bases = (load_char_bases()
                   if args.backend == "jev" and args.rich_context else None)
-    for case in CASES:
+    active_cases = (BASELINE_CASES if args.suite == "baseline"
+                    else CONTEXT_CASES if args.suite == "context"
+                    else CASES)
+    for case in active_cases:
         print(f"--- {case['name']} expected={case['expected']}")
         candidate_entries, decode_ms = offline_entries(
             case["keys"], limit=args.topn, user_lexicon=args.user_lexicon)
