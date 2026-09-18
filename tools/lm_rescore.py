@@ -54,41 +54,81 @@ def load_toneless_bases() -> set[str]:
     return bases
 
 
-def parse_keys(keys: str, toneless_bases: set[str]) -> list[str]:
-    """Keystroke string -> per-syllable toneless bopomofo bases (evidence).
+def _segment_toneless_run(run: list[str], toneless_bases: set[str]) -> list[str]:
+    """Greedily split a clean, toneless key run into dictionary bases."""
+    out, i = [], 0
+    while i < len(run):
+        for length in (3, 2, 1):
+            if i + length <= len(run):
+                base = "".join(SYMBOLS[k] for k in run[i:i + length])
+                if base in toneless_bases:
+                    out.append(base)
+                    i += length
+                    break
+        else:
+            out.append(SYMBOLS[run[i]])
+            i += 1
+    return out
 
-    Tone keys terminate like Composition.parse; toneless runs are segmented
-    greedy longest-match (valid for clean typing; typos fail safe to
-    fallback via the verification gate).
+
+def parse_evidence(keys: str, toneless_bases: set[str]) -> list[dict[str, str | None]]:
+    """Parse a key stream into the evidence we can safely expose to a model.
+
+    This is deliberately evidence, not a decoded answer: raw keys are kept
+    separately by the caller, tone keys remain attached to the preceding
+    syllable, and an unmarked run is only segmented with the pinned
+    dictionary.  A malformed run therefore stays visible instead of being
+    silently rewritten into Chinese.
     """
-    complete: list[str] = []
+    complete: list[dict[str, str | None]] = []
     pending: list[str] = []
 
-    def segment_run(run: list[str]) -> list[str]:
-        out, i = [], 0
-        while i < len(run):
-            for length in (3, 2, 1):
-                if i + length <= len(run):
-                    base = "".join(SYMBOLS[k] for k in run[i:i + length])
-                    if base in toneless_bases:
-                        out.append(base)
-                        i += length
-                        break
-            else:
-                out.append(SYMBOLS[run[i]])
-                i += 1
-        return out
+    def flush(tone_key: str | None = None) -> None:
+        nonlocal pending
+        if not pending:
+            return
+        if tone_key is not None:
+            base = "".join(SYMBOLS[k] for k in pending)
+            complete.append({
+                "base": base,
+                "tone": TONES[tone_key] or "first",
+                "tone_key": tone_key,
+            })
+        else:
+            for base in _segment_toneless_run(pending, toneless_bases):
+                complete.append({"base": base, "tone": None, "tone_key": None})
+        pending = []
 
     for key in keys:
         if key in TONES:
+            flush(key)
+        elif key in SYMBOLS:
+            pending.append(key)
+        else:
+            # Punctuation/Latin is outside the phonetic evidence. End the
+            # pending run but keep the raw stream in the outer state object.
+            flush()
+    flush()
+    return complete
+
+
+def parse_keys(keys: str, toneless_bases: set[str]) -> list[str]:
+    """Keystroke string -> per-syllable toneless bopomofo bases (evidence).
+
+    Keep this historical helper's output stable for the repair experiment;
+    the richer :func:`parse_evidence` is used by the Jev harness.
+    """
+    complete: list[str] = []
+    pending: list[str] = []
+    for key in keys:
+        if key in TONES:
             if pending:
-                base = "".join(SYMBOLS[k] for k in pending)
-                complete.append(base)
+                complete.append("".join(SYMBOLS[k] for k in pending))
                 pending = []
         elif key in SYMBOLS:
             pending.append(key)
     if pending:
-        complete.extend(segment_run(pending))
+        complete.extend(_segment_toneless_run(pending, toneless_bases))
     return complete
 
 
@@ -104,17 +144,51 @@ def load_char_bases() -> dict[str, set[str]]:
     return bases
 
 
-def offline_top(keys: str, limit: int = 8) -> tuple[list[str], float]:
+def offline_entries(keys: str, limit: int = 8,
+                    user_lexicon: str | None = None
+                    ) -> tuple[list[dict[str, object]], float]:
+    """Return ranked offline candidates with provenance for reranking.
+
+    The decoder's score is only a relative offline ranking signal. Keeping it
+    in the experiment state lets us test whether a model actually adds
+    information instead of hiding the baseline ordering.
+    """
     started = time.perf_counter()
-    proc = subprocess.run([str(APP_BIN), "--decode", keys], capture_output=True,
-                          text=True, timeout=120)
+    command = [str(APP_BIN), "--decode", keys]
+    if user_lexicon:
+        command.extend(["--user-lexicon", user_lexicon])
+    proc = subprocess.run(command, capture_output=True, text=True, timeout=120)
     elapsed_ms = (time.perf_counter() - started) * 1000
-    candidates = []
+    entries: list[dict[str, object]] = []
     for line in proc.stdout.splitlines()[1:1 + limit]:
         fields = line.split("\t")
-        if fields and fields[0]:
-            candidates.append(fields[0])
-    return candidates, elapsed_ms
+        if not fields or not fields[0]:
+            continue
+        entry: dict[str, object] = {"text": fields[0], "rank": len(entries) + 1}
+        if len(fields) > 1:
+            try:
+                entry["score"] = float(fields[1])
+            except ValueError:
+                pass
+        for field in " ".join(fields[2:]).split():
+            if field.startswith("repairs="):
+                try:
+                    entry["repairs"] = int(field.split("=", 1)[1])
+                except ValueError:
+                    pass
+            elif field.startswith("unresolved="):
+                try:
+                    entry["unresolved"] = int(field.split("=", 1)[1])
+                except ValueError:
+                    pass
+        entries.append(entry)
+    return entries, elapsed_ms
+
+
+def offline_top(keys: str, limit: int = 8) -> tuple[list[str], float]:
+    """Return only candidate text, preserving the original repair API."""
+    entries, elapsed_ms = offline_entries(keys, limit)
+    return [str(entry["text"]) for entry in entries], elapsed_ms
 
 
 def lm_repair(evidence: list[str], candidates: list[str], model: str,

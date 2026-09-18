@@ -19,6 +19,19 @@ enum Runtime {
     static var activeUserLexicon: UserLexicon? {
         MistypePrefs.userLearning ? userLexicon : nil
     }
+    /// Jev gateway policy, read live per keystroke like the other prefs.
+    /// Default off: `canAttempt == false` means decode stays byte-identical
+    /// to the offline path. When the user explicitly enables it AND provides
+    /// a key, the adapter only logs the gated intent (presence, never the
+    /// key or text) — no remote call ships until the triage battery verdict
+    /// (DO NOT WIRE) is overturned by fresh-seed evidence.
+    static var jevConfig: JevConfig { MistypePrefs.jevConfig }
+    /// Presence-only gate trace (never the key or text). Called on every
+    /// decode entry point so remote intent stays observable per policy.
+    static func logJevGate() {
+        let jev = jevConfig
+        debugLog("jev enabled=\(jev.enabled ? 1 : 0) rich=\(jev.allowRichContext ? 1 : 0) key=\(jev.hasKey ? 1 : 0)")
+    }
     /// File trace for routing diagnosis (~/Library/Logs/MistypeIME-debug.log).
     /// NSLog is a black hole under TIS-launched ad-hoc builds, so diagnosis
     /// goes here instead. Codes and indices only — never text content.
@@ -382,10 +395,23 @@ final class MistypeInputController: IMKInputController {
         if let focused = segmentChars?.lowerBound { return min(focused, len) }
         return len
     }
+    /// Safely extracts preceding text context and bundle identifier from the client.
+    private func currentContext(_ client: IMKTextInput) -> ClientContext {
+        let adapter = IMKTextInputContextAdapter(client)
+        return SurroundingContext.extract(from: adapter)
+    }
     private func refresh(_ client: IMKTextInput, keepCursor: Bool = false) {
         // Preview converts terminated runs (punctuation passes through in
         // place); the trailing pending run stays raw Bopomofo until commit.
         let previous = candidates.map(\.text)
+        // Jev gate threads through every decode entry point but changes
+        // nothing while off (the default): the offline decode below is the
+        // single source of candidates. Presence-only logging keeps remote
+        // intent observable per repo policy without leaking key or text.
+        // gated intent only: no remote call (battery verdict DO NOT WIRE).
+        Runtime.logJevGate()
+        let context = currentContext(client)
+        Runtime.debugLog("context chars=\(context.precedingText.count) app=\(context.bundleIdentifier ?? "none")")
         candidates = Runtime.decoder.decodeSegments(composition.segments, pendingKeys: [], fuzzy: MistypePrefs.fuzzyRepair, toneTolerance: MistypePrefs.toneTolerance, userLexicon: Runtime.activeUserLexicon, locked: sessionPins.isEmpty ? nil : sessionPins)
         if let pin = pinnedPick, !pin.isEmpty {
             if let exact = candidates.firstIndex(where: { $0.text == pin }) {
@@ -487,6 +513,9 @@ final class MistypeInputController: IMKInputController {
         if learnable {
             text = candidates[selected].text
         } else {
+            // Offline recompute: the Jev gate stays closed here too (same
+            // policy as refresh — explicit enable + key, else offline).
+            Runtime.logJevGate()
             text = Runtime.decoder.decodeSegments(composition.segments,
                                                   pendingKeys: composition.parsed.pending,
                                                   fuzzy: MistypePrefs.fuzzyRepair,
@@ -536,7 +565,7 @@ final class MistypeInputController: IMKInputController {
     /// locally rebuilt syllable list has exactly the length the top
     /// candidate's alignment covers (pure single run, clean top-1). Fused
     /// tone runs and ambiguous re-segmentations fall back to whole-span
-    /// behavior instead of pointing at the wrong word.
+    /// behavior instead of pointing at the wrong word combustion.
     private func focusFrame() -> FocusFrame? {
         guard composition.learnableKey != nil,
               candidates.indices.contains(selected) else { return nil }
@@ -684,7 +713,8 @@ if let decodeIndex = CommandLine.arguments.firstIndex(of: "--decode"),
         userLexicon = UserLexicon.load(from: URL(fileURLWithPath: CommandLine.arguments[flagIndex + 1]))
     }
     let results = decoder.decodeSegments(composition.segments, pendingKeys: parsed.pending, fuzzy: MistypePrefs.fuzzyRepair, toneTolerance: MistypePrefs.toneTolerance, userLexicon: userLexicon, locked: decodeLocks())
-    print("entries=\(decoder.entryCount) user=\(userLexicon?.count ?? 0) load_ms=\(loaded.timeIntervalSince(started) * 1000) decode_ms=\(Date().timeIntervalSince(loaded) * 1000)")
+    let jevGate = MistypePrefs.jevConfig
+    print("entries=\(decoder.entryCount) user=\(userLexicon?.count ?? 0) load_ms=\(loaded.timeIntervalSince(started) * 1000) decode_ms=\(Date().timeIntervalSince(loaded) * 1000) jev_enabled=\(jevGate.enabled ? 1 : 0) jev_key=\(jevGate.hasKey ? 1 : 0) jev_rich=\(jevGate.allowRichContext ? 1 : 0)")
     for candidate in results {
         var line = "\(candidate.text)\t\(candidate.score)\trepairs=\(candidate.repairs) unresolved=\(candidate.unresolved)"
         if CommandLine.arguments.contains("--align") {

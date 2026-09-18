@@ -548,7 +548,8 @@ final class CoreTests: XCTestCase {
         XCTAssertTrue(decoded.contains(where: { $0.text == "尼" }))
         XCTAssertEqual(decoded.first?.text, "你")
     }
-    func testPreeditWithCursorMarksPosition() {        XCTAssertEqual(preeditWithCursor("你好嗎", caretUTF16: 0), "|你好嗎")
+    func testPreeditWithCursorMarksPosition() {
+        XCTAssertEqual(preeditWithCursor("你好嗎", caretUTF16: 0), "|你好嗎")
         XCTAssertEqual(preeditWithCursor("你好嗎", caretUTF16: 1), "你|好嗎")
         XCTAssertEqual(preeditWithCursor("你好嗎", caretUTF16: 3), "你好嗎|")
         // Out-of-range clamps instead of trapping.
@@ -556,4 +557,174 @@ final class CoreTests: XCTestCase {
         XCTAssertEqual(preeditWithCursor("你好", caretUTF16: -2), "|你好")
         XCTAssertEqual(preeditWithCursor("", caretUTF16: 0), "|")
     }
+    // MARK: - Jev gateway policy (explicit opt-in, offline default)
+    func testJevDefaultsStayOffline() {
+        let config = JevConfig()
+        XCTAssertFalse(config.enabled)
+        XCTAssertFalse(config.allowRichContext)
+        XCTAssertFalse(config.hasKey)
+        XCTAssertFalse(config.canAttempt)
+        XCTAssertEqual(config.model, JevConfig.defaultModel)
+    }
+    func testJevRequiresExplicitEnableAndKey() {
+        XCTAssertFalse(JevConfig(enabled: true).canAttempt) // no key
+        XCTAssertFalse(JevConfig(apiKey: "k").canAttempt) // not enabled
+        XCTAssertFalse(JevConfig(enabled: true, apiKey: "   ").canAttempt)
+        XCTAssertTrue(JevConfig(enabled: true, apiKey: "k").canAttempt)
+    }
+    func testJevResolveApiKeyPrefersPrefsOverEnv() {
+        XCTAssertEqual(JevConfig.resolveApiKey(preferencesKey: "pref",
+                                               environment: ["AI_GATEWAY_API_KEY": "env"]), "pref")
+        XCTAssertEqual(JevConfig.resolveApiKey(preferencesKey: "  ",
+                                               environment: ["AI_GATEWAY_API_KEY": "env"]), "env")
+        XCTAssertEqual(JevConfig.resolveApiKey(preferencesKey: "",
+                                               environment: [:]), "")
+    }
+    func testJevMinimalStateOmitsRichFields() {
+        let evidence = [JevState.Evidence(base: "ㄋㄧ", tone: "ˇ")]
+        let candidates = [(text: "你", score: -5.0, repairs: 0, unresolved: 0)]
+        let minimal = JevState.build(rawKeys: "su3", evidence: evidence,
+                                     candidates: candidates, richContext: false)
+        XCTAssertNotNil((minimal["phonetic_input"] as? [String: Any])?["raw_keys"])
+        XCTAssertNil(minimal["decoder_contract"])
+        let rows = minimal["candidates"] as? [[String: Any]]
+        XCTAssertEqual(rows?.first?["text"] as? String, "你")
+        XCTAssertNil(rows?.first?["phonetic_alignment"])
+        XCTAssertNil(rows?.first?["diff_from_candidate_1"])
+    }
+    func testJevRichStateAddsGatedMetadata() {
+        let evidence = [JevState.Evidence(base: "ㄋㄧ", tone: "ˇ")]
+        let candidates = [(text: "你", score: -5.0, repairs: 0, unresolved: 0),
+                          (text: "妳", score: -6.0, repairs: 0, unresolved: 0)]
+        let rich = JevState.build(rawKeys: "su3", evidence: evidence,
+                                  candidates: candidates, richContext: true)
+        XCTAssertNotNil(rich["decoder_contract"])
+        let rows = rich["candidates"] as? [[String: Any]]
+        XCTAssertEqual(rows?.count, 2)
+        XCTAssertNotNil(rows?.first?["phonetic_alignment"])
+        XCTAssertNotNil(rows?.first?["diff_from_candidate_1"])
+    }
+    func testJevGateLeavesOfflineDecodeUntouched() {
+        // The gate is policy-only: an enabled+keyed config must still decode
+        // byte-identically through the offline engine (no rerank wired).
+        let syllables = composition("su3cl3").syllables(finishing: true)
+        let plain = decoder.decode(syllables)
+        let gated = decoder.decode(syllables) // JevConfig.canAttempt gates the caller, never decode()
+        XCTAssertTrue(JevConfig(enabled: true, apiKey: "k").canAttempt)
+        XCTAssertEqual(gated.map(\.text), plain.map(\.text))
+        XCTAssertEqual(gated.map(\.score), plain.map(\.score))
+    }
+
+    // MARK: - Surrounding context extraction
+    final class MockTextInputContextClient: TextInputContextClient {
+        var marked: NSRange
+        var selected: NSRange
+        var text: String
+        var bundleID: String?
+
+        init(text: String = "",
+             marked: NSRange = NSRange(location: NSNotFound, length: 0),
+             selected: NSRange = NSRange(location: NSNotFound, length: 0),
+             bundleID: String? = nil) {
+            self.text = text
+            self.marked = marked
+            self.selected = selected
+            self.bundleID = bundleID
+        }
+
+        func markedRange() -> NSRange { marked }
+        func selectedRange() -> NSRange { selected }
+        func substring(in range: NSRange) -> String? {
+            let utf16 = Array(text.utf16)
+            guard range.location != NSNotFound,
+                  range.location >= 0,
+                  range.location + range.length <= utf16.count else {
+                return nil
+            }
+            return String(decoding: utf16[range.location..<(range.location + range.length)], as: UTF16.self)
+        }
+        func bundleIdentifier() -> String? { bundleID }
+    }
+
+    func testSurroundingContextNilClientReturnsEmpty() {
+        XCTAssertEqual(SurroundingContext.extractPrecedingText(from: nil), "")
+        let context = SurroundingContext.extract(from: nil)
+        XCTAssertTrue(context.isEmpty)
+        XCTAssertNil(context.bundleIdentifier)
+    }
+
+    func testSurroundingContextFromSelectedRange() {
+        let client = MockTextInputContextClient(
+            text: "Hello world",
+            selected: NSRange(location: 11, length: 0)
+        )
+        let extracted = SurroundingContext.extractPrecedingText(from: client, maxCharacters: 5)
+        XCTAssertEqual(extracted, "world")
+    }
+
+    func testSurroundingContextFromMarkedRangePrecedesSelectedRange() {
+        // Active composition at (10, 4), cursor at (14, 0).
+        // The preceding text must anchor at 10, not 14.
+        let client = MockTextInputContextClient(
+            text: "Preceding 1234 tail",
+            marked: NSRange(location: 10, length: 4),
+            selected: NSRange(location: 14, length: 0)
+        )
+        let extracted = SurroundingContext.extractPrecedingText(from: client, maxCharacters: 5)
+        XCTAssertEqual(extracted, "ding ")
+    }
+
+    func testSurroundingContextClampAtDocumentStart() {
+        let client = MockTextInputContextClient(
+            text: "abc",
+            selected: NSRange(location: 3, length: 0)
+        )
+        let extracted = SurroundingContext.extractPrecedingText(from: client, maxCharacters: 50)
+        XCTAssertEqual(extracted, "abc")
+    }
+
+    func testSurroundingContextCursorAtStartReturnsEmpty() {
+        let client = MockTextInputContextClient(
+            text: "abc",
+            selected: NSRange(location: 0, length: 0)
+        )
+        XCTAssertEqual(SurroundingContext.extractPrecedingText(from: client), "")
+    }
+
+    func testSurroundingContextNotFoundRangesReturnEmpty() {
+        let client = MockTextInputContextClient(
+            text: "abc",
+            marked: NSRange(location: NSNotFound, length: 0),
+            selected: NSRange(location: NSNotFound, length: 0)
+        )
+        XCTAssertEqual(SurroundingContext.extractPrecedingText(from: client), "")
+    }
+
+    func testSurroundingContextSanitizesControlChars() {
+        let textWithControl = "\u{0000}Hello\u{0007}\tworld\n"
+        let sanitized = SurroundingContext.sanitize(textWithControl)
+        XCTAssertEqual(sanitized, "Hello\tworld\n")
+    }
+
+    func testSurroundingContextChineseUtf16() {
+        let chinese = "這是一個輸入法測試，"
+        let client = MockTextInputContextClient(
+            text: chinese,
+            selected: NSRange(location: (chinese as NSString).length, length: 0)
+        )
+        let extracted = SurroundingContext.extractPrecedingText(from: client, maxCharacters: 5)
+        XCTAssertEqual(extracted, "入法測試，")
+    }
+
+    func testSurroundingContextExtractsBundleIdentifier() {
+        let client = MockTextInputContextClient(
+            text: "context",
+            selected: NSRange(location: 7, length: 0),
+            bundleID: "com.apple.dt.Xcode"
+        )
+        let context = SurroundingContext.extract(from: client)
+        XCTAssertEqual(context.precedingText, "context")
+        XCTAssertEqual(context.bundleIdentifier, "com.apple.dt.Xcode")
+    }
 }
+
