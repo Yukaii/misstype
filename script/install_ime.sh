@@ -13,8 +13,21 @@ fi
 /usr/bin/ditto "$ROOT_DIR/dist/MistypeIME.app" "$DEST"
 killall -9 MistypeIME 2>/dev/null || true
 killall TextInputMenuAgent TextInputSwitcher 2>/dev/null || true
+
+# Register with LaunchServices and clean up dist duplicate
+LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
+if [[ -x "$LSREGISTER" ]]; then
+  "$LSREGISTER" -u "$ROOT_DIR/dist/MistypeIME.app" 2>/dev/null || true
+  "$LSREGISTER" -f "$DEST"
+fi
+
 sleep 0.5
 BIN_DIR="$(swift build -c release --show-bin-path)"
 "$BIN_DIR/MistypeSourceTool" register "$DEST"
 "$BIN_DIR/MistypeSourceTool" select
-echo "Installed Mistype. Select it from the macOS input-source menu to try it."
+
+# Launch daemon directly so it is running and listening immediately
+nohup "$DEST/Contents/MacOS/MistypeIME" >/dev/null 2>&1 &
+sleep 0.5
+
+echo "Installed and launched Mistype."
