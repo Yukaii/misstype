@@ -10,7 +10,12 @@ enum Runtime {
             NSLog("Mistype: missing lexicon; refusing to start with a fixture decoder")
             exit(1)
         }
-        return LexiconDecoder(tsv: data)
+        // Local supplement (Resources/local_phrases.tsv, optional): curated
+        // high-frequency words missing upstream. Same shape, concatenated —
+        // one parse path, first-class entries. Missing file means empty.
+        let supplement = Bundle.main.url(forResource: "local_phrases", withExtension: "tsv")
+            .flatMap { try? String(contentsOf: $0, encoding: .utf8) } ?? ""
+        return LexiconDecoder(tsv: data + "\n" + supplement)
     }()
     /// Explicit-opt-in user overlay, loaded once at startup and reloaded
     /// when the preference flips on. Gated per keystroke by
@@ -18,6 +23,48 @@ enum Runtime {
     static var userLexicon = UserLexicon.load()
     static var activeUserLexicon: UserLexicon? {
         MistypePrefs.userLearning ? userLexicon : nil
+    }
+    /// Recent committed sentences (in-memory only, never persisted): topic
+    /// continuity for Jev runs across fields. Sent only under the same
+    /// explicit Jev opt-in + key as user_context — same trust boundary, no
+    /// wider. Capped small; trimming keeps one line per commit.
+    static var recentCommits: [String] = []
+    static let recentCommitCap = 5
+    static let recentCommitChars = 48
+    static func recordCommit(_ text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        recentCommits.append(String(trimmed.prefix(recentCommitChars)))
+        if recentCommits.count > recentCommitCap {
+            recentCommits.removeFirst(recentCommits.count - recentCommitCap)
+        }
+    }
+    /// Pending Jev evaluations awaiting their commit verdict (in-memory,
+    /// capped): the gate only fires on untouched states (no pins/picks), so
+    /// the eventually committed text for the SAME raw keys is the honest
+    /// ground truth for that evaluation. Acceptance, not correctness — a
+    /// user override after the fact still grades 0.
+    struct JevVerdict: Sendable {
+        var rawKeys: String
+        var pickedText: String
+        var flip: Bool
+        var confidence: Double
+    }
+    static var jevPending: [JevVerdict] = []
+    static let jevPendingCap = 20
+    static func noteJevEval(rawKeys: String, pickedText: String, flip: Bool, confidence: Double) {
+        jevPending.append(JevVerdict(rawKeys: rawKeys, pickedText: pickedText, flip: flip, confidence: confidence))
+        if jevPending.count > jevPendingCap {
+            jevPending.removeFirst(jevPending.count - jevPendingCap)
+        }
+    }
+    /// Grade by exact raw-keys match (anything typed after the evaluation
+    /// changes the keys, so only clean Return-commits of the evaluated state
+    /// grade). Logs booleans only — never text (repo policy).
+    static func gradeJevEval(rawKeys: String, committed: String) {
+        guard let index = jevPending.firstIndex(where: { $0.rawKeys == rawKeys }) else { return }
+        let verdict = jevPending.remove(at: index)
+        debugLog("jev-grade accept=\(verdict.pickedText == committed ? 1 : 0) flip=\(verdict.flip ? 1 : 0) conf=\(String(format: "%.2f", verdict.confidence))")
     }
     /// Jev gateway policy, read live per keystroke like the other prefs.
     /// Default off: `canAttempt == false` means decode stays byte-identical
@@ -195,33 +242,18 @@ final class MistypeInputController: IMKInputController {
             commit(client)
             return false
         }
-        if keyCode == 123 || keyCode == 124 { // Left/Right: cursor first, paging fallback
+        if keyCode == 123 || keyCode == 124 { // Left/Right: syllable cursor only.
+            // Paging used to live here as a fallback, which made the arrows
+            // unpredictable (cursor sometimes, page-flip others, so stepping
+            // back usually paged instead). Paging is Tab / Shift+Tab /
+            // Shift+digit's job (they walk the full list across pages), so
+            // arrows never flip pages: failure beeps and stays put.
             guard !composition.isEmpty else { return false }
-            if keyCode == 123, moveCursorBack(client) { return true }
-            if keyCode == 124, moveCursorForward(client) { return true }
-            let pages = (candidates.count + 7) / 8
-            if pages > 1 {
-                let row = selected % 8
-                let newPage = (selected / 8 + (keyCode == 124 ? 1 : pages - 1)) % pages
-                var index = newPage * 8 + row
-                if index >= candidates.count { index = candidates.count - 1 }
-                selected = index
-                pinnedPick = candidates[selected].text
-                explicitPick = true
-                mark(previewText, client)
-                syncPanel(client)
-                return true
-            }
-            if candidates.count > 1 {
-                selected = (selected + (keyCode == 124 ? 1 : candidates.count - 1)) % candidates.count
-                pinnedPick = candidates[selected].text
-                explicitPick = true
-                mark(previewText, client)
-                syncPanel(client)
-                return true
-            }
-            commit(client)
-            return false
+            if keyCode == 123 {
+                if moveCursorBack(client) { return true }
+            } else if moveCursorForward(client) { return true }
+            NSSound.beep()
+            return true
         }
         if keyCode == 53 {
             guard !composition.isEmpty else { return false }
@@ -526,14 +558,35 @@ final class MistypeInputController: IMKInputController {
               pinnedPick == nil,
               !explicitPick,
               segmentTexts == nil else { return }
+        // Decisive-offline filter first: a top-1 lead past repair scale
+        // means the phonetic evidence already decided — skip before any XPC.
+        let margin = candidates[0].score - candidates[1].score
         // Surrounding-text lookup is an XPC round-trip into the client on the
         // IMK main thread, and legacy client wrappers (notably Chromium /
         // Electron) have segfaulted inside stringFromRange:actualRange: (see
-        // DiagnosticReports 2026-09-17). It runs ONLY here, after the gate
+        // DiagnosticReports 2026-09-17). It runs ONLY here, after the gates
         // above, when Jev will genuinely attempt a request — never on the hot
         // path for offline decoding.
         let context = currentContext(client)
         Runtime.debugLog("context chars=\(context.precedingText.count) app=\(context.bundleIdentifier ?? "none")")
+        // Span counts complete syllables plus the segmented pending tail:
+        // toneless typing never terminates pending, but its multi-syllable
+        // runs are still worth asking about.
+        let parsed = composition.parsed
+        var syllableCount = parsed.complete.count
+        if !parsed.pending.isEmpty,
+           let tail = Runtime.decoder.segmentKeys(
+               parsed.pending, fuzzy: MistypePrefs.fuzzyRepair,
+               toneTolerance: MistypePrefs.toneTolerance).first {
+            syllableCount += tail.count
+        }
+        let hasContext = !context.precedingText.isEmpty
+        guard JevTrigger.shouldAttempt(syllableCount: syllableCount,
+                                       topMargin: margin,
+                                       hasContext: hasContext) else {
+            Runtime.debugLog("jev skip=\(JevTrigger.skipCode(syllableCount: syllableCount, topMargin: margin, hasContext: hasContext))")
+            return
+        }
 
         let rawKeys = composition.rawKeys.joined()
         let evidence: [JevState.Evidence] = composition.segments.compactMap { seg in
@@ -546,6 +599,13 @@ final class MistypeInputController: IMKInputController {
             (text: $0.text, score: $0.score, repairs: $0.repairs, unresolved: $0.unresolved)
         }
         let userCtx = context.precedingText
+        // Learned picks for exactly these readings (harness parity), plus
+        // recent commits for topic continuity. Both ride the same explicit
+        // opt-in as the request itself; learning-off means no preferences.
+        let prefs = Runtime.activeUserLexicon?.matchingPreferences(
+            forBases: evidence.map(\.base)) ?? []
+        let recent = Runtime.recentCommits
+        Runtime.debugLog("jev prefs=\(prefs.count) recent=\(recent.count)")
 
         Task.detached { [weak self] in
             // Debounce 120ms: fast typing supersedes this request without hitting the network
@@ -561,6 +621,8 @@ final class MistypeInputController: IMKInputController {
                     evidence: evidence,
                     candidates: candTuples,
                     userContext: userCtx,
+                    userPreferences: prefs,
+                    recentCommits: recent,
                     richContext: config.allowRichContext,
                     timeoutInterval: 1.2
                 )
@@ -578,6 +640,7 @@ final class MistypeInputController: IMKInputController {
                     let targetIndex = result.pickedIndex - 1
                     let flip = targetIndex != self.selected
                     Runtime.debugLog("[jev-api] ok ms=\(elapsedMs)ms pick=\(result.pickedIndex):\(result.pickedText) conf=\(String(format: "%.2f", result.confidence)) flip=\(flip ? 1 : 0)")
+                    Runtime.noteJevEval(rawKeys: rawKeys, pickedText: result.pickedText, flip: flip, confidence: result.confidence)
                     if flip && self.candidates.indices.contains(targetIndex) {
                         self.selected = targetIndex
                         self.syncPanel(client)
@@ -616,6 +679,10 @@ final class MistypeInputController: IMKInputController {
         }
         while text.last?.isWhitespace == true { text.removeLast() }
         guard !text.isEmpty else { return }
+        // Success-rate verdict for any evaluation of exactly this state.
+        Runtime.gradeJevEval(rawKeys: composition.rawKeys.joined(), committed: text)
+        // Topic continuity for future Jev runs (in-memory ring, never disk).
+        Runtime.recordCommit(text)
         if MistypePrefs.userLearning && explicitPick && learnable
             && candidates[selected].unresolved == 0,
             let key = composition.learnableKey {
@@ -663,13 +730,22 @@ final class MistypeInputController: IMKInputController {
         let top: SentenceCandidate
     }
     /// Rebuild validation: the cursor trusts a focused span only when the
-    /// locally rebuilt syllable list has exactly the length the top
-    /// candidate's alignment covers (pure single run, clean top-1). Fused
-    /// tone runs and ambiguous re-segmentations fall back to whole-span
-    /// behavior instead of pointing at the wrong word combustion.
+    /// terminated syllable list has exactly the length the top candidate's
+    /// alignment covers. The trailing pending tail is deliberately EXCLUDED:
+    /// refresh() decodes with pendingKeys:[] so the alignment never covers
+    /// it, and counting it made every mid-syllable Left/Right fall through
+    /// to paging (toneless typing, where pending only clears on space, could
+    /// almost never step back). The raw tail stays visible past the cursor;
+    /// any edit returns to end. Anything uncovered (repairs, fuzzy
+    /// re-segmentation) falls back to whole-span behavior instead of
+    /// pointing at the wrong word.
+    /// NOTE: no learnableKey requirement — that predicate is for user-phrase
+    /// learning (single pure-Zhuyin run). The cursor works across separator
+    /// spaces, punctuation and latin runs too: separators consume no
+    /// syllables, so the length check below still guards correctness, and
+    /// anything it rejects falls back to paging.
     private func focusFrame() -> FocusFrame? {
-        guard composition.learnableKey != nil,
-              candidates.indices.contains(selected) else { return nil }
+        guard candidates.indices.contains(selected) else { return nil }
         let top = candidates[selected]
         // No repairs gate: alignment is filled on every path and the
         // word-in-options check below already guards correctness — repaired
@@ -677,15 +753,7 @@ final class MistypeInputController: IMKInputController {
         // (raw fallback) spans stay out: nothing to offer there.
         guard top.unresolved == 0,
               let end = top.alignment.last?.syllables.upperBound, end > 0 else { return nil }
-        let parsed = composition.parsed
-        var rebuilt = parsed.complete
-        if !parsed.pending.isEmpty {
-            guard let first = Runtime.decoder.segmentKeys(
-                parsed.pending, fuzzy: MistypePrefs.fuzzyRepair,
-                toneTolerance: MistypePrefs.toneTolerance).first,
-                !first.isEmpty else { return nil }
-            rebuilt += first
-        }
+        let rebuilt = composition.parsed.complete
         guard rebuilt.count == end else { return nil }
         return FocusFrame(syllables: rebuilt, top: top)
     }
@@ -702,6 +770,12 @@ final class MistypeInputController: IMKInputController {
     }
     /// Point the cursor at its span: fill the segment list, verify the
     /// aligned word is among the options. Drops back to end on any mismatch.
+    /// Granularity: a cursor at a word start focuses the whole word (phrase
+    /// options, phrase pins); a cursor strictly inside a multi-syllable word
+    /// focuses that one syllable (homophone browser), so a single wrong char
+    /// like 哈囉's 囉 can be fixed without re-picking the whole word. The
+    /// single-char mapping needs a 1:1 syllable↔UTF-16 word (near-universal
+    /// for Zhuyin runs); anything else keeps whole-word focus.
     /// Outcomes are traced by code (numbers only): ok, noframe, noword.
     private func focusSegment() {
         clearSegment()
@@ -711,20 +785,32 @@ final class MistypeInputController: IMKInputController {
             cursor = nil
             return
         }
+        // Narrow mid-word cursors to the single syllable (see above); the
+        // char slice is valid only under the 1:1 check.
+        var targetSyllables = span.syllables
+        var targetChars = span.chars
+        if span.syllables.count > 1, c > span.syllables.lowerBound {
+            let unitCount = span.chars.upperBound - span.chars.lowerBound
+            if unitCount == span.syllables.count {
+                let offset = c - span.syllables.lowerBound
+                targetSyllables = c..<(c + 1)
+                targetChars = (span.chars.lowerBound + offset)..<(span.chars.lowerBound + offset + 1)
+            }
+        }
         let options = Runtime.decoder.segmentOptions(
-            frame.syllables, span: span.syllables, fuzzy: MistypePrefs.fuzzyRepair,
+            frame.syllables, span: targetSyllables, fuzzy: MistypePrefs.fuzzyRepair,
             toneTolerance: MistypePrefs.toneTolerance)
-        guard let word = spanText(frame.top.text, span.chars),
+        guard let word = spanText(frame.top.text, targetChars),
               let current = options.firstIndex(where: { $0.text == word }) else {
             Runtime.debugLog("focus noword")
             cursor = nil
             return
         }
-        Runtime.debugLog("focus ok s=\(span.syllables.lowerBound)-\(span.syllables.upperBound) c=\(span.chars.lowerBound)-\(span.chars.upperBound)")
+        Runtime.debugLog("focus ok s=\(targetSyllables.lowerBound)-\(targetSyllables.upperBound) c=\(targetChars.lowerBound)-\(targetChars.upperBound)")
         segmentTexts = options.map(\.text)
         segmentSelected = current
-        segmentSpan = span.syllables
-        segmentChars = span.chars
+        segmentSpan = targetSyllables
+        segmentChars = targetChars
     }
     private func moveCursorBack(_ client: IMKTextInput) -> Bool {
         guard let frame = focusFrame(),
@@ -784,6 +870,12 @@ final class MistypeInputController: IMKInputController {
 
 if let decodeIndex = CommandLine.arguments.firstIndex(of: "--decode"),
    decodeIndex + 1 < CommandLine.arguments.count {
+    // Measurement fidelity: the decode CLI must see the same registered
+    // defaults as a live launch (fuzzyRepair/toneTolerance/userLearning all
+    // default true). register() normally runs at the bottom next to app.run(),
+    // which this early-exit path never reaches — every --decode number ever
+    // measured ran the no-fuzzy, no-tolerance baseline instead.
+    MistypePrefs.register()
     var composition = Composition()
     var latin = false
     for key in CommandLine.arguments[decodeIndex + 1] {

@@ -807,5 +807,113 @@ final class CoreTests: XCTestCase {
             XCTAssertEqual(error as? JevClientError, .disabledOrMissingKey)
         }
     }
+
+    // MARK: - Jev trigger policy (usage thrift)
+
+    func testJevTriggerSkipsLoneSyllableWithoutContext() {
+        // Single char, no context: a guess either way — don't spend a call.
+        XCTAssertFalse(JevTrigger.shouldAttempt(syllableCount: 1, topMargin: 0.04, hasContext: false))
+        XCTAssertEqual(JevTrigger.skipCode(syllableCount: 1, topMargin: 0.04, hasContext: false), "short")
+    }
+
+    func testJevTriggerAllowsLoneSyllableWithContext() {
+        // Same tie, but the document gives evidence — worth asking.
+        XCTAssertTrue(JevTrigger.shouldAttempt(syllableCount: 1, topMargin: 0.04, hasContext: true))
+        XCTAssertEqual(JevTrigger.skipCode(syllableCount: 1, topMargin: 0.04, hasContext: true), "")
+    }
+
+    func testJevTriggerAllowsMultiSyllableWithoutContext() {
+        // Intra-sentence coherence still helps with no document context.
+        XCTAssertTrue(JevTrigger.shouldAttempt(syllableCount: 2, topMargin: 1.57, hasContext: false))
+    }
+
+    func testJevTriggerSkipsDecisiveOfflineLead() {
+        // 打電話/打電化 lead 10.3: evidence already decided, even with context.
+        XCTAssertFalse(JevTrigger.shouldAttempt(syllableCount: 3, topMargin: 10.3, hasContext: true))
+        XCTAssertEqual(JevTrigger.skipCode(syllableCount: 3, topMargin: 10.3, hasContext: true), "decisive")
+        // Boundary: exactly the max repair cost stays out.
+        XCTAssertFalse(JevTrigger.shouldAttempt(syllableCount: 2, topMargin: 6.0, hasContext: false))
+        XCTAssertTrue(JevTrigger.shouldAttempt(syllableCount: 2, topMargin: 5.99, hasContext: false))
+    }
+
+    // MARK: - Learned preferences for Jev runs
+
+    func testMatchingPreferencesReturnsExactKeyRowsBestFirst() {
+        var lexicon = UserLexicon()
+        lexicon.record(key: "ㄋㄧㄏㄠ", text: "你好")
+        lexicon.record(key: "ㄋㄧㄏㄠ", text: "你好")
+        lexicon.record(key: "ㄋㄧㄏㄠ", text: "擬好")
+        let prefs = lexicon.matchingPreferences(forBases: ["ㄋㄧ", "ㄏㄠ"])
+        XCTAssertEqual(prefs, [["text": "你好", "count": "2"], ["text": "擬好", "count": "1"]])
+    }
+
+    func testMatchingPreferencesIgnoresUnrelatedReadings() {
+        var lexicon = UserLexicon()
+        lexicon.record(key: "ㄋㄧㄏㄠ", text: "你好")
+        XCTAssertTrue(lexicon.matchingPreferences(forBases: ["ㄅㄨ", "ㄉㄚ"]).isEmpty)
+        XCTAssertTrue(lexicon.matchingPreferences(forBases: []).isEmpty)
+        XCTAssertTrue(UserLexicon().matchingPreferences(forBases: ["ㄋㄧ"]).isEmpty)
+    }
+
+    func testMatchingPreferencesCapsRows() {
+        var lexicon = UserLexicon()
+        for index in 0..<10 {
+            lexicon.record(key: "ㄚ", text: "字\(index)")
+        }
+        XCTAssertEqual(lexicon.matchingPreferences(forBases: ["ㄚ"]).count, JevTrigger.maxPreferences)
+        XCTAssertEqual(lexicon.matchingPreferences(forBases: ["ㄚ"], maxCount: 2).count, 2)
+    }
+
+    // MARK: - Explicit tone weight (typed tones must hold)
+
+    func testExplicitToneBeatsFrequencyGap() {
+        // 作ˋ outscores 左ˇ on frequency (-6 vs -8); the typed third tone
+        // must still win top-1 (2026-09-18: mismatch 2.0 let 作 win).
+        let decoder = LexiconDecoder(tsv: "ㄗㄨㄛˇ\t左\t-8\nㄗㄨㄛˋ\t作\t-6\n")
+        let toned = decoder.decode(composition("yji3").syllables(finishing: true))
+        XCTAssertEqual(toned.first?.text, "左")
+        XCTAssertGreaterThan(toned[0].score - toned[1].score, 1.0)
+        // Toneless stays frequency-first: no assertion, no penalty.
+        let toneless = decoder.decode(composition("yji").syllables(finishing: true))
+        XCTAssertEqual(toneless.first?.text, "作")
+    }
+
+    func testNeutralToneResolvesViaTonelessBase() {
+        // No ㄌㄨㄛ˙ entry anywhere: neutral tone must fall back to the
+        // toneless-base variants, not raw fallback (masked for months by the
+        // --decode CLI running without registered defaults).
+        let decoder = LexiconDecoder(tsv: "ㄌㄨㄛ\t囉\t-10\n")
+        let tops = decoder.decode(composition("xji7").syllables(finishing: true))
+        XCTAssertEqual(tops.first?.text, "囉")
+        XCTAssertEqual(tops.first?.unresolved, 0)
+    }
+
+    // MARK: - Local phrase supplement (lexicon gaps like 選詞)
+    func testSupplementConcatenationParsesAndCompetes() {
+        let base = "ㄒㄩㄢˇ\t選\t-12\n"
+        let supplement = "# curated additions\n\nㄒㄩㄢˇ-ㄘˊ\t選詞\t-9.2\n"
+        let decoder = LexiconDecoder(tsv: base + "\n" + supplement)
+        XCTAssertEqual(decoder.entryCount, 2)
+        // Toneless run: the supplemented word must beat single-char fallback.
+        var composition = Composition()
+        for key in ["v", "m", "0", "h"] { _ = composition.append(key) }
+        let tops = decoder.decodeSegments(composition.segments, pendingKeys: composition.parsed.pending)
+        XCTAssertEqual(tops.first?.text, "選詞")
+    }
+
+    func testJevStateCarriesPreferencesAndRecentCommits() {        let evidence = [JevState.Evidence(base: "ㄋㄧ", tone: "ˇ")]
+        let candidates = [(text: "你", score: -5.0, repairs: 0, unresolved: 0)]
+        let state = JevState.build(rawKeys: "su", evidence: evidence,
+                                   candidates: candidates,
+                                   userPreferences: [["text": "妳", "count": "3"]],
+                                   recentCommits: ["你好嗎"])
+        XCTAssertEqual(state["user_preferences"] as? [[String: String]],
+                       [["text": "妳", "count": "3"]])
+        XCTAssertEqual(state["recent_commits"] as? [String], ["你好嗎"])
+        // Defaults keep the harness contract byte-compatible.
+        let bare = JevState.build(rawKeys: "su", evidence: evidence, candidates: candidates)
+        XCTAssertEqual(bare["user_preferences"] as? [[String: String]], [])
+        XCTAssertEqual(bare["recent_commits"] as? [String], [])
+    }
 }
 

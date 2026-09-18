@@ -85,6 +85,22 @@ public struct UserLexicon: Codable, Equatable {
                    Self.maxBonus)
     }
 
+    /// Matching learned phrases for an explicit Jev run. Mirrors the Python
+    /// harness (`tools/lm_choose.load_user_preferences`): exact reading-key
+    /// match only, timestamps stripped, unrelated readings excluded — the
+    /// caller deliberately sends only these rows to the remote evaluator.
+    /// Rows are `{"text", "count"}` (count stringified: the native state
+    /// contract is `[[String: String]]`), best count first, capped.
+    public func matchingPreferences(forBases bases: [String],
+                                    maxCount: Int = JevTrigger.maxPreferences) -> [[String: String]] {
+        let key = bases.joined()
+        guard !key.isEmpty, let texts = entries[key], maxCount > 0 else { return [] }
+        return texts
+            .sorted { $0.value.count == $1.value.count ? $0.key < $1.key : $0.value.count > $1.value.count }
+            .prefix(maxCount)
+            .map { ["text": $0.key, "count": "\($0.value.count)"] }
+    }
+
     // MARK: - Persistence (Codable file wrapper with version)
 
     private struct FileWrapper: Codable {

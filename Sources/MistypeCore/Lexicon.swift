@@ -100,20 +100,24 @@ public final class LexiconDecoder {
         // Clean readings first; repair classes join the same list when fuzzy
         // is on (never gated: a valid-base typo like 更-for-功 or 業-for-越
         // must still compete — costs, not gates, protect exact input).
-        // Tiers: exact 0, toneless 0.5, tone-mismatch 2.0, transpose 4,
-        // substitute/phonetic 5, insert/delete 6.
+        // Tiers: exact 0, toneless 0.5, explicit-tone-mismatch 4.0,
+        // transpose 4, substitute/phonetic 5, insert/delete 6.
         var scored: [String: (cost: Double, correction: Int)] = [:]
         func add(_ reading: String, _ cost: Double, _ correction: Int) {
             if let prev = scored[reading], prev.cost <= cost { return }
             scored[reading] = (cost, correction)
         }
         if let tone = syllable.tone, tone != "" {
-            // Tone is a soft hint, not a hard filter: users mistype or
-            // misplace tones, so the same base in other tones stays viable
-            // at a penalty between toneless (0.5) and fuzzy repair (5).
+            // Explicit tone: deliberate evidence (it cost a keystroke), so a
+            // same-base other-tone rival pays 4.0 — above toneless spread
+            // (0.5) and beside transpose (4), below substitute (5). Measured
+            // 2026-09-18: at 2.0, 作ˋ outscored explicitly-typed 左ˇ
+            // (-6.2-2.0 > -8.8); at 4.0 the typed tone holds while the rival
+            // stays listed for genuine tone typos. Toneless (nil) and
+            // space-first-tone ("", often a separator habit) stay at 0.5.
             if readings.contains(reading) { add(reading, 0, 0) }
             if toneTolerance, let variants = toneless[Self.withoutTone(reading)] {
-                for variant in variants where variant != reading { add(variant, 2.0, 1) }
+                for variant in variants where variant != reading { add(variant, 4.0, 1) }
             }
         }
         // Toneless (nil) leaves the tone fully to the engine. A space
@@ -202,8 +206,8 @@ public final class LexiconDecoder {
 
     /// Split pending symbol keys into syllable hypotheses, cheapest first.
     /// A slice is viable when it has an exact, toneless, or repair reading;
-    /// slices rank by their cheapest option cost (clean 0–0.5, tone-mismatch
-    /// 2.0, transpose 4, substitute 5, insert/delete 6), so one corrupt
+    /// slices rank by their cheapest option cost (clean 0–0.5, explicit-tone
+    /// mismatch 4.0, transpose 4, substitute 5, insert/delete 6), so one corrupt
     /// syllable no longer vetoes the whole run and caps prune by cost,
     /// never by arrival order. Mixed clean+repaired segmentations compete
     /// in a single lattice.
