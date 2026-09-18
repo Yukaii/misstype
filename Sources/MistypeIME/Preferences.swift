@@ -24,7 +24,15 @@ enum MistypePrefs {
             "MistypeJevRichContext": false,
             "MistypeJevApiKey": "",
             "MistypeJevModel": JevConfig.defaultModel,
+            "MistypeShiftToggle": true,
         ])
+    }
+
+    /// Lone-Shift-tap toggles 中/英 (default on; Shift+Space always works).
+    /// Kill-switch for clients that misdeliver modifier events.
+    static var shiftToggle: Bool {
+        get { UserDefaults.standard.bool(forKey: "MistypeShiftToggle") }
+        set { UserDefaults.standard.set(newValue, forKey: "MistypeShiftToggle") }
     }
 
     static var fuzzyRepair: Bool {
@@ -97,6 +105,7 @@ final class PreferencesPanel: NSPanel {
     private var learnBox: NSButton!
     private var learnStatus: NSTextField!
     private var keysField: NSTextField!
+    private var shiftBox: NSButton!
     private var jevBox: NSButton!
     private var richBox: NSButton!
     private var keyField: NSSecureTextField!
@@ -104,7 +113,7 @@ final class PreferencesPanel: NSPanel {
     private var jevStatus: NSTextField!
 
     private init() {
-        super.init(contentRect: NSRect(x: 0, y: 0, width: 360, height: 550),
+        super.init(contentRect: NSRect(x: 0, y: 0, width: 360, height: 580),
                    styleMask: [.titled, .closable, .utilityWindow],
                    backing: .buffered, defer: false)
         title = "Mistype Preferences"
@@ -176,6 +185,12 @@ final class PreferencesPanel: NSPanel {
         note.textColor = .tertiaryLabelColor
         stack.addArrangedSubview(note)
 
+        let shift = NSButton(checkboxWithTitle: "單敲 Shift 切換中英 Tap Shift toggles Chinese/English",
+                             target: self, action: #selector(shiftToggled(_:)))
+        shift.state = MistypePrefs.shiftToggle ? .on : .off
+        shiftBox = shift
+        stack.addArrangedSubview(shift)
+
         let jevTitle = NSTextField(labelWithString: "Jev gateway (explicit opt-in, offline by default):")
         jevTitle.font = .systemFont(ofSize: 12)
         jevTitle.textColor = .secondaryLabelColor
@@ -242,6 +257,10 @@ final class PreferencesPanel: NSPanel {
         MistypePrefs.toneTolerance = sender.state == .on
     }
 
+    @objc private func shiftToggled(_ sender: NSButton) {
+        MistypePrefs.shiftToggle = sender.state == .on
+    }
+
     @objc private func learnToggled(_ sender: NSButton) {
         MistypePrefs.userLearning = sender.state == .on
         if sender.state == .on {
@@ -250,8 +269,7 @@ final class PreferencesPanel: NSPanel {
         refreshLearnStatus()
     }
 
-    @objc private func jevToggled(_ sender: NSButton) {
-        // Explicit consent at the moment of enabling: flipping this switch
+    @objc private func jevToggled(_ sender: NSButton) {        // Explicit consent at the moment of enabling: flipping this switch
         // starts sending text to a remote model (once a key is present), so
         // an accidental click must not silently arm it. Turning off is
         // immediate and needs no confirmation.
@@ -333,6 +351,7 @@ final class PreferencesPanel: NSPanel {
         fuzzyBox.state = MistypePrefs.fuzzyRepair ? .on : .off
         toneBox.state = MistypePrefs.toneTolerance ? .on : .off
         learnBox.state = MistypePrefs.userLearning ? .on : .off
+        shiftBox.state = MistypePrefs.shiftToggle ? .on : .off
         keysField.stringValue = MistypePrefs.candidateKeys
         refreshLearnStatus()
         jevBox.state = MistypePrefs.jevEnabled ? .on : .off

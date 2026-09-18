@@ -1,5 +1,89 @@
 import Foundation
 
+/// Lone-Shift-tap detection for 中/英 mode toggle (pure state machine so the
+/// IME call site and unit tests share one definition).
+///
+/// Delivery: taps arrive via IMK `handleEvent:client:` (keyDown/keyUp/
+/// flagsChanged for keyCodes 56/60) — never via `inputText`, which only sees
+/// text keyDowns. Approach follows vChewing's ModifierKeyHitChecker: track
+/// Shift modifier STATE TRANSITIONS, never trust event types (Electron /
+/// Chromium splits one physical tap into duplicate cycles and emits
+/// redundant flagsChanged), cancel on any real keyDown, cap tap length
+/// (hold ≠ tap), and cool down after each trigger against bounce
+/// re-detection. Press additionally requires no sibling modifiers so
+/// Cmd/Opt/Ctrl chords can never arm.
+public struct ShiftTapTracker {
+    /// ANSI keyCodes for left/right Shift.
+    public static let shiftKeyCodes = [56, 60]
+    /// Max press→release span counting as a tap (longer = hold).
+    public var tapTimeLimit: TimeInterval = 0.2
+    /// Cooldown after a trigger (humans can't tap twice this fast; bounces can).
+    public var retriggerGuard: TimeInterval = 0.05
+
+    private var down = false
+    private var downTime: TimeInterval?
+    private var downKeyCode: Int?
+    private var lastTrigger: TimeInterval?
+
+    public init() {}
+
+    /// Feed one event; returns true exactly when a lone tap completes.
+    /// `now` is injected so tests don't depend on the wall clock.
+    public mutating func feed(keyCode: Int,
+                              shiftHeld: Bool,
+                              isRealKeyDown: Bool,
+                              otherMods: Bool,
+                              now: TimeInterval = Date().timeIntervalSinceReferenceDate) -> Bool {
+        let isShiftKey = Self.shiftKeyCodes.contains(keyCode)
+        // Any other real keyDown cancels immediately (Shift+A capitals,
+        // Shift+Tab stepping, …). lastTrigger survives: cooldown is per trigger.
+        if isRealKeyDown, !isShiftKey {
+            down = false
+            downTime = nil
+            downKeyCode = nil
+            return false
+        }
+        // Sibling modifiers disarm: chords are never taps.
+        if otherMods {
+            down = false
+            downTime = nil
+            downKeyCode = nil
+            return false
+        }
+        // Press transition: pure Shift down.
+        if !down, shiftHeld, isShiftKey {
+            // Cooldown: a bounce right after a trigger must not re-arm.
+            if let last = lastTrigger, now - last < retriggerGuard { return false }
+            down = true
+            downTime = now
+            downKeyCode = keyCode
+            return false
+        }
+        // Release transition: shift bit cleared on a Shift key. Any such
+        // release settles the armed state (vChewing parity); only the
+        // same-key, in-time, out-of-cooldown release completes a tap.
+        if down, !shiftHeld, isShiftKey {
+            defer {
+                down = false
+                downTime = nil
+                downKeyCode = nil
+            }
+            guard downKeyCode == keyCode else { return false }
+            guard now - (downTime ?? now) <= tapTimeLimit else { return false }
+            if let last = lastTrigger, now - last < retriggerGuard { return false }
+            lastTrigger = now
+            return true
+        }
+        return false
+    }
+
+    public mutating func reset() {
+        down = false
+        downTime = nil
+        downKeyCode = nil
+    }
+}
+
 public enum ZhuyinKeyboard {
     public static let symbols: [String: String] = [
         "1":"ㄅ", "q":"ㄆ", "a":"ㄇ", "z":"ㄈ", "2":"ㄉ", "w":"ㄊ", "s":"ㄋ", "x":"ㄌ",
