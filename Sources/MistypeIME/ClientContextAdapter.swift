@@ -21,16 +21,38 @@ final class IMKTextInputContextAdapter: TextInputContextClient {
     }
 
     func substring(in range: NSRange) -> String? {
-        guard let client = client, range.location != NSNotFound, range.length > 0 else { return nil }
-        var actualRange = NSRange(location: NSNotFound, length: 0)
-        // Try direct string retrieval first (fastest, no attribute parsing).
-        // Must provide a valid NSRange pointer for actualRange because macOS IMK's
-        // legacy client wrapper (_IPMDServerClientWrapperLegacy) unconditionally dereferences
-        // actualRange (*actualRange = ...) without checking for NULL, causing SIGSEGV if nil is passed.
-        if let direct = client.string(from: range, actualRange: &actualRange), !direct.isEmpty {
-            return direct
+        guard let client = client, range.location != NSNotFound, range.location >= 0,
+              range.length > 0 else { return nil }
+        // Clamp the window: surrounding context never needs more, and some
+        // legacy client wrappers misbehave on wide ranges.
+        let query = NSRange(location: range.location, length: min(range.length, 256))
+        guard let direct = stringFromRange(query) else {
+            return attributedSubstring(from: query)
         }
-        // Fallback to attributed substring if client does not implement stringFromRange.
+        return direct.isEmpty ? nil : direct
+    }
+
+    /// Direct string retrieval (fastest, no attribute parsing).
+    /// Must provide a valid NSRange pointer for actualRange because macOS IMK's
+    /// legacy client wrapper (_IPMDServerClientWrapperLegacy) unconditionally dereferences
+    /// actualRange (*actualRange = ...) without checking for NULL, causing SIGSEGV if nil is passed.
+    /// The wrapper itself has still segfaulted internally for clients that do
+    /// not implement the call (Chromium/Electron, 2026-09-17 reports), so
+    /// callers must only reach here when surrounding context is genuinely
+    /// needed — and must check responds(to:) first.
+    private func stringFromRange(_ range: NSRange) -> String? {
+        guard let client = client,
+              let object = client as? NSObject,
+              object.responds(to: #selector(IMKTextInput.string(from:actualRange:))) else { return nil }
+        var actualRange = NSRange(location: NSNotFound, length: 0)
+        return client.string(from: range, actualRange: &actualRange)
+    }
+
+    /// Fallback to attributed substring if client does not implement stringFromRange.
+    private func attributedSubstring(from range: NSRange) -> String? {
+        guard let client = client,
+              let object = client as? NSObject,
+              object.responds(to: #selector(IMKTextInput.attributedSubstring(from:))) else { return nil }
         return client.attributedSubstring(from: range)?.string
     }
 

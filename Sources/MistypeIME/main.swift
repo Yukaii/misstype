@@ -427,8 +427,6 @@ final class MistypeInputController: IMKInputController {
         // intent observable per repo policy without leaking key or text.
         // gated intent only: no remote call (battery verdict DO NOT WIRE).
         Runtime.logJevGate()
-        let context = currentContext(client)
-        Runtime.debugLog("context chars=\(context.precedingText.count) app=\(context.bundleIdentifier ?? "none")")
         candidates = Runtime.decoder.decodeSegments(composition.segments, pendingKeys: [], fuzzy: MistypePrefs.fuzzyRepair, toneTolerance: MistypePrefs.toneTolerance, userLexicon: Runtime.activeUserLexicon, locked: sessionPins.isEmpty ? nil : sessionPins)
         if let pin = pinnedPick, !pin.isEmpty {
             if let exact = candidates.firstIndex(where: { $0.text == pin }) {
@@ -456,7 +454,7 @@ final class MistypeInputController: IMKInputController {
         }
         syncPanel(client)
         mark(previewText, client)
-        scheduleJevEvaluation(context: context)
+        scheduleJevEvaluation(client: client)
     }
     /// Push our truth to the panel (highlight included — single owner, no
     /// echo loop possible since the panel never calls back). Focused mode
@@ -519,7 +517,7 @@ final class MistypeInputController: IMKInputController {
         client.setMarkedText(text, selectionRange: NSRange(location: caretOffset, length: 0),
                              replacementRange: missingRange)
     }
-    private func scheduleJevEvaluation(context: ClientContext) {
+    private func scheduleJevEvaluation(client: IMKTextInput) {
         let requestID = nextJevID()
         let config = MistypePrefs.jevConfig
         guard config.canAttempt,
@@ -528,6 +526,14 @@ final class MistypeInputController: IMKInputController {
               pinnedPick == nil,
               !explicitPick,
               segmentTexts == nil else { return }
+        // Surrounding-text lookup is an XPC round-trip into the client on the
+        // IMK main thread, and legacy client wrappers (notably Chromium /
+        // Electron) have segfaulted inside stringFromRange:actualRange: (see
+        // DiagnosticReports 2026-09-17). It runs ONLY here, after the gate
+        // above, when Jev will genuinely attempt a request — never on the hot
+        // path for offline decoding.
+        let context = currentContext(client)
+        Runtime.debugLog("context chars=\(context.precedingText.count) app=\(context.bundleIdentifier ?? "none")")
 
         let rawKeys = composition.rawKeys.joined()
         let evidence: [JevState.Evidence] = composition.segments.compactMap { seg in
@@ -885,7 +891,11 @@ extension NSApplication {
 }
 
 MistypePrefs.register()
-DistributedNotificationCenter.default().addObserver(
+// Retained: DistributedNotificationCenter returns an opaque token that must
+// stay alive, otherwise the observer is released immediately and the
+// cross-process preferences trigger silently never fires.
+var prefsObserver: NSObjectProtocol?
+prefsObserver = DistributedNotificationCenter.default().addObserver(
     forName: NSNotification.Name("org.mistype.openPreferences"),
     object: nil,
     queue: .main

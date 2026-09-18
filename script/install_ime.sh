@@ -26,8 +26,8 @@ BIN_DIR="$(swift build -c release --show-bin-path)"
 "$BIN_DIR/MistypeSourceTool" register "$DEST"
 "$BIN_DIR/MistypeSourceTool" select
 
-# Launch daemon directly so it is running and listening immediately
-nohup "$DEST/Contents/MacOS/MistypeIME" >/dev/null 2>&1 &
-sleep 0.5
-
-echo "Installed and launched Mistype."
+# Do NOT launch the binary by hand here. TIS launches and supervises the IME
+# on demand when the input source is selected; a manually started copy squats
+# the InputMethodConnectionName Mach service, so the TIS-launched instance
+# fails IMKServer init and exits — leaving the source selected but dead.
+echo "Installed Mistype. Select it from the macOS input-source menu to try it."
