@@ -12,9 +12,11 @@
 <key>CFBundleVersion</key><string>1</string>
 <key>LSMinimumSystemVersion</key><string>13.0</string>
 <key>NSPrincipalClass</key><string>NSApplication</string>
-<key>InputMethodConnectionName</key><string>MistypeServer</string>
+<key>InputMethodConnectionName</key><string>org.mistype.inputmethod.Mistype_Connection</string>
 <key>InputMethodServerControllerClass</key><string>MistypeInputController</string>
 <key>LSUIElement</key><true/>
+<key>NSSupportsSuddenTermination</key><false/>
+<key>TICapsLockLanguageSwitchCapable</key><true/>
 <key>TISInputSourceID</key><string>org.mistype.inputmethod.Mistype</string>
 <key>TISIntendedLanguage</key><string>zh-Hant</string>
 <key>tsInputMethodCharacterRepertoireKey</key><array><string>Hant</string></array>

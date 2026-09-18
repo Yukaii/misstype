@@ -858,12 +858,16 @@ private func decodeLocks() -> UserLexicon? {
     return found ? pins : nil
 }
 
+ProcessInfo.processInfo.disableAutomaticTermination("MistypeIME Input Method")
+ProcessInfo.processInfo.disableSuddenTermination()
+
 let app = NSApplication.shared
 _ = Runtime.decoder
+let connectionName = Bundle.main.infoDictionary?["InputMethodConnectionName"] as? String ?? "org.mistype.inputmethod.Mistype_Connection"
 guard NSClassFromString("MistypeInputController") != nil,
       let bundleID = Bundle.main.bundleIdentifier,
-      let server = IMKServer(name: "MistypeServer", bundleIdentifier: bundleID) else {
-    NSLog("Mistype: InputMethodKit initialization failed")
+      let server = IMKServer(name: connectionName, bundleIdentifier: bundleID) else {
+    NSLog("Mistype: InputMethodKit initialization failed for \(connectionName)")
     exit(1)
 }
 /// Active controller for panel click routing (controllers are per-client).
