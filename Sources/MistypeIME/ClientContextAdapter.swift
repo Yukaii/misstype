@@ -22,8 +22,12 @@ final class IMKTextInputContextAdapter: TextInputContextClient {
 
     func substring(in range: NSRange) -> String? {
         guard let client = client, range.location != NSNotFound, range.length > 0 else { return nil }
+        var actualRange = NSRange(location: NSNotFound, length: 0)
         // Try direct string retrieval first (fastest, no attribute parsing).
-        if let direct = client.string(from: range, actualRange: nil), !direct.isEmpty {
+        // Must provide a valid NSRange pointer for actualRange because macOS IMK's
+        // legacy client wrapper (_IPMDServerClientWrapperLegacy) unconditionally dereferences
+        // actualRange (*actualRange = ...) without checking for NULL, causing SIGSEGV if nil is passed.
+        if let direct = client.string(from: range, actualRange: &actualRange), !direct.isEmpty {
             return direct
         }
         // Fallback to attributed substring if client does not implement stringFromRange.
