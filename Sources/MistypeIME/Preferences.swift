@@ -9,6 +9,10 @@ import MistypeCore
 ///   explicit tones must match exactly (toneless input still decodes via
 ///   toneless variants — strictness applies to asserted tones).
 /// - candidateKeys: reserved for letter-row selection (roadmap item 3).
+/// - jevEnabled / jevRichContext / jevApiKey / jevModel: Jev gateway
+///   assistance. Default OFF (offline baseline): the adapter never calls the
+///   network unless the user explicitly enables it AND provides a key.
+///   Rich context additionally gates the alignment/diff/contract metadata.
 enum MistypePrefs {
     static func register() {
         UserDefaults.standard.register(defaults: [
@@ -16,6 +20,10 @@ enum MistypePrefs {
             "MistypeToneTolerance": true,
             "MistypeCandidateKeys": "asdfghjkl;",
             "MistypeUserLearning": true,
+            "MistypeJevEnabled": false,
+            "MistypeJevRichContext": false,
+            "MistypeJevApiKey": "",
+            "MistypeJevModel": JevConfig.defaultModel,
         ])
     }
 
@@ -44,6 +52,40 @@ enum MistypePrefs {
         get { UserDefaults.standard.bool(forKey: "MistypeUserLearning") }
         set { UserDefaults.standard.set(newValue, forKey: "MistypeUserLearning") }
     }
+
+    static var jevEnabled: Bool {
+        get { UserDefaults.standard.bool(forKey: "MistypeJevEnabled") }
+        set { UserDefaults.standard.set(newValue, forKey: "MistypeJevEnabled") }
+    }
+
+    static var jevRichContext: Bool {
+        get { UserDefaults.standard.bool(forKey: "MistypeJevRichContext") }
+        set { UserDefaults.standard.set(newValue, forKey: "MistypeJevRichContext") }
+    }
+
+    /// Gateway key. Stored in UserDefaults for prototype simplicity (a
+    /// Keychain move is queued if this graduates beyond experiment); the
+    /// value is never logged — only presence is observable.
+    static var jevApiKey: String {
+        get { UserDefaults.standard.string(forKey: "MistypeJevApiKey") ?? "" }
+        set { UserDefaults.standard.set(newValue, forKey: "MistypeJevApiKey") }
+    }
+
+    static var jevModel: String {
+        get { UserDefaults.standard.string(forKey: "MistypeJevModel") ?? JevConfig.defaultModel }
+        set { UserDefaults.standard.set(newValue, forKey: "MistypeJevModel") }
+    }
+
+    /// Live adapter config: explicit enable + key presence gate the attempt;
+    /// empty prefs key falls back to AI_GATEWAY_API_KEY env (CLI runs).
+    static var jevConfig: JevConfig {
+        let model = jevModel.trimmingCharacters(in: .whitespacesAndNewlines)
+        return JevConfig(
+            enabled: jevEnabled,
+            allowRichContext: jevRichContext,
+            apiKey: JevConfig.resolveApiKey(preferencesKey: jevApiKey),
+            model: model.isEmpty ? JevConfig.defaultModel : model)
+    }
 }
 
 /// Minimal preferences panel (utility window, no dock presence needed).
@@ -55,9 +97,14 @@ final class PreferencesPanel: NSPanel {
     private var learnBox: NSButton!
     private var learnStatus: NSTextField!
     private var keysField: NSTextField!
+    private var jevBox: NSButton!
+    private var richBox: NSButton!
+    private var keyField: NSSecureTextField!
+    private var modelField: NSTextField!
+    private var jevStatus: NSTextField!
 
     private init() {
-        super.init(contentRect: NSRect(x: 0, y: 0, width: 360, height: 300),
+        super.init(contentRect: NSRect(x: 0, y: 0, width: 360, height: 470),
                    styleMask: [.titled, .closable, .utilityWindow],
                    backing: .buffered, defer: false)
         title = "Mistype Preferences"
@@ -128,6 +175,51 @@ final class PreferencesPanel: NSPanel {
         note.font = .systemFont(ofSize: 11)
         note.textColor = .tertiaryLabelColor
         stack.addArrangedSubview(note)
+
+        let jevTitle = NSTextField(labelWithString: "Jev gateway (explicit opt-in, offline by default):")
+        jevTitle.font = .systemFont(ofSize: 12)
+        jevTitle.textColor = .secondaryLabelColor
+        stack.addArrangedSubview(jevTitle)
+
+        let jev = NSButton(checkboxWithTitle: "啟用 Jev 協助 Enable Jev assistance (needs key below)",
+                           target: self, action: #selector(jevToggled(_:)))
+        jev.state = MistypePrefs.jevEnabled ? .on : .off
+        jevBox = jev
+        stack.addArrangedSubview(jev)
+
+        let rich = NSButton(checkboxWithTitle: "允許豐富上下文 Allow richer context (alignment/diff/contract)",
+                            target: self, action: #selector(richToggled(_:)))
+        rich.state = MistypePrefs.jevRichContext ? .on : .off
+        richBox = rich
+        stack.addArrangedSubview(rich)
+
+        let keyLabel = NSTextField(labelWithString: "Gateway key (never logged; or set AI_GATEWAY_API_KEY env):")
+        keyLabel.font = .systemFont(ofSize: 12)
+        keyLabel.textColor = .secondaryLabelColor
+        stack.addArrangedSubview(keyLabel)
+
+        let key = NSSecureTextField(string: MistypePrefs.jevApiKey)
+        key.target = self
+        key.action = #selector(keyEdited(_:))
+        keyField = key
+        stack.addArrangedSubview(key)
+
+        let modelLabel = NSTextField(labelWithString: "Model:")
+        modelLabel.font = .systemFont(ofSize: 12)
+        modelLabel.textColor = .secondaryLabelColor
+        stack.addArrangedSubview(modelLabel)
+
+        let model = NSTextField(string: MistypePrefs.jevModel)
+        model.target = self
+        model.action = #selector(modelEdited(_:))
+        modelField = model
+        stack.addArrangedSubview(model)
+
+        let jevStatusField = NSTextField(labelWithString: "")
+        jevStatusField.font = .systemFont(ofSize: 12)
+        jevStatusField.textColor = .secondaryLabelColor
+        jevStatus = jevStatusField
+        stack.addArrangedSubview(jevStatusField)
     }
 
     @objc private func fuzzyToggled(_ sender: NSButton) {
@@ -146,6 +238,29 @@ final class PreferencesPanel: NSPanel {
         refreshLearnStatus()
     }
 
+    @objc private func jevToggled(_ sender: NSButton) {
+        MistypePrefs.jevEnabled = sender.state == .on
+        refreshJevStatus()
+    }
+
+    @objc private func richToggled(_ sender: NSButton) {
+        MistypePrefs.jevRichContext = sender.state == .on
+        refreshJevStatus()
+    }
+
+    @objc private func keyEdited(_ sender: NSSecureTextField) {
+        MistypePrefs.jevApiKey = sender.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        sender.stringValue = MistypePrefs.jevApiKey
+        refreshJevStatus()
+    }
+
+    @objc private func modelEdited(_ sender: NSTextField) {
+        let value = sender.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        MistypePrefs.jevModel = value.isEmpty ? JevConfig.defaultModel : value
+        sender.stringValue = MistypePrefs.jevModel
+        refreshJevStatus()
+    }
+
     @objc private func revealPhrases(_ sender: NSButton) {
         Runtime.userLexicon.save() // flush before revealing
         NSWorkspace.shared.activateFileViewerSelecting([UserLexicon.defaultURL])
@@ -162,6 +277,19 @@ final class PreferencesPanel: NSPanel {
             "Learned phrases: \(Runtime.userLexicon.count) (local JSON, portable — copy it to export)"
     }
 
+    /// Key presence only — never echoes the value.
+    private func refreshJevStatus() {
+        let config = MistypePrefs.jevConfig
+        if !config.enabled {
+            jevStatus.stringValue = "Jev: offline (default — enable + key to assist)"
+        } else if !config.hasKey {
+            jevStatus.stringValue = "Jev: enabled but no key — staying offline"
+        } else {
+            jevStatus.stringValue = "Jev: ready (\(config.model))"
+                + (config.allowRichContext ? " + richer context" : " (minimal context)")
+        }
+    }
+
     @objc private func keysEdited(_ sender: NSTextField) {
         let value = sender.stringValue.trimmingCharacters(in: .whitespaces)
         MistypePrefs.candidateKeys = value.isEmpty ? "asdfghjkl;" : value
@@ -175,6 +303,11 @@ final class PreferencesPanel: NSPanel {
         learnBox.state = MistypePrefs.userLearning ? .on : .off
         keysField.stringValue = MistypePrefs.candidateKeys
         refreshLearnStatus()
+        jevBox.state = MistypePrefs.jevEnabled ? .on : .off
+        richBox.state = MistypePrefs.jevRichContext ? .on : .off
+        keyField.stringValue = MistypePrefs.jevApiKey
+        modelField.stringValue = MistypePrefs.jevModel
+        refreshJevStatus()
         center()
         makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)

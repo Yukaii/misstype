@@ -216,6 +216,39 @@ claimed here (tuning on this battery would be overfitting; a new threshold
 needs fresh seeds). Standing order: triage stays an offline meter until a
 replacement signal separates fluent-wrong from fluent-right.
 
+Follow-up (evidence-aware harness, 5 cases x 3 reps, `tools/lm_choose.py`):
+the original Jev call accidentally passed an empty evidence string, so the
+model only saw candidate text. The harness now sends the raw key stream,
+pinned-dictionary Zhuyin readings with attached tones, offline rank/score and
+repair metadata, plus optional explicitly supplied context or matching local
+phrase-learning entries; it also reports candidate recall separately. On the
+corrected top-8 run, recall was 2/5 and
+all 15 Jev picks stayed at offline top-1 (0 flips, 0 worsens). This confirms
+the missing-evidence bug was real, but adding evidence alone does not resolve
+the remaining fluent homophone ties or candidates absent from the beam.
+
+Prompt sweep (`tools/jev_prompt_sweep.py`, 3 variants x 3 reps on 3 synthetic
+cases): structured, hard-constraint, and contrastive instructions were all
+stable and identical on the contextual holdout — the rank-8 `打對` tie stayed
+at rank 1 despite context describing an input-method test. A synthetic
+learned preference for the full `打對` phrase moved all 9 trials to rank 8
+under every variant, with no regressions. Prompt wording is therefore not the
+useful lever; an explicit user signal is.
+
+Rich-context follow-up (4 variants x 3 reps on 4 synthetic cases): the state
+also included per-character phonetic alignment, changed positions, and the
+decoder contract. This added metadata did not move the generic contextual
+holdout: all 12 calls stayed at rank 1. A second holdout with explicit
+action-versus-size intent moved the rank-8 `打對` candidate once under the
+structured prompt; two structured calls completed (one moved to rank 8 and one
+stayed at rank 1), while the third hit the fixed timeout and abstained. The
+hard-constraint, contrastive, and rich-audit arms stayed at rank 1. The learned
+preference still moved all 12 of its calls to
+rank 8. Across 48 calls there were 0 WORSE results; gateway calls generally
+completed in roughly 0.3–0.5 s, with one fixed 120 s timeout. More JSON is not
+the fix: useful semantic context can help, but the signal must explicitly
+describe the intended sense and the conservative prompt can suppress it.
+
 Exit: offline mode is useful on its own; model provenance and timing are visible in measurements.
 
 ### M5 — macOS Input Method adapter *(prototype slice landed)*
@@ -309,6 +342,12 @@ window out of the critical path):
    `defaults write`. Strict tone = explicit tones must match exactly
    (toneless still decodes); fuzzy off = no edit rescue. Falsify by
    toggling mid-session: behavior changes on the next key, no relaunch.
+   Jev prefs landed alongside (default off, offline baseline preserved):
+   `jevEnabled` master switch, `jevRichContext` richer-context gate,
+   `jevApiKey` gateway key (or AI_GATEWAY_API_KEY env), `jevModel`.
+   The adapter threads `JevConfig.canAttempt` through every decode entry
+   point with presence-only logging — no remote call ships (triage battery
+   verdict: DO NOT WIRE).
 8. Segment lock v1 + Rime alignment targets: RETIRED as Opt+Right (falsified
    in the file trace: toneless input beeped, fully toned input committed
    exactly like Return — the only case it served was toned-head plus

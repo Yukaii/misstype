@@ -11,6 +11,10 @@ on controls. Anything else falsifies choice for small instruct models.
 
 Protocol mirrors decode_with_fallback semantics without touching runtime:
   1. Swift --decode produces offline top-8 (single decoder implementation).
+     The Jev path also sends the raw key stream, pinned-dictionary phonetic
+     evidence, and offline candidate provenance as structured state. This is
+     intentionally different from the historical candidate-only run: a
+     fluency judge cannot recover the user's intent from Chinese strings.
   2. The model replies with a single number (temp 0 on ollama; default
      sampling on OpenAI reasoning tiers).
   3. Accept ONLY when the reply parses to an index 1..N (0 or garbage =
@@ -19,14 +23,18 @@ Protocol mirrors decode_with_fallback semantics without touching runtime:
   4. Report CER before/after, per-call latency, abstentions, stability.
 
 Fixtures are synthetic session cases (no personal text). Ollama is
-localhost-only; the openai backend sends only the fixture candidate lists
-(explicit opt-in per run) with the key from the environment, never logged.
+localhost-only; the Jev backend sends only the synthetic raw keys, derived
+evidence, and candidate lists unless the caller explicitly supplies context
+or a user-lexicon path. The key comes from the environment and is never
+logged.
 
 Usage:
   PYTHONPATH=src python tools/lm_choose.py            # 1.5b model
   PYTHONPATH=src python tools/lm_choose.py --model qwen2.5:0.5b --reps 1
   OPENAI_API_KEY=... PYTHONPATH=src python tools/lm_choose.py \
       --backend openai --model gpt-5.6-luna --reps 3
+  PYTHONPATH=src python tools/lm_choose.py --backend jev \
+      --user-context '開場問候' --user-lexicon /path/to/phrases.json
 """
 
 import argparse
@@ -45,7 +53,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
 from lm_rescore import CASES as RESCORE_CASES  # noqa: E402
-from lm_rescore import cer, offline_top  # noqa: E402
+from lm_rescore import (cer, load_char_bases, load_toneless_bases,
+                        offline_entries, parse_evidence)  # noqa: E402
 
 OLLAMA_URL = "http://localhost:11434/api/chat"
 
@@ -53,6 +62,160 @@ CASES = RESCORE_CASES + [
     {"name": "yue-recall-absent", "model": None,
      "keys": "u,4x96u,4", "expected": "越來越"},
 ]
+
+
+def build_jev_state(raw_keys: str, evidence: list[dict[str, str | None]],
+                    candidates: list[str],
+                    metadata: list[dict[str, object]] | None = None,
+                    user_context: str = "",
+                    user_preferences: list[dict[str, object]] | None = None,
+                    char_bases: dict[str, set[str]] | None = None,
+                    rich_context: bool = False
+                    ) -> str:
+    """Serialize decision inputs without including the expected answer.
+
+    Candidate rank/score are provenance rather than a hidden label, so a
+    rerank result can be inspected against the offline baseline. The raw
+    stream stays beside normalized readings, matching the capture-first
+    contract.
+    """
+    rows: list[dict[str, object]] = []
+    baseline = candidates[0] if candidates else ""
+    for index, text in enumerate(candidates):
+        row: dict[str, object] = {"index": index + 1, "text": text}
+        if metadata is not None and index < len(metadata):
+            for key in ("rank", "score", "repairs", "unresolved"):
+                if key in metadata[index]:
+                    row[key] = metadata[index][key]
+        if rich_context:
+            row["phonetic_alignment"] = candidate_alignment(
+                text, evidence, char_bases or {})
+            row["diff_from_candidate_1"] = candidate_diff(text, baseline)
+        rows.append(row)
+    state = {
+        "phonetic_input": {
+            "raw_keys": raw_keys,
+            "syllables": evidence,
+        },
+        "candidates": rows,
+        "user_context": user_context or None,
+        "user_preferences": user_preferences or [],
+    }
+    if rich_context:
+        state["decoder_contract"] = {
+            "input_mode": "bopomofo_zhuyin",
+            "stage": "completed_delayed_phrase",
+            "tone_policy": "explicit tones are evidence; absent tones remain uncertain",
+            "selection_goal": "recover user intent, not generic text frequency",
+            "candidate_rank_is_offline_provenance": True,
+        }
+    return json.dumps(state, ensure_ascii=False, separators=(",", ":"))
+
+
+def candidate_alignment(text: str, evidence: list[dict[str, str | None]],
+                        char_bases: dict[str, set[str]]) -> dict[str, object]:
+    """Summarize per-character compatibility without decoding new text."""
+    chars = list(text)
+    cells: list[dict[str, object]] = []
+    for index, item in enumerate(evidence):
+        char = chars[index] if index < len(chars) else None
+        valid = sorted(char_bases.get(char, set())) if char else []
+        base = item.get("base")
+        cells.append({
+            "position": index + 1,
+            "char": char,
+            "input_base": base,
+            "input_tone": item.get("tone"),
+            "known_bases": valid[:8],
+            "base_match": bool(char and base in char_bases.get(char, set())),
+        })
+    return {
+        "length_match": len(chars) == len(evidence),
+        "matched_bases": sum(bool(cell["base_match"]) for cell in cells),
+        "syllable_count": len(evidence),
+        "characters": cells,
+    }
+
+
+def candidate_diff(text: str, baseline: str) -> list[dict[str, object]]:
+    """Expose only changed positions relative to offline candidate 1."""
+    changes: list[dict[str, object]] = []
+    for index in range(max(len(text), len(baseline))):
+        left = baseline[index] if index < len(baseline) else None
+        right = text[index] if index < len(text) else None
+        if left != right:
+            changes.append({"position": index + 1, "offline": left, "candidate": right})
+    return changes
+
+
+PROMPT_VARIANTS = {
+    "structured": (
+        "先檢查候選是否符合 phonetic_input 的注音音節與聲調；再使用 "
+        "user_context 和句意判斷。只在證據與上下文足以區分時選一項。"
+        "若多個候選都同樣符合、或無法判斷使用者意圖，選最保守的候選，"
+        "不要因為單純更常見就假裝確定。"
+    ),
+    "constraints": (
+        "你是注音輸入法解碼器，不是一般文章流暢度評分器。依序執行："
+        "一，把每個音節和明確聲調視為硬證據；二，只在符合證據的候選中"
+        "使用 user_context 和 user_preferences；三，如果這些訊號仍無法區分，"
+        "保留離線候選1。不要只因為字詞更常見或更像人話就改選。"
+    ),
+    "contrastive": (
+        "逐項比較 candidates，只看候選彼此不同的字詞。對每個差異檢查"
+        "phonetic_input 的音節、聲調、user_context 和 user_preferences；"
+        "共同的前後文不提供區分訊號。如果差異沒有任何證據支持，保留"
+        "離線候選1，不要用一般語料常見度猜測。"
+    ),
+    "rich-audit": (
+        "先讀 decoder_contract，再逐候選檢查 phonetic_alignment 的"
+        "length_match、base_match 和 diff_from_candidate_1。淘汰不符合"
+        "注音證據的候選；剩下者才使用 user_context 和 user_preferences。"
+        "若仍沒有區分訊號，保留離線候選1，不要用一般語料常見度猜測。"
+    ),
+}
+
+
+def phonetic_instructions(variant: str = "structured") -> str:
+    """Tell Jev what evidence is authoritative for this experiment."""
+    try:
+        return PROMPT_VARIANTS[variant]
+    except KeyError as error:
+        raise ValueError(f"unknown prompt variant: {variant}") from error
+
+
+def load_user_preferences(path: str | Path | None,
+                          evidence: list[dict[str, str | None]]) -> list[dict[str, object]]:
+    """Load only matching learned phrases for an explicit Jev run.
+
+    The IME's lexicon is local by default. This helper is opt-in and strips
+    timestamps and unrelated readings before a caller deliberately sends the
+    matching text to a remote evaluator.
+    """
+    if not path:
+        return []
+    try:
+        payload = json.loads(Path(path).read_text())
+    except (OSError, TypeError, ValueError):
+        return []
+    if not isinstance(payload, dict):
+        return []
+    entries = payload.get("entries")
+    if not isinstance(entries, dict):
+        return []
+    reading_key = "".join(item.get("base") or "" for item in evidence)
+    raw_entries = entries.get(reading_key, {})
+    if not isinstance(raw_entries, dict):
+        return []
+    preferences: list[dict[str, object]] = []
+    for text, record in raw_entries.items():
+        if not isinstance(text, str) or not isinstance(record, dict):
+            continue
+        count = record.get("count", 0)
+        if isinstance(count, int) and count > 0:
+            preferences.append({"text": text, "count": count})
+    preferences.sort(key=lambda item: (-int(item["count"]), str(item["text"])))
+    return preferences
 
 
 def choice_prompt(candidates: list[str]) -> str:
@@ -142,22 +305,32 @@ def ensure_ai_sdk() -> Path:
 
 
 def jev_noul(candidates: list[str], model: str, api_key: str,
-               timeout_s: float) -> tuple[int | None, float, list[float]]:
-    """Decomposed flow (docs-aligned): 8 parallel Noul questions in ONE
+             timeout_s: float, *, raw_keys: str = "",
+             evidence: list[dict[str, str | None]] | None = None,
+             metadata: list[dict[str, object]] | None = None,
+             user_context: str = "",
+             user_preferences: list[dict[str, object]] | None = None,
+             prompt_variant: str = "structured",
+             char_bases: dict[str, set[str]] | None = None,
+             rich_context: bool = False,
+             ) -> tuple[int | None, float, list[float]]:
+    """Decomposed flow (docs-aligned): parallel Noul questions in ONE
     request, argmax combined in code. Returns (pick | None, ms, all nouls).
 
     Same information as single-Choice, different mechanism (absolute vs
     relative judgment). If this flips what Choice missed, flow design was
     the blocker; if it agrees, the tie class itself resists voting.
     """
-    numbered = "\n".join(f"{i + 1}. {c}" for i, c in enumerate(candidates))
-    state = "候選句：\n" + numbered
+    state = build_jev_state(raw_keys, evidence or [], candidates, metadata,
+                            user_context, user_preferences, char_bases,
+                            rich_context)
     questions = {
         f"c{i + 1}": {
             # Gateway accepts choice/score/boolean ("noul" is the docs'
             # playground-era name and is rejected here).
             "type": "boolean",
-            "instructions": f"候選{i + 1}「{c}」是最通順、最自然、最像人話的句子",
+            "instructions": f"{phonetic_instructions(prompt_variant)} "
+                            f"候選{i + 1}「{c}」最符合注音證據、上下文和使用者意圖",
         } for i, c in enumerate(candidates)
     }
     job = {"model": model, "state": state, "questions": questions}
@@ -204,18 +377,29 @@ def jev_noul(candidates: list[str], model: str, api_key: str,
 
 
 def jev_trust(candidates: list[str], model: str, api_key: str,
-              timeout_s: float) -> tuple[float | None, float]:
+              timeout_s: float, *, raw_keys: str = "",
+              evidence: list[dict[str, str | None]] | None = None,
+              metadata: list[dict[str, object]] | None = None,
+              user_context: str = "",
+              user_preferences: list[dict[str, object]] | None = None,
+              prompt_variant: str = "structured",
+              char_bases: dict[str, set[str]] | None = None,
+              rich_context: bool = False,
+              ) -> tuple[float | None, float]:
     """Interruption triage: one boolean on offline top-1. Returns
     (trust | None, ms). High trust -> panel stays out of the way; low
     trust -> surface the candidate window. One request, same state shape
     as the other modes; threshold decided post-hoc from data, never from
     a single anecdote.
     """
-    numbered = "\n".join(f"{i + 1}. {c}" for i, c in enumerate(candidates))
-    job = {"model": model, "state": "候選句：\n" + numbered,
+    state = build_jev_state(raw_keys, evidence or [], candidates, metadata,
+                            user_context, user_preferences, char_bases,
+                            rich_context)
+    job = {"model": model, "state": state,
            "questions": {"trust": {
                "type": "boolean",
-               "instructions": f"候選1「{candidates[0]}」是最正確、最自然的句子",
+               "instructions": f"{phonetic_instructions(prompt_variant)} "
+                               f"候選1「{candidates[0]}」符合注音證據、上下文和使用者意圖",
            }}}
     try:
         sdk_root = ensure_ai_sdk()
@@ -252,21 +436,31 @@ def jev_trust(candidates: list[str], model: str, api_key: str,
     return trust, float(payload.get("ms", 0))
 
 
-def jev_choose(candidates: list[str], evidence: str, model: str,
-               api_key: str, timeout_s: float
+def jev_choose(candidates: list[str], evidence: list[dict[str, str | None]],
+               model: str, api_key: str, timeout_s: float, *, raw_keys: str = "",
+               metadata: list[dict[str, object]] | None = None,
+               user_context: str = "",
+               user_preferences: list[dict[str, object]] | None = None,
+               prompt_variant: str = "structured",
+               char_bases: dict[str, set[str]] | None = None,
+               rich_context: bool = False,
                ) -> tuple[int | None, float, float | None]:
     """Choice via Jev (Vercel AI Gateway evaluate). Returns
     (0-based index | None, in-model ms, max probability | None).
 
-    State mirrors the ollama/openai prompt so the only difference is the
-    decision mechanism (typed Choice, no text generation, no parsing).
+    State contains raw keys, normalized phonetic evidence, optional user
+    context, matching learned preferences, and candidate provenance. When
+    ``rich_context`` is enabled it also includes character-level alignment,
+    changed positions, and the decoder contract. The answer remains a beam
+    index.
     """
-    numbered = "\n".join(f"{i + 1}. {c}" for i, c in enumerate(candidates))
-    state = ("注音證據：" + evidence + "\n候選句：\n" + numbered) if evidence else numbered
+    state = build_jev_state(raw_keys, evidence, candidates, metadata,
+                            user_context, user_preferences, char_bases,
+                            rich_context)
     job = {"model": model, "state": state,
            "questions": {"pick": {
                "type": "choice",
-               "instructions": "選出最通順、最自然、最像人話的一句",
+               "instructions": phonetic_instructions(prompt_variant),
                "criteria": {str(i + 1): c for i, c in enumerate(candidates)}}}}
     try:
         sdk_root = ensure_ai_sdk()
@@ -348,6 +542,23 @@ def main() -> int:
     parser.add_argument("--base-url", default="https://api.openai.com/v1")
     parser.add_argument("--api-key-env", default="OPENAI_API_KEY")
     parser.add_argument("--gateway-model", default="typesafe-ai/jev")
+    parser.add_argument(
+        "--user-context", default="",
+        help="optional explicit context sent to Jev; never read from the IME",
+    )
+    parser.add_argument(
+        "--user-lexicon", default=None,
+        help="optional local phrase-learning JSON; matching entries are sent to Jev",
+    )
+    parser.add_argument(
+        "--prompt-variant", choices=sorted(PROMPT_VARIANTS), default="structured",
+        help="jev only: instruction variant for the prompt sweep",
+    )
+    parser.add_argument(
+        "--rich-context", action="store_true",
+        help="jev only: include candidate phonetic alignment, changed positions, "
+             "and decoder contract",
+    )
     parser.add_argument("--jev-mode", choices=["choice", "noul", "trust"],
                         default="choice",
                         help="jev only: single 8-way Choice vs 8 parallel "
@@ -371,15 +582,34 @@ def main() -> int:
     print(f"backend={args.backend} model={args.model} reps={args.reps} "
           f"topn={args.topn}")
     flips = worsens = abstains = 0
+    recall_hits = 0
+    recall_total = 0
+    toneless_bases = load_toneless_bases() if args.backend == "jev" else None
+    char_bases = (load_char_bases()
+                  if args.backend == "jev" and args.rich_context else None)
     for case in CASES:
         print(f"--- {case['name']} expected={case['expected']}")
-        candidates, decode_ms = offline_top(case["keys"], limit=args.topn)
+        candidate_entries, decode_ms = offline_entries(
+            case["keys"], limit=args.topn, user_lexicon=args.user_lexicon)
+        candidates = [str(entry["text"]) for entry in candidate_entries]
         if not candidates:
             print("  [skip] no offline candidates")
             continue
         top1 = candidates[0]
         base_cer = cer(top1, case["expected"])
+        expected_rank = (candidates.index(case["expected"]) + 1
+                         if case["expected"] in candidates else None)
+        recall_total += 1
+        recall_hits += expected_rank is not None
+        print(f"  candidate_recall@{args.topn}={'yes' if expected_rank else 'no'} "
+              f"expected_rank={expected_rank or '-'}")
         print(f"  offline top1={top1} CER={base_cer:.3f} ({decode_ms:.0f}ms)")
+        evidence = (
+            parse_evidence(case["keys"], toneless_bases)
+            if toneless_bases is not None else []
+        )
+        user_context = str(case.get("context", "") or args.user_context)
+        user_preferences = load_user_preferences(args.user_lexicon, evidence)
         picks: list[int | None] = []
         latencies: list[float] = []
         confidences: list[float | None] = []
@@ -393,7 +623,15 @@ def main() -> int:
             elif args.backend == "jev":
                 if args.jev_mode == "trust":
                     trust, lm_ms = jev_trust(candidates, args.gateway_model,
-                                             api_key, args.timeout)
+                                             api_key, args.timeout,
+                                             raw_keys=case["keys"],
+                                             evidence=evidence,
+                                             metadata=candidate_entries,
+                                             user_context=user_context,
+                                             user_preferences=user_preferences,
+                                             prompt_variant=args.prompt_variant,
+                                             char_bases=char_bases,
+                                             rich_context=args.rich_context)
                     trusts.append(trust)
                     picks.append(0 if trust is not None else None)
                     latencies.append(lm_ms)
@@ -402,14 +640,26 @@ def main() -> int:
                 elif args.jev_mode == "noul":
                     pick, lm_ms, nouls = jev_noul(
                         candidates, args.gateway_model, api_key,
-                        args.timeout)
+                        args.timeout, raw_keys=case["keys"],
+                        evidence=evidence, metadata=candidate_entries,
+                        user_context=user_context,
+                        user_preferences=user_preferences,
+                        prompt_variant=args.prompt_variant,
+                        char_bases=char_bases,
+                        rich_context=args.rich_context)
                     maxprob = max(nouls) if nouls else None
                     print(f"  [nouls] "
                           f"{[round(v, 2) for v in nouls]}")
                 else:
                     pick, lm_ms, maxprob = jev_choose(
-                        candidates, "", args.gateway_model, api_key,
-                        args.timeout)
+                        candidates, evidence, args.gateway_model, api_key,
+                        args.timeout, raw_keys=case["keys"],
+                        metadata=candidate_entries,
+                        user_context=user_context,
+                        user_preferences=user_preferences,
+                        prompt_variant=args.prompt_variant,
+                        char_bases=char_bases,
+                        rich_context=args.rich_context)
                 if (pick is not None and maxprob is not None
                         and maxprob < args.min_confidence):
                     print(f"  [abstain] confidence {maxprob:.2f} "
@@ -448,6 +698,9 @@ def main() -> int:
                   f"[{mark}] ({latencies[rep]:.0f}ms)")
     print(f"result: flips={flips} worsens={worsens} abstains={abstains} "
           f"(reps included)")
+    if recall_total:
+        print(f"candidate_recall@{args.topn}: {recall_hits}/{recall_total} "
+              f"({recall_hits / recall_total:.2f})")
     return 0 if worsens == 0 and flips > 0 else 1
 
 
