@@ -634,7 +634,7 @@ final class MistypeInputController: IMKInputController {
         let menu = NSMenu(title: "Mistype")
         menu.autoenablesItems = false
         let prefs = NSMenuItem(title: "Mistype Preferences…", action: #selector(openPreferences(_:)), keyEquivalent: "")
-        prefs.target = self
+        prefs.target = nil
         prefs.isEnabled = true
         menu.addItem(prefs)
         return menu
@@ -871,5 +871,25 @@ weak var activeController: MistypeInputController?
 var candidatePanel = CandidatesPanel(onPick: { index in
     activeController?.pickCandidate(at: index)
 })
+extension NSApplication {
+    @objc func openPreferences(_ sender: Any?) {
+        Runtime.debugLog("[ime] NSApp openPreferences called")
+        DispatchQueue.main.async {
+            PreferencesPanel.shared.show()
+        }
+    }
+}
+
 MistypePrefs.register()
+DistributedNotificationCenter.default().addObserver(
+    forName: NSNotification.Name("org.mistype.openPreferences"),
+    object: nil,
+    queue: .main
+) { _ in
+    Runtime.debugLog("[ime] notification openPreferences received")
+    PreferencesPanel.shared.show()
+}
+if CommandLine.arguments.contains("--preferences") {
+    PreferencesPanel.shared.show()
+}
 withExtendedLifetime((server, candidatePanel)) { app.run() }
