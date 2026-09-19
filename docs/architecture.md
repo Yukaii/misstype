@@ -82,6 +82,18 @@ showed every keystroke's setCandidateData auto-firing Changed(first), which
 used to drag selection back to 0; mid-composition Shift brush is ignored for
 phonetic keys instead of committing, so fast typing never accepts early. A custom borderless `CandidatesPanel` (own NSPanel, vertical 1–8 list) mirrors the top-8: single source of truth for the highlight, so no IMK sync loop is possible. Its header renders the preedit with our own cursor marker (vChewing floating-buffer idea — some clients never draw the marked-text caret), so the syllable cursor stays visible even where the app draws nothing. Tab/Up/Down step, Shift+digit and click pick, Return commits, Escape hides; plain Left/Right walk the syllable cursor back over the converted span (session pins lock each pick, any edit returns to end), modified arrows commit first and pass through; caret via `IMKTextInput.attributes(forCharacterIndex:lineHeightRectangle:)` walking back from marked end (McBopomofo-style, no permission needed — an Accessibility detour was tried and reverted the same day), falling back to last anchor then mouse. Preferences (`MistypePrefs`: fuzzyRepair, toneTolerance, candidateKeys, userLearning, jevEnabled, jevRichContext, jevApiKey, jevModel) are read live per keystroke from UserDefaults and threaded through every decode entry point; the input menu opens the panel. `IMKCandidates` proved undrivable (selectCandidateWithIdentifier: returns YES and moves nothing; synthesized stepping events only beep) and was removed. Punctuation literals and separator spaces pin the current pick and continue (no commit — Return owns that; tone-marking space with pending keys is unaffected). Latin runs work the same way via backtick-toggle (`L:`-marked keys, verbatim, tone/space/punct-terminated), plus Shift-hold letters appending inline with no commit. Candidate UI, preferences, and language switching belong at this boundary. 中/英 mode is a global Runtime flag (one keyboard, all clients; Chinese on launch): Shift-tap and Shift+Space toggle, English passes keys straight through like a Latin IME, and a pill flashes plus the input menu shows the mode. Event inlet is raw `handleEvent` (vChewing parity, NOT `inputText`): the server takes the managed path whenever `inputText:key:modifiers:client:` exists and `handleEvent` never fires (verified 2026-09-18), so the controller omits it and parses NSEvents once — tap detection tracks Shift modifier state transitions with hold/cooldown guards, never event types (Electron duplicates cycles). The Python core remains the replay and experiment reference until the contracts are unified.
 
+The IME bundle also owns its Text Input Services presentation metadata. The
+bundle and the visible `Mistype.Zhuyin` input mode are localized through
+`Resources/*/InfoPlist.strings`; the input mode ID must be mapped explicitly or
+macOS falls back to showing the internal reverse-DNS identifier in the
+Command-Space menu. `tsInputMethodIconFileKey` and
+`tsInputModeMenuIconFileKey` point at the bundled 16×16
+`MistypeMenuIcon.tiff` (22×16, 16 px high); the larger `MistypeIcon.png` remains the app master so
+Text Input Services never uses a 1024×1024 asset as a menu row. The smooth
+app master lives in `MistypeIcon.svg`/`MistypeIcon.png`; the menu version has
+its own pixel-grid source in `MistypeMenuIcon.svg` and is exported as a hard
+edged 16×16 TIFF.
+
 ## Core data contracts
 
 ```text

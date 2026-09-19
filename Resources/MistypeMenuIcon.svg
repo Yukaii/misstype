@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="22" height="16" viewBox="0 0 22 16" shape-rendering="crispEdges">
+  <!-- Quiver-generated bracket geometry, tuned as a separate 22×16 menu asset. -->
+  <g transform="translate(11 8) scale(1.6 1.7) translate(-11 -8)">
+    <path d="m7.922 5.117-2.362 2.621 2.358 2.621h1.139v-0.4768l-2.013-2.144 2.013-2.147v-0.4736h-1.136z" fill="#262C34" />
+    <path d="m14.08 5.117h-1.136v0.4704l2.003 2.15-2.003 2.138v0.4832h1.139l2.355-2.621-2.358-2.621z" fill="#262C34" />
+    <path d="m12.77 7.28h-3.526v0.9472h3.526v-0.9472z" fill="#0566FF" />
+  </g>
+</svg>
