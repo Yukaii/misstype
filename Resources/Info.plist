@@ -4,6 +4,7 @@
 <key>CFBundleDisplayName</key><string>Mistype</string>
 <key>CFBundleDevelopmentRegion</key><string>en</string>
 <key>CFBundleExecutable</key><string>MistypeIME</string>
+<key>CFBundleIconFile</key><string>MistypeIcon.png</string>
 <key>CFBundleIdentifier</key><string>org.mistype.inputmethod.Mistype</string>
 <key>CFBundleName</key><string>Mistype</string>
 <key>CFBundlePackageType</key><string>APPL</string>
@@ -14,20 +15,25 @@
 <key>NSPrincipalClass</key><string>NSApplication</string>
 <key>InputMethodConnectionName</key><string>org.mistype.inputmethod.Mistype_Connection</string>
 <key>InputMethodServerControllerClass</key><string>MistypeInputController</string>
+<key>LSHasLocalizedDisplayName</key><true/>
 <key>LSUIElement</key><true/>
 <key>NSSupportsSuddenTermination</key><false/>
 <key>TICapsLockLanguageSwitchCapable</key><true/>
 <key>TISInputSourceID</key><string>org.mistype.inputmethod.Mistype</string>
 <key>TISIntendedLanguage</key><string>zh-Hant</string>
+<key>TISIconIsTemplate</key><false/>
+<key>tsInputMethodIconFileKey</key><string>MistypeMenuIcon.tiff</string>
 <key>tsInputMethodCharacterRepertoireKey</key><array><string>Hant</string></array>
 <key>ComponentInputModeDict</key><dict>
   <key>tsInputModeListKey</key><dict>
     <key>org.mistype.inputmethod.Mistype.Zhuyin</key><dict>
       <key>TISInputSourceID</key><string>org.mistype.inputmethod.Mistype.Zhuyin</string>
       <key>TISIntendedLanguage</key><string>zh-Hant</string>
+      <key>tsInputModeMenuIconFileKey</key><string>MistypeMenuIcon.tiff</string>
       <key>tsInputModeCharacterRepertoireKey</key><array><string>Hant</string><string>Han</string></array>
       <key>tsInputModeDefaultStateKey</key><true/>
       <key>tsInputModeIsVisibleKey</key><true/>
+      <key>tsInputModePaletteIconFileKey</key><string>MistypeMenuIcon.tiff</string>
       <key>tsInputModePrimaryInScriptKey</key><true/>
       <key>tsInputModeScriptKey</key><string>smUnicode</string>
     </dict>

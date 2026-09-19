@@ -4,6 +4,17 @@ import Foundation
 let args = Array(CommandLine.arguments.dropFirst())
 let prefix = "org.mistype.inputmethod.Mistype"
 let debug = args.first == "debug"
+
+func stringProperty(_ source: TISInputSource, _ key: CFString) -> String {
+    guard let ptr = TISGetInputSourceProperty(source, key) else { return "?" }
+    return Unmanaged<CFString>.fromOpaque(ptr).takeUnretainedValue() as String
+}
+
+func urlProperty(_ source: TISInputSource, _ key: CFString) -> String {
+    guard let ptr = TISGetInputSourceProperty(source, key) else { return "?" }
+    return (Unmanaged<CFURL>.fromOpaque(ptr).takeUnretainedValue() as URL).path
+}
+
 if args.first == "register", args.count >= 2 {
     let status = TISRegisterInputSource(URL(fileURLWithPath: args[1]) as CFURL)
     guard status == noErr else { fputs("Registration failed: \(status)\n", stderr); exit(1) }
@@ -18,7 +29,9 @@ for source in sources {
         let kind = TISGetInputSourceProperty(source, kTISPropertyInputSourceCategory).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String } ?? "?"
         let type = TISGetInputSourceProperty(source, kTISPropertyInputSourceType).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String } ?? "?"
         let capable = TISGetInputSourceProperty(source, kTISPropertyInputSourceIsEnableCapable).map { CFBooleanGetValue(Unmanaged<CFBoolean>.fromOpaque($0).takeUnretainedValue()) } ?? false
-        print("debug id=\(identifier) kind=\(kind) type=\(type) capable=\(capable)")
+        let name = stringProperty(source, kTISPropertyLocalizedName)
+        let icon = urlProperty(source, kTISPropertyIconImageURL)
+        print("debug id=\(identifier) name=\(name) icon=\(icon) kind=\(kind) type=\(type) capable=\(capable)")
         continue
     }
     guard identifier == prefix || identifier.hasPrefix(prefix + ".") else { continue }
@@ -54,6 +67,7 @@ for source in sources {
     } ?? false
     print("\(identifier) enabled=\(enabled)")
 }
+if debug { exit(0) }
 if count == 0 {
     fputs("Mistype is not visible to Text Input Services yet. Log out/in, then register again.\n", stderr)
     exit(2)
