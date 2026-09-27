@@ -105,10 +105,15 @@ final class CandidatesPanel: NSPanel {
         orderOut(nil)
     }
 
-    private func rowTitle(index: Int, text: String, highlighted: Bool) -> NSAttributedString {        let digit = NSMutableAttributedString(
-            string: "\(index + 1)  ",
-            attributes: [.font: NSFont.systemFont(ofSize: 13),
-                         .foregroundColor: NSColor.secondaryLabelColor])
+    /// Row label: the selection key for that slot. Bright only in selection
+    /// mode, where the key picks; dim while typing, where it is a Zhuyin key.
+    private func rowTitle(index: Int, text: String, highlighted: Bool) -> NSAttributedString {
+        let key = keyLabels.indices.contains(index) ? keyLabels[index] : " "
+        let digit = NSMutableAttributedString(
+            string: "\(key)  ",
+            attributes: [.font: NSFont.monospacedSystemFont(ofSize: 13, weight: .regular),
+                         .foregroundColor: keysActive ? NSColor.secondaryLabelColor
+                                                      : NSColor.quaternaryLabelColor])
         let body = NSAttributedString(
             string: text,
             attributes: [.font: NSFont.systemFont(ofSize: 15),
@@ -120,7 +125,7 @@ final class CandidatesPanel: NSPanel {
     /// Rebuild rows, move highlight, follow the caret. No-op animations.
     /// Anchor chain: fresh caret rect > last good rect > mouse position.
     /// Paging is a window over the list: 8 rows show the page holding
-    /// `selected` (Tab / Shift+Tab / Shift+digit walk the full list, no page
+    /// `selected` (Tab / Shift+Tab / Down / Up walk the full list, no page
     /// keys; plain Left/Right move the syllable cursor and never page).
     /// `preedit` + `caret` render the composition with our own cursor on a
     /// header row (nil preedit hides it); `caret` is a UTF-16 offset.
@@ -137,8 +142,14 @@ final class CandidatesPanel: NSPanel {
     /// Session x anchor: set when the panel opens, cleared on hide.
     private var sessionX: CGFloat?
 
-    func update(candidates: [String], selected: Int, anchor: NSRect?,
-                preedit: String? = nil, caret: Int = 0) {
+    private var keyLabels: [String] = []
+    private var keysActive = false
+
+    func update(candidates: [String], selected: Int,
+                keyLabels: [String] = [], keysActive: Bool = false,
+                anchor: NSRect?, preedit: String? = nil, caret: Int = 0) {
+        self.keyLabels = keyLabels
+        self.keysActive = keysActive
         // Up to 64 rows pageable (single-char homophone lists); the visible
         // window stays 8, paging math below is count-generic.
         let total = Array(candidates.prefix(64))

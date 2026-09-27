@@ -124,6 +124,32 @@ final class CoreTests: XCTestCase {
         XCTAssertNil(Punctuation.output(keyCode: 0, shift: false))
         XCTAssertNil(Punctuation.output(keyCode: 0, shift: true))
     }
+    func testFullWidthShiftLayer() {
+        // 大千 Shift layer: digit row + = [ ] ` (selection moved off Shift+digit).
+        let expected: [Int: String] = [18: "！", 19: "＠", 20: "＃", 21: "＄", 23: "％", 22: "︿",
+                                       26: "＆", 28: "＊", 25: "（", 29: "）", 24: "＋",
+                                       33: "｛", 30: "｝", 50: "～"]
+        for (keyCode, mark) in expected {
+            XCTAssertEqual(Punctuation.output(keyCode: keyCode, shift: true), mark)
+            XCTAssertTrue(Punctuation.literals.contains(mark))
+        }
+        // Unshifted digits stay Zhuyin; unshifted ` stays the latin toggle.
+        for keyCode in [18, 19, 20, 21, 23, 22, 26, 28, 25, 29, 50] {
+            XCTAssertNil(Punctuation.output(keyCode: keyCode, shift: false))
+        }
+        var input = composition("su3")
+        XCTAssertTrue(input.appendLiteral("（"))
+    }
+    func testSelectionKeys() {
+        XCTAssertEqual(SelectionKeys.slot(forLabel: "a", keys: "asdfghjkl;"), 0)
+        XCTAssertEqual(SelectionKeys.slot(forLabel: "k", keys: "asdfghjkl;"), 7)
+        XCTAssertNil(SelectionKeys.slot(forLabel: "l", keys: "asdfghjkl;"))  // past one page
+        XCTAssertNil(SelectionKeys.slot(forLabel: "q", keys: "asdfghjkl;"))
+        XCTAssertEqual(SelectionKeys.labels(keys: "asdfghjkl;"), ["a", "s", "d", "f", "g", "h", "j", "k"])
+        XCTAssertEqual(SelectionKeys.sanitize("ASdd f!"), "asdf")
+        XCTAssertEqual(SelectionKeys.sanitize("   "), "asdfghjk")
+        XCTAssertEqual(SelectionKeys.sanitize("12345678"), "12345678")
+    }
     func testEraseRemovesWholeConvertedSyllable() {
         // Completed characters go one char per press; mid-syllable pending
         // still deletes one key (see next test).

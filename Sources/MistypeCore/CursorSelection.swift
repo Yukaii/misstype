@@ -14,6 +14,33 @@ public struct CursorOption: Equatable {
     }
 }
 
+/// Candidate selection keys (default home row `asdfghjkl;`). They are also
+/// Zhuyin keys, so they select only in selection mode (entered with
+/// Down/Tab or the syllable cursor); elsewhere they type phonetics.
+public enum SelectionKeys {
+    public static let defaultKeys = "asdfghjkl;"
+    /// Visible page slot for a key label, or nil when the label is not a
+    /// selection key. Only the first `pageSize` keys address the page.
+    public static func slot(forLabel label: String, keys: String, pageSize: Int = 8) -> Int? {
+        let labels = Array(keys).prefix(pageSize).map(String.init)
+        return labels.firstIndex(of: label)
+    }
+    /// Preferences input -> usable keys: lowercased, distinct, only keys the
+    /// keyboard map knows (never space), capped at one page; empty -> default.
+    public static func sanitize(_ input: String, pageSize: Int = 8) -> String {
+        let known = Set(ZhuyinKeyboard.labels.values).subtracting([" "])
+        var seen = Set<String>()
+        let keys = input.lowercased().map(String.init)
+            .filter { known.contains($0) && seen.insert($0).inserted }
+            .prefix(pageSize)
+        return keys.isEmpty ? String(defaultKeys.prefix(pageSize)) : keys.joined()
+    }
+    /// Labels shown beside the visible rows.
+    public static func labels(keys: String, pageSize: Int = 8) -> [String] {
+        Array(keys).prefix(pageSize).map(String.init)
+    }
+}
+
 extension LexiconDecoder {
     /// Every word covering syllable `cursor`, any length (McBopomofo-style):
     /// longest spans first, then earlier starts, each span best-first.

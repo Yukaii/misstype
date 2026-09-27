@@ -8,7 +8,8 @@ import MistypeCore
 /// - toneTolerance: wrong-tone variants stay viable with a penalty. Off =
 ///   explicit tones must match exactly (toneless input still decodes via
 ///   toneless variants — strictness applies to asserted tones).
-/// - candidateKeys: reserved for letter-row selection (roadmap item 3).
+/// - candidateKeys: selection keys, active only in selection mode (Down/Tab
+///   or the syllable cursor); they are Zhuyin keys while typing.
 /// - jevEnabled / jevRichContext / jevApiKey / jevModel: Jev gateway
 ///   assistance. Default OFF (offline baseline): the adapter never calls the
 ///   network unless the user explicitly enables it AND provides a key.
@@ -46,7 +47,7 @@ enum MistypePrefs {
     }
 
     static var candidateKeys: String {
-        get { UserDefaults.standard.string(forKey: "MistypeCandidateKeys") ?? "asdfghjkl;" }
+        get { SelectionKeys.sanitize(UserDefaults.standard.string(forKey: "MistypeCandidateKeys") ?? SelectionKeys.defaultKeys) }
         set { UserDefaults.standard.set(newValue, forKey: "MistypeCandidateKeys") }
     }
 
@@ -169,7 +170,7 @@ final class PreferencesPanel: NSPanel {
         learnRow.addArrangedSubview(clear)
         stack.addArrangedSubview(learnRow)
 
-        let keysLabel = NSTextField(labelWithString: "候選鍵 Candidate keys (reserved for letter-row selection):")
+        let keysLabel = NSTextField(labelWithString: "選字鍵 Selection keys (after ↓ / Tab / ←; up to 8):")
         keysLabel.font = .systemFont(ofSize: 12)
         keysLabel.textColor = .secondaryLabelColor
         stack.addArrangedSubview(keysLabel)
@@ -342,7 +343,7 @@ final class PreferencesPanel: NSPanel {
 
     @objc private func keysEdited(_ sender: NSTextField) {
         let value = sender.stringValue.trimmingCharacters(in: .whitespaces)
-        MistypePrefs.candidateKeys = value.isEmpty ? "asdfghjkl;" : value
+        MistypePrefs.candidateKeys = SelectionKeys.sanitize(value)
         sender.stringValue = MistypePrefs.candidateKeys
     }
 

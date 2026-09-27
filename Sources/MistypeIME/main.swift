@@ -222,6 +222,13 @@ final class MistypeInputController: IMKInputController {    private var composit
     /// Pending keys shown raw after the live conversion: the syllable still
     /// being typed (`livePendingCut`). Empty = everything on screen converted.
     private var rawTail: [String] = []
+    /// Selection mode (end-of-span list): entered with Down/Up/Tab. The
+    /// cursor's focused list is selection mode too (`inSelection`). Only in
+    /// it do the selection keys (MistypePrefs.candidateKeys, home row by
+    /// default) pick — they are Zhuyin keys everywhere else. Any other
+    /// typing leaves the mode; Esc leaves it without touching the text.
+    private var selecting = false
+    private var inSelection: Bool { selecting || segmentTexts != nil }
     private let missingRange = NSRange(location: NSNotFound, length: 0)
     private var jevRequestID = 0
     private let jevLock = NSLock()
@@ -359,6 +366,7 @@ final class MistypeInputController: IMKInputController {    private var composit
                 composition.clear()
                 candidates = []
                 rawTail = []
+                selecting = false
                 pinnedPick = nil
                 explicitPick = false
                 cursor = nil
@@ -397,6 +405,7 @@ final class MistypeInputController: IMKInputController {    private var composit
                 selected = (selected + (keyCode == 125 ? 1 : candidates.count - 1)) % candidates.count
                 pinnedPick = candidates[selected].text
                 explicitPick = true
+                selecting = true
                 mark(previewText, client)
                 syncPanel(client)
                 return true
@@ -417,7 +426,7 @@ final class MistypeInputController: IMKInputController {    private var composit
             // Paging used to live here as a fallback, which made the arrows
             // unpredictable (cursor sometimes, page-flip others, so stepping
             // back usually paged instead). Paging is Tab / Shift+Tab /
-            // Shift+digit's job (they walk the full list across pages), so
+            // Down / Up's job (they walk the full list across pages), so
             // arrows never flip pages: failure beeps and stays put.
             guard !composition.isEmpty else { return false }
             if keyCode == 123 {
@@ -428,10 +437,21 @@ final class MistypeInputController: IMKInputController {    private var composit
         }
         if keyCode == 53 {
             guard !composition.isEmpty else { return false }
+            if inSelection {
+                // First Esc only leaves selection mode (and the cursor);
+                // the text and any picks stay. A second Esc clears.
+                selecting = false
+                cursor = nil
+                clearSegment()
+                syncPanel(client)
+                mark(previewText, client)
+                return true
+            }
             _ = nextJevID()
             composition.clear()
             candidates = []
             rawTail = []
+            selecting = false
             pinnedPick = nil
             explicitPick = false
             cursor = nil
@@ -473,6 +493,7 @@ final class MistypeInputController: IMKInputController {    private var composit
                 selected = (selected + (backward ? candidates.count - 1 : 1)) % candidates.count
                 pinnedPick = candidates[selected].text
                 explicitPick = true
+                selecting = true
                 mark(previewText, client)
                 syncPanel(client)
             }
@@ -480,46 +501,37 @@ final class MistypeInputController: IMKInputController {    private var composit
         }
         // Backtick toggles latin-run mode (no modifiers, either language
         // mode off): following letters append verbatim. Swallowed silently —
-        // the letters themselves are the feedback. Shift+` stays ASCII ~.
+        // the letters themselves are the feedback. Shift+` is ～ (Punctuation).
         if keyCode == 50 && !modifiers.contains(.shift) && !modifiers.contains(.command)
             && !modifiers.contains(.control) && !modifiers.contains(.option) && !Runtime.english {
             latinMode.toggle()
             Runtime.debugLog("latin=\(latinMode ? 1 : 0)")
             return true
         }
-        // Shift+digit selects a candidate: digits are Zhuyin keys, so this
-        // runs only while the window is up (candidates>1); otherwise digits
-        // stay phonetic or punctuate. Shift+1 is always ！ (candidate #1
-        // needs no shortcut — it is the default), so selection starts at 2.
-        // Order 2..8 on an ANSI keyboard.
-        let digitOrder = [19, 20, 21, 23, 22, 26, 28]
-        if modifiers.contains(.shift), !modifiers.contains(.command),
-           !modifiers.contains(.control), !modifiers.contains(.option),
-           !Runtime.english, !composition.isEmpty,
-           candidates.count > 1 || (segmentTexts?.count ?? 0) > 1,
-           let digit = digitOrder.firstIndex(of: keyCode) {
-            // Digits address the visible page (panel shows 8 of up to 16);
-            // out-of-range digits fall through to punct/phonetic below.
-            // Focused mode tries the segment list first, then the whole
-            // list, so nothing silently stops working at the boundary.
+        // Selection keys pick from the visible page, but only in selection
+        // mode: they are Zhuyin keys (a=ㄇ, s=ㄋ, …), so outside it they type.
+        // Shift+digit used to pick; that row is now the full-width symbol
+        // layer (Punctuation), so picking and symbols never collide.
+        if inSelection, !composition.isEmpty, !modifiers.contains(.shift),
+           let label = ZhuyinKeyboard.labels[keyCode],
+           let slot = SelectionKeys.slot(forLabel: label, keys: MistypePrefs.candidateKeys) {
             if let texts = segmentTexts {
-                let global = (segmentSelected / 8) * 8 + digit + 1
-                if global < texts.count {
-                    pinAdvance(client, at: global)
-                    return true
-                }
+                let global = (segmentSelected / 8) * 8 + slot
+                if global < texts.count { pinAdvance(client, at: global) } else { NSSound.beep() }
+                return true
             }
-            if segmentTexts == nil {
-                let global = (selected / 8) * 8 + digit + 1
-                if global < candidates.count {
-                    selected = global
-                    pinnedPick = candidates[selected].text
-                    explicitPick = true
-                    mark(previewText, client)
-                    syncPanel(client)
-                    return true
-                }
+            let global = (selected / 8) * 8 + slot
+            if global < candidates.count {
+                selected = global
+                pinnedPick = candidates[selected].text
+                explicitPick = true
+                selecting = false
+                mark(previewText, client)
+                syncPanel(client)
+            } else {
+                NSSound.beep()
             }
+            return true
         }
         // CJK punctuation locks the current pick and continues: pin the
         // selection, append the mark, refresh. Never commits — commit is
@@ -657,6 +669,7 @@ final class MistypeInputController: IMKInputController {    private var composit
         // keepCursor to stay focused on the next span.
         if !keepCursor {
             cursor = nil
+            selecting = false
         }
         if cursor != nil {
             focusSegment()
@@ -680,6 +693,8 @@ final class MistypeInputController: IMKInputController {    private var composit
         if show {
             candidatePanel.update(candidates: texts,
                                   selected: sel,
+                                  keyLabels: SelectionKeys.labels(keys: MistypePrefs.candidateKeys),
+                                  keysActive: inSelection,
                                   anchor: caretAnchor(client),
                                   preedit: previewText,
                                   caret: caretOffset)
@@ -717,6 +732,7 @@ final class MistypeInputController: IMKInputController {    private var composit
         selected = index
         pinnedPick = candidates[index].text
         explicitPick = true
+        selecting = false
         if let client = lastClient {
             mark(previewText, client)
             syncPanel(client)
@@ -875,6 +891,7 @@ final class MistypeInputController: IMKInputController {    private var composit
         composition.clear()
         candidates = []
         rawTail = []
+        selecting = false
         pinnedPick = nil
         explicitPick = false
         cursor = nil
