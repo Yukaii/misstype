@@ -947,11 +947,19 @@ final class MistypeInputController: IMKInputController {    private var composit
             cursor = nil
             return
         }
-        let options = Runtime.decoder.cursorOptions(
+        var options = Runtime.decoder.cursorOptions(
             frame.syllables, at: c, within: frame.top.run(containing: c),
             fuzzy: MistypePrefs.fuzzyRepair, toneTolerance: MistypePrefs.toneTolerance)
         let shownWord = spanText(frame.top.text, word.chars)
         let shownChar = spanText(frame.top.text, caret..<caret + 1)
+        // Multi-syllable spans keep only their best few words, so a word
+        // shown thanks to learning can fall outside the list; highlighting
+        // a single char instead would let Return re-pin (and rewrite) it.
+        // Keep the displayed word listed, at the end of its length group.
+        if let shownWord, !options.contains(where: { $0.span == word.syllables && $0.text == shownWord }) {
+            let at = options.firstIndex(where: { $0.span.count < word.syllables.count }) ?? options.count
+            options.insert(CursorOption(text: shownWord, span: word.syllables, score: -.infinity), at: at)
+        }
         guard let current = options.firstIndex(where: { $0.span == word.syllables && $0.text == shownWord })
                 ?? options.firstIndex(where: { $0.span == c..<c + 1 && $0.text == shownChar }) else {
             Runtime.debugLog("focus noword")
