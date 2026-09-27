@@ -14,15 +14,20 @@ public struct SentenceCandidate: Equatable {
     /// decoder, so the composition alone cannot rebuild it (a toneless run
     /// is one fused syllable there). Empty for legacy constructions.
     public let syllables: [Syllable]
+    /// Syllable range of each Zhuyin run in decodeSegments order (empty runs
+    /// included, so indexes match the positional session-pin keys).
+    public let runs: [Range<Int>]
 
     public init(text: String, score: Double, repairs: Int, unresolved: Int,
-                alignment: [WordSpan] = [], syllables: [Syllable] = []) {
+                alignment: [WordSpan] = [], syllables: [Syllable] = [],
+                runs: [Range<Int>] = []) {
         self.text = text
         self.score = score
         self.repairs = repairs
         self.unresolved = unresolved
         self.alignment = alignment
         self.syllables = syllables
+        self.runs = runs
     }
 }
 
@@ -410,7 +415,8 @@ public final class LexiconDecoder {
             let tops = decodeComposition(complete: run,
                                          pendingKeys: trailing ? pendingKeys : [],
                                          fuzzy: fuzzy, toneTolerance: toneTolerance,
-                                         userLexicon: userLexicon, locked: locked)
+                                         userLexicon: userLexicon,
+                                         locked: locked?.pins(forRun: index))
             runTops.append(tops.isEmpty ? [empty] : tops)
         }
         func render(_ picks: [SentenceCandidate]) -> SentenceCandidate {
@@ -423,6 +429,7 @@ public final class LexiconDecoder {
             // each run's consumed length (== its alignment's last end).
             var align: [WordSpan] = []
             var syllables: [Syllable] = []
+            var runs: [Range<Int>] = []
             var sylBase = 0
             for (index, pick) in picks.enumerated() {
                 let charBase = text.utf16.count
@@ -431,7 +438,9 @@ public final class LexiconDecoder {
                         syllables: (span.syllables.lowerBound + sylBase)..<(span.syllables.upperBound + sylBase),
                         chars: (span.chars.lowerBound + charBase)..<(span.chars.upperBound + charBase)))
                 }
-                sylBase += pick.alignment.last?.syllables.upperBound ?? 0
+                let consumed = pick.alignment.last?.syllables.upperBound ?? 0
+                runs.append(sylBase..<sylBase + consumed)
+                sylBase += consumed
                 syllables += pick.syllables
                 text += pick.text
                 score += pick.score
@@ -439,7 +448,7 @@ public final class LexiconDecoder {
                 unresolved += pick.unresolved
                 if index < seps.count { text += seps[index] }
             }
-            return SentenceCandidate(text: text, score: score, repairs: repairs, unresolved: unresolved, alignment: align, syllables: syllables)
+            return SentenceCandidate(text: text, score: score, repairs: repairs, unresolved: unresolved, alignment: align, syllables: syllables, runs: runs)
         }
         let base = runTops.map { $0[0] }
         var out = [render(base)]
@@ -501,14 +510,24 @@ public final class LexiconDecoder {
                             // words included, and no path ever starves (a
                             // filter could kill every route when the head
                             // re-segments; a dormant pin just adds nothing).
-                            let pinned = locked?.entries[spanKey]?.keys.contains(entry.text) ?? false
+                            // Legacy pins (CLI --lock) are reading-only; the
+                            // IME's are positional (run-local UTF-16 offset of
+                            // the word start), so a path can collect a pin once
+                            // and only where it was picked — reading-only pins
+                            // paid per occurrence, and the decoder re-segmented
+                            // toneless runs (even via repairs) to repeat them:
+                            // one 吃 pick turned 晚餐想吃什麼 into 灣吃安詳吃什麼.
+                            let legacyPinned = locked?.entries[spanKey]?.keys.contains(entry.text) ?? false
                             // User overlay: bonus keys on the dictionary span
                             // readings (stable trie path), toneless-joined so
                             // toned learns hit toneless retypes and vice versa.
                             // Only boosts produced candidates — never new paths.
-                            let boost = (userLexicon?.bonus(key: spanKey,
-                                text: entry.text) ?? 0) + (pinned ? UserLexicon.pinBonus : 0)
+                            let learned = userLexicon?.bonus(key: spanKey, text: entry.text) ?? 0
                             for prefix in prefixes {
+                                let pinned = legacyPinned || (locked?.entries[UserLexicon.pinKey(
+                                    offset: prefix.text.utf16.count, readings: spanKey)]?.keys
+                                    .contains(entry.text) ?? false)
+                                let boost = learned + (pinned ? UserLexicon.pinBonus : 0)
                                 add(SentenceCandidate(text: prefix.text + entry.text,
                                     score: prefix.score + entry.score - penalty - cost + boost,
                                     repairs: prefix.repairs + repairs + correction,
@@ -529,7 +548,7 @@ public final class LexiconDecoder {
         return paths[syllables.count].map {
             SentenceCandidate(text: $0.text, score: $0.score, repairs: $0.repairs,
                               unresolved: $0.unresolved, alignment: $0.alignment,
-                              syllables: syllables)
+                              syllables: syllables, runs: [0..<syllables.count])
         }
     }
 }

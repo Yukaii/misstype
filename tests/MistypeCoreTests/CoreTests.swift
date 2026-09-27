@@ -575,6 +575,33 @@ final class CoreTests: XCTestCase {
         top = decoder.decodeSegments(segments, pendingKeys: [], locked: pins)[0]
         XCTAssertEqual(top.text, "帶錢包")
     }
+    func testPinsArePositional() {
+        // Repeated reading: pinning the second ㄊㄚ must leave the first alone,
+        // and a path can never collect the same pin twice.
+        let decoder = LexiconDecoder(tsv: "ㄊㄚ\t他\t-3\nㄊㄚ\t她\t-5\nㄕㄨㄛ\t說\t-4\n")
+        let segments = composition("w8 gji w8 ").segments
+        var top = decoder.decodeSegments(segments, pendingKeys: [])[0]
+        XCTAssertEqual(top.text, "他說他")
+        var pins = UserLexicon()
+        pins.pin(CursorOption(text: "她", span: 2..<3, score: -5), over: top)
+        top = decoder.decodeSegments(segments, pendingKeys: [], locked: pins)[0]
+        XCTAssertEqual(top.text, "他說她")
+        XCTAssertEqual(top.score, -3 - 4 - 5 + UserLexicon.pinBonus)
+    }
+    func testPinsStayInTheirRun() {
+        let decoder = LexiconDecoder(tsv: "ㄊㄚ\t他\t-3\nㄊㄚ\t她\t-5\n")
+        var input = composition("w8 ")
+        input.appendLiteral("，")
+        for key in "w8 " { _ = input.append(String(key)) }
+        var top = decoder.decodeSegments(input.segments, pendingKeys: [])[0]
+        XCTAssertEqual(top.text, "他，他")
+        XCTAssertEqual(top.runs, [0..<1, 1..<2])
+        var pins = UserLexicon()
+        pins.pin(CursorOption(text: "她", span: 1..<2, score: -5), over: top)
+        XCTAssertEqual(Array(pins.entries.keys), [UserLexicon.pinKey(run: 1, offset: 0, readings: "ㄊㄚ")])
+        top = decoder.decodeSegments(input.segments, pendingKeys: [], locked: pins)[0]
+        XCTAssertEqual(top.text, "他，她")
+    }
     func testCursorReplayCountsPicks() {
         let segments = composition("2842jo4").segments
         let outcome = CursorReplay.run(boundaryDecoder, segments: segments,

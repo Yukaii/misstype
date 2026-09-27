@@ -49,20 +49,21 @@ extension LexiconDecoder {
 }
 
 extension SentenceCandidate {
-    /// Syllable range of the Zhuyin run holding `syllable`. Runs are split
-    /// where consecutive words leave a character gap (a separator was
-    /// rendered between them) — the same boundary decodeSegments enforces.
+    /// Syllable range of the Zhuyin run holding `syllable` (decodeSegments
+    /// run boundaries: words never cross punctuation or latin).
     public func run(containing syllable: Int) -> Range<Int>? {
-        guard let index = alignment.firstIndex(where: { $0.syllables.contains(syllable) }) else { return nil }
-        var first = index
-        while first > 0, alignment[first - 1].chars.upperBound == alignment[first].chars.lowerBound {
-            first -= 1
-        }
-        var last = index
-        while last + 1 < alignment.count, alignment[last].chars.upperBound == alignment[last + 1].chars.lowerBound {
-            last += 1
-        }
-        return alignment[first].syllables.lowerBound..<alignment[last].syllables.upperBound
+        runs.first(where: { $0.contains(syllable) })
+    }
+
+    /// Positional session-pin key for the word starting at `syllable` and
+    /// covering `span`: run index + run-local UTF-16 offset + readings.
+    func pinKey(forSpan span: Range<Int>) -> String? {
+        guard let run = runs.firstIndex(where: { $0.contains(span.lowerBound) }),
+              span.upperBound <= runs[run].upperBound,
+              let start = charOffset(ofSyllable: span.lowerBound),
+              let runStart = charOffset(ofSyllable: runs[run].lowerBound) else { return nil }
+        return UserLexicon.pinKey(run: run, offset: start - runStart,
+                                  readings: UserLexicon.key(for: Array(syllables[span])))
     }
 
     /// UTF-16 offset of `syllable`'s first character: exact inside 1:1
@@ -75,33 +76,56 @@ extension SentenceCandidate {
 }
 
 extension UserLexicon {
+    /// Positional session-pin key: "run#offset@readings". decodeSegments
+    /// hands each run its own pins as "offset@readings" (`pins(forRun:)`);
+    /// decode() matches the run-local UTF-16 offset where a word starts.
+    public static func pinKey(run: Int, offset: Int, readings: String) -> String {
+        "\(run)#" + pinKey(offset: offset, readings: readings)
+    }
+    public static func pinKey(offset: Int, readings: String) -> String {
+        "\(offset)@\(readings)"
+    }
+
+    /// Pins visible to run `run`: its positional pins with the run prefix
+    /// stripped, plus legacy reading-only pins (CLI --lock). Nil when empty.
+    public func pins(forRun run: Int) -> UserLexicon? {
+        let prefix = "\(run)#"
+        var out = UserLexicon()
+        for (key, texts) in entries {
+            if key.hasPrefix(prefix) {
+                out.entries[String(key.dropFirst(prefix.count))] = texts
+            } else if !key.contains("#") {
+                out.entries[key] = texts
+            }
+        }
+        return out.isEmpty ? nil : out
+    }
+
     /// Session-pin `option` over the displayed `top`, changing nothing but
-    /// the option's own span. Older pinned words that overlap it are split:
-    /// their characters outside the span stay pinned one syllable each, so
-    /// picking 錢包 after 帶錢 keeps 帶 instead of snapping back to 大 (two
-    /// overlapping pins at pinBonus cannot both win, and the loser used to
-    /// revert). Pins are reading-keyed, so a split pin also covers identical
-    /// readings elsewhere in the session — acceptable for session scope.
+    /// the option's own span. Pins are positional, so they hold only where
+    /// they were picked. Older pinned words that overlap the span are split:
+    /// their characters outside it stay pinned one syllable each, so picking
+    /// 錢包 after 帶錢 keeps 帶 instead of snapping back to 大 (two
+    /// overlapping pins cannot both win, and the loser used to revert).
     public mutating func pin(_ option: CursorOption, over top: SentenceCandidate) {
         let syllables = top.syllables
-        guard option.span.lowerBound >= 0, option.span.upperBound <= syllables.count else { return }
+        guard option.span.lowerBound >= 0, option.span.upperBound <= syllables.count,
+              let optionKey = top.pinKey(forSpan: option.span) else { return }
         let units = Array(top.text.utf16)
         for word in top.alignment where word.syllables.overlaps(option.span)
             && word.syllables.upperBound <= syllables.count && word.chars.upperBound <= units.count {
-            let key = UserLexicon.key(for: Array(syllables[word.syllables]))
             let text = String(decoding: units[word.chars], as: UTF16.self)
-            guard entries[key]?[text] != nil else { continue }
+            guard let key = top.pinKey(forSpan: word.syllables), entries[key]?[text] != nil else { continue }
             entries.removeValue(forKey: key)
             guard word.chars.count == word.syllables.count else { continue }
             for (offset, index) in word.syllables.enumerated() where !option.span.contains(index) {
                 let unit = word.chars.lowerBound + offset
-                let char = String(decoding: units[unit..<unit + 1], as: UTF16.self)
-                entries[UserLexicon.key(for: [syllables[index]])] =
-                    [char: Record(count: 1, updatedAt: 0)]
+                guard let singleKey = top.pinKey(forSpan: index..<index + 1) else { continue }
+                entries[singleKey] = [String(decoding: units[unit..<unit + 1], as: UTF16.self):
+                                        Record(count: 1, updatedAt: 0)]
             }
         }
-        entries[UserLexicon.key(for: Array(syllables[option.span]))] =
-            [option.text: Record(count: 1, updatedAt: 0)]
+        entries[optionKey] = [option.text: Record(count: 1, updatedAt: 0)]
     }
 }
 
