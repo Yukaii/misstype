@@ -13,9 +13,14 @@ symbols, one trailing space — the continuous style). The Swift binary's
 option, pins it, and re-decodes (see CursorReplay). Deterministic and
 offline; the sentences are synthetic.
 
+Sentences without hand-written readings get them from the pinned
+lexicon (`.cache/mcbopomofo/lexicon.tsv`): fewest dictionary words, then
+best score, so polyphones resolve inside words (一下, 事情). DEV sentences
+are for diagnosis; HOLDOUT is only for confirming a change, never tuning.
+
 Usage:
   ./script/build_and_run.sh --build-only
-  PYTHONPATH=src python tools/cursor_replay.py [--json]
+  PYTHONPATH=src python tools/cursor_replay.py [--set dev|holdout|all] [--json]
 """
 
 import argparse
@@ -29,11 +34,13 @@ sys.path.insert(0, str(ROOT / "src"))
 from mistype.phonetic import KEY_TO_ZHUYIN  # noqa: E402
 
 APP_BIN = ROOT / "dist/MistypeIME.app/Contents/MacOS/MistypeIME"
+LEXICON = ROOT / ".cache/mcbopomofo/lexicon.tsv"
 ZHUYIN_TO_KEY = {symbol: key for key, symbol in KEY_TO_ZHUYIN.items()}
 TONE_TO_KEY = {"": " ", "ˊ": "6", "ˇ": "3", "ˋ": "4", "˙": "7"}
 MODELS = ("aligned", "startAtCursor")
 
-SENTENCES = [
+# Hand-read seed set (2026-09-27 first run); kept verbatim for continuity.
+SEED = [
     ("測試一下會不會打對", "ㄘㄜˋ ㄕˋ ㄧ ㄒㄧㄚˋ ㄏㄨㄟˋ ㄅㄨˋ ㄏㄨㄟˋ ㄉㄚˇ ㄉㄨㄟˋ"),
     ("我今天要去買東西", "ㄨㄛˇ ㄐㄧㄣ ㄊㄧㄢ ㄧㄠˋ ㄑㄩˋ ㄇㄞˇ ㄉㄨㄥ ㄒㄧ"),
     ("這個問題很難回答", "ㄓㄜˋ ㄍㄜ˙ ㄨㄣˋ ㄊㄧˊ ㄏㄣˇ ㄋㄢˊ ㄏㄨㄟˊ ㄉㄚˊ"),
@@ -56,6 +63,97 @@ SENTENCES = [
     ("下雨天不打球", "ㄒㄧㄚˋ ㄩˇ ㄊㄧㄢ ㄅㄨˋ ㄉㄚˇ ㄑㄧㄡˊ"),
     ("會議記錄已經寄出", "ㄏㄨㄟˋ ㄧˋ ㄐㄧˋ ㄌㄨˋ ㄧˇ ㄐㄧㄥ ㄐㄧˋ ㄔㄨ"),
 ]
+
+# Synthetic everyday sentences; readings come from the lexicon.
+DEV_EXTRA = [
+    "我等一下再打給你", "這週末要不要去爬山", "晚餐想吃什麼",
+    "報告明天早上交", "電腦突然當機了", "這個價格有點貴",
+    "他剛剛下班回家", "我們約在車站見面", "請把檔案寄給我",
+    "今天的會議取消了", "外面正在下大雨", "我覺得這樣比較好",
+    "你有沒有看到我的手機", "這本書非常好看", "明年打算出國旅行",
+    "記得多喝水", "週五晚上一起吃飯", "系統更新之後變慢了",
+    "我還在路上",
+]
+HOLDOUT = [
+    "我先去洗澡", "這家餐廳要排隊", "你今天幾點下班",
+    "老師說明天要考試", "我忘記帶鑰匙", "這個功能還沒上線",
+    "天氣越來越冷了", "我們下次再聊", "他對這件事很有興趣",
+    "請問廁所在哪裡", "我想買一台新電腦", "這部電影很感人",
+    "等你到了再打電話給我", "最近工作有點忙", "我們需要更多時間",
+    "你要不要一起來", "這個問題我也不知道", "早上起床頭很痛",
+    "資料已經整理好了", "我明天請假", "這條路晚上很暗",
+    "小心不要感冒", "他說的話很有道理", "周末我想在家休息",
+    "請幫我確認一下時間", "這次考試考得不錯", "我們公司在找工程師",
+    "你的想法很有創意", "我剛才在開會", "下個月要搬家",
+    "謝謝你的幫忙", "這台車很省油", "我已經吃過了",
+    "那間咖啡店很安靜", "他每天早上跑步", "明天會不會下雨",
+    "我不太喜歡吃辣", "這張照片拍得很好", "請把門關上",
+    "我們準備出發了",
+]
+
+
+def load_reverse_lexicon(path: Path = LEXICON) -> dict[str, tuple[str, float]]:
+    """text -> (space-joined readings, score). Readings of one text share a
+    score in the pinned table, so ties go to the reading whose characters
+    are most common across multi-character words (吃 ㄔ via 吃飯/好吃, not
+    口吃's ㄐㄧˊ; 們 ㄇㄣ˙, not ㄇㄣˊ); then first in file."""
+    entries: list[tuple[str, list[str], float]] = []
+    usage: dict[tuple[str, str], int] = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        fields = line.split("\t")
+        if len(fields) != 3:
+            continue
+        reading, text, score_text = fields
+        try:
+            score = float(score_text)
+        except ValueError:
+            continue
+        syllables = reading.split("-")
+        entries.append((text, syllables, score))
+        if len(text) > 1 and len(text) == len(syllables):
+            for char, syllable in zip(text, syllables):
+                usage[(char, syllable)] = usage.get((char, syllable), 0) + 1
+    best: dict[str, tuple[str, float]] = {}
+    rank: dict[str, tuple[float, int]] = {}
+    for text, syllables, score in entries:
+        common = (sum(usage.get(pair, 0) for pair in zip(text, syllables))
+                  if len(text) == len(syllables) else 0)
+        key = (score, common)
+        if text not in rank or key > rank[text]:
+            rank[text] = key
+            best[text] = (" ".join(syllables), score)
+    return best
+
+
+def readings_for(sentence: str, reverse: dict[str, tuple[str, float]]) -> str:
+    """Fewest dictionary words, then best total score; words <= 8 chars."""
+    inf = (float("inf"), 0.0)
+    cost: list[tuple[float, float]] = [(0, 0.0)] + [inf] * len(sentence)
+    back: list[int] = [0] * (len(sentence) + 1)
+    for end in range(1, len(sentence) + 1):
+        for start in range(max(0, end - 8), end):
+            word = sentence[start:end]
+            if word not in reverse or cost[start] == inf:
+                continue
+            candidate = (cost[start][0] + 1, cost[start][1] - reverse[word][1])
+            if candidate < cost[end]:
+                cost[end], back[end] = candidate, start
+    if cost[-1] == inf:
+        raise ValueError(f"no dictionary reading for {sentence!r}")
+    words, end = [], len(sentence)
+    while end > 0:
+        words.append(sentence[back[end]:end])
+        end = back[end]
+    return " ".join(reverse[word][0] for word in reversed(words))
+
+
+def sentence_set(name: str) -> list[tuple[str, str]]:
+    reverse = load_reverse_lexicon() if name != "seed" else {}
+    dev = SEED + [(text, readings_for(text, reverse)) for text in DEV_EXTRA]
+    if name in ("seed", "dev"):
+        return SEED if name == "seed" else dev
+    holdout = [(text, readings_for(text, reverse)) for text in HOLDOUT]
+    return holdout if name == "holdout" else dev + holdout
 
 
 def split_tone(syllable: str) -> tuple[str, str]:
@@ -124,16 +222,18 @@ def summarize(rows: list[dict[str, object]]) -> dict[str, dict[str, object]]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Cursor-selection replay")
+    parser.add_argument("--set", choices=["seed", "dev", "holdout", "all"], default="dev")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
-    if not APP_BIN.exists():
+    if not APP_BIN.exists() or (args.set != "seed" and not LEXICON.exists()):
         print("missing build: run ./script/build_and_run.sh --build-only")
         return 2
     rows: list[dict[str, object]] = []
-    for expected, readings in SENTENCES:
+    for expected, readings in sentence_set(args.set):
         for style in ("toned", "toneless"):
             outcome = replay(encode(readings, style == "toned"), expected)
-            rows.append({"expected": expected, "style": style, **outcome})
+            rows.append({"expected": expected, "readings": readings,
+                         "style": style, **outcome})
     summary = summarize(rows)
     if args.json:
         print(json.dumps({"rows": rows, "summary": summary}, ensure_ascii=False, indent=2))

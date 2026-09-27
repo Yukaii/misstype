@@ -401,6 +401,16 @@ window out of the critical path):
    that, 錢包 after 帶錢 reverted 帶 -> 大 and the two pins cycled. Words
    stay inside their Zhuyin run (`run(containing:)`). Manual IME check
    pending; the end-of-span panel still lists whole sentences.
+   Follow-up: the set grew to dev 40 / holdout 40 (readings derived from
+   the pinned lexicon; holdout is confirm-only). Reading-only session pins
+   paid per occurrence, so one 吃 pick re-segmented 晚餐想吃什麼 into
+   灣吃安詳吃什麼 and pinning 做 rewrote both ㄗㄨㄛ (做做業); pins are now
+   positional (run + run-local offset + readings). Dev reachable 40/40 in
+   both styles. Holdout, aligned -> covering: reachable 40/40 both, picks
+   toned 12 -> 12 and toneless 27 -> 25, worst rank 7 -> 5 and 11 -> 6.
+   Remaining top-1 misses are context homophones the unigram table cannot
+   separate (再/在 x4, 帶/大, 吃/持, 老師/老實, 上線/上限, 月/說) plus
+   first-tone losses under the weak space-tone policy (喝/和, 約/說, 交/教).
 
 ## Measures
 
