@@ -652,7 +652,7 @@ final class CoreTests: XCTestCase {
         ㄌㄧㄠˊ\t聊\t-6
         ㄨㄛˇ\t我\t-3
         """)
-        let segments = composition("vu84hu4y94xul6").segments
+        let segments = composition("vu84h4y94xul6").segments
         let plain = decoder.decodeSegments(segments, pendingKeys: [])[0]
         XCTAssertEqual(plain.text, "下次在聊")
         var pins = UserLexicon()
@@ -728,6 +728,13 @@ final class CoreTests: XCTestCase {
         let segments = composition("j8j8j8282jo ").segments
         let top = decoder.decodeSegments(segments, pendingKeys: [])[0]
         XCTAssertEqual(top.text, "挖挖挖打對")
+    }
+    func testToneClosedRunKeepsLeadWhenTailIsInvalid() {
+        // 你好 + ㄉ + Space: the run must not collapse into ㄋㄧㄏㄠㄉ.
+        let top = decoder.decodeSegments(composition("sucl2 ").segments, pendingKeys: [], fuzzy: false)[0]
+        XCTAssertEqual(top.text, "你好ㄉ")
+        XCTAssertEqual(top.unresolved, 1)
+        XCTAssertEqual(top.syllables.map(\.base), ["ㄋㄧ", "ㄏㄠ", "ㄉ"])
     }
     func testLivePendingCutLeavesOnlyTheSyllableInProgressRaw() {
         let keys = { (text: String) in text.map(String.init) }
