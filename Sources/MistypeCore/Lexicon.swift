@@ -284,13 +284,22 @@ public final class LexiconDecoder {
     private func repairComplete(_ syllable: Syllable, toneTolerance: Bool = true) -> [[Syllable]] {
         if !alternatives(syllable, fuzzy: false).isEmpty { return [[syllable]] }
         guard syllable.keys.count > 1 else { return [] }
-        var out: [[Syllable]] = []
+        var byTail: [[[Syllable]]] = []
         for tailLen in 1...min(Self.maxSyllableKeys, syllable.keys.count - 1) {
             let tail = Syllable(keys: Array(syllable.keys.suffix(tailLen)), tone: syllable.tone)
             guard !alternatives(tail, fuzzy: false, toneTolerance: toneTolerance).isEmpty else { continue }
             let leadKeys = Array(syllable.keys.prefix(syllable.keys.count - tailLen))
-            for lead in segmentations(of: leadKeys, fuzzy: false, toneTolerance: toneTolerance).prefix(6) {
-                out.append(lead + [tail])
+            byTail.append(segmentations(of: leadKeys, fuzzy: false, toneTolerance: toneTolerance)
+                .prefix(6).map { $0 + [tail] })
+        }
+        // Round-robin across tail lengths: emitting all of tail 1 first let a
+        // one-symbol tail (ㄟ 欸) fill the caller's prefix(6), so the real
+        // final syllable (ㄉㄨㄟ) was never decoded — toneless runs ended in
+        // 大都欸 / 一誒 / 主恩 (tools/cursor_replay.py, 2026-09-27).
+        var out: [[Syllable]] = []
+        for rank in 0..<6 {
+            for options in byTail where rank < options.count {
+                out.append(options[rank])
                 if out.count >= 12 { return out }
             }
         }
