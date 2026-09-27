@@ -145,8 +145,22 @@ class ToolTests(unittest.TestCase):
         self.assertEqual(cursor_replay.encode("ㄋㄧˇ ㄏㄠˇ ㄇㄚ˙", toned=True), "su3cl3a87")
         self.assertEqual(cursor_replay.encode("ㄊㄚ ㄕㄨㄛ", toned=True), "w8 gji ")
         self.assertEqual(cursor_replay.encode("ㄋㄧˇ ㄏㄠˇ", toned=False), "sucl ")
-        for _, readings in cursor_replay.SENTENCES:
+        for _, readings in cursor_replay.SEED:
             cursor_replay.encode(readings, toned=True)  # every symbol maps
+
+    def test_cursor_replay_reads_sentences_from_lexicon_words(self):
+        reverse = {"一下": ("ㄧ ㄒㄧㄚˋ", -8.5), "一": ("ㄧ", -4.0),
+                   "下": ("ㄒㄧㄚˋ", -5.0), "了": ("ㄌㄜ˙", -5.3)}
+        self.assertEqual(cursor_replay.readings_for("一下了", reverse), "ㄧ ㄒㄧㄚˋ ㄌㄜ˙")
+        with self.assertRaises(ValueError):
+            cursor_replay.readings_for("一X", reverse)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "lexicon.tsv"
+            path.write_text("ㄌㄜ˙\t了\t-5.3\nㄌㄧㄠˇ\t了\t-5.3\nㄧ-ㄒㄧㄚˋ\t一下\t-8.5\n",
+                            encoding="utf-8")
+            reverse = cursor_replay.load_reverse_lexicon(path)
+        self.assertEqual(reverse["了"][0], "ㄌㄜ˙")
+        self.assertEqual(reverse["一下"][0], "ㄧ ㄒㄧㄚˋ")
 
     def test_cursor_replay_parses_binary_output(self):
         stdout = ("entries=1 user=0\n大對\t-7.0\trepairs=0 unresolved=0\n"
