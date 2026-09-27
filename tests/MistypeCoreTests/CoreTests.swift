@@ -735,9 +735,11 @@ final class CoreTests: XCTestCase {
         XCTAssertEqual(decoder.livePendingCut(keys("sucl2")), 4)  // 你好 + raw ㄉ
         XCTAssertEqual(decoder.livePendingCut(keys("2")), 0)      // lone initial stays raw
         XCTAssertEqual(decoder.livePendingCut([]), 0)
-        // A typo inside the run: no clean prefix nearby, so convert it all
-        // (repair decides, exactly as commit does).
-        XCTAssertEqual(decoder.livePendingCut(keys("s,,,,cl")), 7)
+        // A typo inside a run that starts clean: convert it all (repair).
+        XCTAssertEqual(decoder.livePendingCut(keys("su,,,,cl")), 8)
+        // No syllable can even start: 注音文, left raw whole (ㄏㄏㄏㄏ, ㄋㄝㄝ…).
+        XCTAssertEqual(decoder.livePendingCut(keys("cccc")), 0)
+        XCTAssertEqual(decoder.livePendingCut(keys("s,,,,cl")), 0)
     }
     func testSegmentKeysSplitsPendingRun() {
         let segmentations = decoder.segmentKeys(["s", "u", "c", "l"], fuzzy: false)

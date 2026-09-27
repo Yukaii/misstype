@@ -242,18 +242,21 @@ public final class LexiconDecoder {
     /// Live conversion (RIME-style continuous typing): how many leading
     /// pending keys to convert now. The whole run when it segments cleanly;
     /// otherwise drop up to 3 trailing keys — the syllable still being typed
-    /// (ㄉ of 好ㄉ) stays raw instead of being "repaired" into a random char;
-    /// otherwise (a typo inside the run) the whole run, decoded with repair
-    /// exactly as commit does.
+    /// (ㄉ of 好ㄉ) stays raw instead of being "repaired" into a random char.
+    /// Otherwise: a run that cannot even start with a syllable (ㄏㄏㄏㄏ) is
+    /// 注音文 and stays raw whole; a run that starts clean has a typo inside
+    /// and converts whole with repair, exactly as commit used to.
     public func livePendingCut(_ keys: [String], toneTolerance: Bool = true) -> Int {
         guard !keys.isEmpty else { return 0 }
-        for cut in stride(from: keys.count, through: max(0, keys.count - 3), by: -1) {
-            if cut == 0 || !segmentations(of: Array(keys.prefix(cut)), fuzzy: false,
-                                          toneTolerance: toneTolerance).isEmpty {
-                return cut
-            }
+        func clean(_ count: Int) -> Bool {
+            count == 0 || !segmentations(of: Array(keys.prefix(count)), fuzzy: false,
+                                         toneTolerance: toneTolerance).isEmpty
         }
-        return keys.count
+        for cut in stride(from: keys.count, through: max(0, keys.count - 3), by: -1) where clean(cut) {
+            return cut
+        }
+        let startsClean = (1...min(Self.maxSyllableKeys, keys.count)).contains(where: clean)
+        return startsClean ? keys.count : 0
     }
 
     /// Public pending-run segmentation for the IME syllable cursor: the

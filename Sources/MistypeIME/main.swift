@@ -858,17 +858,17 @@ final class MistypeInputController: IMKInputController {    private var composit
     private func commit(_ client: IMKTextInput) {
         guard !composition.isEmpty else { return }
         var text: String
-        // Learning-grade commit: the user saw exactly candidates[selected]
-        // (nothing left raw, so no re-decode) and explicitly picked it.
-        // Anything else — a raw tail re-decode, separator pinning, raw
-        // fallback — never trains, so routine typing leaves the overlay
-        // untouched.
+        // What you see is what commits: the converted text plus any raw
+        // tail exactly as shown, so a trailing ㄉ (or a whole run typed as
+        // 注音文) commits as Bopomofo instead of being "repaired" into a char
+        // the preview never showed (user decision 2026-09-27).
+        // Learning-grade: nothing left raw and an explicit pick. Anything
+        // else — raw tail, separator pinning, raw fallback — never trains.
         let learnable = rawTail.isEmpty && candidates.indices.contains(selected)
-        if learnable {
-            text = candidates[selected].text
-        } else {
-            // Offline recompute: the Jev gate stays closed here too (same
-            // policy as refresh — explicit enable + key, else offline).
+        text = previewText
+        if text.isEmpty {
+            // Defensive: nothing rendered yet (no refresh since the last
+            // edit). Offline recompute, Jev gate closed as in refresh.
             Runtime.logJevGate()
             text = Runtime.decoder.decodeSegments(composition.segments,
                                                   pendingKeys: composition.parsed.pending,
