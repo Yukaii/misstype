@@ -320,13 +320,18 @@ final class CoreTests: XCTestCase {
         XCTAssertFalse(Composition().hasUnfinishedTail)
     }
     func testSpaceTerminatedFirstToneRanksExactFirst() {
-        // "vm, g/ " (space-terminated): exact ㄕㄥ scores 0 while ㄒㄩㄝ has
-        // no first-tone form (0.5), so 學生 lands at -3.5; the toneless-nil
-        // twin pays 0.5+0.5 and lands at -4.0. Either way top-1 holds.
+        // "vm, g/ " (space-terminated): space is a strong first tone (RIME
+        // parity), so exact ㄕㄥ scores 0 while ㄒㄩㄝ has no first-tone form
+        // and pays the explicit-tone mismatch (4.0): 學生 lands at -7.0,
+        // still top-1 as the only word. The toneless-nil twin pays 0.5+0.5.
         let spaced = decoder.decode([Syllable(keys: ["v", "m", ","], tone: ""),
                                      Syllable(keys: ["g", "/"], tone: "")])
         XCTAssertEqual(spaced.first?.text, "學生")
-        XCTAssertEqual(spaced.first?.score ?? 0, -3.5, accuracy: 1e-9)
+        XCTAssertEqual(spaced.first?.score ?? 0, -7.0, accuracy: 1e-9)
+        // A typed first tone beats a more frequent other-tone rival (喝/和).
+        let drink = LexiconDecoder(tsv: "ㄏㄜ\t喝\t-9\nㄏㄜˊ\t和\t-6\n")
+        XCTAssertEqual(drink.decode([Syllable(keys: ["c", "k"], tone: "")]).first?.text, "喝")
+        XCTAssertEqual(drink.decode([Syllable(keys: ["c", "k"], tone: nil)]).first?.text, "和")
         let bare = decoder.decode([Syllable(keys: ["v", "m", ","], tone: nil),
                                    Syllable(keys: ["g", "/"], tone: nil)])
         XCTAssertEqual(bare.first?.text, "學生")
@@ -654,6 +659,16 @@ final class CoreTests: XCTestCase {
         let segments = composition("j8j8j8282jo ").segments
         let top = decoder.decodeSegments(segments, pendingKeys: [])[0]
         XCTAssertEqual(top.text, "挖挖挖打對")
+    }
+    func testLivePendingCutLeavesOnlyTheSyllableInProgressRaw() {
+        let keys = { (text: String) in text.map(String.init) }
+        XCTAssertEqual(decoder.livePendingCut(keys("sucl")), 4)   // 你好: all converts
+        XCTAssertEqual(decoder.livePendingCut(keys("sucl2")), 4)  // 你好 + raw ㄉ
+        XCTAssertEqual(decoder.livePendingCut(keys("2")), 0)      // lone initial stays raw
+        XCTAssertEqual(decoder.livePendingCut([]), 0)
+        // A typo inside the run: no clean prefix nearby, so convert it all
+        // (repair decides, exactly as commit does).
+        XCTAssertEqual(decoder.livePendingCut(keys("s,,,,cl")), 7)
     }
     func testSegmentKeysSplitsPendingRun() {
         let segmentations = decoder.segmentKeys(["s", "u", "c", "l"], fuzzy: false)

@@ -219,6 +219,9 @@ final class MistypeInputController: IMKInputController {    private var composit
     /// UTF-16 offset of the cursor syllable (caret for marked text/panel).
     private var segmentCaret: Int?
     private var sessionPins = UserLexicon()
+    /// Pending keys shown raw after the live conversion: the syllable still
+    /// being typed (`livePendingCut`). Empty = everything on screen converted.
+    private var rawTail: [String] = []
     private let missingRange = NSRange(location: NSNotFound, length: 0)
     private var jevRequestID = 0
     private let jevLock = NSLock()
@@ -355,6 +358,7 @@ final class MistypeInputController: IMKInputController {    private var composit
                 _ = nextJevID()
                 composition.clear()
                 candidates = []
+                rawTail = []
                 pinnedPick = nil
                 explicitPick = false
                 cursor = nil
@@ -427,6 +431,7 @@ final class MistypeInputController: IMKInputController {    private var composit
             _ = nextJevID()
             composition.clear()
             candidates = []
+            rawTail = []
             pinnedPick = nil
             explicitPick = false
             cursor = nil
@@ -602,7 +607,7 @@ final class MistypeInputController: IMKInputController {    private var composit
 
     private var previewText: String {
         let converted = candidates.indices.contains(selected) ? candidates[selected].text : ""
-        return converted + composition.pendingText
+        return converted + rawTail.compactMap { ZhuyinKeyboard.symbols[$0] }.joined()
     }
     /// Caret shared by marked text and the panel header: focused word start,
     /// else after the last unit. UTF-16 offsets throughout.
@@ -626,7 +631,14 @@ final class MistypeInputController: IMKInputController {    private var composit
         // intent observable per repo policy without leaking key or text.
         // gated intent only: no remote call (battery verdict DO NOT WIRE).
         Runtime.logJevGate()
-        candidates = Runtime.decoder.decodeSegments(composition.segments, pendingKeys: [], fuzzy: MistypePrefs.fuzzyRepair, toneTolerance: MistypePrefs.toneTolerance, userLexicon: Runtime.activeUserLexicon, locked: sessionPins.isEmpty ? nil : sessionPins)
+        // Live conversion (RIME-style continuous typing): the pending run
+        // converts as it is typed, except the syllable still in progress,
+        // which stays raw (`livePendingCut`). Space is a first-tone key, not
+        // a "convert" key, so nothing waits for it.
+        let pending = composition.parsed.pending
+        let cut = Runtime.decoder.livePendingCut(pending, toneTolerance: MistypePrefs.toneTolerance)
+        rawTail = Array(pending.dropFirst(cut))
+        candidates = Runtime.decoder.decodeSegments(composition.segments, pendingKeys: Array(pending.prefix(cut)), fuzzy: MistypePrefs.fuzzyRepair, toneTolerance: MistypePrefs.toneTolerance, userLexicon: Runtime.activeUserLexicon, locked: sessionPins.isEmpty ? nil : sessionPins)
         if let pin = pinnedPick, !pin.isEmpty {
             if let exact = candidates.firstIndex(where: { $0.text == pin }) {
                 selected = exact
@@ -825,11 +837,11 @@ final class MistypeInputController: IMKInputController {    private var composit
         guard !composition.isEmpty else { return }
         var text: String
         // Learning-grade commit: the user saw exactly candidates[selected]
-        // (no pending tail re-decode) and explicitly picked it. Anything
-        // else — pending re-decode, separator pinning, raw fallback — never
-        // trains, so routine typing leaves the overlay untouched.
-        let learnable = composition.parsed.pending.isEmpty
-            && candidates.indices.contains(selected)
+        // (nothing left raw, so no re-decode) and explicitly picked it.
+        // Anything else — a raw tail re-decode, separator pinning, raw
+        // fallback — never trains, so routine typing leaves the overlay
+        // untouched.
+        let learnable = rawTail.isEmpty && candidates.indices.contains(selected)
         if learnable {
             text = candidates[selected].text
         } else {
@@ -862,6 +874,7 @@ final class MistypeInputController: IMKInputController {    private var composit
         _ = nextJevID()
         composition.clear()
         candidates = []
+        rawTail = []
         pinnedPick = nil
         explicitPick = false
         cursor = nil
@@ -909,8 +922,8 @@ final class MistypeInputController: IMKInputController {    private var composit
     /// composition: repair and pending-run segmentation happen inside the
     /// decoder, so a toneless run is ONE fused syllable in the composition
     /// and the old rebuild-and-compare check rejected every toneless
-    /// sentence (Left/Right only beeped). The trailing pending tail is
-    /// excluded as before (refresh() decodes with pendingKeys: []).
+    /// sentence (Left/Right only beeped). The live-converted pending run is
+    /// included (it is in the alignment); only the raw tail is not.
     /// Works across separators: syllable indexes are global, and options
     /// stay inside the cursor's own run (`run(containing:)`).
     private func focusFrame() -> FocusFrame? {
@@ -1101,7 +1114,9 @@ if let decodeIndex = CommandLine.arguments.firstIndex(of: "--decode"),
     if let replayIndex = CommandLine.arguments.firstIndex(of: "--replay"),
        replayIndex + 1 < CommandLine.arguments.count {
         for model in [CursorReplay.Model.aligned, .startAtCursor] {
-            let outcome = CursorReplay.run(decoder, segments: composition.segments,
+            let live = Array(parsed.pending.prefix(decoder.livePendingCut(
+                parsed.pending, toneTolerance: MistypePrefs.toneTolerance)))
+            let outcome = CursorReplay.run(decoder, segments: composition.segments, pendingKeys: live,
                                            expected: CommandLine.arguments[replayIndex + 1], model: model,
                                            fuzzy: MistypePrefs.fuzzyRepair, toneTolerance: MistypePrefs.toneTolerance,
                                            userLexicon: userLexicon)

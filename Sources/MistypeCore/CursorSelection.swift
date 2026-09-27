@@ -190,9 +190,10 @@ public enum CursorReplay {
         public var learned: [String] = []
     }
 
-    /// Decodes exactly like the IME preview (terminated segments, no
-    /// pending tail) and reads syllables from the top candidate.
+    /// Decodes exactly like the IME preview (terminated segments plus the
+    /// live-converted pending keys) and reads syllables from the top candidate.
     public static func run(_ decoder: LexiconDecoder, segments: [Composition.Segment],
+                           pendingKeys: [String] = [],
                            expected: String, model: Model,
                            fuzzy: Bool = true, toneTolerance: Bool = true,
                            userLexicon: UserLexicon? = nil, maxPicks: Int = 6) -> Outcome {
@@ -200,7 +201,7 @@ public enum CursorReplay {
         var pins = UserLexicon()
         var ranks: [Int] = []
         for _ in 0...maxPicks {
-            guard let top = decoder.decodeSegments(segments, pendingKeys: [], fuzzy: fuzzy,
+            guard let top = decoder.decodeSegments(segments, pendingKeys: pendingKeys, fuzzy: fuzzy,
                                                    toneTolerance: toneTolerance, userLexicon: userLexicon,
                                                    locked: pins.isEmpty ? nil : pins).first else { break }
             let syllables = top.syllables
