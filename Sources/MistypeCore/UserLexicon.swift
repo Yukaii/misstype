@@ -23,7 +23,7 @@ import Foundation
 /// both), +1.0 per repeat, capped at +10.0. Bonuses apply only to texts the
 /// decoder already produced, so learning can never hallucinate new paths.
 ///
-/// Privacy: local JSON only, default OFF (see MistypePrefs.userLearning),
+/// Privacy: local JSON only, default ON with opt-out (MistypePrefs.userLearning),
 /// revealed/cleared from the Preferences panel. No network, no inference.
 public struct UserLexicon: Codable, Equatable {
     public struct Record: Codable, Equatable {

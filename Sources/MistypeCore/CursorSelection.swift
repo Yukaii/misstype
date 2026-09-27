@@ -202,6 +202,23 @@ extension UserLexicon {
     }
 }
 
+extension UserLexicon {
+    /// Keep a whole-sentence pick alive while typing continues. The pick was
+    /// matched back by text prefix, but live conversion re-segments the
+    /// growing tail, so the prefix can stop matching and the pick silently
+    /// dropped. Pin (positionally) the words of `picked` that differ from
+    /// `baseline` — every word when the two do not line up char for char.
+    public mutating func pinDifferences(of picked: SentenceCandidate, from baseline: SentenceCandidate) {
+        let units = Array(picked.text.utf16), base = Array(baseline.text.utf16)
+        for word in picked.alignment where word.chars.upperBound <= units.count {
+            let text = String(decoding: units[word.chars], as: UTF16.self)
+            if base.count == units.count,
+               String(decoding: base[word.chars], as: UTF16.self) == text { continue }
+            pin(CursorOption(text: text, span: word.syllables, score: 0), over: picked)
+        }
+    }
+}
+
 /// Deterministic selection replay: how many cursor picks turn the offline
 /// top-1 into `expected`? Measures the candidate model, not a user. Each
 /// step moves to the first wrong character, takes the longest option that

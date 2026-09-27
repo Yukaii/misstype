@@ -679,6 +679,17 @@ final class CoreTests: XCTestCase {
         XCTAssertEqual(UserLexicon.learnedWords(committed: top, pins: UserLexicon(),
                                                 baseline: nil).map(\.text), ["妳"])
     }
+    func testSentencePickSurvivesAsPins() {
+        let decoder = boundaryDecoder
+        let segments = composition("294fu061l ").segments
+        let list = decoder.decodeSegments(segments, pendingKeys: [])
+        XCTAssertEqual(list[0].text, "代錢包")
+        guard let picked = list.first(where: { $0.text == "帶錢包" }) else { return XCTFail("no 帶錢包") }
+        var pins = UserLexicon()
+        pins.pinDifferences(of: picked, from: list[0])
+        XCTAssertEqual(pins.count, 1) // only the differing word (帶), not 錢包
+        XCTAssertEqual(decoder.decodeSegments(segments, pendingKeys: [], locked: pins)[0].text, "帶錢包")
+    }
     func testCursorReplayCountsPicks() {
         let segments = composition("2842jo4").segments
         let outcome = CursorReplay.run(boundaryDecoder, segments: segments,
