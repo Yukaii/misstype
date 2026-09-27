@@ -850,11 +850,13 @@ final class MistypeInputController: IMKInputController {    private var composit
         Runtime.gradeJevEval(rawKeys: composition.rawKeys.joined(), committed: text)
         // Topic continuity for future Jev runs (in-memory ring, never disk).
         Runtime.recordCommit(text)
-        if MistypePrefs.userLearning && explicitPick && learnable
-            && candidates[selected].unresolved == 0,
-            let key = composition.learnableKey {
-            Runtime.userLexicon.record(key: key, text: text)
-            Runtime.userLexicon.save()
+        if MistypePrefs.userLearning && explicitPick && learnable {
+            // Word-level: cursor picks still pinned, words changed by a
+            // whole-sentence pick, or the input when it is one word.
+            let words = UserLexicon.learnedWords(committed: candidates[selected], pins: sessionPins,
+                                                 baseline: selected == 0 ? nil : candidates[0])
+            for word in words { Runtime.userLexicon.record(key: word.key, text: word.text) }
+            if !words.isEmpty { Runtime.userLexicon.save() }
         }
         client.insertText(text, replacementRange: missingRange)
         _ = nextJevID()
@@ -1093,8 +1095,21 @@ if let decodeIndex = CommandLine.arguments.firstIndex(of: "--decode"),
         for model in [CursorReplay.Model.aligned, .startAtCursor] {
             let outcome = CursorReplay.run(decoder, segments: composition.segments,
                                            expected: CommandLine.arguments[replayIndex + 1], model: model,
-                                           fuzzy: MistypePrefs.fuzzyRepair, toneTolerance: MistypePrefs.toneTolerance)
-            print("replay \(model.rawValue) picks=\(outcome.picks.map(String.init) ?? "-") ranks=\(outcome.ranks.map(String.init).joined(separator: ","))")
+                                           fuzzy: MistypePrefs.fuzzyRepair, toneTolerance: MistypePrefs.toneTolerance,
+                                           userLexicon: userLexicon)
+            print("replay \(model.rawValue) picks=\(outcome.picks.map(String.init) ?? "-") ranks=\(outcome.ranks.map(String.init).joined(separator: ",")) learned=\(outcome.learned.joined(separator: ","))")
+            // --learn-out <path>: commit the covering-model outcome's words
+            // into a (synthetic) lexicon file, as the IME would on Return.
+            if model == .startAtCursor, let outIndex = CommandLine.arguments.firstIndex(of: "--learn-out"),
+               outIndex + 1 < CommandLine.arguments.count, !outcome.learned.isEmpty {
+                let url = URL(fileURLWithPath: CommandLine.arguments[outIndex + 1])
+                var learned = UserLexicon.load(from: url)
+                for pair in outcome.learned {
+                    let parts = pair.split(separator: "=", maxSplits: 1).map(String.init)
+                    if parts.count == 2 { learned.record(key: parts[0], text: parts[1], at: Date(timeIntervalSince1970: 0)) }
+                }
+                learned.save(to: url)
+            }
         }
     }
     exit(0)

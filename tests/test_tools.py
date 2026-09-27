@@ -165,11 +165,13 @@ class ToolTests(unittest.TestCase):
     def test_cursor_replay_parses_binary_output(self):
         stdout = ("entries=1 user=0\n大對\t-7.0\trepairs=0 unresolved=0\n"
                   "replay aligned picks=- ranks=\n"
-                  "replay startAtCursor picks=1 ranks=0\n")
+                  "replay startAtCursor picks=1 ranks=0 learned=ㄉㄚㄉㄨㄟ=打對\n")
         outcomes = cursor_replay.parse_replay(stdout)
-        self.assertEqual(outcomes["aligned"], {"picks": None, "ranks": [], "top1": "大對"})
+        self.assertEqual(outcomes["aligned"],
+                         {"picks": None, "ranks": [], "learned": [], "top1": "大對"})
         self.assertEqual(outcomes["startAtCursor"]["picks"], 1)
         self.assertEqual(outcomes["startAtCursor"]["ranks"], [0])
+        self.assertEqual(outcomes["startAtCursor"]["learned"], ["ㄉㄚㄉㄨㄟ=打對"])
 
     def test_user_preferences_are_scoped_to_matching_readings(self):
         payload = {

@@ -411,6 +411,14 @@ window out of the critical path):
    Remaining top-1 misses are context homophones the unigram table cannot
    separate (再/在 x4, 帶/大, 吃/持, 老師/老實, 上線/上限, 月/說) plus
    first-tone losses under the weak space-tone policy (喝/和, 約/說, 交/教).
+   Learning was inert for sentences: commit recorded whole-composition
+   readings -> whole text, but decode boosts only dictionary words
+   (測試一下會不會打對 learned x3 still decoded 大對; the word 打對 fixed it
+   and generalized). Learning is now word-level (`learnedWords`: pinned 2+
+   syllable picks, words changed by a sentence pick, one-word input).
+   `cursor_replay.py --learning` (dev teaches a temp lexicon): dev top-1
+   52 -> 67/80, dev picks 35 -> 17; holdout top-1 50 -> 53/80 with 0 lost.
+   Single chars inside sentences stay unlearned (再/在 needs context keys).
 
 ## Measures
 

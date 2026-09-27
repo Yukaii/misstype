@@ -18,15 +18,23 @@ lexicon (`.cache/mcbopomofo/lexicon.tsv`): fewest dictionary words, then
 best score, so polyphones resolve inside words (一下, 事情). DEV sentences
 are for diagnosis; HOLDOUT is only for confirming a change, never tuning.
 
+`--learning` measures word-level learning: correct every dev sentence
+with cursor picks, commit what those picks would teach into a temporary
+lexicon (never the user's), then report dev picks on a retype and holdout
+top-1 with vs without that lexicon (a holdout loss is collateral damage).
+
 Usage:
   ./script/build_and_run.sh --build-only
   PYTHONPATH=src python tools/cursor_replay.py [--set dev|holdout|all] [--json]
+  PYTHONPATH=src python tools/cursor_replay.py --learning
 """
 
 import argparse
 import json
+import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -174,31 +182,70 @@ def encode(readings: str, toned: bool) -> str:
     return "".join(out) + ("" if toned else " ")
 
 
+REPLAY_LINE = re.compile(r"^replay (\S+) picks=(\S+) ranks=(\S*)(?: learned=(\S*))?$")
+
+
 def parse_replay(stdout: str) -> dict[str, dict[str, object]]:
-    """`replay <model> picks=<n|-> ranks=<a,b>` lines -> {model: outcome}."""
+    """`replay <model> picks=<n|-> ranks=<a,b> [learned=<k=t,..>]` lines ->
+    {model: outcome}."""
     outcomes: dict[str, dict[str, object]] = {}
     top1 = ""
     for index, line in enumerate(stdout.splitlines()):
         if index == 1:
             top1 = line.split("\t")[0]
-        if not line.startswith("replay "):
+        match = REPLAY_LINE.match(line)
+        if not match:
             continue
-        _, model, picks, ranks = line.split(" ", 3)
-        value = picks.removeprefix("picks=")
-        rank_text = ranks.removeprefix("ranks=")
+        model, value, rank_text, learned = match.groups()
         outcomes[model] = {
             "picks": None if value == "-" else int(value),
             "ranks": [int(r) for r in rank_text.split(",") if r],
+            "learned": [w for w in (learned or "").split(",") if w],
         }
     for outcome in outcomes.values():
         outcome["top1"] = top1
     return outcomes
 
 
-def replay(keys: str, expected: str) -> dict[str, dict[str, object]]:
-    proc = subprocess.run([str(APP_BIN), "--decode", keys, "--replay", expected],
-                          capture_output=True, text=True, timeout=120, check=True)
+def replay(keys: str, expected: str, lexicon: Path | None = None,
+           learn_out: Path | None = None) -> dict[str, dict[str, object]]:
+    command = [str(APP_BIN), "--decode", keys, "--replay", expected]
+    if lexicon is not None and lexicon.exists():
+        command += ["--user-lexicon", str(lexicon)]
+    if learn_out is not None:
+        command += ["--learn-out", str(learn_out)]
+    proc = subprocess.run(command, capture_output=True, text=True, timeout=120, check=True)
     return parse_replay(proc.stdout)
+
+
+def learning(model: str = "startAtCursor") -> dict[str, object]:
+    """Teach from dev corrections, retype dev, and compare holdout top-1."""
+    dev, holdout = sentence_set("dev"), sentence_set("holdout")
+    styles = ("toned", "toneless")
+    with tempfile.TemporaryDirectory() as directory:
+        lexicon = Path(directory) / "learned.json"
+        before = [replay(encode(r, s == "toned"), t, learn_out=lexicon)[model]
+                  for t, r in dev for s in styles]
+        after = [replay(encode(r, s == "toned"), t, lexicon=lexicon)[model]
+                 for t, r in dev for s in styles]
+        plain = [replay(encode(r, s == "toned"), t)[model]["picks"] == 0
+                 for t, r in holdout for s in styles]
+        taught = [replay(encode(r, s == "toned"), t, lexicon=lexicon)[model]["picks"] == 0
+                  for t, r in holdout for s in styles]
+        entries = json.loads(lexicon.read_text())["entries"] if lexicon.exists() else {}
+    cases = [(t, s) for t, _ in holdout for s in styles]
+    return {
+        "learned": sorted(f"{k}={t}" for k, texts in entries.items() for t in texts),
+        "dev_picks_before": sum(o["picks"] or 0 for o in before),
+        "dev_picks_after": sum(o["picks"] or 0 for o in after),
+        "dev_top1_before": sum(o["picks"] == 0 for o in before),
+        "dev_top1_after": sum(o["picks"] == 0 for o in after),
+        "dev_cases": len(before),
+        "holdout_top1_plain": sum(plain),
+        "holdout_top1_learned": sum(taught),
+        "holdout_gained": [f"{t}/{s}" for (t, s), p, q in zip(cases, plain, taught) if q and not p],
+        "holdout_lost": [f"{t}/{s}" for (t, s), p, q in zip(cases, plain, taught) if p and not q],
+    }
 
 
 def summarize(rows: list[dict[str, object]]) -> dict[str, dict[str, object]]:
@@ -224,10 +271,16 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Cursor-selection replay")
     parser.add_argument("--set", choices=["seed", "dev", "holdout", "all"], default="dev")
     parser.add_argument("--json", action="store_true")
+    parser.add_argument("--learning", action="store_true",
+                        help="measure word-level learning (dev teaches, holdout checks)")
     args = parser.parse_args()
     if not APP_BIN.exists() or (args.set != "seed" and not LEXICON.exists()):
         print("missing build: run ./script/build_and_run.sh --build-only")
         return 2
+    if args.learning:
+        report = learning()
+        print(json.dumps(report, ensure_ascii=False, indent=None if args.json else 2))
+        return 0
     rows: list[dict[str, object]] = []
     for expected, readings in sentence_set(args.set):
         for style in ("toned", "toneless"):

@@ -130,10 +130,15 @@ Use monotonic timestamps for ordering and a separate wall-clock field only for d
 5. If explicitly enabled (Preferences: Jev assistance on AND a gateway key present — `JevConfig.canAttempt`), the completed phonetic span may be sent to a local model or remote LLM adapter with a strict deadline and cooperative cancellation. Default is off: decode stays byte-identical to the offline path, and the gate trace logs presence only (never the key or text). A second toggle (`allowRichContext`) gates the richer alignment/diff/contract metadata. Per tied pick at most this leaves the device: raw keys, readings, candidate texts with offline rank/score, up to 60 chars before the cursor, matching learned picks (learning-gated), and recent in-memory commits — never the key, never passwords by policy (do not use in password fields). The Preferences panel states this payload next to the switch and confirms on enable. Calls are throttled by `JevTrigger`: skip lone syllables without document context and skip offline leads past 6.0 (measured tie band 0.0–2.6 vs decided 10.3); matching learned picks (`user_preferences`, learning-gated) and recent in-memory commits (`recent_commits`) ride along for disambiguation.
 6. Accept an enhanced result only if it belongs to the current revision; otherwise decode the latest offline snapshot.
 7. User phrase learning (default on, opt-out in Preferences; local JSON
-   only, never network): committing an
-   explicitly picked candidate (Tab/arrows/digit/click — never separator
-   pinning) on a single pure-Zhuyin run records its (readings → text) pair
-   into a local capped JSON store
+   only, never network): committing after an explicit pick
+   (Tab/arrows/digit/click — never separator pinning) records
+   word-level (readings → text) pairs (`UserLexicon.learnedWords`): cursor
+   picks of 2+ syllables still pinned at commit, words a whole-sentence pick
+   changed versus top-1, or the input itself when it is one word. Whole
+   sentences are never stored — the decoder boosts only dictionary words, so
+   they never applied — and single characters inside a sentence are not
+   learned (a global 再 bonus would bury 在; that needs context-keyed
+   learning). Pairs go into a local capped JSON store
    (`~/Library/Application Support/Mistype/user_phrases.json`, portable —
    copy it to export, Reveal/Clear in Preferences). The next decode of the
    same readings boosts the learned text (+6 first pick, +1 per repeat,

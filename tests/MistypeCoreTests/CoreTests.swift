@@ -447,23 +447,6 @@ final class CoreTests: XCTestCase {
         XCTAssertEqual(result.first?.text, "你好")
         XCTAssertEqual(result.first?.score ?? 0, 3.0, accuracy: 1e-9) // -3 + 6
     }
-    func testLearnableKeyGatesMixedSpans() {
-        XCTAssertEqual(composition("su3cl3").learnableKey, "ㄋㄧㄏㄠ")
-        // Pending tail blob joins the key (toneless-continuous learns).
-        XCTAssertEqual(composition("su3cl").learnableKey, "ㄋㄧㄏㄠ")
-        // Punctuation, latin, and separator spaces veto v1 learning.
-        var punct = composition("su3")
-        punct.appendLiteral("，")
-        XCTAssertNil(punct.learnableKey)
-        var latin = composition("su3")
-        _ = latin.appendLatin("x")
-        XCTAssertNil(latin.learnableKey)
-        var spaced = composition("su3")
-        _ = spaced.appendSpace()
-        _ = spaced.append("c")
-        XCTAssertNil(spaced.learnableKey)
-        XCTAssertNil(Composition().learnableKey)
-    }
     func testUserLexiconStoreRoundTripAndEviction() throws {        var learned = UserLexicon()
         learned.record(key: "ㄋㄧ", text: "妳", at: Date(timeIntervalSince1970: 7))
         let restored = try UserLexicon.decoded(from: learned.encoded())
@@ -602,11 +585,42 @@ final class CoreTests: XCTestCase {
         top = decoder.decodeSegments(input.segments, pendingKeys: [], locked: pins)[0]
         XCTAssertEqual(top.text, "他，她")
     }
+    func testLearningRecordsPickedWordsNotSentences() {
+        let decoder = boundaryDecoder
+        let segments = composition("294fu061l ").segments
+        let plain = decoder.decodeSegments(segments, pendingKeys: [])[0]
+        var pins = UserLexicon()
+        pins.pin(CursorOption(text: "帶錢", span: 0..<2, score: -9), over: plain)
+        let picked = decoder.decodeSegments(segments, pendingKeys: [], locked: pins)[0]
+        XCTAssertEqual(picked.text, "帶錢苞")
+        // The pinned word is learned; the untouched single char is not, and
+        // the sentence itself never is (the decoder only boosts words).
+        let words = UserLexicon.learnedWords(committed: picked, pins: pins, baseline: nil)
+        XCTAssertEqual(words.map(\.text), ["帶錢"])
+        XCTAssertEqual(words.map(\.key), ["ㄉㄞㄑㄧㄢ"])
+        // Single-character picks inside a sentence stay unlearned.
+        var single = UserLexicon()
+        single.pin(CursorOption(text: "帶", span: 0..<1, score: -6), over: plain)
+        let one = decoder.decodeSegments(segments, pendingKeys: [], locked: single)[0]
+        XCTAssertEqual(one.text, "帶錢包")
+        XCTAssertTrue(UserLexicon.learnedWords(committed: one, pins: single, baseline: nil).isEmpty)
+        // A whole-sentence pick learns the words that differ from top-1.
+        XCTAssertEqual(UserLexicon.learnedWords(committed: picked, pins: UserLexicon(),
+                                                baseline: plain).map(\.text), ["帶錢"])
+        XCTAssertTrue(UserLexicon.learnedWords(committed: plain, pins: UserLexicon(),
+                                               baseline: nil).isEmpty)
+    }
+    func testLearningKeepsSingleWordInput() {
+        let top = decoder.decodeSegments(composition("su3").segments, pendingKeys: [])[1]
+        XCTAssertEqual(top.text, "妳")
+        XCTAssertEqual(UserLexicon.learnedWords(committed: top, pins: UserLexicon(),
+                                                baseline: nil).map(\.text), ["妳"])
+    }
     func testCursorReplayCountsPicks() {
         let segments = composition("2842jo4").segments
         let outcome = CursorReplay.run(boundaryDecoder, segments: segments,
                                        expected: "打對", model: .startAtCursor)
-        XCTAssertEqual(outcome, CursorReplay.Outcome(picks: 1, ranks: [0]))
+        XCTAssertEqual(outcome, CursorReplay.Outcome(picks: 1, ranks: [0], learned: ["ㄉㄚㄉㄨㄟ=打對"]))
         XCTAssertNil(CursorReplay.run(boundaryDecoder, segments: segments,
                                       expected: "打隊", model: .startAtCursor).picks)
     }
