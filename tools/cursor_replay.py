@@ -8,7 +8,8 @@ often, in fewer picks?
 
 Each synthetic sentence is typed two ways from its dictionary readings:
 toned (tone key per syllable, space = first tone) and toneless (bare
-symbols, one trailing space — the continuous style). The Swift binary's
+symbols, continuous, converted live — no trailing space, since space is
+a strong first tone since 2026-09-27). The Swift binary's
 `--replay` walks to the first wrong character, takes the longest matching
 option, pins it, and re-decodes (see CursorReplay). Deterministic and
 offline; the sentences are synthetic.
@@ -171,15 +172,15 @@ def split_tone(syllable: str) -> tuple[str, str]:
 
 
 def encode(readings: str, toned: bool) -> str:
-    """Dictionary readings -> physical keys. Toneless ends with one space
-    (the IME converts a pending run on space)."""
+    """Dictionary readings -> physical keys. Toneless is bare symbols (the
+    IME converts the pending run live; a space would mean first tone)."""
     out = []
     for syllable in readings.split():
         base, tone = split_tone(syllable)
         out.append("".join(ZHUYIN_TO_KEY[symbol] for symbol in base))
         if toned:
             out.append(TONE_TO_KEY[tone])
-    return "".join(out) + ("" if toned else " ")
+    return "".join(out)
 
 
 REPLAY_LINE = re.compile(r"^replay (\S+) picks=(\S+) ranks=(\S*)(?: learned=(\S*))?$")

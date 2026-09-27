@@ -144,7 +144,7 @@ class ToolTests(unittest.TestCase):
     def test_cursor_replay_encodes_both_typing_styles(self):
         self.assertEqual(cursor_replay.encode("ㄋㄧˇ ㄏㄠˇ ㄇㄚ˙", toned=True), "su3cl3a87")
         self.assertEqual(cursor_replay.encode("ㄊㄚ ㄕㄨㄛ", toned=True), "w8 gji ")
-        self.assertEqual(cursor_replay.encode("ㄋㄧˇ ㄏㄠˇ", toned=False), "sucl ")
+        self.assertEqual(cursor_replay.encode("ㄋㄧˇ ㄏㄠˇ", toned=False), "sucl")
         for _, readings in cursor_replay.SEED:
             cursor_replay.encode(readings, toned=True)  # every symbol maps
 

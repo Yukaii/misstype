@@ -419,6 +419,12 @@ window out of the critical path):
    `cursor_replay.py --learning` (dev teaches a temp lexicon): dev top-1
    52 -> 67/80, dev picks 35 -> 17; holdout top-1 50 -> 53/80 with 0 lost.
    Single chars inside sentences stay unlearned (再/在 needs context keys).
+   Space as strong first tone + live conversion (user decision: space means
+   ˉ as in RIME/鼠鬚管, and continuous typing must not need space to
+   convert). Toned top-1 dev 29 -> 32, holdout 29 -> 31, 0 lost (喝一杯,
+   約在, 喝水, 老師說, 這張); toned picks dev 13 -> 8, worst rank 12 -> 4.
+   Toneless is now typed without the trailing space and converts live:
+   identical to the old space-to-convert results; keynoise unchanged.
 
 ## Measures
 

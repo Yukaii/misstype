@@ -118,39 +118,31 @@ public final class LexiconDecoder {
             if let prev = scored[reading], prev.cost <= cost { return }
             scored[reading] = (cost, correction)
         }
-        if let tone = syllable.tone, tone != "" {
-            // Explicit tone: deliberate evidence (it cost a keystroke), so a
-            // same-base other-tone rival pays 4.0 — above toneless spread
-            // (0.5) and beside transpose (4), below substitute (5). Measured
-            // 2026-09-18: at 2.0, 作ˋ outscored explicitly-typed 左ˇ
-            // (-6.2-2.0 > -8.8); at 4.0 the typed tone holds while the rival
-            // stays listed for genuine tone typos. Toneless (nil) and
-            // space-first-tone ("", often a separator habit) stay at 0.5.
+        if syllable.tone != nil {
+            // Explicit tone — including the space key's first tone (""), as
+            // in RIME's bopomofo schema: deliberate evidence (it cost a
+            // keystroke), so a same-base other-tone rival pays 4.0 — above
+            // toneless spread (0.5) and beside transpose (4), below
+            // substitute (5). Measured 2026-09-18: at 2.0, 作ˋ outscored
+            // explicitly-typed 左ˇ (-6.2-2.0 > -8.8); at 4.0 the typed tone
+            // holds while the rival stays listed for genuine tone typos.
+            // Space used to be weak (0.5, "often a separator habit"), which
+            // let frequency override a typed first tone (喝->和, 約->說,
+            // 交->教); continuous typing now converts live instead of
+            // needing space, so space means ˉ (user decision 2026-09-27).
             if readings.contains(reading) { add(reading, 0, 0) }
             if toneTolerance, let variants = toneless[Self.withoutTone(reading)] {
                 for variant in variants where variant != reading { add(variant, 4.0, 1) }
             }
-        }
-        // Toneless (nil) leaves the tone fully to the engine. A space
-        // terminator ("") is stronger: an exact first-tone reading ranks at
-        // cost 0, other tones stay viable below it — so explicit first tone
-        // wins, while toneless-with-spaces still decodes (bases without an
-        // exact first-tone form fall through to variants alone).
-        if syllable.tone == nil {
-            if let variants = toneless[Self.withoutTone(reading)] {
-                for variant in variants { add(variant, 0.5, 0) }
-            }
-        } else if syllable.tone == "" {
-            if readings.contains(reading) { add(reading, 0, 0) }
-            if toneTolerance, let variants = toneless[Self.withoutTone(reading)] {
-                for variant in variants where variant != reading { add(variant, 0.5, 0) }
-            }
+        } else if let variants = toneless[Self.withoutTone(reading)] {
+            // Toneless (nil) leaves the tone fully to the engine.
+            for variant in variants { add(variant, 0.5, 0) }
         }
         if fuzzy {
             // Auto-repair: adjacent transposition (key order slips), neighbor
             // and phonetic-confusion substitution, deletion of an extra key,
             // insertion of a missing key.
-            let tonelessProbe = syllable.tone == nil || syllable.tone == ""
+            let tonelessProbe = syllable.tone == nil
             func consider(keys: [String], cost: Double) {
                 let repaired = Syllable(keys: keys, tone: syllable.tone).reading
                 if !tonelessProbe {
@@ -245,6 +237,23 @@ public final class LexiconDecoder {
         }
         lattice[keys.count].sort { $0.cost < $1.cost }
         return Array(lattice[keys.count].prefix(12).map(\.syllables))
+    }
+
+    /// Live conversion (RIME-style continuous typing): how many leading
+    /// pending keys to convert now. The whole run when it segments cleanly;
+    /// otherwise drop up to 3 trailing keys — the syllable still being typed
+    /// (ㄉ of 好ㄉ) stays raw instead of being "repaired" into a random char;
+    /// otherwise (a typo inside the run) the whole run, decoded with repair
+    /// exactly as commit does.
+    public func livePendingCut(_ keys: [String], toneTolerance: Bool = true) -> Int {
+        guard !keys.isEmpty else { return 0 }
+        for cut in stride(from: keys.count, through: max(0, keys.count - 3), by: -1) {
+            if cut == 0 || !segmentations(of: Array(keys.prefix(cut)), fuzzy: false,
+                                          toneTolerance: toneTolerance).isEmpty {
+                return cut
+            }
+        }
+        return keys.count
     }
 
     /// Public pending-run segmentation for the IME syllable cursor: the
