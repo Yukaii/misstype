@@ -249,6 +249,25 @@ completed in roughly 0.3–0.5 s, with one fixed 120 s timeout. More JSON is not
 the fix: useful semantic context can help, but the signal must explicitly
 describe the intended sense and the conservative prompt can suppress it.
 
+Local Jev replacements (2026-09-27, `--backend jev-local`, 12 synthetic cases
+x 1 rep, M3 24 GB, loopback only): the same Choice job (`jev_choice_job`, the
+state and criteria sent to hosted Jev) was POSTed to open-weight
+Jev-compatible servers. Hypothesis: a local model keeps hosted Jev's
+0-WORSE safety within an IME-sized deadline, so there is no request to pay
+for. Falsified on both. Laya `laya-multilingual` (322M encoder, MPS): 0
+flips, 6 WORSE (including the `不大` control -> `布大`), confidences mostly
+0.3–0.5, 120–600 ms warm. jev-local with Qwen2.5-3B-Instruct HF logprob
+scorer: 2 flips (辨識, 做作業), 4 WORSE (大對 -> 大堆 x3, 大錢包 -> 大前包),
+11–80 s per request (one forward pass per option, no KV reuse). For
+reference, the WIP candidate-only `ollama-logprobs` qwen2.5:1.5b arm gave 1
+flip / 6 WORSE / 1 abstain at ~0.1 s (it does not see phonetic evidence, so
+it is not an apples-to-apples comparison). Hosted Jev stays the only
+voter that never regressed. Nothing is wired into the IME; the local path
+remains a tools-only experiment. Setup notes: jev-local defaults to a
+deterministic stub scorer (`JEVLOCAL_SCORER=hf` is required), its `[hf]`
+extra omits `accelerate`, and both servers bind `0.0.0.0` by default, so
+run them with a loopback host.
+
 Exit: offline mode is useful on its own; model provenance and timing are visible in measurements.
 
 ### M5 — macOS Input Method adapter *(prototype slice landed)*
