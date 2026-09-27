@@ -736,6 +736,18 @@ final class CoreTests: XCTestCase {
         XCTAssertEqual(top.unresolved, 1)
         XCTAssertEqual(top.syllables.map(\.base), ["ㄋㄧ", "ㄏㄠ", "ㄉ"])
     }
+    func testCandidateDisplayShowsWhereRowsDiffer() {
+        let rows = ["但中間有些字都會立即找到配對", "但中間有些字都會立即找到配隊", "但中間有些字都會立即找到佩對"]
+        XCTAssertEqual(CandidateDisplay.windows(rows), ["…找到配對", "…找到配隊", "…找到佩對"])
+        // A difference in the middle keeps context on both sides.
+        XCTAssertEqual(CandidateDisplay.windows(["測試一下會不會大對", "測試以下會不會大對"]),
+                       ["測試一下會…", "測試以下會…"])
+        // Word lists (cursor mode) share nothing: shown whole.
+        XCTAssertEqual(CandidateDisplay.windows(["打對", "大", "打"]), ["打對", "大", "打"])
+        // A single long row keeps its tail, as before.
+        XCTAssertEqual(CandidateDisplay.windows([String(repeating: "字", count: 20)], maxChars: 5), ["…字字字字字"])
+        XCTAssertEqual(CandidateDisplay.windows([]), [])
+    }
     func testLivePendingCutLeavesOnlyTheSyllableInProgressRaw() {
         let keys = { (text: String) in text.map(String.init) }
         XCTAssertEqual(decoder.livePendingCut(keys("sucl")), 4)   // 你好: all converts
