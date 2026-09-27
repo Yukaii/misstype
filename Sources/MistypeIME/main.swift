@@ -75,9 +75,9 @@ enum Runtime {
     /// Jev gateway policy, read live per keystroke like the other prefs.
     /// Default off: `canAttempt == false` means decode stays byte-identical
     /// to the offline path. When the user explicitly enables it AND provides
-    /// a key, the adapter only logs the gated intent (presence, never the
-    /// key or text) — no remote call ships until the triage battery verdict
-    /// (DO NOT WIRE) is overturned by fresh-seed evidence.
+    /// a key, a debounced remote Choice request runs on settled ties
+    /// (scheduleJevEvaluation) and may move the highlight; the gate trace
+    /// logs presence only (never the key or text).
     static var jevConfig: JevConfig { MistypePrefs.jevConfig }
     /// Presence-only gate trace (never the key or text). Called on every
     /// decode entry point so remote intent stays observable per policy.
@@ -634,19 +634,23 @@ final class MistypeInputController: IMKInputController {    private var composit
         return SurroundingContext.extract(from: adapter)
     }
     private func refresh(_ client: IMKTextInput, keepCursor: Bool = false) {
-        // Preview converts terminated runs (punctuation passes through in
-        // place); the trailing pending run stays raw Bopomofo until commit.
+        // Preview converts every run, the pending one live (below);
+        // punctuation passes through in place.
         let previous = candidates.map(\.text)
         // Jev gate threads through every decode entry point but changes
         // nothing while off (the default): the offline decode below is the
         // single source of candidates. Presence-only logging keeps remote
         // intent observable per repo policy without leaking key or text.
-        // gated intent only: no remote call (battery verdict DO NOT WIRE).
         Runtime.logJevGate()
         // Live conversion (RIME-style continuous typing): the pending run
         // converts as it is typed, except the syllable still in progress,
         // which stays raw (`livePendingCut`). Space is a first-tone key, not
         // a "convert" key, so nothing waits for it.
+        // A whole-sentence pick becomes positional pins before re-decoding,
+        // so re-segmentation of the live tail cannot drop it.
+        if !keepCursor, pinnedPick != nil, selected != 0, candidates.indices.contains(selected) {
+            sessionPins.pinDifferences(of: candidates[selected], from: candidates[0])
+        }
         let pending = composition.parsed.pending
         let cut = Runtime.decoder.livePendingCut(pending, toneTolerance: MistypePrefs.toneTolerance)
         rawTail = Array(pending.dropFirst(cut))
@@ -747,8 +751,13 @@ final class MistypeInputController: IMKInputController {    private var composit
     private func scheduleJevEvaluation(client: IMKTextInput) {
         let requestID = nextJevID()
         let config = MistypePrefs.jevConfig
+        // Never while the pending run is still growing: live conversion
+        // re-decodes it every keystroke, and asking then would send a request
+        // per typing pause (Jev saw only terminated runs before live
+        // conversion; this keeps that request rate).
         guard config.canAttempt,
               !composition.isEmpty,
+              composition.parsed.pending.isEmpty, rawTail.isEmpty,
               candidates.count > 1,
               pinnedPick == nil,
               !explicitPick,
@@ -784,12 +793,9 @@ final class MistypeInputController: IMKInputController {    private var composit
         }
 
         let rawKeys = composition.rawKeys.joined()
-        let evidence: [JevState.Evidence] = composition.segments.compactMap { seg in
-            if case .syllable(let s) = seg {
-                return JevState.Evidence(base: s.base, tone: s.tone)
-            }
-            return nil
-        }
+        // Evidence = the syllables the candidates were decoded from; the
+        // composition's segments hold a toneless run as ONE fused syllable.
+        let evidence = candidates[0].syllables.map { JevState.Evidence(base: $0.base, tone: $0.tone) }
         let candTuples = Array(candidates.prefix(8)).map {
             (text: $0.text, score: $0.score, repairs: $0.repairs, unresolved: $0.unresolved)
         }
