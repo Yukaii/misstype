@@ -34,6 +34,10 @@ final class CandidatesPanel: NSPanel {
 
         stack.orientation = .vertical
         stack.spacing = 0
+        // Leading, full-width rows: a centered stack plus NSButton's centered
+        // attributed title pushed long rows to the middle and clipped them
+        // on the right once live conversion made every row a sentence.
+        stack.alignment = .leading
         stack.translatesAutoresizingMaskIntoConstraints = false
         body.addSubview(stack)
         NSLayoutConstraint.activate([
@@ -48,6 +52,7 @@ final class CandidatesPanel: NSPanel {
         preedit.font = .systemFont(ofSize: 13)
         preedit.lineBreakMode = .byTruncatingHead
         stack.addArrangedSubview(preedit)
+        preedit.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         for index in 0..<8 {
             let row = NSButton(title: "", target: self, action: #selector(rowClicked(_:)))
             row.tag = index
@@ -59,8 +64,10 @@ final class CandidatesPanel: NSPanel {
             row.contentTintColor = .labelColor
             row.translatesAutoresizingMaskIntoConstraints = false
             row.heightAnchor.constraint(equalToConstant: rowHeight).isActive = true
+            (row.cell as? NSButtonCell)?.lineBreakMode = .byTruncatingHead
             rows.append(row)
             stack.addArrangedSubview(row)
+            row.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         }
         footer.font = .systemFont(ofSize: 11)
         footer.textColor = .tertiaryLabelColor
@@ -72,16 +79,6 @@ final class CandidatesPanel: NSPanel {
 
     @objc private func rowClicked(_ sender: NSButton) {
         onPick(page * 8 + sender.tag)
-    }
-
-    /// Max chars per row. Candidates share long prefixes and differ at the    /// tail (大對/大隊/大堆, 不大/便是/麼), so overlong rows truncate the
-    /// FRONT and show the tail (… + suffix). Full text stays in marked text
-    /// and commits.
-    private let maxRowChars = 14
-
-    private func displayText(_ text: String) -> String {
-        guard text.count > maxRowChars else { return text }
-        return "…" + String(text.suffix(maxRowChars))
     }
 
     /// Header content: composition with a colored cursor marker. The marker
@@ -119,6 +116,10 @@ final class CandidatesPanel: NSPanel {
             attributes: [.font: NSFont.systemFont(ofSize: 15),
                          .foregroundColor: NSColor.labelColor])
         digit.append(body)
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = .left
+        paragraph.lineBreakMode = .byTruncatingHead
+        digit.addAttribute(.paragraphStyle, value: paragraph, range: NSRange(location: 0, length: digit.length))
         return digit
     }
 
@@ -155,10 +156,13 @@ final class CandidatesPanel: NSPanel {
         let total = Array(candidates.prefix(64))
         page = min(max(selected, 0) / 8, max(total.count - 1, 0) / 8)
         let shown = Array(total.dropFirst(page * 8).prefix(8))
-        for (index, text) in shown.enumerated() {
+        // Rows show where the candidates differ (CandidateDisplay), not eight
+        // front-truncated copies of the same long sentence.
+        let display = CandidateDisplay.windows(shown)
+        for (index, _) in shown.enumerated() {
             let row = rows[index]
             row.title = ""
-            row.attributedTitle = rowTitle(index: index, text: displayText(text),
+            row.attributedTitle = rowTitle(index: index, text: display[index],
                                            highlighted: index == selected - page * 8)
             row.isHidden = false
             row.wantsLayer = true
@@ -185,11 +189,13 @@ final class CandidatesPanel: NSPanel {
         // snapping. The header keeps long compositions (and a mid-sentence
         // cursor) visible instead of truncating early.
         var fittedWidth: CGFloat = 0
+        // Measured from the strings, not fittingSize: rows are pinned to the
+        // stack width, so their fitting size no longer reflects content.
         for row in rows where !row.isHidden {
-            fittedWidth = max(fittedWidth, row.fittingSize.width)
+            fittedWidth = max(fittedWidth, ceil(row.attributedTitle.size().width) + 12)
         }
         if !self.preedit.isHidden {
-            fittedWidth = max(fittedWidth, self.preedit.fittingSize.width)
+            fittedWidth = max(fittedWidth, ceil(self.preedit.attributedStringValue.size().width) + 8)
         }
         fittedWidth += 8 // stack leading/trailing insets
         if let anchor = anchor { lastAnchor = anchor }
