@@ -532,6 +532,24 @@ final class CoreTests: XCTestCase {
         XCTAssertTrue(decoder.segmentOptions(syllables, span: 1..<1).isEmpty)
         XCTAssertTrue(decoder.segmentOptions(syllables, span: 0..<9).isEmpty)
     }
+    func testToneRunRepairKeepsLongFinalSyllable() {
+        // Regression: tail lengths were emitted shortest-first, so a
+        // one-symbol tail (ㄟ 欸) with many lead splits filled the caller's
+        // top-6 and the real final syllable (ㄉㄨㄟ) was never decoded.
+        let decoder = LexiconDecoder(tsv: """
+        ㄨㄚ\t挖\t-4
+        ㄨ\t屋\t-5
+        ㄚ\t啊\t-5
+        ㄉㄚˇ\t打\t-6
+        ㄉㄨ\t都\t-6
+        ㄟ\t欸\t-6
+        ㄉㄨㄟˋ\t對\t-4
+        ㄉㄚˇ-ㄉㄨㄟˋ\t打對\t-5
+        """)
+        let segments = composition("j8j8j8282jo ").segments
+        let top = decoder.decodeSegments(segments, pendingKeys: [])[0]
+        XCTAssertEqual(top.text, "挖挖挖打對")
+    }
     func testSegmentKeysSplitsPendingRun() {
         let segmentations = decoder.segmentKeys(["s", "u", "c", "l"], fuzzy: false)
         XCTAssertEqual(segmentations.first?.map(\.reading), ["ㄋㄧ", "ㄏㄠ"])
