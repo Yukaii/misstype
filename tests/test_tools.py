@@ -116,6 +116,30 @@ class ToolTests(unittest.TestCase):
         self.assertEqual(state["candidates"][1]["diff_from_candidate_1"],
                          [{"position": 1, "offline": "你", "candidate": "泥"}])
 
+    def test_jev_choice_job_numbers_criteria_by_offline_rank(self):
+        job = lm_choose.jev_choice_job(
+            ["你好", "泥好"], [{"base": "ㄋㄧ", "tone": "ˇ", "tone_key": "3"}],
+            "multilingual", raw_keys="su3cl4")
+        pick = job["questions"]["pick"]
+        self.assertEqual(pick["type"], "choice")
+        self.assertEqual(pick["criteria"], {"1": "你好", "2": "泥好"})
+        self.assertEqual(json.loads(job["state"])["phonetic_input"]["raw_keys"], "su3cl4")
+
+    def test_choice_answer_abstains_outside_candidate_list(self):
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(lm_choose.parse_choice_answer(
+                {"choice": "2", "probabilities": {"1": 0.3, "2": 0.7}}, 2), (1, 0.7))
+            self.assertEqual(lm_choose.parse_choice_answer(
+                {"choice": "9", "probabilities": {"9": 1.0}}, 2), (None, 1.0))
+            self.assertEqual(lm_choose.parse_choice_answer(
+                {"choice": "你好"}, 2), (None, None))
+
+    def test_local_jev_url_must_be_loopback(self):
+        self.assertTrue(lm_choose.is_loopback_url("http://127.0.0.1:8000/v1/systemone"))
+        self.assertTrue(lm_choose.is_loopback_url("http://localhost:8001/predict"))
+        self.assertFalse(lm_choose.is_loopback_url("https://ai-gateway.vercel.sh/v4"))
+        self.assertFalse(lm_choose.is_loopback_url("http://127.0.0.1.example.com/"))
+
     def test_user_preferences_are_scoped_to_matching_readings(self):
         payload = {
             "version": 1,
