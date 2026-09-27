@@ -326,6 +326,24 @@ public final class LexiconDecoder {
                 if out.count >= 12 { return out }
             }
         }
+        // No valid tail (a typo, or an initial alone: 眼睛ㄐ + Space): keep
+        // the clean lead and hand the invalid tail to decode as-is, where
+        // fuzzy repair gets a shot and anything left stays raw. Returning
+        // nothing made the WHOLE run one unresolved syllable, so every
+        // converted char reverted to Bopomofo (ㄧㄢㄐㄧㄥㄐ; user report
+        // 2026-09-27, made common by Space now meaning first tone).
+        // A run of <= 4 keys may still be ONE mistyped syllable (ㄘㄧˋ ->
+        // 次ˋ by deletion), so it keeps its whole-syllable repair chance;
+        // a longer run cannot be one syllable and must not fall back whole.
+        if out.isEmpty {
+            if syllable.keys.count <= Self.maxSyllableKeys { out.append([syllable]) }
+            for tailLen in 1...min(3, syllable.keys.count - 1) {
+                let leadKeys = Array(syllable.keys.prefix(syllable.keys.count - tailLen))
+                guard let lead = segmentations(of: leadKeys, fuzzy: false,
+                                               toneTolerance: toneTolerance).first else { continue }
+                out.append(lead + [Syllable(keys: Array(syllable.keys.suffix(tailLen)), tone: syllable.tone)])
+            }
+        }
         return out
     }
     /// Decode tone-terminated syllables plus an unsegmented pending key run.

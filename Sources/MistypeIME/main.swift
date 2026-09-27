@@ -651,10 +651,12 @@ final class MistypeInputController: IMKInputController {    private var composit
         if !keepCursor, pinnedPick != nil, selected != 0, candidates.indices.contains(selected) {
             sessionPins.pinDifferences(of: candidates[selected], from: candidates[0])
         }
-        let pending = composition.parsed.pending
-        let cut = Runtime.decoder.livePendingCut(pending, toneTolerance: MistypePrefs.toneTolerance)
-        rawTail = Array(pending.dropFirst(cut))
-        candidates = Runtime.decoder.decodeSegments(composition.segments, pendingKeys: Array(pending.prefix(cut)), fuzzy: MistypePrefs.fuzzyRepair, toneTolerance: MistypePrefs.toneTolerance, userLexicon: Runtime.activeUserLexicon, locked: sessionPins.isEmpty ? nil : sessionPins)
+        let live = Runtime.decoder.livePreview(composition, fuzzy: MistypePrefs.fuzzyRepair,
+                                               toneTolerance: MistypePrefs.toneTolerance,
+                                               userLexicon: Runtime.activeUserLexicon,
+                                               locked: sessionPins.isEmpty ? nil : sessionPins)
+        rawTail = live.rawTail
+        candidates = live.candidates
         if let pin = pinnedPick, !pin.isEmpty {
             if let exact = candidates.firstIndex(where: { $0.text == pin }) {
                 selected = exact
@@ -1071,9 +1073,10 @@ if let decodeIndex = CommandLine.arguments.firstIndex(of: "--decode"),
     // which this early-exit path never reaches — every --decode number ever
     // measured ran the no-fuzzy, no-tolerance baseline instead.
     MistypePrefs.register()
+    func compose<S: Sequence>(_ keys: S) -> Composition where S.Element == Character {
     var composition = Composition()
     var latin = false
-    for key in CommandLine.arguments[decodeIndex + 1] {
+    for key in keys {
         let label = String(key)
         if label == "`" {
             latin.toggle()
@@ -1100,6 +1103,21 @@ if let decodeIndex = CommandLine.arguments.firstIndex(of: "--decode"),
         } else if !composition.append(label) {
             _ = composition.retoneLast(label)
         }
+    }
+    return composition
+    }
+    let keyText = CommandLine.arguments[decodeIndex + 1]
+    let composition = compose(keyText)
+    // --live-trace: the IME preview after every keystroke (tools/live_trace.py).
+    if CommandLine.arguments.contains("--live-trace") {
+        let decoder = Runtime.decoder
+        let keys = Array(keyText)
+        for count in 1...max(keys.count, 1) where count <= keys.count {
+            let preview = decoder.livePreview(compose(keys.prefix(count)), fuzzy: MistypePrefs.fuzzyRepair,
+                                              toneTolerance: MistypePrefs.toneTolerance)
+            print("live\t\(count)\t\(preview.text())")
+        }
+        exit(0)
     }
     let started = Date()
     let decoder = Runtime.decoder

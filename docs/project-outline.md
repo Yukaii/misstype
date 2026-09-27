@@ -442,6 +442,19 @@ window out of the critical path):
    context rules are specific, so they neither transfer nor harm. Store
    bumped to v2; v1 files (mostly inert whole sentences) load empty.
 
+Live-conversion stability (2026-09-27, user report after install: already
+converted characters fell back to Bopomofo). `tools/live_trace.py` replays
+each synthetic sentence key by key through `--live-trace` (the IME's
+`livePreview`) and counts reverts (Han -> Bopomofo) and churn (a settled Han
+char changes). Clean typing never reverted; the cause was a tone key or
+Space closing a run whose last syllable is invalid (眼睛 + ㄐ + Space):
+`repairComplete` found no valid tail and the whole run fell back to one
+unresolved reading (ㄧㄢㄐㄧㄥㄐ). The clean lead now converts and only the
+invalid tail goes to decode (repaired if possible, else raw); runs of <= 4
+keys keep their whole-syllable repair. Replay unchanged, keynoise one row
+better (swap CER 1.067 -> 0.933). Remaining: churn 38/1738 keystrokes
+toned, 78/1168 toneless (e.g. 我進體 -> 我今天).
+
 ## Measures
 
 Track phrase-level character error rate, syllable error rate, commit latency, p50/p95 decode latency, backspaces or replays, candidate interruptions, and task completion time. Log confidence and decoder source for every result. Run a fixed synthetic fixture set plus consented user sessions kept outside the repository.
