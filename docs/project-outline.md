@@ -277,7 +277,8 @@ Package the stable core behind a thin macOS InputMethodKit adapter. `IMKServer` 
 The first native InputMethodKit bundle is installable through `script/install_ime.sh`. It uses a pinned offline dictionary, whole-composition segmentation, conservative fuzzy rescue, marked text, Return/Space commit, Backspace, Escape, and Latin passthrough. It is a real system-wide experiment, but not yet a production IME: richer punctuation, robust candidate UI, signing/notarization, and shared Python/Rust decoder integration remain open.
 
 User phrase learning v1 has landed (default on, opt-out in Preferences;
-local only): an
+local only; superseded 2026-09-27 by word-level + context learning, store
+v2 — see M5 item 9): an
 explicitly picked candidate committed on a single pure-Zhuyin run is
 recorded locally and boosted next time (+6 / +1 per repeat / cap +10).
 Falsified with `--decode --user-lexicon`: one 妳好 record flips top-1
@@ -372,8 +373,10 @@ window out of the critical path):
    `jevEnabled` master switch, `jevRichContext` richer-context gate,
    `jevApiKey` gateway key (or AI_GATEWAY_API_KEY env), `jevModel`.
    The adapter threads `JevConfig.canAttempt` through every decode entry
-   point with presence-only logging — no remote call ships (triage battery
-   verdict: DO NOT WIRE).
+   point with presence-only logging. (Correction 2026-09-27: a debounced
+   remote Choice request DID ship behind that gate and moves the highlight
+   when enabled with a key — the triage verdict covered panel auto-hide,
+   not this path. It now waits for a settled run; see architecture step 5.)
 8. Segment lock v1 + Rime alignment targets: RETIRED as Opt+Right (falsified
    in the file trace: toneless input beeped, fully toned input committed
    exactly like Return — the only case it served was toned-head plus

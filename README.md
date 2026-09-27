@@ -46,10 +46,17 @@ swift test
 ```
 
 After installation, select `Mistype` → `Zhuyin` from the macOS input-source
-menu. Type with the normal Zhuyin keyboard: tone keys finish syllables, Space
-finishes a first-tone syllable, Return commits the sentence, Tab cycles the
-small set of sentence alternatives, Backspace edits the raw composition, and
-Escape cancels it. Shift-Space commits and toggles Latin passthrough.
+menu. Type with the normal Zhuyin keyboard: tones are optional and continuous
+typing converts as you go (only the syllable still being typed stays in
+Bopomofo); tone keys finish syllables and Space is the first tone. Return
+commits the sentence. Down/Tab (or Left to walk back to a word) enter
+selection mode, where the home-row keys `asdfghjk` pick from the panel
+(configurable in Preferences; they type Zhuyin outside the mode) and Escape
+leaves the mode; outside it Escape cancels the composition. Shift+digit and
+Shift+= [ ] ` type full-width symbols (！＠＃＄％︿＆＊（）＋｛｝～). Picks are
+learned locally per word, and single characters in the context of the
+word before them. Backspace edits the raw composition; Shift (tap) or
+Shift-Space commits and toggles 中/英.
 
 The diagnostic path exercises the packaged dictionary without an IME client:
 
