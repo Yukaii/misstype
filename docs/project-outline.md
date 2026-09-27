@@ -306,7 +306,14 @@ window out of the critical path):
    click/Tab; typing on commits via the sticky pick), active only while the
    window is up so digits stay phonetic otherwise. Shift+1 stays ！ —
    candidate #1 needs no shortcut.
-3. Letter-row selection (designed, not built): switch to `asdfghjkl;`
+3. Letter-row selection (landed 2026-09-27, manual check pending): the
+   window still auto-shows while typing, but its key labels are dim and the
+   selection keys (Preferences, default `asdfghjk` — one page of 8) pick
+   only in selection mode: after Down/Up/Tab, or in the syllable cursor's
+   list. Picking, Esc, or typing any other key leaves the mode; the first
+   Esc keeps the text. Shift+digit no longer picks: the Shift row is the
+   full-width layer ＠＃＄％︿＆＊（）＋｛｝～ (大千 convention). Original
+   design note: switch to `asdfghjkl;`
    selection keys, user-configurable string like McBopomofo's
    `candidateKeys` preference. Conflict analysis: those keys ARE Zhuyin
    initials, so modeless auto-show + letter-select cannot coexist — pair
