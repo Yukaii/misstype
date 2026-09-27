@@ -532,6 +532,70 @@ final class CoreTests: XCTestCase {
         XCTAssertTrue(decoder.segmentOptions(syllables, span: 1..<1).isEmpty)
         XCTAssertTrue(decoder.segmentOptions(syllables, span: 0..<9).isEmpty)
     }
+    // MARK: - Cursor selection (words covering the cursor, span-preserving pins)
+    private var boundaryDecoder: LexiconDecoder {
+        LexiconDecoder(tsv: """
+        ㄉㄚˋ\t大\t-3
+        ㄉㄚˇ\t打\t-6
+        ㄉㄨㄟˋ\t對\t-4
+        ㄉㄚˇ-ㄉㄨㄟˋ\t打對\t-12
+        ㄉㄞˋ\t代\t-3
+        ㄉㄞˋ\t帶\t-6
+        ㄑㄧㄢˊ\t錢\t-5
+        ㄅㄠ\t苞\t-4
+        ㄅㄠ\t包\t-5
+        ㄉㄞˋ-ㄑㄧㄢˊ\t帶錢\t-9
+        ㄑㄧㄢˊ-ㄅㄠ\t錢包\t-8
+        """)
+    }
+    func testCursorOptionsOfferWordsAcrossTopBoundary() {
+        let segments = composition("2842jo4").segments
+        let top = boundaryDecoder.decodeSegments(segments, pendingKeys: [])[0]
+        XCTAssertEqual(top.text, "大對")
+        // The top path splits 大|對; the cursor on 對 must still offer 打對.
+        let options = boundaryDecoder.cursorOptions(top.syllables, at: 1)
+        XCTAssertEqual(options.first?.text, "打對") // typed 大's tone 4: pays the tone penalty
+        XCTAssertEqual(options.first?.span, 0..<2)
+        XCTAssertTrue(options.contains(where: { $0.text == "對" && $0.span == 1..<2 }))
+        XCTAssertTrue(boundaryDecoder.cursorOptions(top.syllables, at: 1, within: 1..<2)
+            .allSatisfy { $0.span == 1..<2 })
+        XCTAssertTrue(boundaryDecoder.cursorOptions(top.syllables, at: 2).isEmpty)
+    }
+    func testPinKeepsEarlierPickOutsideNewSpan() {
+        let decoder = boundaryDecoder
+        let segments = composition("294fu061l ").segments
+        var pins = UserLexicon()
+        var top = decoder.decodeSegments(segments, pendingKeys: [])[0]
+        XCTAssertEqual(top.text, "代錢包")
+        pins.pin(CursorOption(text: "帶錢", span: 0..<2, score: -9), over: top)
+        top = decoder.decodeSegments(segments, pendingKeys: [], locked: pins)[0]
+        XCTAssertEqual(top.text, "帶錢苞")
+        // Picking 錢包 overlaps the 帶錢 pin; 帶 must survive, not revert to 代.
+        pins.pin(CursorOption(text: "錢包", span: 1..<3, score: -8), over: top)
+        top = decoder.decodeSegments(segments, pendingKeys: [], locked: pins)[0]
+        XCTAssertEqual(top.text, "帶錢包")
+    }
+    func testCursorReplayCountsPicks() {
+        let segments = composition("2842jo4").segments
+        let outcome = CursorReplay.run(boundaryDecoder, segments: segments,
+                                       expected: "打對", model: .startAtCursor)
+        XCTAssertEqual(outcome, CursorReplay.Outcome(picks: 1, ranks: [0]))
+        XCTAssertNil(CursorReplay.run(boundaryDecoder, segments: segments,
+                                      expected: "打隊", model: .startAtCursor).picks)
+    }
+    func testToneRunCandidatesCarryDecodedSyllables() {
+        // A toneless run ended by space is ONE fused syllable in the
+        // composition; the candidate must expose the decoder's own split so
+        // the IME cursor can index it (the rebuild check rejected all of these).
+        let segments = composition("sucl ").segments
+        XCTAssertEqual(composition("sucl ").parsed.complete.count, 1)
+        let top = decoder.decodeSegments(segments, pendingKeys: [])[0]
+        XCTAssertEqual(top.text, "你好")
+        XCTAssertEqual(top.syllables.map(\.base), ["ㄋㄧ", "ㄏㄠ"])
+        XCTAssertEqual(top.alignment.last?.syllables.upperBound, top.syllables.count)
+        XCTAssertEqual(top.run(containing: 1), 0..<2)
+        XCTAssertEqual(top.charOffset(ofSyllable: 1), 1)
+    }
     func testToneRunRepairKeepsLongFinalSyllable() {
         // Regression: tail lengths were emitted shortest-first, so a
         // one-symbol tail (ㄟ 欸) with many lead splits filled the caller's

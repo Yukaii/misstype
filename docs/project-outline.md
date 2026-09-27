@@ -380,6 +380,27 @@ window out of the critical path):
    fully-resolved top-1 — repaired welcome, raw fallback out — with
    validated alignment; mixed/space-separated spans keep
    whole-span paging).
+9. Cursor selection v2 (2026-09-27, `tools/cursor_replay.py`, 21 synthetic
+   sentences x toned/toneless, real 112k lexicon). Hypothesis: listing every
+   word that covers the cursor (McBopomofo-style, longest first) reaches the
+   expected text more often than the aligned-word list. Three findings:
+   (a) the cursor was dead on toneless input — the IME rebuilt syllables
+   from the composition, where a space-terminated toneless run is ONE fused
+   syllable, so the length check rejected every such sentence and Left only
+   beeped; candidates now carry their decoded `syllables`. (b) Decoder bug:
+   `repairComplete` emitted tail lengths shortest-first, so a one-symbol
+   tail (ㄟ 欸) filled the caller's top-6 and the real final syllable was
+   never decoded (大都欸, 作一誒, 很主恩, 不錯喔, 體議案, 中一奧); round-robin
+   by tail length fixed toneless top-1 8/21 -> 12/21 with keynoise (27 rows)
+   and the LM fixtures unchanged except 大都欸 -> 大對. (c) Covering options
+   reach 21/21 in both styles vs 19/21 toned / 20/21 toneless for the
+   aligned list (做作業, 已經寄出 need a different boundary), at a cost:
+   worst list position 12–13 vs 5–10 (one case per style on page 2; score
+   ordering was far worse, per-syllable ordering a wash). Picks now keep
+   earlier picks outside the new span (`UserLexicon.pin(_:over:)`): without
+   that, 錢包 after 帶錢 reverted 帶 -> 大 and the two pins cycled. Words
+   stay inside their Zhuyin run (`run(containing:)`). Manual IME check
+   pending; the end-of-span panel still lists whole sentences.
 
 ## Measures
 

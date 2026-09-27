@@ -23,6 +23,7 @@ noise = load_tool("noise")
 lm_rescore = load_tool("lm_rescore")
 lm_choose = load_tool("lm_choose")
 jev_success = load_tool("jev_success")
+cursor_replay = load_tool("cursor_replay")
 
 
 class ToolTests(unittest.TestCase):
@@ -139,6 +140,22 @@ class ToolTests(unittest.TestCase):
         self.assertTrue(lm_choose.is_loopback_url("http://localhost:8001/predict"))
         self.assertFalse(lm_choose.is_loopback_url("https://ai-gateway.vercel.sh/v4"))
         self.assertFalse(lm_choose.is_loopback_url("http://127.0.0.1.example.com/"))
+
+    def test_cursor_replay_encodes_both_typing_styles(self):
+        self.assertEqual(cursor_replay.encode("ㄋㄧˇ ㄏㄠˇ ㄇㄚ˙", toned=True), "su3cl3a87")
+        self.assertEqual(cursor_replay.encode("ㄊㄚ ㄕㄨㄛ", toned=True), "w8 gji ")
+        self.assertEqual(cursor_replay.encode("ㄋㄧˇ ㄏㄠˇ", toned=False), "sucl ")
+        for _, readings in cursor_replay.SENTENCES:
+            cursor_replay.encode(readings, toned=True)  # every symbol maps
+
+    def test_cursor_replay_parses_binary_output(self):
+        stdout = ("entries=1 user=0\n大對\t-7.0\trepairs=0 unresolved=0\n"
+                  "replay aligned picks=- ranks=\n"
+                  "replay startAtCursor picks=1 ranks=0\n")
+        outcomes = cursor_replay.parse_replay(stdout)
+        self.assertEqual(outcomes["aligned"], {"picks": None, "ranks": [], "top1": "大對"})
+        self.assertEqual(outcomes["startAtCursor"]["picks"], 1)
+        self.assertEqual(outcomes["startAtCursor"]["ranks"], [0])
 
     def test_user_preferences_are_scoped_to_matching_readings(self):
         payload = {
