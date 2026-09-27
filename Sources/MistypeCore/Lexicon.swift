@@ -9,14 +9,20 @@ public struct SentenceCandidate: Equatable {
     /// Powers the IME syllable cursor (caret placement, focused-span
     /// lookup). Empty for legacy constructions; decode always fills it.
     public let alignment: [WordSpan]
+    /// The syllables this candidate was decoded from — alignment indexes
+    /// into this list. Repair and pending-run segmentation happen inside the
+    /// decoder, so the composition alone cannot rebuild it (a toneless run
+    /// is one fused syllable there). Empty for legacy constructions.
+    public let syllables: [Syllable]
 
     public init(text: String, score: Double, repairs: Int, unresolved: Int,
-                alignment: [WordSpan] = []) {
+                alignment: [WordSpan] = [], syllables: [Syllable] = []) {
         self.text = text
         self.score = score
         self.repairs = repairs
         self.unresolved = unresolved
         self.alignment = alignment
+        self.syllables = syllables
     }
 }
 
@@ -416,6 +422,7 @@ public final class LexiconDecoder {
             // offsets accumulate through separators, syllable offsets through
             // each run's consumed length (== its alignment's last end).
             var align: [WordSpan] = []
+            var syllables: [Syllable] = []
             var sylBase = 0
             for (index, pick) in picks.enumerated() {
                 let charBase = text.utf16.count
@@ -425,13 +432,14 @@ public final class LexiconDecoder {
                         chars: (span.chars.lowerBound + charBase)..<(span.chars.upperBound + charBase)))
                 }
                 sylBase += pick.alignment.last?.syllables.upperBound ?? 0
+                syllables += pick.syllables
                 text += pick.text
                 score += pick.score
                 repairs += pick.repairs
                 unresolved += pick.unresolved
                 if index < seps.count { text += seps[index] }
             }
-            return SentenceCandidate(text: text, score: score, repairs: repairs, unresolved: unresolved, alignment: align)
+            return SentenceCandidate(text: text, score: score, repairs: repairs, unresolved: unresolved, alignment: align, syllables: syllables)
         }
         let base = runTops.map { $0[0] }
         var out = [render(base)]
@@ -518,6 +526,10 @@ public final class LexiconDecoder {
                 if states.isEmpty { break }
             }
         }
-        return paths[syllables.count]
+        return paths[syllables.count].map {
+            SentenceCandidate(text: $0.text, score: $0.score, repairs: $0.repairs,
+                              unresolved: $0.unresolved, alignment: $0.alignment,
+                              syllables: syllables)
+        }
     }
 }

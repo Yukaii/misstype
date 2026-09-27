@@ -209,13 +209,15 @@ final class MistypeInputController: IMKInputController {    private var composit
     /// Replaces the old Opt+Right segment lock (dead in practice: toneless
     /// input only beeped, fully toned input committed exactly like Return).
     private var cursor: Int?
-    /// Focused-span options (nil = whole-span list). Picking pins the
-    /// segment into sessionPins and advances the cursor; pins hold until
+    /// Focused options (nil = whole-span list): every word covering the
+    /// cursor syllable, each with its own span. Picking pins that span into
+    /// sessionPins and advances the cursor past it; pins hold until
     /// commit/clear/Escape and never touch disk.
     private var segmentTexts: [String]?
+    private var segmentOptions: [CursorOption] = []
     private var segmentSelected = 0
-    private var segmentSpan: Range<Int>?
-    private var segmentChars: Range<Int>?
+    /// UTF-16 offset of the cursor syllable (caret for marked text/panel).
+    private var segmentCaret: Int?
     private var sessionPins = UserLexicon()
     private let missingRange = NSRange(location: NSNotFound, length: 0)
     private var jevRequestID = 0
@@ -445,7 +447,7 @@ final class MistypeInputController: IMKInputController {    private var composit
             if let texts = segmentTexts, texts.indices.contains(segmentSelected) {
                 // Focused Return pins the highlighted segment, re-decodes so
                 // top-1 honors it, then commits everything at once.
-                pinAdvance(client, texts[segmentSelected])
+                pinAdvance(client, at: segmentSelected)
                 selected = 0
             }
             commit(client)
@@ -455,7 +457,7 @@ final class MistypeInputController: IMKInputController {    private var composit
             if let texts = segmentTexts, texts.indices.contains(segmentSelected) {
                 // Focused Tab pins without committing: Left…Tab,Tab,Return
                 // fixes two mid-sentence words and sends the sentence.
-                pinAdvance(client, texts[segmentSelected])
+                pinAdvance(client, at: segmentSelected)
                 return true
             }
             if candidates.count > 1 {
@@ -498,7 +500,7 @@ final class MistypeInputController: IMKInputController {    private var composit
             if let texts = segmentTexts {
                 let global = (segmentSelected / 8) * 8 + digit + 1
                 if global < texts.count {
-                    pinAdvance(client, texts[global])
+                    pinAdvance(client, at: global)
                     return true
                 }
             }
@@ -606,7 +608,7 @@ final class MistypeInputController: IMKInputController {    private var composit
     /// else after the last unit. UTF-16 offsets throughout.
     private var caretOffset: Int {
         let len = previewText.utf16.count
-        if let focused = segmentChars?.lowerBound { return min(focused, len) }
+        if let focused = segmentCaret { return min(focused, len) }
         return len
     }
     /// Safely extracts preceding text context and bundle identifier from the client.
@@ -696,7 +698,7 @@ final class MistypeInputController: IMKInputController {    private var composit
     func pickCandidate(at index: Int) {
         if let texts = segmentTexts, texts.indices.contains(index) {
             guard let client = lastClient else { return }
-            pinAdvance(client, texts[index])
+            pinAdvance(client, at: index)
             return
         }
         guard candidates.indices.contains(index) else { return }
@@ -897,36 +899,26 @@ final class MistypeInputController: IMKInputController {    private var composit
 
     // MARK: - Syllable cursor (go back and pick a word, no modifiers)
     private struct FocusFrame {
-        let syllables: [Syllable] // rebuilt converted list
+        let syllables: [Syllable] // the top candidate's own decoded syllables
         let top: SentenceCandidate
     }
-    /// Rebuild validation: the cursor trusts a focused span only when the
-    /// terminated syllable list has exactly the length the top candidate's
-    /// alignment covers. The trailing pending tail is deliberately EXCLUDED:
-    /// refresh() decodes with pendingKeys:[] so the alignment never covers
-    /// it, and counting it made every mid-syllable Left/Right fall through
-    /// to paging (toneless typing, where pending only clears on space, could
-    /// almost never step back). The raw tail stays visible past the cursor;
-    /// any edit returns to end. Anything uncovered (repairs, fuzzy
-    /// re-segmentation) falls back to whole-span behavior instead of
-    /// pointing at the wrong word.
-    /// NOTE: no learnableKey requirement — that predicate is for user-phrase
-    /// learning (single pure-Zhuyin run). The cursor works across separator
-    /// spaces, punctuation and latin runs too: separators consume no
-    /// syllables, so the length check below still guards correctness, and
-    /// anything it rejects falls back to paging.
+    /// The cursor indexes the syllables the top candidate was decoded from
+    /// (`SentenceCandidate.syllables`), never a list rebuilt from the
+    /// composition: repair and pending-run segmentation happen inside the
+    /// decoder, so a toneless run is ONE fused syllable in the composition
+    /// and the old rebuild-and-compare check rejected every toneless
+    /// sentence (Left/Right only beeped). The trailing pending tail is
+    /// excluded as before (refresh() decodes with pendingKeys: []).
+    /// Works across separators: syllable indexes are global, and options
+    /// stay inside the cursor's own run (`run(containing:)`).
     private func focusFrame() -> FocusFrame? {
         guard candidates.indices.contains(selected) else { return nil }
         let top = candidates[selected]
-        // No repairs gate: alignment is filled on every path and the
-        // word-in-options check below already guards correctness — repaired
-        // (typo'd) words are exactly what the cursor is for. Unresolved
-        // (raw fallback) spans stay out: nothing to offer there.
+        // Unresolved (raw fallback) spans stay out: nothing to offer there.
         guard top.unresolved == 0,
-              let end = top.alignment.last?.syllables.upperBound, end > 0 else { return nil }
-        let rebuilt = composition.parsed.complete
-        guard rebuilt.count == end else { return nil }
-        return FocusFrame(syllables: rebuilt, top: top)
+              let end = top.alignment.last?.syllables.upperBound, end > 0,
+              top.syllables.count == end else { return nil }
+        return FocusFrame(syllables: top.syllables, top: top)
     }
     private func spanText(_ text: String, _ chars: Range<Int>) -> String? {
         let units = Array(text.utf16)
@@ -935,53 +927,40 @@ final class MistypeInputController: IMKInputController {    private var composit
     }
     private func clearSegment() {
         segmentTexts = nil
+        segmentOptions = []
         segmentSelected = 0
-        segmentSpan = nil
-        segmentChars = nil
+        segmentCaret = nil
     }
-    /// Point the cursor at its span: fill the segment list, verify the
-    /// aligned word is among the options. Drops back to end on any mismatch.
-    /// Granularity: a cursor at a word start focuses the whole word (phrase
-    /// options, phrase pins); a cursor strictly inside a multi-syllable word
-    /// focuses that one syllable (homophone browser), so a single wrong char
-    /// like 哈囉's 囉 can be fixed without re-picking the whole word. The
-    /// single-char mapping needs a 1:1 syllable↔UTF-16 word (near-universal
-    /// for Zhuyin runs); anything else keeps whole-word focus.
+    /// Point the cursor at its syllable: list every word covering it
+    /// (`cursorOptions`, longest first), so a fix needing a different word
+    /// boundary (大|對 -> 打對) is one pick. The highlight starts on what is
+    /// displayed now: the top path's word there, else the single character.
     /// Outcomes are traced by code (numbers only): ok, noframe, noword.
     private func focusSegment() {
         clearSegment()
         guard let c = cursor, let frame = focusFrame(),
-              let span = frame.top.alignment.first(where: { $0.syllables.contains(c) }) else {
+              let word = frame.top.alignment.first(where: { $0.syllables.contains(c) }),
+              let caret = frame.top.charOffset(ofSyllable: c) else {
             Runtime.debugLog("focus noframe")
             cursor = nil
             return
         }
-        // Narrow mid-word cursors to the single syllable (see above); the
-        // char slice is valid only under the 1:1 check.
-        var targetSyllables = span.syllables
-        var targetChars = span.chars
-        if span.syllables.count > 1, c > span.syllables.lowerBound {
-            let unitCount = span.chars.upperBound - span.chars.lowerBound
-            if unitCount == span.syllables.count {
-                let offset = c - span.syllables.lowerBound
-                targetSyllables = c..<(c + 1)
-                targetChars = (span.chars.lowerBound + offset)..<(span.chars.lowerBound + offset + 1)
-            }
-        }
-        let options = Runtime.decoder.segmentOptions(
-            frame.syllables, span: targetSyllables, fuzzy: MistypePrefs.fuzzyRepair,
-            toneTolerance: MistypePrefs.toneTolerance)
-        guard let word = spanText(frame.top.text, targetChars),
-              let current = options.firstIndex(where: { $0.text == word }) else {
+        let options = Runtime.decoder.cursorOptions(
+            frame.syllables, at: c, within: frame.top.run(containing: c),
+            fuzzy: MistypePrefs.fuzzyRepair, toneTolerance: MistypePrefs.toneTolerance)
+        let shownWord = spanText(frame.top.text, word.chars)
+        let shownChar = spanText(frame.top.text, caret..<caret + 1)
+        guard let current = options.firstIndex(where: { $0.span == word.syllables && $0.text == shownWord })
+                ?? options.firstIndex(where: { $0.span == c..<c + 1 && $0.text == shownChar }) else {
             Runtime.debugLog("focus noword")
             cursor = nil
             return
         }
-        Runtime.debugLog("focus ok s=\(targetSyllables.lowerBound)-\(targetSyllables.upperBound) c=\(targetChars.lowerBound)-\(targetChars.upperBound)")
+        Runtime.debugLog("focus ok s=\(c) n=\(options.count) cur=\(current)")
+        segmentOptions = options
         segmentTexts = options.map(\.text)
         segmentSelected = current
-        segmentSpan = targetSyllables
-        segmentChars = targetChars
+        segmentCaret = caret
     }
     private func moveCursorBack(_ client: IMKTextInput) -> Bool {
         guard let frame = focusFrame(),
@@ -1002,21 +981,18 @@ final class MistypeInputController: IMKInputController {    private var composit
         mark(previewText, client)
         return true
     }
-    /// Pin the focused segment: session-scoped decisive bonus (never disk).
-    /// Whole-text pin is cleared so the two never fight; the pick counts as
-    /// explicit for user-phrase learning at commit.
-    private func pinSegment(_ text: String) {
-        guard let span = segmentSpan, let frame = focusFrame(),
-              span.upperBound <= frame.syllables.count else { return }
-        let key = UserLexicon.key(for: Array(frame.syllables[span]))
-        sessionPins.entries[key] = [text: UserLexicon.Record(
-            count: 1, updatedAt: Date().timeIntervalSince1970)]
+    /// Pin a focused option: session-scoped decisive bonus (never disk) that
+    /// changes only the option's span — overlapping older picks keep their
+    /// characters outside it (`UserLexicon.pin(_:over:)`). Whole-text pin is
+    /// cleared so the two never fight; the pick counts as explicit for
+    /// user-phrase learning at commit.
+    private func pinAdvance(_ client: IMKTextInput, at index: Int) {
+        guard segmentOptions.indices.contains(index), let frame = focusFrame() else { return }
+        let option = segmentOptions[index]
+        sessionPins.pin(option, over: frame.top)
         pinnedPick = nil
         explicitPick = true
-    }
-    private func pinAdvance(_ client: IMKTextInput, _ text: String) {
-        pinSegment(text)
-        cursor = segmentSpan?.upperBound
+        cursor = option.span.upperBound
         refresh(client, keepCursor: true)
     }
     override func originalString(_ sender: Any!) -> NSAttributedString { NSAttributedString(string: composition.rawPhonetic) }
@@ -1109,6 +1085,16 @@ if let decodeIndex = CommandLine.arguments.firstIndex(of: "--decode"),
             let options = decoder.segmentOptions(syllables, span: bounds[0]..<bounds[1])
             print("segment \(bounds[0]):\(bounds[1]) query_ms=\(Date().timeIntervalSince(queryStart) * 1000)")
             for option in options.prefix(8) { print("  \(option.text)\t\(option.score)") }
+        }
+    }
+    // --replay <expected>: cursor-pick count per candidate model (tools/cursor_replay.py).
+    if let replayIndex = CommandLine.arguments.firstIndex(of: "--replay"),
+       replayIndex + 1 < CommandLine.arguments.count {
+        for model in [CursorReplay.Model.aligned, .startAtCursor] {
+            let outcome = CursorReplay.run(decoder, segments: composition.segments,
+                                           expected: CommandLine.arguments[replayIndex + 1], model: model,
+                                           fuzzy: MistypePrefs.fuzzyRepair, toneTolerance: MistypePrefs.toneTolerance)
+            print("replay \(model.rawValue) picks=\(outcome.picks.map(String.init) ?? "-") ranks=\(outcome.ranks.map(String.init).joined(separator: ","))")
         }
     }
     exit(0)
