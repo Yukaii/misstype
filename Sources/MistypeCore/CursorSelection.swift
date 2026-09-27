@@ -140,9 +140,10 @@ extension UserLexicon {
     /// - otherwise words of 2+ syllables the user chose — a cursor pin still
     ///   standing at commit, or a word differing from `baseline` (the
     ///   default top-1) after a whole-sentence pick.
-    /// Single characters inside sentences are NOT learned: one 再 pick would
-    /// push every ㄗㄞ toward 再 and bury the far more common 在 — that
-    /// needs context-keyed learning, not a global bonus.
+    /// Single characters inside sentences are learned only in context —
+    /// keyed on the word before them in the same run (`contextKey`) — since
+    /// a global 再 bonus would bury the far more common 在. A single char
+    /// with no previous word in its run is not learned.
     public static func learnedWords(committed: SentenceCandidate, pins: UserLexicon,
                                     baseline: SentenceCandidate?) -> [(key: String, text: String)] {
         let units = Array(committed.text.utf16)
@@ -159,8 +160,16 @@ extension UserLexicon {
             if let base = baseUnits, base.count == units.count {
                 changed = String(decoding: base[word.chars], as: UTF16.self) != text
             }
-            guard whole || (word.syllables.count >= 2 && (pinned || changed)) else { continue }
-            out.append((UserLexicon.key(for: Array(syllables[word.syllables])), text))
+            let readings = UserLexicon.key(for: Array(syllables[word.syllables]))
+            if whole || (word.syllables.count >= 2 && (pinned || changed)) {
+                out.append((readings, text))
+            } else if pinned || changed, let previous = committed.alignment.last(where: {
+                $0.syllables.upperBound == word.syllables.lowerBound && $0.chars.upperBound == word.chars.lowerBound
+            }), committed.run(containing: previous.syllables.lowerBound) == committed.run(containing: word.syllables.lowerBound),
+              previous.chars.upperBound <= units.count {
+                let before = String(decoding: units[previous.chars], as: UTF16.self)
+                out.append((UserLexicon.contextKey(previous: before, readings: readings), text))
+            }
         }
         return out
     }

@@ -476,6 +476,9 @@ public final class LexiconDecoder {
 
     public func decode(_ syllables: [Syllable], fuzzy: Bool = true, toneTolerance: Bool = true, userLexicon: UserLexicon? = nil, locked: UserLexicon? = nil) -> [SentenceCandidate] {        guard !syllables.isEmpty else { return [] }
         let options = syllables.map { alternatives($0, fuzzy: fuzzy, toneTolerance: toneTolerance) }
+        // Context-keyed learning (previous word -> readings -> text), nil
+        // unless the user lexicon holds any (see UserLexicon.contextKey).
+        let contextRules = userLexicon?.contextRules()
         var paths = Array(repeating: [SentenceCandidate](), count: syllables.count + 1)
         paths[0] = [SentenceCandidate(text: "", score: 0, repairs: 0, unresolved: 0)]
         func add(_ candidate: SentenceCandidate, at index: Int) {
@@ -498,6 +501,14 @@ public final class LexiconDecoder {
                     alignment: prefix.alignment + [WordSpan(
                         syllables: start..<start + 1,
                         chars: prefix.text.utf16.count..<(prefix.text + raw).utf16.count)]), at: start + 1)
+            }
+            // Previous word of each prefix, for context rules (run-local:
+            // decode sees one run, so context never crosses punctuation).
+            let previousWords: [String] = contextRules == nil ? [] : prefixes.map { prefix in
+                guard let last = prefix.alignment.last else { return "" }
+                let units = Array(prefix.text.utf16)
+                guard last.chars.upperBound <= units.count else { return "" }
+                return String(decoding: units[last.chars], as: UTF16.self)
             }
             var states: [(node: Node, penalty: Double, repairs: Int, readings: [String])] = [(root, 0, 0, [])]
             for end in start..<min(syllables.count, start + 8) {
@@ -532,11 +543,13 @@ public final class LexiconDecoder {
                             // toned learns hit toneless retypes and vice versa.
                             // Only boosts produced candidates — never new paths.
                             let learned = userLexicon?.bonus(key: spanKey, text: entry.text) ?? 0
-                            for prefix in prefixes {
+                            let rules = contextRules?[spanKey]?.filter { $0.text == entry.text }
+                            for (index, prefix) in prefixes.enumerated() {
                                 let pinned = legacyPinned || (locked?.entries[UserLexicon.pinKey(
                                     offset: prefix.text.utf16.count, readings: spanKey)]?.keys
                                     .contains(entry.text) ?? false)
-                                let boost = learned + (pinned ? UserLexicon.pinBonus : 0)
+                                let contextual = rules?.first { $0.previous == previousWords[index] }?.bonus ?? 0
+                                let boost = learned + contextual + (pinned ? UserLexicon.pinBonus : 0)
                                 add(SentenceCandidate(text: prefix.text + entry.text,
                                     score: prefix.score + entry.score - penalty - cost + boost,
                                     repairs: prefix.repairs + repairs + correction,

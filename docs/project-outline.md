@@ -425,6 +425,12 @@ window out of the critical path):
    約在, 喝水, 老師說, 這張); toned picks dev 13 -> 8, worst rank 12 -> 4.
    Toneless is now typed without the trailing space and converts live:
    identical to the old space-to-convert results; keynoise unchanged.
+   Context learning (user decision): single-char picks are stored as
+   "previous word|readings" -> text and boost only after that word. With
+   `--learning`: dev top-1 after teaching 67 -> 78/80 (words only vs words
+   + context), dev picks after 17 -> 2; holdout 52 -> 55/80, 0 lost —
+   context rules are specific, so they neither transfer nor harm. Store
+   bumped to v2; v1 files (mostly inert whole sentences) load empty.
 
 ## Measures
 

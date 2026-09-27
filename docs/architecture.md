@@ -136,9 +136,11 @@ Use monotonic timestamps for ordering and a separate wall-clock field only for d
    picks of 2+ syllables still pinned at commit, words a whole-sentence pick
    changed versus top-1, or the input itself when it is one word. Whole
    sentences are never stored — the decoder boosts only dictionary words, so
-   they never applied — and single characters inside a sentence are not
-   learned (a global 再 bonus would bury 在; that needs context-keyed
-   learning). Pairs go into a local capped JSON store
+   they never applied. Single characters inside a sentence are learned only
+   in context, keyed "previous word|readings" (下次|ㄗㄞ -> 再), and boost
+   that char only after that word in the same run — a global 再 bonus would
+   bury 在. File format v2; v1 stores load empty (user-approved reset of
+   the inert whole-sentence entries). Pairs go into a local capped JSON store
    (`~/Library/Application Support/Mistype/user_phrases.json`, portable —
    copy it to export, Reveal/Clear in Preferences). The next decode of the
    same readings boosts the learned text (+6 first pick, +1 per repeat,

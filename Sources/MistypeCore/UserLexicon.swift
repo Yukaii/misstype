@@ -39,7 +39,10 @@ public struct UserLexicon: Codable, Equatable {
     /// reading key → text → record.
     public var entries: [String: [String: Record]] = [:]
 
-    public static let fileVersion = 1
+    /// v2 (2026-09-27): word-level + context-keyed learning. v1 files held
+    /// mostly whole-sentence entries that never applied; they load as empty
+    /// and are overwritten on the next save (user-approved reset).
+    public static let fileVersion = 2
     public static let entryCap = 500
     public static let baseBonus = 6.0
     public static let repeatBonus = 1.0
@@ -81,8 +84,39 @@ public struct UserLexicon: Codable, Equatable {
 
     public func bonus(key: String, text: String) -> Double {
         guard let record = entries[key]?[text] else { return 0 }
-        return min(Self.baseBonus + Double(record.count - 1) * Self.repeatBonus,
-                   Self.maxBonus)
+        return Self.bonus(for: record)
+    }
+
+    private static func bonus(for record: Record) -> Double {
+        min(baseBonus + Double(record.count - 1) * repeatBonus, maxBonus)
+    }
+
+    /// Context-keyed entry: "previous word|readings". A single character
+    /// picked inside a sentence is learned only after the word it followed
+    /// (下次|ㄗㄞ -> 再), so it never becomes a global bias (再 over 在).
+    public static func contextKey(previous: String, readings: String) -> String {
+        "\(previous)|\(readings)"
+    }
+
+    public struct ContextRule: Equatable {
+        public let previous: String
+        public let text: String
+        public let bonus: Double
+    }
+
+    /// Context entries indexed by readings for the decode loop; nil when
+    /// there are none, so plain decodes pay nothing.
+    public func contextRules() -> [String: [ContextRule]]? {
+        var rules: [String: [ContextRule]] = [:]
+        for (key, texts) in entries {
+            guard let bar = key.firstIndex(of: "|") else { continue }
+            let previous = String(key[..<bar]), readings = String(key[key.index(after: bar)...])
+            for (text, record) in texts {
+                rules[readings, default: []].append(
+                    ContextRule(previous: previous, text: text, bonus: Self.bonus(for: record)))
+            }
+        }
+        return rules.isEmpty ? nil : rules
     }
 
     /// Matching learned phrases for an explicit Jev run. Mirrors the Python
