@@ -10,10 +10,10 @@ import Foundation
 /// inferred, nothing imported — and adds a deterministic bonus at decode.
 ///
 /// Keying: toneless-concatenated readings, no separators (e.g. ㄋㄧˇ-ㄏㄠˇ
-/// → "ㄋㄧㄏㄠ"). This is deliberate: learn-time segmentation (complete +
-/// one pending tail blob) and decode-time segmentation (trie spans) differ,
-/// but the concatenated symbol stream is identical for the same keystrokes
-/// typed clean. Tone differences collapse on purpose — the stored *text*
+/// → "ㄋㄧㄏㄠ"). This is deliberate: a learned word's readings (from the
+/// committed candidate's syllables) and a later decode's trie spans may
+/// carry different tones or splits, but the concatenated symbol stream is
+/// identical for the same keystrokes typed clean. Tone differences collapse on purpose — the stored *text*
 /// disambiguates (買/賣 share a key, counts decide). Theoretical collision:
 /// two different segmentations of one symbol stream share a key; worst case
 /// is a stray bonus on the same text, which is benign.

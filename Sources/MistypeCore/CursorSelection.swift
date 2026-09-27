@@ -57,7 +57,7 @@ extension SentenceCandidate {
 
     /// Positional session-pin key for the word starting at `syllable` and
     /// covering `span`: run index + run-local UTF-16 offset + readings.
-    func pinKey(forSpan span: Range<Int>) -> String? {
+    public func pinKey(forSpan span: Range<Int>) -> String? {
         guard let run = runs.firstIndex(where: { $0.contains(span.lowerBound) }),
               span.upperBound <= runs[run].upperBound,
               let start = charOffset(ofSyllable: span.lowerBound),
@@ -129,6 +129,43 @@ extension UserLexicon {
     }
 }
 
+extension UserLexicon {
+    /// Word-level learning for one learning-grade commit. The old rule
+    /// recorded the whole composition's readings -> the whole text, but the
+    /// decoder only boosts dictionary words, so a learned sentence never
+    /// changed anything (verified: 測試一下會不會打對 learned x3 still
+    /// decoded 大對; learning the word 打對 fixed it and every other
+    /// sentence with ㄉㄚㄉㄨㄟ). Now the unit is the word:
+    /// - input that is one word: learned as before (homophone browsing);
+    /// - otherwise words of 2+ syllables the user chose — a cursor pin still
+    ///   standing at commit, or a word differing from `baseline` (the
+    ///   default top-1) after a whole-sentence pick.
+    /// Single characters inside sentences are NOT learned: one 再 pick would
+    /// push every ㄗㄞ toward 再 and bury the far more common 在 — that
+    /// needs context-keyed learning, not a global bonus.
+    public static func learnedWords(committed: SentenceCandidate, pins: UserLexicon,
+                                    baseline: SentenceCandidate?) -> [(key: String, text: String)] {
+        let units = Array(committed.text.utf16)
+        let syllables = committed.syllables
+        guard committed.unresolved == 0, let end = committed.alignment.last?.syllables.upperBound,
+              end == syllables.count else { return [] }
+        let whole = committed.alignment.count == 1
+        let baseUnits = baseline.map { Array($0.text.utf16) }
+        var out: [(key: String, text: String)] = []
+        for word in committed.alignment where word.chars.upperBound <= units.count {
+            let text = String(decoding: units[word.chars], as: UTF16.self)
+            let pinned = committed.pinKey(forSpan: word.syllables).map { pins.entries[$0]?[text] != nil } ?? false
+            var changed = false
+            if let base = baseUnits, base.count == units.count {
+                changed = String(decoding: base[word.chars], as: UTF16.self) != text
+            }
+            guard whole || (word.syllables.count >= 2 && (pinned || changed)) else { continue }
+            out.append((UserLexicon.key(for: Array(syllables[word.syllables])), text))
+        }
+        return out
+    }
+}
+
 /// Deterministic selection replay: how many cursor picks turn the offline
 /// top-1 into `expected`? Measures the candidate model, not a user. Each
 /// step moves to the first wrong character, takes the longest option that
@@ -148,6 +185,9 @@ public enum CursorReplay {
         public let picks: Int?
         /// 0-based list position of each pick (panel scanning cost).
         public let ranks: [Int]
+        /// "key=text" words a commit of the reached text would learn
+        /// (`UserLexicon.learnedWords`); empty when nothing was picked.
+        public var learned: [String] = []
     }
 
     /// Decodes exactly like the IME preview (terminated segments, no
@@ -155,17 +195,21 @@ public enum CursorReplay {
     public static func run(_ decoder: LexiconDecoder, segments: [Composition.Segment],
                            expected: String, model: Model,
                            fuzzy: Bool = true, toneTolerance: Bool = true,
-                           maxPicks: Int = 6) -> Outcome {
+                           userLexicon: UserLexicon? = nil, maxPicks: Int = 6) -> Outcome {
         let target = Array(expected)
         var pins = UserLexicon()
         var ranks: [Int] = []
         for _ in 0...maxPicks {
             guard let top = decoder.decodeSegments(segments, pendingKeys: [], fuzzy: fuzzy,
-                                                   toneTolerance: toneTolerance,
+                                                   toneTolerance: toneTolerance, userLexicon: userLexicon,
                                                    locked: pins.isEmpty ? nil : pins).first else { break }
             let syllables = top.syllables
             let text = Array(top.text)
-            if text == target { return Outcome(picks: ranks.count, ranks: ranks) }
+            if text == target {
+                let learned = ranks.isEmpty ? [] : UserLexicon.learnedWords(
+                    committed: top, pins: pins, baseline: nil).map { "\($0.key)=\($0.text)" }
+                return Outcome(picks: ranks.count, ranks: ranks, learned: learned)
+            }
             guard ranks.count < maxPicks, top.unresolved == 0,
                   text.count == syllables.count, target.count == syllables.count,
                   let c = text.indices.first(where: { text[$0] != target[$0] }) else { break }
