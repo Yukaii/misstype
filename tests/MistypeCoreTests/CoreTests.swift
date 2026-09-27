@@ -609,11 +609,43 @@ final class CoreTests: XCTestCase {
         let one = decoder.decodeSegments(segments, pendingKeys: [], locked: single)[0]
         XCTAssertEqual(one.text, "帶錢包")
         XCTAssertTrue(UserLexicon.learnedWords(committed: one, pins: single, baseline: nil).isEmpty)
-        // A whole-sentence pick learns the words that differ from top-1.
-        XCTAssertEqual(UserLexicon.learnedWords(committed: picked, pins: UserLexicon(),
-                                                baseline: plain).map(\.text), ["帶錢"])
+        // A whole-sentence pick learns what differs from top-1: the word
+        // globally, the single char in the context of the word before it.
+        let sentencePick = UserLexicon.learnedWords(committed: picked, pins: UserLexicon(), baseline: plain)
+        XCTAssertEqual(sentencePick.map(\.text), ["帶錢", "苞"])
+        XCTAssertEqual(sentencePick.map(\.key),
+                       ["ㄉㄞㄑㄧㄢ", UserLexicon.contextKey(previous: "帶錢", readings: "ㄅㄠ")])
         XCTAssertTrue(UserLexicon.learnedWords(committed: plain, pins: UserLexicon(),
                                                baseline: nil).isEmpty)
+    }
+    func testSingleCharPickIsLearnedOnlyInContext() {
+        let decoder = LexiconDecoder(tsv: """
+        ㄒㄧㄚˋ-ㄘˋ\t下次\t-5
+        ㄗㄞˋ\t在\t-3
+        ㄗㄞˋ\t再\t-5
+        ㄌㄧㄠˊ\t聊\t-6
+        ㄨㄛˇ\t我\t-3
+        """)
+        let segments = composition("vu84hu4y94xul6").segments
+        let plain = decoder.decodeSegments(segments, pendingKeys: [])[0]
+        XCTAssertEqual(plain.text, "下次在聊")
+        var pins = UserLexicon()
+        pins.pin(CursorOption(text: "再", span: 2..<3, score: -5), over: plain)
+        let picked = decoder.decodeSegments(segments, pendingKeys: [], locked: pins)[0]
+        XCTAssertEqual(picked.text, "下次再聊")
+        let words = UserLexicon.learnedWords(committed: picked, pins: pins, baseline: nil)
+        XCTAssertEqual(words.map(\.key), [UserLexicon.contextKey(previous: "下次", readings: "ㄗㄞ")])
+        XCTAssertEqual(words.map(\.text), ["再"])
+        var learned = UserLexicon()
+        for word in words { learned.record(key: word.key, text: word.text, at: Date(timeIntervalSince1970: 0)) }
+        // Applies after 下次 only; 在 stays the default elsewhere.
+        XCTAssertEqual(decoder.decodeSegments(segments, pendingKeys: [], userLexicon: learned)[0].text, "下次再聊")
+        let elsewhere = composition("ji3y94xul6").segments
+        XCTAssertEqual(decoder.decodeSegments(elsewhere, pendingKeys: [], userLexicon: learned)[0].text, "我在聊")
+    }
+    func testVersionOneLearningFilesLoadEmpty() throws {
+        let v1 = #"{"version":1,"entries":{"ㄘㄜㄕ":{"測試":{"count":3,"updatedAt":0}}}}"#
+        XCTAssertTrue(try UserLexicon.decoded(from: Data(v1.utf8)).isEmpty)
     }
     func testLearningKeepsSingleWordInput() {
         let top = decoder.decodeSegments(composition("su3").segments, pendingKeys: [])[1]
