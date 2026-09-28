@@ -1,0 +1,16 @@
+abi=1
+C1 preedit=你好 caret_bytes=6 caret_utf16=2 shows=1 count=10
+C1 commit=[你好]
+C2 enter consumed=0 commit=(null)
+C2 space consumed=1 commit=[ ]
+C4 tab selected=1 keys_active=1 shows=1 count=5
+C4 pick preedit=尼 keys_active=0
+C4 commit=[尼]
+C8 left caret_bytes=3 caret_utf16=1 first=你好 keys_active=1
+C9 ctrl-c consumed=0 commit=[你]
+C10 shift-space consumed=1 commit=[你] mode_changed=1 english=1
+C10 s consumed=0 commit=(null)
+C11 commit=[你]
+C12 pick preedit=泥 selected=3
+keymap evdev31=s evdev57=space evdev42=shift-left A=a+shift !=1+shift
+DONE
