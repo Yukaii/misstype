@@ -71,6 +71,7 @@ native key event --adapter--> KeyEvent --> InputSession.handle --> KeyResult  (o
 - `InputEngine` is the per-process state (decoder, `UserLexicon` + persistence URL, 中/英 mode, `ShiftTapTracker`, recent commits, Jev grading). `SessionSettings` is read through the engine's provider once per event, so preference changes apply on the next keystroke. One `InputSession` per client (IMK controller, fcitx5 input context).
 - `InputSessionHost` is the only callback surface: `surroundingContext()` (called only when a Jev request will be attempted, never while decoding offline), `perform(_:)` (hop to the session's thread), `sessionDidChange(_:)` (re-render after an asynchronous Jev pick).
 - `LexiconLoader.load(resourceDirectory:)` builds the shipping decoder (lexicon + local phrases + toneless order, word penalty 0.5, dev env hooks) from any directory; `UserLexicon.defaultURL` is `~/Library/Application Support/Mistype` on macOS and `$XDG_DATA_HOME/mistype` (default `~/.local/share`) elsewhere.
+- The adapter contract (key translation, applying results, rendering, lifecycle, delivery rules) and the conformance scenarios every platform must pass are in `docs/cross-platform.md`; the Linux (fcitx5) task plan and the C ABI (`mistype.h`) are in `docs/linux-port.md`.
 - `Package.swift` declares the IMK adapter and the Carbon source tool only on macOS; `swift test` runs the full core suite on Linux too (CI `core-linux`). `InputSessionTests` replay key traces through the session and are the reference for any new adapter.
 
 ### macOS adapter (M5)

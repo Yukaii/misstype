@@ -56,6 +56,10 @@ only translate key events and draw `SessionView` (see
 `docs/architecture.md`, Platform boundary). `swift test` also runs on Linux,
 where `Package.swift` declares only the core and its tests (CI `core-linux`).
 
+Platform adapters follow `docs/cross-platform.md` (contract + conformance
+scenarios C1–C12). Linux work follows `docs/linux-port.md`; run Linux
+commands through `script/linux/dev.sh '<cmd>'` (Docker, `linux/Dockerfile`).
+
 `script/prepare_lexicon.py` downloads only the pinned public dictionary sources
 listed in `third_party/*/sources.json` (McBopomofo, NAER); it must never
 receive user input. Do not commit `.cache/`, `.build/`, or `dist/` artifacts.
