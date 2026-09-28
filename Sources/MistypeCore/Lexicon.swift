@@ -82,6 +82,8 @@ public final class LexiconDecoder {
     private var readings: Set<String> = []
     private var toneless: [String: Set<String>] = [:]
     public private(set) var entryCount = 0
+    /// Optional homophone bigram overlay (nil = byte-identical decode).
+    public var contextBigrams: ContextBigrams?
 
     public init(tsv: String) {
         for line in tsv.split(separator: "\n") {
@@ -530,7 +532,7 @@ public final class LexiconDecoder {
             }
             // Previous word of each prefix, for context rules (run-local:
             // decode sees one run, so context never crosses punctuation).
-            let previousWords: [String] = contextRules == nil ? [] : prefixes.map { prefix in
+            let previousWords: [String] = contextRules == nil && contextBigrams == nil ? [] : prefixes.map { prefix in
                 guard let last = prefix.alignment.last else { return "" }
                 let units = Array(prefix.text.utf16)
                 guard last.chars.upperBound <= units.count else { return "" }
@@ -570,11 +572,13 @@ public final class LexiconDecoder {
                             // Only boosts produced candidates — never new paths.
                             let learned = userLexicon?.bonus(key: spanKey, text: entry.text) ?? 0
                             let rules = contextRules?[spanKey]?.filter { $0.text == entry.text }
+                            let bigrams = contextBigrams?.following(entry.text)
                             for (index, prefix) in prefixes.enumerated() {
                                 let pinned = legacyPinned || (locked?.entries[UserLexicon.pinKey(
                                     offset: prefix.text.utf16.count, readings: spanKey)]?.keys
                                     .contains(entry.text) ?? false)
-                                let contextual = rules?.first { $0.previous == previousWords[index] }?.bonus ?? 0
+                                let contextual = (rules?.first { $0.previous == previousWords[index] }?.bonus ?? 0)
+                                    + (bigrams?[previousWords[index]] ?? 0)
                                 var settledHits = 0
                                 if let settledUnits {
                                     var offset = prefix.text.utf16.count

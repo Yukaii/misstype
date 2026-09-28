@@ -669,6 +669,28 @@ final class CoreTests: XCTestCase {
         let elsewhere = composition("ji3y94xul6").segments
         XCTAssertEqual(decoder.decodeSegments(elsewhere, pendingKeys: [], userLexicon: learned)[0].text, "我在聊")
     }
+    func testContextBigramsBoostOnlyAfterTheirPreviousWord() {
+        let decoder = LexiconDecoder(tsv: """
+        ㄒㄧㄚˋ-ㄘˋ\t下次\t-5
+        ㄗㄞˋ\t在\t-3
+        ㄗㄞˋ\t再\t-5
+        ㄌㄧㄠˊ\t聊\t-6
+        ㄨㄛˇ\t我\t-3
+        """)
+        let after = composition("vu84h4y94xul6").segments
+        let elsewhere = composition("ji3y94xul6").segments
+        XCTAssertEqual(decoder.decodeSegments(after, pendingKeys: [])[0].text, "下次在聊")
+        // Pre-calibrated rows (tools/chiakey_export.py) and raw ChiaKey rows
+        // (bonus = boost + raw - rawMax) both apply only after 下次.
+        for tsv in ["下次\t再\t1.5\n", "x\t下次\t再\t-0.2\n"] {
+            decoder.contextBigrams = ContextBigrams(tsv: tsv, weight: 2)
+            XCTAssertEqual(decoder.contextBigrams?.count, 1)
+            XCTAssertEqual(decoder.decodeSegments(after, pendingKeys: [])[0].text, "下次再聊")
+            XCTAssertEqual(decoder.decodeSegments(elsewhere, pendingKeys: [])[0].text, "我在聊")
+        }
+        decoder.contextBigrams = nil
+        XCTAssertEqual(decoder.decodeSegments(after, pendingKeys: [])[0].text, "下次在聊")
+    }
     func testVersionOneLearningFilesLoadEmpty() throws {
         let v1 = #"{"version":1,"entries":{"ㄘㄜㄕ":{"測試":{"count":3,"updatedAt":0}}}}"#
         XCTAssertTrue(try UserLexicon.decoded(from: Data(v1.utf8)).isEmpty)
