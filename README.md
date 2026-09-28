@@ -51,7 +51,7 @@ After installation, select `Mistype` → `Zhuyin` from the macOS input-source
 menu. Type with the normal Zhuyin keyboard: tones are optional and continuous
 typing converts as you go (only the syllable still being typed stays in
 Bopomofo); tone keys finish syllables and Space is the first tone. Return
-commits exactly what is shown, unfinished Bopomofo included (注音文 works). Down/Tab (or Left to walk back to a word) enter
+commits exactly what is shown, unfinished Bopomofo included (注音文 works); Shift+Return sends the keys as typed Bopomofo. Down/Tab (or Left to walk back to a word) enter
 selection mode, where the home-row keys `asdfghjk` pick from the panel
 (configurable in Preferences; they type Zhuyin outside the mode) and Escape
 leaves the mode; outside it Escape cancels the composition. Shift+digit and
