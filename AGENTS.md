@@ -33,7 +33,10 @@ A change is ready when its behavior is covered by a replayable test or documente
 
 ## Canonical commands
 
-The current prototype uses Python 3.11+ with no runtime dependencies:
+The Swift `MistypeCore` package is the single source of truth for decoding
+behavior. The Python package (`src/mistype`, Python 3.11+, no runtime
+dependencies) is the capture/touch prototype slated for replacement; do not
+port decoder changes to it. Its checks still run:
 
 ```sh
 PYTHONPATH=src python -m unittest discover -s tests -v

@@ -138,7 +138,7 @@ public enum ZhuyinKeyboard {
     }
 }
 
-public struct Syllable: Sendable {
+public struct Syllable: Sendable, Equatable {
     public let keys: [String]
     public let tone: String? // nil = no tone evidence; "" = explicit first tone
     public var base: String { keys.compactMap { ZhuyinKeyboard.symbols[$0] }.joined() }
@@ -373,19 +373,6 @@ public struct Composition {
               !Composition.isLatinKey(last) { rawKeys.removeLast() }
     }
     public mutating func clear() { rawKeys.removeAll(keepingCapacity: true) }
-    /// Learnable key for the user overlay: non-nil only for a single pure-
-    /// Zhuyin run (no punctuation, latin, or separator spaces — each would
-    /// need per-run text alignment, left for a later design). Covers the
-    /// terminated runs plus the pending tail blob, toneless-concatenated,
-    /// so toneless-continuous input learns the same key it will re-hit.
-    public var learnableKey: String? {
-        for segment in segments {
-            guard case .syllable = segment else { return nil }
-        }
-        let syllables = self.syllables(finishing: true)
-        guard !syllables.isEmpty else { return nil }
-        return UserLexicon.key(for: syllables)
-    }
     public func syllables(finishing: Bool) -> [Syllable] {
         let p = parsed
         return p.complete + (finishing && !p.pending.isEmpty ? [Syllable(keys: p.pending, tone: nil)] : [])

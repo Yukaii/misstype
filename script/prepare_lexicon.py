@@ -12,6 +12,19 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 
+HETEROPHONE_STEP = 0.693147 * math.log(10)
+HETEROPHONE_FLOOR = -6.8 * math.log(10)
+
+
+def heterophone_score(score, rank):
+    """Score of one reading of a heterophonic char (rank None = unlisted)."""
+    if rank == 1:
+        return score
+    if rank is None:
+        return HETEROPHONE_FLOOR
+    return max(score - HETEROPHONE_STEP * (rank - 1), HETEROPHONE_FLOOR)
+
+
 def main():
     manifest = json.loads((ROOT / 'third_party/McBopomofo/sources.json').read_text())
     cache = ROOT / '.cache/mcbopomofo'
@@ -33,6 +46,18 @@ def main():
         if len(fields) == 2:
             counts[fields[0]] = float(fields[1])
     total = sum(counts.values()) + len(counts)
+    # Heterophones (破音字): McBopomofo's cook.py gives a single char's full
+    # frequency only to its heterophony1 reading; heterophony2/3 readings
+    # drop 0.693 per rank, anything else sits at the floor. Its values are
+    # log10, so in our natural-log units the step is 0.693*ln(10) and the
+    # floor -6.8*ln(10). Without this every reading of 暫 (ㄓㄢˋ, and the
+    # variant ㄗㄢˋ) carried the char's whole count and 暫 beat 讚 for ㄗㄢˋ.
+    ranked = {}
+    for rank in (1, 2, 3):
+        for line in (cache / f'heterophony{rank}.list').read_text().splitlines():
+            fields = line.split()
+            if len(fields) == 2 and not line.startswith('#'):
+                ranked.setdefault(fields[0], {})[fields[1]] = rank
     entries = {}
     for filename in ('BPMFBase.txt', 'BPMFMappings.txt'):
         for line in (cache / filename).read_text().splitlines():
@@ -51,7 +76,10 @@ def main():
             if count <= 0 or all('\u3105' <= c <= '\u3129' for c in text):
                 continue
             reading = '-'.join(r.replace('˙', '') + '˙' if '˙' in r else r for r in readings)
-            entries[(reading, text)] = math.log((count + 1) / total)
+            score = math.log((count + 1) / total)
+            if len(text) == 1 and text in ranked:
+                score = heterophone_score(score, ranked[text].get(readings[0]))
+            entries[(reading, text)] = score
     output = cache / 'lexicon.tsv'
     output.write_text(''.join(f'{reading}\t{text}\t{score:.6f}\n'
                              for (reading, text), score in sorted(entries.items())))

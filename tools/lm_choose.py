@@ -35,10 +35,13 @@ Usage:
       --backend openai --model gpt-5.6-luna --reps 3
   PYTHONPATH=src python tools/lm_choose.py --backend jev \
       --user-context '開場問候' --user-lexicon /path/to/phrases.json
+  PYTHONPATH=src python tools/lm_choose.py --backend jev-local \
+      --local-url http://127.0.0.1:8000/predict   # Laya; default is jev-local
 """
 
 import argparse
 import json
+import math
 import os
 import re
 import shutil
@@ -47,6 +50,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -312,6 +316,112 @@ def lm_choose(candidates: list[str], model: str,
     return parse_pick(reply, len(candidates)), elapsed_ms
 
 
+def ollama_logprobs_choose(candidates: list[str], model: str,
+                           timeout_s: float) -> tuple[int | None, float, float | None]:
+    """Jev-shaped local choice: single constrained token + logprobs.
+
+    Sends the same numbered choice prompt but asks for ONE token
+    (num_predict=1, temp 0) with logprobs/top_logprobs. The first-token
+    distribution over "1".."N" (+ "0" abstain) is the local analogue of
+    Jev's Choice probabilities; max-prob is the confidence. Nothing leaves
+    localhost; stdlib only. Returns (0-based index | None, ms, maxprob).
+    """
+    valid = {str(i + 1) for i in range(len(candidates))} | {"0"}
+    body = json.dumps({
+        "model": model, "stream": False,
+        "options": {"num_predict": 1, "temperature": 0},
+        "logprobs": True, "top_logprobs": max(10, len(candidates) + 2),
+        "messages": [{"role": "user", "content": choice_prompt(candidates)}],
+    }).encode()
+    started = time.perf_counter()
+    try:
+        req = urllib.request.Request(OLLAMA_URL, data=body,
+                                     headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=timeout_s) as resp:
+            payload = json.loads(resp.read())
+    except Exception as error:
+        print(f"  [lm-error] {type(error).__name__}: {error}")
+        return None, (time.perf_counter() - started) * 1000, None
+    elapsed_ms = (time.perf_counter() - started) * 1000
+    try:
+        entries = payload.get("logprobs") or []
+        top = (entries[0].get("top_logprobs") or []) if entries else []
+    except Exception as error:
+        print(f"  [lm-error] bad logprobs payload: {error}")
+        return None, elapsed_ms, None
+    mass: dict[str, float] = {}
+    for entry in top:
+        token = str(entry.get("token", "")).strip()
+        if token in valid and token not in mass:
+            try:
+                mass[token] = math.exp(float(entry.get("logprob", float("-inf"))))
+            except (TypeError, ValueError):
+                continue
+    total = sum(mass.get(str(i + 1), 0.0) for i in range(len(candidates)))
+    total += mass.get("0", 0.0)
+    if total <= 0:
+        print(f"  [abstain] no valid digit in top_logprobs: {top[:4]}")
+        return None, elapsed_ms, None
+    probs = {k: v / total for k, v in mass.items() if k in valid}
+    best = max(probs, key=lambda k: probs[k])
+    maxprob = probs[best]
+    print(f"  [logprobs] {[(k, round(probs[k], 3)) for k in sorted(probs)]}")
+    if best == "0":
+        print("  [abstain] model voted none-natural")
+        return None, elapsed_ms, maxprob
+    return int(best) - 1, elapsed_ms, maxprob
+
+
+def ollama_logprobs_trust(candidates: list[str], model: str,
+                          timeout_s: float) -> tuple[float | None, float]:
+    """Local trust triage: p("1"=yes) vs p("0"=no) on offline top-1.
+
+    Same single-token logprobs trick as above. trust = p1 / (p1 + p0).
+    Returns (trust | None, ms).
+    """
+    prompt = (
+        f"候選1「{candidates[0]}」是最通順、最自然的中文嗎？"
+        "只輸出一個數字：是輸出 1，否輸出 0，不要解釋。"
+    )
+    body = json.dumps({
+        "model": model, "stream": False,
+        "options": {"num_predict": 1, "temperature": 0},
+        "logprobs": True, "top_logprobs": 10,
+        "messages": [{"role": "user", "content": prompt}],
+    }).encode()
+    started = time.perf_counter()
+    try:
+        req = urllib.request.Request(OLLAMA_URL, data=body,
+                                     headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=timeout_s) as resp:
+            payload = json.loads(resp.read())
+    except Exception as error:
+        print(f"  [lm-error] {type(error).__name__}: {error}")
+        return None, (time.perf_counter() - started) * 1000
+    elapsed_ms = (time.perf_counter() - started) * 1000
+    try:
+        entries = payload.get("logprobs") or []
+        top = (entries[0].get("top_logprobs") or []) if entries else []
+    except Exception as error:
+        print(f"  [lm-error] bad logprobs payload: {error}")
+        return None, elapsed_ms
+    mass: dict[str, float] = {}
+    for entry in top:
+        token = str(entry.get("token", "")).strip()
+        if token in ("1", "0") and token not in mass:
+            try:
+                mass[token] = math.exp(float(entry.get("logprob", float("-inf"))))
+            except (TypeError, ValueError):
+                continue
+    if "1" not in mass and "0" not in mass:
+        print(f"  [abstain] no 1/0 in top_logprobs: {top[:4]}")
+        return None, elapsed_ms
+    denom = mass.get("1", 0.0) + mass.get("0", 0.0)
+    trust = mass.get("1", 0.0) / denom if denom > 0 else None
+    print(f"  [logprobs] p1={mass.get('1', 0.0):.3f} p0={mass.get('0', 0.0):.3f}")
+    return trust, elapsed_ms
+
+
 def load_dotenv(path: Path) -> dict[str, str]:
     """Minimal .env reader (KEY=value, no interpolation, no new deps)."""
     values: dict[str, str] = {}
@@ -501,14 +611,11 @@ def jev_choose(candidates: list[str], evidence: list[dict[str, str | None]],
     changed positions, and the decoder contract. The answer remains a beam
     index.
     """
-    state = build_jev_state(raw_keys, evidence, candidates, metadata,
-                            user_context, user_preferences, char_bases,
-                            rich_context)
-    job = {"model": model, "state": state,
-           "questions": {"pick": {
-               "type": "choice",
-               "instructions": phonetic_instructions(prompt_variant),
-               "criteria": {str(i + 1): c for i, c in enumerate(candidates)}}}}
+    job = jev_choice_job(candidates, evidence, model, raw_keys=raw_keys,
+                         metadata=metadata, user_context=user_context,
+                         user_preferences=user_preferences,
+                         prompt_variant=prompt_variant, char_bases=char_bases,
+                         rich_context=rich_context)
     try:
         sdk_root = ensure_ai_sdk()
     except Exception as error:
@@ -537,17 +644,72 @@ def jev_choose(candidates: list[str], evidence: list[dict[str, str | None]],
     except Exception as error:
         print(f"  [lm-error] bad payload: {error}")
         return None, 0.0, None
+    index, maxprob = parse_choice_answer(answer, len(candidates))
+    return index, float(payload.get("ms", 0)), maxprob
+
+
+def jev_choice_job(candidates: list[str], evidence: list[dict[str, str | None]],
+                   model: str, *, raw_keys: str = "",
+                   metadata: list[dict[str, object]] | None = None,
+                   user_context: str = "",
+                   user_preferences: list[dict[str, object]] | None = None,
+                   prompt_variant: str = "structured",
+                   char_bases: dict[str, set[str]] | None = None,
+                   rich_context: bool = False) -> dict[str, object]:
+    """One Choice job shared by hosted Jev and local Jev-compatible servers,
+    so every backend judges byte-identical state and criteria."""
+    state = build_jev_state(raw_keys, evidence, candidates, metadata,
+                            user_context, user_preferences, char_bases,
+                            rich_context)
+    return {"model": model, "state": state,
+            "questions": {"pick": {
+                "type": "choice",
+                "instructions": phonetic_instructions(prompt_variant),
+                "criteria": {str(i + 1): c for i, c in enumerate(candidates)}}}}
+
+
+def parse_choice_answer(answer: dict[str, object],
+                        count: int) -> tuple[int | None, float | None]:
+    """Map a Choice answer to (0-based index | None, max probability)."""
     probs = answer.get("probabilities") or {}
-    maxprob = max(probs.values()) if probs else None
+    maxprob = max(probs.values()) if isinstance(probs, dict) and probs else None
     choice = str(answer.get("choice", ""))
     if not choice.isdigit():
         print(f"  [abstain] non-numeric choice: {choice[:60]!r}")
-        return None, float(payload.get("ms", 0)), maxprob
+        return None, maxprob
     index = int(choice) - 1
-    if index < 0 or index >= len(candidates):
+    if index < 0 or index >= count:
         print(f"  [abstain] out-of-list choice: {choice!r}")
-        return None, float(payload.get("ms", 0)), maxprob
-    return index, float(payload.get("ms", 0)), maxprob
+        return None, maxprob
+    return index, maxprob
+
+
+def is_loopback_url(url: str) -> bool:
+    host = urllib.parse.urlsplit(url).hostname or ""
+    return host in ("localhost", "127.0.0.1", "::1")
+
+
+def local_jev_choose(job: dict[str, object], count: int, url: str,
+                     timeout_s: float) -> tuple[int | None, float, float | None]:
+    """POST the Jev Choice job to a local Jev-compatible server (jev-local
+    /v1/systemone, Laya /predict). Both answer {answers: {pick: {choice,
+    probabilities}}}. Loopback only: nothing leaves the machine."""
+    body = json.dumps(job, ensure_ascii=False).encode()
+    started = time.perf_counter()
+    try:
+        req = urllib.request.Request(url, data=body,
+                                     headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=timeout_s) as resp:
+            payload = json.loads(resp.read())
+        answer = payload["answers"]["pick"]
+    except Exception as error:
+        print(f"  [lm-error] {type(error).__name__}: {error}")
+        return None, (time.perf_counter() - started) * 1000, None
+    elapsed_ms = (time.perf_counter() - started) * 1000
+    probs = answer.get("probabilities") or {}
+    print(f"  [probs] {[(k, round(float(v), 3)) for k, v in sorted(probs.items())]}")
+    index, maxprob = parse_choice_answer(answer, count)
+    return index, elapsed_ms, maxprob
 
 
 def openai_choose(candidates: list[str], model: str, base_url: str,
@@ -584,11 +746,16 @@ def main() -> int:
     parser.add_argument("--timeout", type=float, default=120.0)
     parser.add_argument("--reps", type=int, default=3)
     parser.add_argument("--topn", type=int, default=8)
-    parser.add_argument("--backend", choices=["ollama", "openai", "jev"],
+    parser.add_argument("--backend", choices=["ollama", "ollama-logprobs", "openai", "jev",
+                                 "jev-local"],
                         default="ollama")
     parser.add_argument("--base-url", default="https://api.openai.com/v1")
     parser.add_argument("--api-key-env", default="OPENAI_API_KEY")
     parser.add_argument("--gateway-model", default="typesafe-ai/jev")
+    parser.add_argument(
+        "--local-url", default="http://127.0.0.1:8000/v1/systemone",
+        help="jev-local only: loopback Jev-compatible endpoint "
+             "(jev-local /v1/systemone, Laya /predict)")
     parser.add_argument(
         "--user-context", default="",
         help="optional explicit context sent to Jev; never read from the IME",
@@ -630,14 +797,19 @@ def main() -> int:
             print(f"refusing to run: {args.api_key_env} is absent "
                   f"(environment or .env; never commit it)")
             return 2
+    if args.backend == "jev-local" and not is_loopback_url(args.local_url):
+        print(f"refusing to run: --local-url must be loopback "
+              f"(got host {urllib.parse.urlsplit(args.local_url).hostname!r})")
+        return 2
     print(f"backend={args.backend} model={args.model} reps={args.reps} "
           f"topn={args.topn}")
     flips = worsens = abstains = 0
     recall_hits = 0
     recall_total = 0
-    toneless_bases = load_toneless_bases() if args.backend == "jev" else None
+    jev_shaped = args.backend in ("jev", "jev-local")
+    toneless_bases = load_toneless_bases() if jev_shaped else None
     char_bases = (load_char_bases()
-                  if args.backend == "jev" and args.rich_context else None)
+                  if jev_shaped and args.rich_context else None)
     active_cases = (BASELINE_CASES if args.suite == "baseline"
                     else CONTEXT_CASES if args.suite == "context"
                     else CASES)
@@ -719,6 +891,36 @@ def main() -> int:
                     print(f"  [abstain] confidence {maxprob:.2f} "
                           f"< {args.min_confidence}")
                     pick = None
+            elif args.backend == "jev-local":
+                job = jev_choice_job(
+                    candidates, evidence, args.model, raw_keys=case["keys"],
+                    metadata=candidate_entries, user_context=user_context,
+                    user_preferences=user_preferences,
+                    prompt_variant=args.prompt_variant,
+                    char_bases=char_bases, rich_context=args.rich_context)
+                pick, lm_ms, maxprob = local_jev_choose(
+                    job, len(candidates), args.local_url, args.timeout)
+                if (pick is not None and maxprob is not None
+                        and maxprob < args.min_confidence):
+                    print(f"  [abstain] confidence {maxprob:.2f} "
+                          f"< {args.min_confidence}")
+                    pick = None
+            elif args.backend == "ollama-logprobs":
+                if args.jev_mode == "trust":
+                    trust, lm_ms = ollama_logprobs_trust(
+                        candidates, args.model, args.timeout)
+                    trusts.append(trust)
+                    picks.append(0 if trust is not None else None)
+                    latencies.append(lm_ms)
+                    confidences.append(trust)
+                    continue
+                pick, lm_ms, maxprob = ollama_logprobs_choose(
+                    candidates, args.model, args.timeout)
+                if (pick is not None and maxprob is not None
+                        and maxprob < args.min_confidence):
+                    print(f"  [abstain] confidence {maxprob:.2f} "
+                          f"< {args.min_confidence}")
+                    pick = None
             else:
                 pick, lm_ms = lm_choose(candidates, args.model, args.timeout)
             picks.append(pick)
@@ -728,7 +930,7 @@ def main() -> int:
         print(f"  picks={[(None if p is None else p + 1) for p in picks]} "
               f"lm_p50={p50:.0f}ms conf={confidences}")
         abstains += sum(p is None for p in picks)
-        if args.backend == "jev" and args.jev_mode == "trust":
+        if args.backend in ("jev", "ollama-logprobs") and args.jev_mode == "trust":
             # Triage pilot: no pick, just trust-vs-correctness. Correct =
             # CER 0; threshold read post-hoc (printed, not fitted).
             correct = base_cer == 0.0

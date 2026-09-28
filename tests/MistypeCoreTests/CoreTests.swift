@@ -124,6 +124,32 @@ final class CoreTests: XCTestCase {
         XCTAssertNil(Punctuation.output(keyCode: 0, shift: false))
         XCTAssertNil(Punctuation.output(keyCode: 0, shift: true))
     }
+    func testFullWidthShiftLayer() {
+        // 大千 Shift layer: digit row + = [ ] ` (selection moved off Shift+digit).
+        let expected: [Int: String] = [18: "！", 19: "＠", 20: "＃", 21: "＄", 23: "％", 22: "︿",
+                                       26: "＆", 28: "＊", 25: "（", 29: "）", 24: "＋",
+                                       33: "｛", 30: "｝", 50: "～"]
+        for (keyCode, mark) in expected {
+            XCTAssertEqual(Punctuation.output(keyCode: keyCode, shift: true), mark)
+            XCTAssertTrue(Punctuation.literals.contains(mark))
+        }
+        // Unshifted digits stay Zhuyin; unshifted ` stays the latin toggle.
+        for keyCode in [18, 19, 20, 21, 23, 22, 26, 28, 25, 29, 50] {
+            XCTAssertNil(Punctuation.output(keyCode: keyCode, shift: false))
+        }
+        var input = composition("su3")
+        XCTAssertTrue(input.appendLiteral("（"))
+    }
+    func testSelectionKeys() {
+        XCTAssertEqual(SelectionKeys.slot(forLabel: "a", keys: "asdfghjkl;"), 0)
+        XCTAssertEqual(SelectionKeys.slot(forLabel: "k", keys: "asdfghjkl;"), 7)
+        XCTAssertNil(SelectionKeys.slot(forLabel: "l", keys: "asdfghjkl;"))  // past one page
+        XCTAssertNil(SelectionKeys.slot(forLabel: "q", keys: "asdfghjkl;"))
+        XCTAssertEqual(SelectionKeys.labels(keys: "asdfghjkl;"), ["a", "s", "d", "f", "g", "h", "j", "k"])
+        XCTAssertEqual(SelectionKeys.sanitize("ASdd f!"), "asdf")
+        XCTAssertEqual(SelectionKeys.sanitize("   "), "asdfghjk")
+        XCTAssertEqual(SelectionKeys.sanitize("12345678"), "12345678")
+    }
     func testEraseRemovesWholeConvertedSyllable() {
         // Completed characters go one char per press; mid-syllable pending
         // still deletes one key (see next test).
@@ -320,13 +346,18 @@ final class CoreTests: XCTestCase {
         XCTAssertFalse(Composition().hasUnfinishedTail)
     }
     func testSpaceTerminatedFirstToneRanksExactFirst() {
-        // "vm, g/ " (space-terminated): exact ㄕㄥ scores 0 while ㄒㄩㄝ has
-        // no first-tone form (0.5), so 學生 lands at -3.5; the toneless-nil
-        // twin pays 0.5+0.5 and lands at -4.0. Either way top-1 holds.
+        // "vm, g/ " (space-terminated): space is a strong first tone (RIME
+        // parity), so exact ㄕㄥ scores 0 while ㄒㄩㄝ has no first-tone form
+        // and pays the explicit-tone mismatch (4.0): 學生 lands at -7.0,
+        // still top-1 as the only word. The toneless-nil twin pays 0.5+0.5.
         let spaced = decoder.decode([Syllable(keys: ["v", "m", ","], tone: ""),
                                      Syllable(keys: ["g", "/"], tone: "")])
         XCTAssertEqual(spaced.first?.text, "學生")
-        XCTAssertEqual(spaced.first?.score ?? 0, -3.5, accuracy: 1e-9)
+        XCTAssertEqual(spaced.first?.score ?? 0, -7.0, accuracy: 1e-9)
+        // A typed first tone beats a more frequent other-tone rival (喝/和).
+        let drink = LexiconDecoder(tsv: "ㄏㄜ\t喝\t-9\nㄏㄜˊ\t和\t-6\n")
+        XCTAssertEqual(drink.decode([Syllable(keys: ["c", "k"], tone: "")]).first?.text, "喝")
+        XCTAssertEqual(drink.decode([Syllable(keys: ["c", "k"], tone: nil)]).first?.text, "和")
         let bare = decoder.decode([Syllable(keys: ["v", "m", ","], tone: nil),
                                    Syllable(keys: ["g", "/"], tone: nil)])
         XCTAssertEqual(bare.first?.text, "學生")
@@ -447,23 +478,6 @@ final class CoreTests: XCTestCase {
         XCTAssertEqual(result.first?.text, "你好")
         XCTAssertEqual(result.first?.score ?? 0, 3.0, accuracy: 1e-9) // -3 + 6
     }
-    func testLearnableKeyGatesMixedSpans() {
-        XCTAssertEqual(composition("su3cl3").learnableKey, "ㄋㄧㄏㄠ")
-        // Pending tail blob joins the key (toneless-continuous learns).
-        XCTAssertEqual(composition("su3cl").learnableKey, "ㄋㄧㄏㄠ")
-        // Punctuation, latin, and separator spaces veto v1 learning.
-        var punct = composition("su3")
-        punct.appendLiteral("，")
-        XCTAssertNil(punct.learnableKey)
-        var latin = composition("su3")
-        _ = latin.appendLatin("x")
-        XCTAssertNil(latin.learnableKey)
-        var spaced = composition("su3")
-        _ = spaced.appendSpace()
-        _ = spaced.append("c")
-        XCTAssertNil(spaced.learnableKey)
-        XCTAssertNil(Composition().learnableKey)
-    }
     func testUserLexiconStoreRoundTripAndEviction() throws {        var learned = UserLexicon()
         learned.record(key: "ㄋㄧ", text: "妳", at: Date(timeIntervalSince1970: 7))
         let restored = try UserLexicon.decoded(from: learned.encoded())
@@ -531,6 +545,240 @@ final class CoreTests: XCTestCase {
         XCTAssertTrue(whole.count <= 16)
         XCTAssertTrue(decoder.segmentOptions(syllables, span: 1..<1).isEmpty)
         XCTAssertTrue(decoder.segmentOptions(syllables, span: 0..<9).isEmpty)
+    }
+    // MARK: - Cursor selection (words covering the cursor, span-preserving pins)
+    private var boundaryDecoder: LexiconDecoder {
+        LexiconDecoder(tsv: """
+        ㄉㄚˋ\t大\t-3
+        ㄉㄚˇ\t打\t-6
+        ㄉㄨㄟˋ\t對\t-4
+        ㄉㄚˇ-ㄉㄨㄟˋ\t打對\t-12
+        ㄉㄞˋ\t代\t-3
+        ㄉㄞˋ\t帶\t-6
+        ㄑㄧㄢˊ\t錢\t-5
+        ㄅㄠ\t苞\t-4
+        ㄅㄠ\t包\t-5
+        ㄉㄞˋ-ㄑㄧㄢˊ\t帶錢\t-9
+        ㄑㄧㄢˊ-ㄅㄠ\t錢包\t-8
+        """)
+    }
+    func testCursorOptionsOfferWordsAcrossTopBoundary() {
+        let segments = composition("2842jo4").segments
+        let top = boundaryDecoder.decodeSegments(segments, pendingKeys: [])[0]
+        XCTAssertEqual(top.text, "大對")
+        // The top path splits 大|對; the cursor on 對 must still offer 打對.
+        let options = boundaryDecoder.cursorOptions(top.syllables, at: 1)
+        XCTAssertEqual(options.first?.text, "打對") // typed 大's tone 4: pays the tone penalty
+        XCTAssertEqual(options.first?.span, 0..<2)
+        XCTAssertTrue(options.contains(where: { $0.text == "對" && $0.span == 1..<2 }))
+        XCTAssertTrue(boundaryDecoder.cursorOptions(top.syllables, at: 1, within: 1..<2)
+            .allSatisfy { $0.span == 1..<2 })
+        XCTAssertTrue(boundaryDecoder.cursorOptions(top.syllables, at: 2).isEmpty)
+    }
+    func testPinKeepsEarlierPickOutsideNewSpan() {
+        let decoder = boundaryDecoder
+        let segments = composition("294fu061l ").segments
+        var pins = UserLexicon()
+        var top = decoder.decodeSegments(segments, pendingKeys: [])[0]
+        XCTAssertEqual(top.text, "代錢包")
+        pins.pin(CursorOption(text: "帶錢", span: 0..<2, score: -9), over: top)
+        top = decoder.decodeSegments(segments, pendingKeys: [], locked: pins)[0]
+        XCTAssertEqual(top.text, "帶錢苞")
+        // Picking 錢包 overlaps the 帶錢 pin; 帶 must survive, not revert to 代.
+        pins.pin(CursorOption(text: "錢包", span: 1..<3, score: -8), over: top)
+        top = decoder.decodeSegments(segments, pendingKeys: [], locked: pins)[0]
+        XCTAssertEqual(top.text, "帶錢包")
+    }
+    func testPinsArePositional() {
+        // Repeated reading: pinning the second ㄊㄚ must leave the first alone,
+        // and a path can never collect the same pin twice.
+        let decoder = LexiconDecoder(tsv: "ㄊㄚ\t他\t-3\nㄊㄚ\t她\t-5\nㄕㄨㄛ\t說\t-4\n")
+        let segments = composition("w8 gji w8 ").segments
+        var top = decoder.decodeSegments(segments, pendingKeys: [])[0]
+        XCTAssertEqual(top.text, "他說他")
+        var pins = UserLexicon()
+        pins.pin(CursorOption(text: "她", span: 2..<3, score: -5), over: top)
+        top = decoder.decodeSegments(segments, pendingKeys: [], locked: pins)[0]
+        XCTAssertEqual(top.text, "他說她")
+        XCTAssertEqual(top.score, -3 - 4 - 5 + UserLexicon.pinBonus)
+    }
+    func testPinsStayInTheirRun() {
+        let decoder = LexiconDecoder(tsv: "ㄊㄚ\t他\t-3\nㄊㄚ\t她\t-5\n")
+        var input = composition("w8 ")
+        input.appendLiteral("，")
+        for key in "w8 " { _ = input.append(String(key)) }
+        var top = decoder.decodeSegments(input.segments, pendingKeys: [])[0]
+        XCTAssertEqual(top.text, "他，他")
+        XCTAssertEqual(top.runs, [0..<1, 1..<2])
+        var pins = UserLexicon()
+        pins.pin(CursorOption(text: "她", span: 1..<2, score: -5), over: top)
+        XCTAssertEqual(Array(pins.entries.keys), [UserLexicon.pinKey(run: 1, offset: 0, readings: "ㄊㄚ")])
+        top = decoder.decodeSegments(input.segments, pendingKeys: [], locked: pins)[0]
+        XCTAssertEqual(top.text, "他，她")
+    }
+    func testLearningRecordsPickedWordsNotSentences() {
+        let decoder = boundaryDecoder
+        let segments = composition("294fu061l ").segments
+        let plain = decoder.decodeSegments(segments, pendingKeys: [])[0]
+        var pins = UserLexicon()
+        pins.pin(CursorOption(text: "帶錢", span: 0..<2, score: -9), over: plain)
+        let picked = decoder.decodeSegments(segments, pendingKeys: [], locked: pins)[0]
+        XCTAssertEqual(picked.text, "帶錢苞")
+        // The pinned word is learned; the untouched single char is not, and
+        // the sentence itself never is (the decoder only boosts words).
+        let words = UserLexicon.learnedWords(committed: picked, pins: pins, baseline: nil)
+        XCTAssertEqual(words.map(\.text), ["帶錢"])
+        XCTAssertEqual(words.map(\.key), ["ㄉㄞㄑㄧㄢ"])
+        // Single-character picks inside a sentence stay unlearned.
+        var single = UserLexicon()
+        single.pin(CursorOption(text: "帶", span: 0..<1, score: -6), over: plain)
+        let one = decoder.decodeSegments(segments, pendingKeys: [], locked: single)[0]
+        XCTAssertEqual(one.text, "帶錢包")
+        XCTAssertTrue(UserLexicon.learnedWords(committed: one, pins: single, baseline: nil).isEmpty)
+        // A whole-sentence pick learns what differs from top-1: the word
+        // globally, the single char in the context of the word before it.
+        let sentencePick = UserLexicon.learnedWords(committed: picked, pins: UserLexicon(), baseline: plain)
+        XCTAssertEqual(sentencePick.map(\.text), ["帶錢", "苞"])
+        XCTAssertEqual(sentencePick.map(\.key),
+                       ["ㄉㄞㄑㄧㄢ", UserLexicon.contextKey(previous: "帶錢", readings: "ㄅㄠ")])
+        XCTAssertTrue(UserLexicon.learnedWords(committed: plain, pins: UserLexicon(),
+                                               baseline: nil).isEmpty)
+    }
+    func testSingleCharPickIsLearnedOnlyInContext() {
+        let decoder = LexiconDecoder(tsv: """
+        ㄒㄧㄚˋ-ㄘˋ\t下次\t-5
+        ㄗㄞˋ\t在\t-3
+        ㄗㄞˋ\t再\t-5
+        ㄌㄧㄠˊ\t聊\t-6
+        ㄨㄛˇ\t我\t-3
+        """)
+        let segments = composition("vu84h4y94xul6").segments
+        let plain = decoder.decodeSegments(segments, pendingKeys: [])[0]
+        XCTAssertEqual(plain.text, "下次在聊")
+        var pins = UserLexicon()
+        pins.pin(CursorOption(text: "再", span: 2..<3, score: -5), over: plain)
+        let picked = decoder.decodeSegments(segments, pendingKeys: [], locked: pins)[0]
+        XCTAssertEqual(picked.text, "下次再聊")
+        let words = UserLexicon.learnedWords(committed: picked, pins: pins, baseline: nil)
+        XCTAssertEqual(words.map(\.key), [UserLexicon.contextKey(previous: "下次", readings: "ㄗㄞ")])
+        XCTAssertEqual(words.map(\.text), ["再"])
+        var learned = UserLexicon()
+        for word in words { learned.record(key: word.key, text: word.text, at: Date(timeIntervalSince1970: 0)) }
+        // Applies after 下次 only; 在 stays the default elsewhere.
+        XCTAssertEqual(decoder.decodeSegments(segments, pendingKeys: [], userLexicon: learned)[0].text, "下次再聊")
+        let elsewhere = composition("ji3y94xul6").segments
+        XCTAssertEqual(decoder.decodeSegments(elsewhere, pendingKeys: [], userLexicon: learned)[0].text, "我在聊")
+    }
+    func testVersionOneLearningFilesLoadEmpty() throws {
+        let v1 = #"{"version":1,"entries":{"ㄘㄜㄕ":{"測試":{"count":3,"updatedAt":0}}}}"#
+        XCTAssertTrue(try UserLexicon.decoded(from: Data(v1.utf8)).isEmpty)
+    }
+    func testLearningKeepsSingleWordInput() {
+        let top = decoder.decodeSegments(composition("su3").segments, pendingKeys: [])[1]
+        XCTAssertEqual(top.text, "妳")
+        XCTAssertEqual(UserLexicon.learnedWords(committed: top, pins: UserLexicon(),
+                                                baseline: nil).map(\.text), ["妳"])
+    }
+    func testSentencePickSurvivesAsPins() {
+        let decoder = boundaryDecoder
+        let segments = composition("294fu061l ").segments
+        let list = decoder.decodeSegments(segments, pendingKeys: [])
+        XCTAssertEqual(list[0].text, "代錢包")
+        guard let picked = list.first(where: { $0.text == "帶錢包" }) else { return XCTFail("no 帶錢包") }
+        var pins = UserLexicon()
+        pins.pinDifferences(of: picked, from: list[0])
+        XCTAssertEqual(pins.count, 1) // only the differing word (帶), not 錢包
+        XCTAssertEqual(decoder.decodeSegments(segments, pendingKeys: [], locked: pins)[0].text, "帶錢包")
+    }
+    func testCursorReplayCountsPicks() {
+        let segments = composition("2842jo4").segments
+        let outcome = CursorReplay.run(boundaryDecoder, segments: segments,
+                                       expected: "打對", model: .startAtCursor)
+        XCTAssertEqual(outcome, CursorReplay.Outcome(picks: 1, ranks: [0], learned: ["ㄉㄚㄉㄨㄟ=打對"]))
+        XCTAssertNil(CursorReplay.run(boundaryDecoder, segments: segments,
+                                      expected: "打隊", model: .startAtCursor).picks)
+    }
+    func testToneRunCandidatesCarryDecodedSyllables() {
+        // A toneless run ended by space is ONE fused syllable in the
+        // composition; the candidate must expose the decoder's own split so
+        // the IME cursor can index it (the rebuild check rejected all of these).
+        let segments = composition("sucl ").segments
+        XCTAssertEqual(composition("sucl ").parsed.complete.count, 1)
+        let top = decoder.decodeSegments(segments, pendingKeys: [])[0]
+        XCTAssertEqual(top.text, "你好")
+        XCTAssertEqual(top.syllables.map(\.base), ["ㄋㄧ", "ㄏㄠ"])
+        XCTAssertEqual(top.alignment.last?.syllables.upperBound, top.syllables.count)
+        XCTAssertEqual(top.run(containing: 1), 0..<2)
+        XCTAssertEqual(top.charOffset(ofSyllable: 1), 1)
+    }
+    func testToneRunRepairKeepsLongFinalSyllable() {
+        // Regression: tail lengths were emitted shortest-first, so a
+        // one-symbol tail (ㄟ 欸) with many lead splits filled the caller's
+        // top-6 and the real final syllable (ㄉㄨㄟ) was never decoded.
+        let decoder = LexiconDecoder(tsv: """
+        ㄨㄚ\t挖\t-4
+        ㄨ\t屋\t-5
+        ㄚ\t啊\t-5
+        ㄉㄚˇ\t打\t-6
+        ㄉㄨ\t都\t-6
+        ㄟ\t欸\t-6
+        ㄉㄨㄟˋ\t對\t-4
+        ㄉㄚˇ-ㄉㄨㄟˋ\t打對\t-5
+        """)
+        let segments = composition("j8j8j8282jo ").segments
+        let top = decoder.decodeSegments(segments, pendingKeys: [])[0]
+        XCTAssertEqual(top.text, "挖挖挖打對")
+    }
+    func testToneClosedRunKeepsLeadWhenTailIsInvalid() {
+        // 你好 + ㄉ + Space: the run must not collapse into ㄋㄧㄏㄠㄉ.
+        let top = decoder.decodeSegments(composition("sucl2 ").segments, pendingKeys: [], fuzzy: false)[0]
+        XCTAssertEqual(top.text, "你好ㄉ")
+        XCTAssertEqual(top.unresolved, 1)
+        XCTAssertEqual(top.syllables.map(\.base), ["ㄋㄧ", "ㄏㄠ", "ㄉ"])
+    }
+    func testSettledPinsFreezeAcceptedTextButNotTheTail() {
+        let decoder = boundaryDecoder
+        var input = composition("2842jo4")      // 大對
+        input.appendLiteral("，")
+        for key in "294fu061l " { _ = input.append(String(key)) }  // 代錢包
+        let top = decoder.livePreview(input).candidates[0]
+        XCTAssertEqual(top.text, "大對，代錢包")
+        let settled = UserLexicon.settled(from: top, keep: 3)
+        // The closed run settles whole; the run being typed is too short.
+        XCTAssertEqual(Set(settled.entries.values.flatMap(\.keys)), ["大", "對"])
+        let preview = decoder.livePreview(input, settled: settled)
+        XCTAssertTrue(preview.candidates.allSatisfy { $0.text.hasPrefix("大對，") })
+        // An explicit pin overrides a settled one on the same key.
+        var explicit = UserLexicon()
+        explicit.pin(CursorOption(text: "打對", span: 0..<2, score: -16), over: top)
+        XCTAssertEqual(decoder.livePreview(input, locked: explicit, settled: settled).candidates[0].text, "打對，代錢包")
+    }
+    func testCandidateDisplayShowsWhereRowsDiffer() {
+        let rows = ["但中間有些字都會立即找到配對", "但中間有些字都會立即找到配隊", "但中間有些字都會立即找到佩對"]
+        XCTAssertEqual(CandidateDisplay.windows(rows), ["…找到配對", "…找到配隊", "…找到佩對"])
+        // A difference in the middle keeps context on both sides.
+        XCTAssertEqual(CandidateDisplay.windows(["測試一下會不會大對", "測試以下會不會大對"]),
+                       ["測試一下會…", "測試以下會…"])
+        // Word lists (cursor mode) share nothing: shown whole.
+        XCTAssertEqual(CandidateDisplay.windows(["打對", "大", "打"]), ["打對", "大", "打"])
+        // A single long row keeps its tail, as before.
+        XCTAssertEqual(CandidateDisplay.windows([String(repeating: "字", count: 20)], maxChars: 5), ["…字字字字字"])
+        XCTAssertEqual(CandidateDisplay.windows([]), [])
+        // A window wider than a row keeps the end nearest the cursor.
+        XCTAssertEqual(CandidateDisplay.windows(["學系的狀況是怎麼樣字典", "學習的狀況是怎麼樣自點"], maxChars: 6),
+                       ["…是怎麼樣字典", "…是怎麼樣自點"])
+    }
+    func testLivePendingCutLeavesOnlyTheSyllableInProgressRaw() {
+        let keys = { (text: String) in text.map(String.init) }
+        XCTAssertEqual(decoder.livePendingCut(keys("sucl")), 4)   // 你好: all converts
+        XCTAssertEqual(decoder.livePendingCut(keys("sucl2")), 4)  // 你好 + raw ㄉ
+        XCTAssertEqual(decoder.livePendingCut(keys("2")), 0)      // lone initial stays raw
+        XCTAssertEqual(decoder.livePendingCut([]), 0)
+        // A typo inside a run that starts clean: convert it all (repair).
+        XCTAssertEqual(decoder.livePendingCut(keys("su,,,,cl")), 8)
+        // No syllable can even start: 注音文, left raw whole (ㄏㄏㄏㄏ, ㄋㄝㄝ…).
+        XCTAssertEqual(decoder.livePendingCut(keys("cccc")), 0)
+        XCTAssertEqual(decoder.livePendingCut(keys("s,,,,cl")), 0)
     }
     func testSegmentKeysSplitsPendingRun() {
         let segmentations = decoder.segmentKeys(["s", "u", "c", "l"], fuzzy: false)

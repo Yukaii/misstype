@@ -6,6 +6,9 @@
     "Source/Data/BPMFMappings.txt": "baa9452ef927b3268f600ca69fe27eb0838b8be31c8ae0dd8540561db68c7ffd",
     "Source/Data/phrase.occ": "2dbe37c1c61266f65d158a3e0020a0c1f2a75039ebd7f1580ef8e537a7bc8779",
     "LICENSE.txt": "72ed32193b0c629def66df63791b2fb125946b593a3251380e6b949488f47b72",
-    "Source/Data/README.md": "4b2eea7122a2a4d8bea7f23f611c6817d681a55d397b1ba3f8100acbfeb9f82e"
+    "Source/Data/README.md": "4b2eea7122a2a4d8bea7f23f611c6817d681a55d397b1ba3f8100acbfeb9f82e",
+    "Source/Data/heterophony1.list": "7fddbb6a66022b1809181484c7627d79dee4231849cb2d3c8c8cd4578b3d22cb",
+    "Source/Data/heterophony2.list": "4afd69a2702ae3af533cd01b755f81d77a430ace91311a8229319334aec24e37",
+    "Source/Data/heterophony3.list": "8be3f37fe419744c3792df1bdfc67a0abdb215dbbb759c92204d4f8d68a32cd9"
   }
 }
