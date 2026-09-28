@@ -70,6 +70,28 @@ The installer keeps the previous bundle at `.cache/MistypeIME-previous.app`
 when replacing an existing Mistype installation. Disable the source with
 `swift run -c release MistypeSourceTool disable` if needed.
 
+### Releases
+
+Pushing a `v*` tag runs `.github/workflows/release.yml`, which tests, builds a
+universal (arm64 + x86_64) bundle via `script/package_release.sh`, and
+publishes `Mistype-<version>.dmg` to GitHub Releases. The same script runs
+locally (`./script/package_release.sh 0.2.0`). Users drag `MistypeIME.app`
+onto the `Input Methods` link in the DMG (`/Library/Input Methods`, admin
+password required), then log out/in or add it under System Settings →
+Keyboard → Input Sources.
+
+Signing is optional and driven by repository secrets:
+
+| Secret | Purpose |
+| --- | --- |
+| `MACOS_CERT_P12_BASE64`, `MACOS_CERT_PASSWORD` | Developer ID Application certificate (`.p12`, base64) |
+| `NOTARY_KEY_P8_BASE64`, `NOTARY_KEY_ID`, `NOTARY_ISSUER_ID` | App Store Connect API key for `notarytool` |
+
+Without them the DMG is ad-hoc signed and Gatekeeper blocks it on other
+machines; run `xattr -dr com.apple.quarantine "/Library/Input Methods/MistypeIME.app"`
+after installing. A self-signed certificate does not avoid this; only a
+Developer ID signature plus notarization does.
+
 ## License
 
 MIT (see `LICENSE`). The bundled dictionary data comes from McBopomofo (MIT)
