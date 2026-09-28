@@ -16,3 +16,19 @@ jobs:
       - uses: actions/checkout@v4
       - name: Test MistypeCore
         run: swift test
+
+  fcitx5-linux:
+    runs-on: ubuntu-latest
+    container: swift:6.0
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install fcitx5 dev dependencies
+        run: |
+          apt-get update && apt-get install -y --no-install-recommends \
+            cmake make g++ pkg-config extra-cmake-modules gettext python3 \
+            fcitx5 libfcitx5core-dev libfcitx5config-dev libfcitx5utils-dev fcitx5-modules-dev \
+          && rm -rf /var/lib/apt/lists/*
+      - name: Build and test CAPI
+        run: script/linux/test_capi.sh
+      - name: Build and test fcitx5 addon
+        run: script/linux/test_fcitx5.sh
