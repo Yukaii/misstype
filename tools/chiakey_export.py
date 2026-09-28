@@ -15,13 +15,23 @@ Usage:
   gh release download <tag> -R chiakich/ChiaKey-Lexicon \\
       -p 'ChiaKeySource-*.db' -O ~/.cache/mistype/chiakey/ChiaKeySource.db
   python tools/chiakey_export.py [--scale 1] [--out ~/.cache/mistype/chiakey/x1]
+  python tools/chiakey_export.py --reorder all|single
+
+--reorder keeps OUR lexicon and scores, and only permutes them within one
+exact reading: words present in both tables take our score values in
+ChiaKey's order (the reading's score multiset is unchanged, so toneless
+cross-reading comparisons keep our scale). `single` limits this to
+one-syllable readings (the 帶/代, 再/在 class).
 """
 
 import argparse
 import sqlite3
+from collections import defaultdict
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parent.parent
 CACHE = Path.home() / ".cache/mistype/chiakey"
+BUNDLE = ROOT / "dist/MistypeIME.app/Contents/Resources"
 CONSONANTS = "ㄅㄆㄇㄈㄉㄊㄋㄌㄍㄎㄏㄐㄑㄒㄓㄔㄕㄖㄗㄘㄙ"
 MEDIALS = "ㄧㄨㄩ"
 VOWELS = "ㄚㄛㄜㄝㄞㄟㄠㄡㄢㄣㄤㄥㄦ"
@@ -55,12 +65,59 @@ def readings(qstring: str) -> list[str] | None:
     return out
 
 
+def reorder(db: sqlite3.Connection, mode: str) -> Path:
+    """Our lexicon + supplement, scores permuted per reading by ChiaKey rank."""
+    theirs: dict[tuple[str, str], float] = {}
+    for qstring, text, score in db.execute(
+            "select qstring, current, probability from unigrams"):
+        parts = readings(qstring)
+        if parts and score > -20:
+            key = ("-".join(parts), text)
+            theirs[key] = max(score, theirs.get(key, score))
+    lines = []
+    for name in ("lexicon.tsv", "local_phrases.tsv"):
+        path = BUNDLE / name
+        if path.exists():
+            lines += path.read_text(encoding="utf-8").splitlines()
+    rows = [line.split("\t") for line in lines]
+    by_reading: dict[str, list[int]] = defaultdict(list)
+    for index, fields in enumerate(rows):
+        if len(fields) != 3:
+            continue
+        reading, text = fields[0], fields[1]
+        if mode == "single" and "-" in reading:
+            continue
+        if (reading, text) in theirs:
+            by_reading[reading].append(index)
+    moved = 0
+    for reading, indices in by_reading.items():
+        if len(indices) < 2:
+            continue
+        scores = sorted((float(rows[i][2]) for i in indices), reverse=True)
+        ranked = sorted(indices, key=lambda i: (-theirs[(reading, rows[i][1])],
+                                                -float(rows[i][2])))
+        for index, score in zip(ranked, scores):
+            if float(rows[index][2]) != score:
+                moved += 1
+            rows[index][2] = f"{score:.6f}"
+    out = CACHE / f"reorder-{mode}"
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "lexicon.tsv").write_text("\n".join("\t".join(f) for f in rows) + "\n",
+                                     encoding="utf-8")
+    print(f"{out}: readings={len(by_reading)} rescored={moved}")
+    return out
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--db", type=Path, default=CACHE / "ChiaKeySource.db")
     parser.add_argument("--scale", type=float, default=1.0)
     parser.add_argument("--out", type=Path, default=None)
+    parser.add_argument("--reorder", choices=["all", "single"])
     args = parser.parse_args()
+    if args.reorder:
+        reorder(sqlite3.connect(args.db), args.reorder)
+        return 0
     out = args.out or CACHE / f"x{args.scale:g}"
     out.mkdir(parents=True, exist_ok=True)
     db = sqlite3.connect(args.db)

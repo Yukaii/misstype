@@ -216,6 +216,19 @@ fix/steal gate. `ContextBigrams` stays as a nil-by-default seam
 decode when unset); ChiaKey data stays in `~/.cache`, never committed
 (full table is CC BY-NC; clean is ODbL, share-alike on derived DBs).
 
+Follow-up (within-reading reorder, `chiakey_export.py --reorder`): keep
+our lexicon and scores, only permute score values inside one exact
+reading into ChiaKey's order, so cross-reading (toneless) comparisons
+keep our scale. Single-syllable readings only: +6/-1 (dev +4/-1, holdout
++2/-0; 帶, 做, 門 fixed; 喝→呵 broken, ChiaKey margin 0.03). All readings:
++7/-3 — multi-syllable reorder adds 你的→妳的 and 會不會→會部會, so
+it is worse. Adding the full bigram at weight 3 on top: +10/-3. The
+single-syllable reorder flips top-1 on 276 of 1309 readings, and the
+battery covers only a handful, so the flips need human review before
+shipping. ChiaKey's margins are near ties (帶/代 0.01), so no margin gate
+separates good flips from bad. Still open: accept or reject each flip,
+and the license terms for shipping a derived order.
+
 Pilot (triage, NOT a finding yet, `--jev-mode trust`, n=5, threshold 0.6
 read post-hoc): one boolean on offline top-1 ("候選1是最正確的嗎")
 separates 10/10 — right top-1 trusts 0.82+ (hide-panel), wrong top-1
