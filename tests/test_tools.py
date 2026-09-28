@@ -263,6 +263,34 @@ class ToolTests(unittest.TestCase):
                                -9.5 - prepare_lexicon.HETEROPHONE_STEP)
         self.assertEqual(prepare_lexicon.heterophone_score(-15.0, 3), floor)
 
+    def test_reading_order_swaps_only_the_reviewed_pair(self):
+        entries = {("ㄉㄞˋ", "代"): -7.0, ("ㄉㄞˋ", "帶"): -7.6,
+                   ("ㄉㄞˋ", "待"): -8.4, ("ㄏㄜ", "喝"): -9.2}
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "order.tsv"
+            path.write_text("# comment\nㄉㄞˋ\t帶\t代\n", encoding="utf-8")
+            prepare_lexicon.apply_reading_order(entries, path)
+            self.assertEqual(entries[("ㄉㄞˋ", "帶")], -7.0)
+            self.assertEqual(entries[("ㄉㄞˋ", "代")], -7.6)
+            self.assertEqual(entries[("ㄉㄞˋ", "待")], -8.4)
+            # Idempotent: an already-preferred pair stays put.
+            prepare_lexicon.apply_reading_order(entries, path)
+            self.assertEqual(entries[("ㄉㄞˋ", "帶")], -7.0)
+            path.write_text("ㄏㄜ\t呵\t喝\n", encoding="utf-8")
+            with self.assertRaises(ValueError):
+                prepare_lexicon.apply_reading_order(entries, path)
+
+    def test_shipped_reading_order_rows_are_well_formed(self):
+        path = TOOLS.parent / "Resources" / "reading_order.tsv"
+        rows = [line.split("\t") for line in path.read_text(encoding="utf-8").splitlines()
+                if line and not line.startswith("#")]
+        self.assertTrue(rows)
+        for reading, preferred, displaced in rows:
+            self.assertNotIn("-", reading)
+            self.assertEqual((len(preferred), len(displaced)), (1, 1))
+            self.assertNotEqual(preferred, displaced)
+        self.assertEqual(len({row[0] for row in rows}), len(rows))
+
 
 if __name__ == "__main__":
     unittest.main()
