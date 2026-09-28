@@ -1,0 +1,209 @@
+import XCTest
+@testable import MistypeCore
+
+/// Replayable key traces through the platform-neutral session: the same
+/// rules every adapter (IMK today, fcitx5/IBus later) inherits.
+final class InputSessionTests: XCTestCase {
+    private final class Host: InputSessionHost {
+        var contextRequests = 0
+        func surroundingContext() -> ClientContext {
+            contextRequests += 1
+            return ClientContext()
+        }
+        func perform(_ work: @escaping () -> Void) { work() }
+        func sessionDidChange(_ session: InputSession) {}
+    }
+
+    private var settings = SessionSettings()
+    private var host = Host()
+
+    private func makeSession() -> InputSession {
+        let decoder = LexiconDecoder(tsv: """
+        ㄋㄧˇ\t你\t-5
+        ㄋㄧˇ\t妳\t-6
+        ㄋㄧˇ\t尼\t-7
+        ㄋㄧˇ\t泥\t-8
+        ㄏㄠˇ\t好\t-5
+        ㄋㄧˇ-ㄏㄠˇ\t你好\t-3
+        ㄇㄚ˙\t嗎\t-4
+        """)
+        let engine = InputEngine(decoder: decoder, settings: { [unowned self] in self.settings })
+        let session = InputSession(engine: engine)
+        session.host = host
+        return session
+    }
+
+    private func key(_ key: KeyEvent.Key, _ modifiers: KeyEvent.Modifiers = [], text: String? = nil) -> KeyEvent {
+        KeyEvent(key, modifiers: modifiers, text: text)
+    }
+
+    /// Plain typing on the physical keys: letters, digits, punctuation, space.
+    @discardableResult
+    private func type(_ keys: String, into session: InputSession) -> [KeyResult] {
+        keys.map { char in
+            let label = String(char)
+            return session.handle(label == " " ? key(.space, text: " ") : key(.character(label), text: label))
+        }
+    }
+
+    func testTypingConvertsLiveAndReturnCommitsThePreview() {
+        let session = makeSession()
+        XCTAssertTrue(type("su3cl3", into: session).allSatisfy { $0.consumed && $0.commit == nil })
+        XCTAssertEqual(session.view.preedit, "你好")
+        XCTAssertEqual(session.view.caret, 2)
+        XCTAssertEqual(session.rawPhonetic, "ㄋㄧˇㄏㄠˇ")
+        XCTAssertEqual(session.handle(key(.enter, text: "\r")), KeyResult(consumed: true, commit: "你好"))
+        XCTAssertEqual(session.view, SessionView.empty.with(selectionKeys: session.view.selectionKeys))
+    }
+
+    func testEmptyCompositionPassesKeysThrough() {
+        let session = makeSession()
+        XCTAssertEqual(session.handle(key(.enter, text: "\r")), KeyResult(consumed: false))
+        XCTAssertEqual(session.handle(key(.backspace, text: "\u{7f}")), KeyResult(consumed: false))
+        XCTAssertEqual(session.handle(key(.left, text: "\u{F702}")), KeyResult(consumed: false))
+        // Space is inserted by the IME itself (never a tone without keys).
+        XCTAssertEqual(session.handle(key(.space, text: " ")), KeyResult(consumed: true, commit: " "))
+    }
+
+    func testBackspaceEditsWithoutCommitting() {
+        let session = makeSession()
+        type("su3cl3", into: session)
+        XCTAssertEqual(session.handle(key(.backspace, text: "\u{7f}")), KeyResult(consumed: true))
+        XCTAssertEqual(session.view.preedit, "你")
+        type("cl", into: session)
+        XCTAssertEqual(session.handle(key(.backspace, [.command], text: "\u{7f}")), KeyResult(consumed: true))
+        XCTAssertEqual(session.view.preedit, "")
+        XCTAssertEqual(session.rawPhonetic, "")
+    }
+
+    func testTabSelectsAndSelectionKeysPickThenLearn() {
+        let session = makeSession()
+        type("su3", into: session)
+        XCTAssertTrue(session.view.showsCandidates)
+        XCTAssertFalse(session.view.keysActive)
+        XCTAssertEqual(session.handle(key(.tab, text: "\t")), KeyResult(consumed: true))
+        XCTAssertEqual(session.view.selected, 1)
+        XCTAssertTrue(session.view.keysActive)
+        // Home-row "d" is slot 2 in selection mode (it types ㄎ elsewhere).
+        XCTAssertEqual(session.handle(key(.character("d"), text: "d")), KeyResult(consumed: true))
+        XCTAssertEqual(session.view.preedit, "尼")
+        XCTAssertFalse(session.view.keysActive)
+        XCTAssertEqual(session.handle(key(.enter, text: "\r")).commit, "尼")
+        XCTAssertEqual(session.engine.userLexicon.count, 1)
+    }
+
+    func testEscapeLeavesSelectionFirstThenClears() {
+        let session = makeSession()
+        type("su3", into: session)
+        session.handle(key(.down, text: "\u{F701}"))
+        XCTAssertEqual(session.view.preedit, "妳")
+        XCTAssertEqual(session.handle(key(.escape, text: "\u{1b}")), KeyResult(consumed: true))
+        XCTAssertEqual(session.view.preedit, "妳")
+        XCTAssertFalse(session.view.keysActive)
+        XCTAssertEqual(session.handle(key(.escape, text: "\u{1b}")), KeyResult(consumed: true))
+        XCTAssertEqual(session.view.preedit, "")
+    }
+
+    func testPunctuationAndShiftLatinStayInsideTheComposition() {
+        let session = makeSession()
+        type("su3", into: session)
+        XCTAssertEqual(session.handle(key(.character(","), [.shift], text: "<")), KeyResult(consumed: true))
+        XCTAssertEqual(session.view.preedit, "你，")
+        XCTAssertEqual(session.handle(key(.character("a"), [.shift], text: "A")), KeyResult(consumed: true))
+        XCTAssertEqual(session.view.preedit, "你，A")
+        XCTAssertEqual(session.handle(key(.enter, text: "\r")).commit, "你，A")
+    }
+
+    func testBacktickLatinRun() {
+        let session = makeSession()
+        type("su3`hi", into: session)
+        XCTAssertEqual(session.view.preedit, "你hi")
+        // Letters stay latin; a non-letter (here a tone with nothing to
+        // mark, which beeps) ends the run, so the letters are Zhuyin again.
+        XCTAssertEqual(session.handle(key(.character("3"), text: "3")), KeyResult(consumed: true, beep: true))
+        type("cl3", into: session)
+        XCTAssertEqual(session.view.preedit, "你hi好")
+    }
+
+    func testSyllableCursorFocusesAWord() {
+        let session = makeSession()
+        type("su3cl3", into: session)
+        XCTAssertEqual(session.handle(key(.right, text: "\u{F703}")), KeyResult(consumed: true, beep: true))
+        XCTAssertEqual(session.handle(key(.left, text: "\u{F702}")), KeyResult(consumed: true))
+        XCTAssertTrue(session.view.keysActive)
+        XCTAssertTrue(session.view.showsCandidates)
+        XCTAssertEqual(session.view.candidates.first, "你好")
+        XCTAssertEqual(session.view.caret, 1)
+        XCTAssertEqual(session.handle(key(.right, text: "\u{F703}")), KeyResult(consumed: true))
+        XCTAssertEqual(session.view.caret, 2)
+    }
+
+    func testChordsAndCapsLockCommitThenPassThrough() {
+        let session = makeSession()
+        type("su3", into: session)
+        XCTAssertEqual(session.handle(key(.character("c"), [.command], text: "c")),
+                       KeyResult(consumed: false, commit: "你"))
+        type("su3", into: session)
+        XCTAssertEqual(session.handle(key(.character("a"), [.capsLock], text: "A")),
+                       KeyResult(consumed: false, commit: "你"))
+        // A bare modifier press is swallowed and leaves the composition alone.
+        type("su3", into: session)
+        XCTAssertEqual(session.handle(key(.modifier, [.control])), KeyResult(consumed: true))
+        XCTAssertEqual(session.view.preedit, "你")
+    }
+
+    func testShiftSpaceTogglesEnglishCommittingFirst() {
+        let session = makeSession()
+        type("su3", into: session)
+        XCTAssertEqual(session.handle(key(.space, [.shift], text: " ")),
+                       KeyResult(consumed: true, commit: "你", modeChanged: true))
+        XCTAssertTrue(session.engine.english)
+        XCTAssertEqual(session.handle(key(.character("s"), text: "s")), KeyResult(consumed: false))
+        session.handle(key(.space, [.shift], text: " "))
+        XCTAssertFalse(session.engine.english)
+    }
+
+    func testLoneShiftTapTogglesUnlessDisabled() {
+        let session = makeSession()
+        let press = KeyEvent(.shift(.left), phase: .press, modifiers: [.shift], timestamp: 100)
+        let release = KeyEvent(.shift(.left), phase: .release, modifiers: [], timestamp: 100.1)
+        XCTAssertEqual(session.handle(press), KeyResult(consumed: true))
+        XCTAssertEqual(session.handle(release), KeyResult(consumed: true, modeChanged: true))
+        XCTAssertTrue(session.engine.english)
+        // Shift+letter in between is a capital, not a tap.
+        session.handle(KeyEvent(.shift(.left), phase: .press, modifiers: [.shift], timestamp: 101))
+        session.handle(KeyEvent(.character("a"), modifiers: [.shift], text: "A", timestamp: 101.05))
+        XCTAssertFalse(session.handle(KeyEvent(.shift(.left), phase: .release, timestamp: 101.1)).modeChanged)
+        settings.shiftToggle = false
+        session.handle(KeyEvent(.shift(.right), phase: .press, modifiers: [.shift], timestamp: 102))
+        XCTAssertFalse(session.handle(KeyEvent(.shift(.right), phase: .release, timestamp: 102.1)).modeChanged)
+    }
+
+    func testPanelPickAndHostCommit() {
+        let session = makeSession()
+        type("su3", into: session)
+        session.pick(at: 3)
+        XCTAssertEqual(session.view.preedit, "泥")
+        XCTAssertEqual(session.commit(), "泥")
+        XCTAssertNil(session.commit())
+    }
+
+    func testOfflineTypingNeverAsksTheHostForSurroundingText() {
+        let session = makeSession()
+        type("su3cl3a87", into: session)
+        session.handle(key(.enter, text: "\r"))
+        XCTAssertEqual(host.contextRequests, 0)
+        // Enabled without a key is still offline (JevConfig.canAttempt).
+        settings.jev = JevConfig(enabled: true)
+        type("su3", into: session)
+        XCTAssertEqual(host.contextRequests, 0)
+    }
+}
+
+private extension SessionView {
+    func with(selectionKeys: [String]) -> SessionView {
+        var copy = self
+        copy.selectionKeys = selectionKeys
+        return copy
+    }
+}

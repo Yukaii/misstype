@@ -51,6 +51,11 @@ swift test
 ./script/install_ime.sh
 ```
 
+Editing rules live in `MistypeCore`'s `InputSession`; platform adapters
+only translate key events and draw `SessionView` (see
+`docs/architecture.md`, Platform boundary). `swift test` also runs on Linux,
+where `Package.swift` declares only the core and its tests (CI `core-linux`).
+
 `script/prepare_lexicon.py` downloads only the pinned public dictionary sources
 listed in `third_party/*/sources.json` (McBopomofo, NAER); it must never
 receive user input. Do not commit `.cache/`, `.build/`, or `dist/` artifacts.

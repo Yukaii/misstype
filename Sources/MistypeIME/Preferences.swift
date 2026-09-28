@@ -85,6 +85,13 @@ enum MistypePrefs {
         set { UserDefaults.standard.set(newValue, forKey: "MistypeJevModel") }
     }
 
+    /// Everything one keystroke reads, snapshotted per event by the session.
+    static var sessionSettings: SessionSettings {
+        SessionSettings(fuzzyRepair: fuzzyRepair, toneTolerance: toneTolerance,
+                        candidateKeys: candidateKeys, userLearning: userLearning,
+                        shiftToggle: shiftToggle, jev: jevConfig)
+    }
+
     /// Live adapter config: explicit enable + key presence gate the attempt;
     /// empty prefs key falls back to AI_GATEWAY_API_KEY env (CLI runs).
     static var jevConfig: JevConfig {
@@ -265,7 +272,7 @@ final class PreferencesPanel: NSPanel {
     @objc private func learnToggled(_ sender: NSButton) {
         MistypePrefs.userLearning = sender.state == .on
         if sender.state == .on {
-            Runtime.userLexicon = UserLexicon.load()
+            Runtime.engine.userLexicon = UserLexicon.load()
         }
         refreshLearnStatus()
     }
@@ -312,19 +319,19 @@ final class PreferencesPanel: NSPanel {
     }
 
     @objc private func revealPhrases(_ sender: NSButton) {
-        Runtime.userLexicon.save() // flush before revealing
+        Runtime.engine.userLexicon.save() // flush before revealing
         NSWorkspace.shared.activateFileViewerSelecting([UserLexicon.defaultURL])
     }
 
     @objc private func clearPhrases(_ sender: NSButton) {
-        Runtime.userLexicon = UserLexicon()
-        Runtime.userLexicon.save()
+        Runtime.engine.userLexicon = UserLexicon()
+        Runtime.engine.userLexicon.save()
         refreshLearnStatus()
     }
 
     private func refreshLearnStatus() {
         learnStatus.stringValue =
-            "Learned phrases: \(Runtime.userLexicon.count) (local JSON, portable — copy it to export)"
+            "Learned phrases: \(Runtime.engine.userLexicon.count) (local JSON, portable — copy it to export)"
     }
 
     /// Key presence only — never echoes the value.
