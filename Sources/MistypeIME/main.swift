@@ -31,6 +31,11 @@ enum Runtime {
         return withBigrams(LexiconDecoder(tsv: data + "\n" + supplement, toneless: toneless))
     }()
     private static func withBigrams(_ decoder: LexiconDecoder) -> LexiconDecoder {
+        // 0.5 per word: measured on held-out Common Voice zh-TW (+18/-3 of
+        // 800) and the synthetic battery (+1/-2); larger values fix more but
+        // break faster (1.5: +33/-15). MISTYPE_WORD_PENALTY overrides (dev).
+        decoder.wordPenalty = ProcessInfo.processInfo.environment["MISTYPE_WORD_PENALTY"]
+            .flatMap(Double.init) ?? 0.5
         // Experiment hook (dev only, local file, never user input):
         // MISTYPE_BIGRAM=<ChiaKey bigrams.tsv> [MISTYPE_BIGRAM_WEIGHT=w].
         let env = ProcessInfo.processInfo.environment
