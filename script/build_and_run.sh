@@ -6,8 +6,10 @@ APP_NAME="MistypeIME"
 APP_DIR="$ROOT_DIR/dist/$APP_NAME.app"
 if pgrep -x "$APP_NAME" >/dev/null 2>&1; then killall "$APP_NAME" || true; fi
 python3 script/prepare_lexicon.py
-swift build -c release
-BIN_DIR="$(swift build -c release --show-bin-path)"
+# SWIFT_BUILD_FLAGS lets release packaging add e.g. "--arch arm64 --arch x86_64".
+BUILD_FLAGS=(-c release ${=SWIFT_BUILD_FLAGS:-})
+swift build "${BUILD_FLAGS[@]}"
+BIN_DIR="$(swift build "${BUILD_FLAGS[@]}" --show-bin-path)"
 rm -rf "$APP_DIR"
 mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
 cp "$BIN_DIR/$APP_NAME" "$APP_DIR/Contents/MacOS/$APP_NAME"
