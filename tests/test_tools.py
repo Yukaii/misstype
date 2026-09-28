@@ -23,6 +23,13 @@ noise = load_tool("noise")
 lm_rescore = load_tool("lm_rescore")
 lm_choose = load_tool("lm_choose")
 jev_success = load_tool("jev_success")
+cursor_replay = load_tool("cursor_replay")
+learned = load_tool("learned")
+_spec = importlib.util.spec_from_file_location(
+    "prepare_lexicon", TOOLS.parent / "script" / "prepare_lexicon.py")
+assert _spec is not None and _spec.loader is not None
+prepare_lexicon = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(prepare_lexicon)
 
 
 class ToolTests(unittest.TestCase):
@@ -116,6 +123,70 @@ class ToolTests(unittest.TestCase):
         self.assertEqual(state["candidates"][1]["diff_from_candidate_1"],
                          [{"position": 1, "offline": "你", "candidate": "泥"}])
 
+    def test_jev_choice_job_numbers_criteria_by_offline_rank(self):
+        job = lm_choose.jev_choice_job(
+            ["你好", "泥好"], [{"base": "ㄋㄧ", "tone": "ˇ", "tone_key": "3"}],
+            "multilingual", raw_keys="su3cl4")
+        pick = job["questions"]["pick"]
+        self.assertEqual(pick["type"], "choice")
+        self.assertEqual(pick["criteria"], {"1": "你好", "2": "泥好"})
+        self.assertEqual(json.loads(job["state"])["phonetic_input"]["raw_keys"], "su3cl4")
+
+    def test_choice_answer_abstains_outside_candidate_list(self):
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(lm_choose.parse_choice_answer(
+                {"choice": "2", "probabilities": {"1": 0.3, "2": 0.7}}, 2), (1, 0.7))
+            self.assertEqual(lm_choose.parse_choice_answer(
+                {"choice": "9", "probabilities": {"9": 1.0}}, 2), (None, 1.0))
+            self.assertEqual(lm_choose.parse_choice_answer(
+                {"choice": "你好"}, 2), (None, None))
+
+    def test_local_jev_url_must_be_loopback(self):
+        self.assertTrue(lm_choose.is_loopback_url("http://127.0.0.1:8000/v1/systemone"))
+        self.assertTrue(lm_choose.is_loopback_url("http://localhost:8001/predict"))
+        self.assertFalse(lm_choose.is_loopback_url("https://ai-gateway.vercel.sh/v4"))
+        self.assertFalse(lm_choose.is_loopback_url("http://127.0.0.1.example.com/"))
+
+    def test_cursor_replay_encodes_both_typing_styles(self):
+        self.assertEqual(cursor_replay.encode("ㄋㄧˇ ㄏㄠˇ ㄇㄚ˙", toned=True), "su3cl3a87")
+        self.assertEqual(cursor_replay.encode("ㄊㄚ ㄕㄨㄛ", toned=True), "w8 gji ")
+        self.assertEqual(cursor_replay.encode("ㄋㄧˇ ㄏㄠˇ", toned=False), "sucl")
+        for _, readings in cursor_replay.SEED:
+            cursor_replay.encode(readings, toned=True)  # every symbol maps
+
+    def test_cursor_replay_reads_sentences_from_lexicon_words(self):
+        reverse = {"一下": ("ㄧ ㄒㄧㄚˋ", -8.5), "一": ("ㄧ", -4.0),
+                   "下": ("ㄒㄧㄚˋ", -5.0), "了": ("ㄌㄜ˙", -5.3)}
+        self.assertEqual(cursor_replay.readings_for("一下了", reverse), "ㄧ ㄒㄧㄚˋ ㄌㄜ˙")
+        with self.assertRaises(ValueError):
+            cursor_replay.readings_for("一X", reverse)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "lexicon.tsv"
+            path.write_text("ㄌㄜ˙\t了\t-5.3\nㄌㄧㄠˇ\t了\t-5.3\nㄧ-ㄒㄧㄚˋ\t一下\t-8.5\n",
+                            encoding="utf-8")
+            reverse = cursor_replay.load_reverse_lexicon(path)
+        self.assertEqual(reverse["了"][0], "ㄌㄜ˙")
+        self.assertEqual(reverse["一下"][0], "ㄧ ㄒㄧㄚˋ")
+
+    def test_learned_splits_word_and_context_entries(self):
+        store = {"version": 2, "entries": {
+            "ㄉㄚㄉㄨㄟ": {"打對": {"count": 2, "updatedAt": 0}},
+            "下次|ㄗㄞ": {"再": {"count": 9, "updatedAt": 0}}}}
+        words, contexts = learned.rows(store)
+        self.assertEqual(words, [("ㄉㄚㄉㄨㄟ", "打對", 2, 7.0)])
+        self.assertEqual(contexts, [("下次", "ㄗㄞ", "再", 9, 10.0)])
+
+    def test_cursor_replay_parses_binary_output(self):
+        stdout = ("entries=1 user=0\n大對\t-7.0\trepairs=0 unresolved=0\n"
+                  "replay aligned picks=- ranks=\n"
+                  "replay startAtCursor picks=1 ranks=0 learned=ㄉㄚㄉㄨㄟ=打對\n")
+        outcomes = cursor_replay.parse_replay(stdout)
+        self.assertEqual(outcomes["aligned"],
+                         {"picks": None, "ranks": [], "learned": [], "top1": "大對"})
+        self.assertEqual(outcomes["startAtCursor"]["picks"], 1)
+        self.assertEqual(outcomes["startAtCursor"]["ranks"], [0])
+        self.assertEqual(outcomes["startAtCursor"]["learned"], ["ㄉㄚㄉㄨㄟ=打對"])
+
     def test_user_preferences_are_scoped_to_matching_readings(self):
         payload = {
             "version": 1,
@@ -181,6 +252,16 @@ class ToolTests(unittest.TestCase):
         rendered = jev_success.report(summary)
         self.assertIn("accept_rate=0.50", rendered)
         self.assertNotIn("xxx", rendered + "yyy")
+
+    def test_heterophone_secondary_readings_drop(self):
+        # 暫: ㄓㄢˋ is heterophony1; the unlisted variant ㄗㄢˋ must not keep
+        # the char's full count (it outranked 讚 for ㄗㄢˋ).
+        floor = prepare_lexicon.HETEROPHONE_FLOOR
+        self.assertEqual(prepare_lexicon.heterophone_score(-9.5, 1), -9.5)
+        self.assertEqual(prepare_lexicon.heterophone_score(-9.5, None), floor)
+        self.assertAlmostEqual(prepare_lexicon.heterophone_score(-9.5, 2),
+                               -9.5 - prepare_lexicon.HETEROPHONE_STEP)
+        self.assertEqual(prepare_lexicon.heterophone_score(-15.0, 3), floor)
 
 
 if __name__ == "__main__":

@@ -75,9 +75,9 @@ enum Runtime {
     /// Jev gateway policy, read live per keystroke like the other prefs.
     /// Default off: `canAttempt == false` means decode stays byte-identical
     /// to the offline path. When the user explicitly enables it AND provides
-    /// a key, the adapter only logs the gated intent (presence, never the
-    /// key or text) — no remote call ships until the triage battery verdict
-    /// (DO NOT WIRE) is overturned by fresh-seed evidence.
+    /// a key, a debounced remote Choice request runs on settled ties
+    /// (scheduleJevEvaluation) and may move the highlight; the gate trace
+    /// logs presence only (never the key or text).
     static var jevConfig: JevConfig { MistypePrefs.jevConfig }
     /// Presence-only gate trace (never the key or text). Called on every
     /// decode entry point so remote intent stays observable per policy.
@@ -209,14 +209,32 @@ final class MistypeInputController: IMKInputController {    private var composit
     /// Replaces the old Opt+Right segment lock (dead in practice: toneless
     /// input only beeped, fully toned input committed exactly like Return).
     private var cursor: Int?
-    /// Focused-span options (nil = whole-span list). Picking pins the
-    /// segment into sessionPins and advances the cursor; pins hold until
+    /// Focused options (nil = whole-span list): every word covering the
+    /// cursor syllable, each with its own span. Picking pins that span into
+    /// sessionPins and advances the cursor past it; pins hold until
     /// commit/clear/Escape and never touch disk.
     private var segmentTexts: [String]?
+    private var segmentOptions: [CursorOption] = []
     private var segmentSelected = 0
-    private var segmentSpan: Range<Int>?
-    private var segmentChars: Range<Int>?
+    /// UTF-16 offset of the cursor syllable (caret for marked text/panel).
+    private var segmentCaret: Int?
     private var sessionPins = UserLexicon()
+    /// Automatic pins for accepted text (earlier runs, and words 3+
+    /// syllables before the end): re-derived from top-1 every refresh, kept
+    /// apart from explicit sessionPins so they never train, and dropped
+    /// whenever an explicit pick lands (the next refresh re-derives them).
+    private var settledPins = UserLexicon()
+    private static let settleDistance = 3
+    /// Pending keys shown raw after the live conversion: the syllable still
+    /// being typed (`livePendingCut`). Empty = everything on screen converted.
+    private var rawTail: [String] = []
+    /// Selection mode (end-of-span list): entered with Down/Up/Tab. The
+    /// cursor's focused list is selection mode too (`inSelection`). Only in
+    /// it do the selection keys (MistypePrefs.candidateKeys, home row by
+    /// default) pick — they are Zhuyin keys everywhere else. Any other
+    /// typing leaves the mode; Esc leaves it without touching the text.
+    private var selecting = false
+    private var inSelection: Bool { selecting || segmentTexts != nil }
     private let missingRange = NSRange(location: NSNotFound, length: 0)
     private var jevRequestID = 0
     private let jevLock = NSLock()
@@ -353,6 +371,9 @@ final class MistypeInputController: IMKInputController {    private var composit
                 _ = nextJevID()
                 composition.clear()
                 candidates = []
+                rawTail = []
+                settledPins = UserLexicon()
+                selecting = false
                 pinnedPick = nil
                 explicitPick = false
                 cursor = nil
@@ -391,6 +412,7 @@ final class MistypeInputController: IMKInputController {    private var composit
                 selected = (selected + (keyCode == 125 ? 1 : candidates.count - 1)) % candidates.count
                 pinnedPick = candidates[selected].text
                 explicitPick = true
+                selecting = true
                 mark(previewText, client)
                 syncPanel(client)
                 return true
@@ -411,7 +433,7 @@ final class MistypeInputController: IMKInputController {    private var composit
             // Paging used to live here as a fallback, which made the arrows
             // unpredictable (cursor sometimes, page-flip others, so stepping
             // back usually paged instead). Paging is Tab / Shift+Tab /
-            // Shift+digit's job (they walk the full list across pages), so
+            // Down / Up's job (they walk the full list across pages), so
             // arrows never flip pages: failure beeps and stays put.
             guard !composition.isEmpty else { return false }
             if keyCode == 123 {
@@ -422,9 +444,22 @@ final class MistypeInputController: IMKInputController {    private var composit
         }
         if keyCode == 53 {
             guard !composition.isEmpty else { return false }
+            if inSelection {
+                // First Esc only leaves selection mode (and the cursor);
+                // the text and any picks stay. A second Esc clears.
+                selecting = false
+                cursor = nil
+                clearSegment()
+                syncPanel(client)
+                mark(previewText, client)
+                return true
+            }
             _ = nextJevID()
             composition.clear()
             candidates = []
+            rawTail = []
+            settledPins = UserLexicon()
+            selecting = false
             pinnedPick = nil
             explicitPick = false
             cursor = nil
@@ -442,10 +477,16 @@ final class MistypeInputController: IMKInputController {    private var composit
         }
         if keyCode == 36 || keyCode == 76 {
             guard !composition.isEmpty else { return false }
+            if modifiers.contains(.shift) {
+                // Shift+Return sends the keys as typed: 注音文 even when every
+                // syllable is valid (a lone ㄗ is 資 to the decoder).
+                commit(client, raw: true)
+                return true
+            }
             if let texts = segmentTexts, texts.indices.contains(segmentSelected) {
                 // Focused Return pins the highlighted segment, re-decodes so
                 // top-1 honors it, then commits everything at once.
-                pinAdvance(client, texts[segmentSelected])
+                pinAdvance(client, at: segmentSelected)
                 selected = 0
             }
             commit(client)
@@ -455,7 +496,7 @@ final class MistypeInputController: IMKInputController {    private var composit
             if let texts = segmentTexts, texts.indices.contains(segmentSelected) {
                 // Focused Tab pins without committing: Left…Tab,Tab,Return
                 // fixes two mid-sentence words and sends the sentence.
-                pinAdvance(client, texts[segmentSelected])
+                pinAdvance(client, at: segmentSelected)
                 return true
             }
             if candidates.count > 1 {
@@ -466,6 +507,7 @@ final class MistypeInputController: IMKInputController {    private var composit
                 selected = (selected + (backward ? candidates.count - 1 : 1)) % candidates.count
                 pinnedPick = candidates[selected].text
                 explicitPick = true
+                selecting = true
                 mark(previewText, client)
                 syncPanel(client)
             }
@@ -473,46 +515,37 @@ final class MistypeInputController: IMKInputController {    private var composit
         }
         // Backtick toggles latin-run mode (no modifiers, either language
         // mode off): following letters append verbatim. Swallowed silently —
-        // the letters themselves are the feedback. Shift+` stays ASCII ~.
+        // the letters themselves are the feedback. Shift+` is ～ (Punctuation).
         if keyCode == 50 && !modifiers.contains(.shift) && !modifiers.contains(.command)
             && !modifiers.contains(.control) && !modifiers.contains(.option) && !Runtime.english {
             latinMode.toggle()
             Runtime.debugLog("latin=\(latinMode ? 1 : 0)")
             return true
         }
-        // Shift+digit selects a candidate: digits are Zhuyin keys, so this
-        // runs only while the window is up (candidates>1); otherwise digits
-        // stay phonetic or punctuate. Shift+1 is always ！ (candidate #1
-        // needs no shortcut — it is the default), so selection starts at 2.
-        // Order 2..8 on an ANSI keyboard.
-        let digitOrder = [19, 20, 21, 23, 22, 26, 28]
-        if modifiers.contains(.shift), !modifiers.contains(.command),
-           !modifiers.contains(.control), !modifiers.contains(.option),
-           !Runtime.english, !composition.isEmpty,
-           candidates.count > 1 || (segmentTexts?.count ?? 0) > 1,
-           let digit = digitOrder.firstIndex(of: keyCode) {
-            // Digits address the visible page (panel shows 8 of up to 16);
-            // out-of-range digits fall through to punct/phonetic below.
-            // Focused mode tries the segment list first, then the whole
-            // list, so nothing silently stops working at the boundary.
+        // Selection keys pick from the visible page, but only in selection
+        // mode: they are Zhuyin keys (a=ㄇ, s=ㄋ, …), so outside it they type.
+        // Shift+digit used to pick; that row is now the full-width symbol
+        // layer (Punctuation), so picking and symbols never collide.
+        if inSelection, !composition.isEmpty, !modifiers.contains(.shift),
+           let label = ZhuyinKeyboard.labels[keyCode],
+           let slot = SelectionKeys.slot(forLabel: label, keys: MistypePrefs.candidateKeys) {
             if let texts = segmentTexts {
-                let global = (segmentSelected / 8) * 8 + digit + 1
-                if global < texts.count {
-                    pinAdvance(client, texts[global])
-                    return true
-                }
+                let global = (segmentSelected / 8) * 8 + slot
+                if global < texts.count { pinAdvance(client, at: global) } else { NSSound.beep() }
+                return true
             }
-            if segmentTexts == nil {
-                let global = (selected / 8) * 8 + digit + 1
-                if global < candidates.count {
-                    selected = global
-                    pinnedPick = candidates[selected].text
-                    explicitPick = true
-                    mark(previewText, client)
-                    syncPanel(client)
-                    return true
-                }
+            let global = (selected / 8) * 8 + slot
+            if global < candidates.count {
+                selected = global
+                pinnedPick = candidates[selected].text
+                explicitPick = true
+                selecting = false
+                mark(previewText, client)
+                syncPanel(client)
+            } else {
+                NSSound.beep()
             }
+            return true
         }
         // CJK punctuation locks the current pick and continues: pin the
         // selection, append the mark, refresh. Never commits — commit is
@@ -600,13 +633,13 @@ final class MistypeInputController: IMKInputController {    private var composit
 
     private var previewText: String {
         let converted = candidates.indices.contains(selected) ? candidates[selected].text : ""
-        return converted + composition.pendingText
+        return converted + rawTail.compactMap { ZhuyinKeyboard.symbols[$0] }.joined()
     }
     /// Caret shared by marked text and the panel header: focused word start,
     /// else after the last unit. UTF-16 offsets throughout.
     private var caretOffset: Int {
         let len = previewText.utf16.count
-        if let focused = segmentChars?.lowerBound { return min(focused, len) }
+        if let focused = segmentCaret { return min(focused, len) }
         return len
     }
     /// Safely extracts preceding text context and bundle identifier from the client.
@@ -615,16 +648,34 @@ final class MistypeInputController: IMKInputController {    private var composit
         return SurroundingContext.extract(from: adapter)
     }
     private func refresh(_ client: IMKTextInput, keepCursor: Bool = false) {
-        // Preview converts terminated runs (punctuation passes through in
-        // place); the trailing pending run stays raw Bopomofo until commit.
+        // Preview converts every run, the pending one live (below);
+        // punctuation passes through in place.
         let previous = candidates.map(\.text)
         // Jev gate threads through every decode entry point but changes
         // nothing while off (the default): the offline decode below is the
         // single source of candidates. Presence-only logging keeps remote
         // intent observable per repo policy without leaking key or text.
-        // gated intent only: no remote call (battery verdict DO NOT WIRE).
         Runtime.logJevGate()
-        candidates = Runtime.decoder.decodeSegments(composition.segments, pendingKeys: [], fuzzy: MistypePrefs.fuzzyRepair, toneTolerance: MistypePrefs.toneTolerance, userLexicon: Runtime.activeUserLexicon, locked: sessionPins.isEmpty ? nil : sessionPins)
+        // Live conversion (RIME-style continuous typing): the pending run
+        // converts as it is typed, except the syllable still in progress,
+        // which stays raw (`livePendingCut`). Space is a first-tone key, not
+        // a "convert" key, so nothing waits for it.
+        // A whole-sentence pick becomes positional pins before re-decoding,
+        // so re-segmentation of the live tail cannot drop it.
+        if !keepCursor, pinnedPick != nil, selected != 0, candidates.indices.contains(selected) {
+            sessionPins.pinDifferences(of: candidates[selected], from: candidates[0])
+            settledPins = UserLexicon()
+        }
+        let live = Runtime.decoder.livePreview(composition, fuzzy: MistypePrefs.fuzzyRepair,
+                                               toneTolerance: MistypePrefs.toneTolerance,
+                                               userLexicon: Runtime.activeUserLexicon,
+                                               locked: sessionPins.isEmpty ? nil : sessionPins,
+                                               settled: settledPins.isEmpty ? nil : settledPins)
+        rawTail = live.rawTail
+        candidates = live.candidates
+        if let top = candidates.first {
+            settledPins = UserLexicon.settled(from: top, keep: Self.settleDistance)
+        }
         if let pin = pinnedPick, !pin.isEmpty {
             if let exact = candidates.firstIndex(where: { $0.text == pin }) {
                 selected = exact
@@ -643,6 +694,7 @@ final class MistypeInputController: IMKInputController {    private var composit
         // keepCursor to stay focused on the next span.
         if !keepCursor {
             cursor = nil
+            selecting = false
         }
         if cursor != nil {
             focusSegment()
@@ -666,6 +718,8 @@ final class MistypeInputController: IMKInputController {    private var composit
         if show {
             candidatePanel.update(candidates: texts,
                                   selected: sel,
+                                  keyLabels: SelectionKeys.labels(keys: MistypePrefs.candidateKeys),
+                                  keysActive: inSelection,
                                   anchor: caretAnchor(client),
                                   preedit: previewText,
                                   caret: caretOffset)
@@ -696,13 +750,14 @@ final class MistypeInputController: IMKInputController {    private var composit
     func pickCandidate(at index: Int) {
         if let texts = segmentTexts, texts.indices.contains(index) {
             guard let client = lastClient else { return }
-            pinAdvance(client, texts[index])
+            pinAdvance(client, at: index)
             return
         }
         guard candidates.indices.contains(index) else { return }
         selected = index
         pinnedPick = candidates[index].text
         explicitPick = true
+        selecting = false
         if let client = lastClient {
             mark(previewText, client)
             syncPanel(client)
@@ -717,8 +772,13 @@ final class MistypeInputController: IMKInputController {    private var composit
     private func scheduleJevEvaluation(client: IMKTextInput) {
         let requestID = nextJevID()
         let config = MistypePrefs.jevConfig
+        // Never while the pending run is still growing: live conversion
+        // re-decodes it every keystroke, and asking then would send a request
+        // per typing pause (Jev saw only terminated runs before live
+        // conversion; this keeps that request rate).
         guard config.canAttempt,
               !composition.isEmpty,
+              composition.parsed.pending.isEmpty, rawTail.isEmpty,
               candidates.count > 1,
               pinnedPick == nil,
               !explicitPick,
@@ -754,12 +814,9 @@ final class MistypeInputController: IMKInputController {    private var composit
         }
 
         let rawKeys = composition.rawKeys.joined()
-        let evidence: [JevState.Evidence] = composition.segments.compactMap { seg in
-            if case .syllable(let s) = seg {
-                return JevState.Evidence(base: s.base, tone: s.tone)
-            }
-            return nil
-        }
+        // Evidence = the syllables the candidates were decoded from; the
+        // composition's segments hold a toneless run as ONE fused syllable.
+        let evidence = candidates[0].syllables.map { JevState.Evidence(base: $0.base, tone: $0.tone) }
         let candTuples = Array(candidates.prefix(8)).map {
             (text: $0.text, score: $0.score, repairs: $0.repairs, unresolved: $0.unresolved)
         }
@@ -819,20 +876,20 @@ final class MistypeInputController: IMKInputController {    private var composit
         }
     }
 
-    private func commit(_ client: IMKTextInput) {
+    private func commit(_ client: IMKTextInput, raw: Bool = false) {
         guard !composition.isEmpty else { return }
         var text: String
-        // Learning-grade commit: the user saw exactly candidates[selected]
-        // (no pending tail re-decode) and explicitly picked it. Anything
-        // else — pending re-decode, separator pinning, raw fallback — never
-        // trains, so routine typing leaves the overlay untouched.
-        let learnable = composition.parsed.pending.isEmpty
-            && candidates.indices.contains(selected)
-        if learnable {
-            text = candidates[selected].text
-        } else {
-            // Offline recompute: the Jev gate stays closed here too (same
-            // policy as refresh — explicit enable + key, else offline).
+        // What you see is what commits: the converted text plus any raw
+        // tail exactly as shown, so a trailing ㄉ (or a whole run typed as
+        // 注音文) commits as Bopomofo instead of being "repaired" into a char
+        // the preview never showed (user decision 2026-09-27).
+        // Learning-grade: nothing left raw and an explicit pick. Anything
+        // else — raw tail, separator pinning, raw fallback — never trains.
+        let learnable = !raw && rawTail.isEmpty && candidates.indices.contains(selected)
+        text = raw ? composition.rawPhonetic : previewText
+        if text.isEmpty {
+            // Defensive: nothing rendered yet (no refresh since the last
+            // edit). Offline recompute, Jev gate closed as in refresh.
             Runtime.logJevGate()
             text = Runtime.decoder.decodeSegments(composition.segments,
                                                   pendingKeys: composition.parsed.pending,
@@ -848,16 +905,21 @@ final class MistypeInputController: IMKInputController {    private var composit
         Runtime.gradeJevEval(rawKeys: composition.rawKeys.joined(), committed: text)
         // Topic continuity for future Jev runs (in-memory ring, never disk).
         Runtime.recordCommit(text)
-        if MistypePrefs.userLearning && explicitPick && learnable
-            && candidates[selected].unresolved == 0,
-            let key = composition.learnableKey {
-            Runtime.userLexicon.record(key: key, text: text)
-            Runtime.userLexicon.save()
+        if MistypePrefs.userLearning && explicitPick && learnable {
+            // Word-level: cursor picks still pinned, words changed by a
+            // whole-sentence pick, or the input when it is one word.
+            let words = UserLexicon.learnedWords(committed: candidates[selected], pins: sessionPins,
+                                                 baseline: selected == 0 ? nil : candidates[0])
+            for word in words { Runtime.userLexicon.record(key: word.key, text: word.text) }
+            if !words.isEmpty { Runtime.userLexicon.save() }
         }
         client.insertText(text, replacementRange: missingRange)
         _ = nextJevID()
         composition.clear()
         candidates = []
+        rawTail = []
+        settledPins = UserLexicon()
+        selecting = false
         pinnedPick = nil
         explicitPick = false
         cursor = nil
@@ -897,36 +959,26 @@ final class MistypeInputController: IMKInputController {    private var composit
 
     // MARK: - Syllable cursor (go back and pick a word, no modifiers)
     private struct FocusFrame {
-        let syllables: [Syllable] // rebuilt converted list
+        let syllables: [Syllable] // the top candidate's own decoded syllables
         let top: SentenceCandidate
     }
-    /// Rebuild validation: the cursor trusts a focused span only when the
-    /// terminated syllable list has exactly the length the top candidate's
-    /// alignment covers. The trailing pending tail is deliberately EXCLUDED:
-    /// refresh() decodes with pendingKeys:[] so the alignment never covers
-    /// it, and counting it made every mid-syllable Left/Right fall through
-    /// to paging (toneless typing, where pending only clears on space, could
-    /// almost never step back). The raw tail stays visible past the cursor;
-    /// any edit returns to end. Anything uncovered (repairs, fuzzy
-    /// re-segmentation) falls back to whole-span behavior instead of
-    /// pointing at the wrong word.
-    /// NOTE: no learnableKey requirement — that predicate is for user-phrase
-    /// learning (single pure-Zhuyin run). The cursor works across separator
-    /// spaces, punctuation and latin runs too: separators consume no
-    /// syllables, so the length check below still guards correctness, and
-    /// anything it rejects falls back to paging.
+    /// The cursor indexes the syllables the top candidate was decoded from
+    /// (`SentenceCandidate.syllables`), never a list rebuilt from the
+    /// composition: repair and pending-run segmentation happen inside the
+    /// decoder, so a toneless run is ONE fused syllable in the composition
+    /// and the old rebuild-and-compare check rejected every toneless
+    /// sentence (Left/Right only beeped). The live-converted pending run is
+    /// included (it is in the alignment); only the raw tail is not.
+    /// Works across separators: syllable indexes are global, and options
+    /// stay inside the cursor's own run (`run(containing:)`).
     private func focusFrame() -> FocusFrame? {
         guard candidates.indices.contains(selected) else { return nil }
         let top = candidates[selected]
-        // No repairs gate: alignment is filled on every path and the
-        // word-in-options check below already guards correctness — repaired
-        // (typo'd) words are exactly what the cursor is for. Unresolved
-        // (raw fallback) spans stay out: nothing to offer there.
+        // Unresolved (raw fallback) spans stay out: nothing to offer there.
         guard top.unresolved == 0,
-              let end = top.alignment.last?.syllables.upperBound, end > 0 else { return nil }
-        let rebuilt = composition.parsed.complete
-        guard rebuilt.count == end else { return nil }
-        return FocusFrame(syllables: rebuilt, top: top)
+              let end = top.alignment.last?.syllables.upperBound, end > 0,
+              top.syllables.count == end else { return nil }
+        return FocusFrame(syllables: top.syllables, top: top)
     }
     private func spanText(_ text: String, _ chars: Range<Int>) -> String? {
         let units = Array(text.utf16)
@@ -935,53 +987,48 @@ final class MistypeInputController: IMKInputController {    private var composit
     }
     private func clearSegment() {
         segmentTexts = nil
+        segmentOptions = []
         segmentSelected = 0
-        segmentSpan = nil
-        segmentChars = nil
+        segmentCaret = nil
     }
-    /// Point the cursor at its span: fill the segment list, verify the
-    /// aligned word is among the options. Drops back to end on any mismatch.
-    /// Granularity: a cursor at a word start focuses the whole word (phrase
-    /// options, phrase pins); a cursor strictly inside a multi-syllable word
-    /// focuses that one syllable (homophone browser), so a single wrong char
-    /// like 哈囉's 囉 can be fixed without re-picking the whole word. The
-    /// single-char mapping needs a 1:1 syllable↔UTF-16 word (near-universal
-    /// for Zhuyin runs); anything else keeps whole-word focus.
+    /// Point the cursor at its syllable: list every word covering it
+    /// (`cursorOptions`, longest first), so a fix needing a different word
+    /// boundary (大|對 -> 打對) is one pick. The highlight starts on what is
+    /// displayed now: the top path's word there, else the single character.
     /// Outcomes are traced by code (numbers only): ok, noframe, noword.
     private func focusSegment() {
         clearSegment()
         guard let c = cursor, let frame = focusFrame(),
-              let span = frame.top.alignment.first(where: { $0.syllables.contains(c) }) else {
+              let word = frame.top.alignment.first(where: { $0.syllables.contains(c) }),
+              let caret = frame.top.charOffset(ofSyllable: c) else {
             Runtime.debugLog("focus noframe")
             cursor = nil
             return
         }
-        // Narrow mid-word cursors to the single syllable (see above); the
-        // char slice is valid only under the 1:1 check.
-        var targetSyllables = span.syllables
-        var targetChars = span.chars
-        if span.syllables.count > 1, c > span.syllables.lowerBound {
-            let unitCount = span.chars.upperBound - span.chars.lowerBound
-            if unitCount == span.syllables.count {
-                let offset = c - span.syllables.lowerBound
-                targetSyllables = c..<(c + 1)
-                targetChars = (span.chars.lowerBound + offset)..<(span.chars.lowerBound + offset + 1)
-            }
+        var options = Runtime.decoder.cursorOptions(
+            frame.syllables, at: c, within: frame.top.run(containing: c),
+            fuzzy: MistypePrefs.fuzzyRepair, toneTolerance: MistypePrefs.toneTolerance)
+        let shownWord = spanText(frame.top.text, word.chars)
+        let shownChar = spanText(frame.top.text, caret..<caret + 1)
+        // Multi-syllable spans keep only their best few words, so a word
+        // shown thanks to learning can fall outside the list; highlighting
+        // a single char instead would let Return re-pin (and rewrite) it.
+        // Keep the displayed word listed, at the end of its length group.
+        if let shownWord, !options.contains(where: { $0.span == word.syllables && $0.text == shownWord }) {
+            let at = options.firstIndex(where: { $0.span.count < word.syllables.count }) ?? options.count
+            options.insert(CursorOption(text: shownWord, span: word.syllables, score: -.infinity), at: at)
         }
-        let options = Runtime.decoder.segmentOptions(
-            frame.syllables, span: targetSyllables, fuzzy: MistypePrefs.fuzzyRepair,
-            toneTolerance: MistypePrefs.toneTolerance)
-        guard let word = spanText(frame.top.text, targetChars),
-              let current = options.firstIndex(where: { $0.text == word }) else {
+        guard let current = options.firstIndex(where: { $0.span == word.syllables && $0.text == shownWord })
+                ?? options.firstIndex(where: { $0.span == c..<c + 1 && $0.text == shownChar }) else {
             Runtime.debugLog("focus noword")
             cursor = nil
             return
         }
-        Runtime.debugLog("focus ok s=\(targetSyllables.lowerBound)-\(targetSyllables.upperBound) c=\(targetChars.lowerBound)-\(targetChars.upperBound)")
+        Runtime.debugLog("focus ok s=\(c) n=\(options.count) cur=\(current)")
+        segmentOptions = options
         segmentTexts = options.map(\.text)
         segmentSelected = current
-        segmentSpan = targetSyllables
-        segmentChars = targetChars
+        segmentCaret = caret
     }
     private func moveCursorBack(_ client: IMKTextInput) -> Bool {
         guard let frame = focusFrame(),
@@ -1002,21 +1049,19 @@ final class MistypeInputController: IMKInputController {    private var composit
         mark(previewText, client)
         return true
     }
-    /// Pin the focused segment: session-scoped decisive bonus (never disk).
-    /// Whole-text pin is cleared so the two never fight; the pick counts as
-    /// explicit for user-phrase learning at commit.
-    private func pinSegment(_ text: String) {
-        guard let span = segmentSpan, let frame = focusFrame(),
-              span.upperBound <= frame.syllables.count else { return }
-        let key = UserLexicon.key(for: Array(frame.syllables[span]))
-        sessionPins.entries[key] = [text: UserLexicon.Record(
-            count: 1, updatedAt: Date().timeIntervalSince1970)]
+    /// Pin a focused option: session-scoped decisive bonus (never disk) that
+    /// changes only the option's span — overlapping older picks keep their
+    /// characters outside it (`UserLexicon.pin(_:over:)`). Whole-text pin is
+    /// cleared so the two never fight; the pick counts as explicit for
+    /// user-phrase learning at commit.
+    private func pinAdvance(_ client: IMKTextInput, at index: Int) {
+        guard segmentOptions.indices.contains(index), let frame = focusFrame() else { return }
+        let option = segmentOptions[index]
+        sessionPins.pin(option, over: frame.top)
+        settledPins = UserLexicon()
         pinnedPick = nil
         explicitPick = true
-    }
-    private func pinAdvance(_ client: IMKTextInput, _ text: String) {
-        pinSegment(text)
-        cursor = segmentSpan?.upperBound
+        cursor = option.span.upperBound
         refresh(client, keepCursor: true)
     }
     override func originalString(_ sender: Any!) -> NSAttributedString { NSAttributedString(string: composition.rawPhonetic) }
@@ -1049,9 +1094,10 @@ if let decodeIndex = CommandLine.arguments.firstIndex(of: "--decode"),
     // which this early-exit path never reaches — every --decode number ever
     // measured ran the no-fuzzy, no-tolerance baseline instead.
     MistypePrefs.register()
+    func compose<S: Sequence>(_ keys: S) -> Composition where S.Element == Character {
     var composition = Composition()
     var latin = false
-    for key in CommandLine.arguments[decodeIndex + 1] {
+    for key in keys {
         let label = String(key)
         if label == "`" {
             latin.toggle()
@@ -1078,6 +1124,29 @@ if let decodeIndex = CommandLine.arguments.firstIndex(of: "--decode"),
         } else if !composition.append(label) {
             _ = composition.retoneLast(label)
         }
+    }
+    return composition
+    }
+    let keyText = CommandLine.arguments[decodeIndex + 1]
+    let composition = compose(keyText)
+    // --live-trace: the IME preview after every keystroke (tools/live_trace.py).
+    if CommandLine.arguments.contains("--live-trace") {
+        let decoder = Runtime.decoder
+        let keys = Array(keyText)
+        // --settle K: auto-settle words K+ syllables before the end (and
+        // earlier runs), carried across keystrokes as the IME does.
+        var keep: Int?
+        if let settleIndex = CommandLine.arguments.firstIndex(of: "--settle"),
+           settleIndex + 1 < CommandLine.arguments.count { keep = Int(CommandLine.arguments[settleIndex + 1]) }
+        var settled = UserLexicon()
+        for count in 1...max(keys.count, 1) where count <= keys.count {
+            let preview = decoder.livePreview(compose(keys.prefix(count)), fuzzy: MistypePrefs.fuzzyRepair,
+                                              toneTolerance: MistypePrefs.toneTolerance,
+                                              settled: keep == nil || settled.isEmpty ? nil : settled)
+            print("live\t\(count)\t\(preview.text())")
+            if let keep, let top = preview.candidates.first { settled = UserLexicon.settled(from: top, keep: keep) }
+        }
+        exit(0)
     }
     let started = Date()
     let decoder = Runtime.decoder
@@ -1109,6 +1178,31 @@ if let decodeIndex = CommandLine.arguments.firstIndex(of: "--decode"),
             let options = decoder.segmentOptions(syllables, span: bounds[0]..<bounds[1])
             print("segment \(bounds[0]):\(bounds[1]) query_ms=\(Date().timeIntervalSince(queryStart) * 1000)")
             for option in options.prefix(8) { print("  \(option.text)\t\(option.score)") }
+        }
+    }
+    // --replay <expected>: cursor-pick count per candidate model (tools/cursor_replay.py).
+    if let replayIndex = CommandLine.arguments.firstIndex(of: "--replay"),
+       replayIndex + 1 < CommandLine.arguments.count {
+        for model in [CursorReplay.Model.aligned, .startAtCursor] {
+            let live = Array(parsed.pending.prefix(decoder.livePendingCut(
+                parsed.pending, toneTolerance: MistypePrefs.toneTolerance)))
+            let outcome = CursorReplay.run(decoder, segments: composition.segments, pendingKeys: live,
+                                           expected: CommandLine.arguments[replayIndex + 1], model: model,
+                                           fuzzy: MistypePrefs.fuzzyRepair, toneTolerance: MistypePrefs.toneTolerance,
+                                           userLexicon: userLexicon)
+            print("replay \(model.rawValue) picks=\(outcome.picks.map(String.init) ?? "-") ranks=\(outcome.ranks.map(String.init).joined(separator: ",")) learned=\(outcome.learned.joined(separator: ","))")
+            // --learn-out <path>: commit the covering-model outcome's words
+            // into a (synthetic) lexicon file, as the IME would on Return.
+            if model == .startAtCursor, let outIndex = CommandLine.arguments.firstIndex(of: "--learn-out"),
+               outIndex + 1 < CommandLine.arguments.count, !outcome.learned.isEmpty {
+                let url = URL(fileURLWithPath: CommandLine.arguments[outIndex + 1])
+                var learned = UserLexicon.load(from: url)
+                for pair in outcome.learned {
+                    let parts = pair.split(separator: "=", maxSplits: 1).map(String.init)
+                    if parts.count == 2 { learned.record(key: parts[0], text: parts[1], at: Date(timeIntervalSince1970: 0)) }
+                }
+                learned.save(to: url)
+            }
         }
     }
     exit(0)

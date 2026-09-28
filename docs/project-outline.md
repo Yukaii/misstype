@@ -249,6 +249,25 @@ completed in roughly 0.3–0.5 s, with one fixed 120 s timeout. More JSON is not
 the fix: useful semantic context can help, but the signal must explicitly
 describe the intended sense and the conservative prompt can suppress it.
 
+Local Jev replacements (2026-09-27, `--backend jev-local`, 12 synthetic cases
+x 1 rep, M3 24 GB, loopback only): the same Choice job (`jev_choice_job`, the
+state and criteria sent to hosted Jev) was POSTed to open-weight
+Jev-compatible servers. Hypothesis: a local model keeps hosted Jev's
+0-WORSE safety within an IME-sized deadline, so there is no request to pay
+for. Falsified on both. Laya `laya-multilingual` (322M encoder, MPS): 0
+flips, 6 WORSE (including the `不大` control -> `布大`), confidences mostly
+0.3–0.5, 120–600 ms warm. jev-local with Qwen2.5-3B-Instruct HF logprob
+scorer: 2 flips (辨識, 做作業), 4 WORSE (大對 -> 大堆 x3, 大錢包 -> 大前包),
+11–80 s per request (one forward pass per option, no KV reuse). For
+reference, the WIP candidate-only `ollama-logprobs` qwen2.5:1.5b arm gave 1
+flip / 6 WORSE / 1 abstain at ~0.1 s (it does not see phonetic evidence, so
+it is not an apples-to-apples comparison). Hosted Jev stays the only
+voter that never regressed. Nothing is wired into the IME; the local path
+remains a tools-only experiment. Setup notes: jev-local defaults to a
+deterministic stub scorer (`JEVLOCAL_SCORER=hf` is required), its `[hf]`
+extra omits `accelerate`, and both servers bind `0.0.0.0` by default, so
+run them with a loopback host.
+
 Exit: offline mode is useful on its own; model provenance and timing are visible in measurements.
 
 ### M5 — macOS Input Method adapter *(prototype slice landed)*
@@ -258,7 +277,8 @@ Package the stable core behind a thin macOS InputMethodKit adapter. `IMKServer` 
 The first native InputMethodKit bundle is installable through `script/install_ime.sh`. It uses a pinned offline dictionary, whole-composition segmentation, conservative fuzzy rescue, marked text, Return/Space commit, Backspace, Escape, and Latin passthrough. It is a real system-wide experiment, but not yet a production IME: richer punctuation, robust candidate UI, signing/notarization, and shared Python/Rust decoder integration remain open.
 
 User phrase learning v1 has landed (default on, opt-out in Preferences;
-local only): an
+local only; superseded 2026-09-27 by word-level + context learning, store
+v2 — see M5 item 9): an
 explicitly picked candidate committed on a single pure-Zhuyin run is
 recorded locally and boosted next time (+6 / +1 per repeat / cap +10).
 Falsified with `--decode --user-lexicon`: one 妳好 record flips top-1
@@ -287,7 +307,14 @@ window out of the critical path):
    click/Tab; typing on commits via the sticky pick), active only while the
    window is up so digits stay phonetic otherwise. Shift+1 stays ！ —
    candidate #1 needs no shortcut.
-3. Letter-row selection (designed, not built): switch to `asdfghjkl;`
+3. Letter-row selection (landed 2026-09-27, manual check pending): the
+   window still auto-shows while typing, but its key labels are dim and the
+   selection keys (Preferences, default `asdfghjk` — one page of 8) pick
+   only in selection mode: after Down/Up/Tab, or in the syllable cursor's
+   list. Picking, Esc, or typing any other key leaves the mode; the first
+   Esc keeps the text. Shift+digit no longer picks: the Shift row is the
+   full-width layer ＠＃＄％︿＆＊（）＋｛｝～ (大千 convention). Original
+   design note: switch to `asdfghjkl;`
    selection keys, user-configurable string like McBopomofo's
    `candidateKeys` preference. Conflict analysis: those keys ARE Zhuyin
    initials, so modeless auto-show + letter-select cannot coexist — pair
@@ -346,8 +373,10 @@ window out of the critical path):
    `jevEnabled` master switch, `jevRichContext` richer-context gate,
    `jevApiKey` gateway key (or AI_GATEWAY_API_KEY env), `jevModel`.
    The adapter threads `JevConfig.canAttempt` through every decode entry
-   point with presence-only logging — no remote call ships (triage battery
-   verdict: DO NOT WIRE).
+   point with presence-only logging. (Correction 2026-09-27: a debounced
+   remote Choice request DID ship behind that gate and moves the highlight
+   when enabled with a key — the triage verdict covered panel auto-hide,
+   not this path. It now waits for a settled run; see architecture step 5.)
 8. Segment lock v1 + Rime alignment targets: RETIRED as Opt+Right (falsified
    in the file trace: toneless input beeped, fully toned input committed
    exactly like Return — the only case it served was toned-head plus
@@ -361,6 +390,95 @@ window out of the critical path):
    fully-resolved top-1 — repaired welcome, raw fallback out — with
    validated alignment; mixed/space-separated spans keep
    whole-span paging).
+9. Cursor selection v2 (2026-09-27, `tools/cursor_replay.py`, 21 synthetic
+   sentences x toned/toneless, real 112k lexicon). Hypothesis: listing every
+   word that covers the cursor (McBopomofo-style, longest first) reaches the
+   expected text more often than the aligned-word list. Three findings:
+   (a) the cursor was dead on toneless input — the IME rebuilt syllables
+   from the composition, where a space-terminated toneless run is ONE fused
+   syllable, so the length check rejected every such sentence and Left only
+   beeped; candidates now carry their decoded `syllables`. (b) Decoder bug:
+   `repairComplete` emitted tail lengths shortest-first, so a one-symbol
+   tail (ㄟ 欸) filled the caller's top-6 and the real final syllable was
+   never decoded (大都欸, 作一誒, 很主恩, 不錯喔, 體議案, 中一奧); round-robin
+   by tail length fixed toneless top-1 8/21 -> 12/21 with keynoise (27 rows)
+   and the LM fixtures unchanged except 大都欸 -> 大對. (c) Covering options
+   reach 21/21 in both styles vs 19/21 toned / 20/21 toneless for the
+   aligned list (做作業, 已經寄出 need a different boundary), at a cost:
+   worst list position 12–13 vs 5–10 (one case per style on page 2; score
+   ordering was far worse, per-syllable ordering a wash). Picks now keep
+   earlier picks outside the new span (`UserLexicon.pin(_:over:)`): without
+   that, 錢包 after 帶錢 reverted 帶 -> 大 and the two pins cycled. Words
+   stay inside their Zhuyin run (`run(containing:)`). Manual IME check
+   pending; the end-of-span panel still lists whole sentences.
+   Follow-up: the set grew to dev 40 / holdout 40 (readings derived from
+   the pinned lexicon; holdout is confirm-only). Reading-only session pins
+   paid per occurrence, so one 吃 pick re-segmented 晚餐想吃什麼 into
+   灣吃安詳吃什麼 and pinning 做 rewrote both ㄗㄨㄛ (做做業); pins are now
+   positional (run + run-local offset + readings). Dev reachable 40/40 in
+   both styles. Holdout, aligned -> covering: reachable 40/40 both, picks
+   toned 12 -> 12 and toneless 27 -> 25, worst rank 7 -> 5 and 11 -> 6.
+   Remaining top-1 misses are context homophones the unigram table cannot
+   separate (再/在 x4, 帶/大, 吃/持, 老師/老實, 上線/上限, 月/說) plus
+   first-tone losses under the weak space-tone policy (喝/和, 約/說, 交/教).
+   Learning was inert for sentences: commit recorded whole-composition
+   readings -> whole text, but decode boosts only dictionary words
+   (測試一下會不會打對 learned x3 still decoded 大對; the word 打對 fixed it
+   and generalized). Learning is now word-level (`learnedWords`: pinned 2+
+   syllable picks, words changed by a sentence pick, one-word input).
+   `cursor_replay.py --learning` (dev teaches a temp lexicon): dev top-1
+   52 -> 67/80, dev picks 35 -> 17; holdout top-1 50 -> 53/80 with 0 lost.
+   Single chars inside sentences stay unlearned (再/在 needs context keys).
+   Space as strong first tone + live conversion (user decision: space means
+   ˉ as in RIME/鼠鬚管, and continuous typing must not need space to
+   convert). Toned top-1 dev 29 -> 32, holdout 29 -> 31, 0 lost (喝一杯,
+   約在, 喝水, 老師說, 這張); toned picks dev 13 -> 8, worst rank 12 -> 4.
+   Toneless is now typed without the trailing space and converts live:
+   identical to the old space-to-convert results; keynoise unchanged.
+   Context learning (user decision): single-char picks are stored as
+   "previous word|readings" -> text and boost only after that word. With
+   `--learning`: dev top-1 after teaching 67 -> 78/80 (words only vs words
+   + context), dev picks after 17 -> 2; holdout 52 -> 55/80, 0 lost —
+   context rules are specific, so they neither transfer nor harm. Store
+   bumped to v2; v1 files (mostly inert whole sentences) load empty.
+
+Live-conversion stability (2026-09-27, user report after install: already
+converted characters fell back to Bopomofo). `tools/live_trace.py` replays
+each synthetic sentence key by key through `--live-trace` (the IME's
+`livePreview`) and counts reverts (Han -> Bopomofo) and churn (a settled Han
+char changes). Clean typing never reverted; the cause was a tone key or
+Space closing a run whose last syllable is invalid (眼睛 + ㄐ + Space):
+`repairComplete` found no valid tail and the whole run fell back to one
+unresolved reading (ㄧㄢㄐㄧㄥㄐ). The clean lead now converts and only the
+invalid tail goes to decode (repaired if possible, else raw); runs of <= 4
+keys keep their whole-syllable repair. Replay unchanged, keynoise one row
+better (swap CER 1.067 -> 0.933). Remaining: churn 38/1738 keystrokes
+toned, 78/1168 toneless (e.g. 我進體 -> 我今天).
+
+Settling accepted text (2026-09-27, user report: long input listed
+sentence alternatives that only varied old text before a ，, while the
+part being typed was cut off). Earlier runs, and words ending 3+
+syllables before the end of the run being typed, settle automatically:
+character-level pins (word-level ones froze 這 as a one-char word and
+blocked the later merge into 這部 -> 這不電影), kept apart from explicit
+picks (never learned; explicit picks override them per run), and
+candidates that break a pin drop out of the list. `live_trace.py
+--settle K`: K=1 wrecks accuracy (toneless final dev 23 -> 8); K=2 loses
+one holdout sentence; K=3 keeps dev identical, holdout toned 31 = 31,
+toneless 21 -> 22, and 4-sentence ，-joined inputs identical. Panel
+windows longer than a row now keep the end nearest the cursor.
+
+Heterophone weighting (2026-09-27, user report: typed ㄗㄢˋ, got 暫):
+not a fuzzy slip — BPMFBase lists 暫 under both ㄓㄢˋ and the variant
+ㄗㄢˋ, and `prepare_lexicon.py` gave every reading the char's whole
+count. It now ports McBopomofo cook.py: heterophony1 keeps the count,
+heterophony2/3 drop 0.693 log10 per rank, unlisted readings sit at the
+-6.8 log10 floor (618 entries move; 長 ㄓㄤˇ alone relies on phrases like
+成長). Replay, no sentence lost: toned top-1 dev 32 -> 33, holdout
+31 -> 33 (散步, 下個月, 吃辣 fixed); toneless dev 23 = 23, holdout
+21 -> 22. ㄗㄢˋ now lists 贊 讚 暫 (贊/讚 0.29 apart; learning settles it).
+Shift+Return commits the keys as typed, for 注音文 made of valid
+syllables (a lone ㄗ decodes to 資).
 
 ## Measures
 

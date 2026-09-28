@@ -9,14 +9,25 @@ public struct SentenceCandidate: Equatable {
     /// Powers the IME syllable cursor (caret placement, focused-span
     /// lookup). Empty for legacy constructions; decode always fills it.
     public let alignment: [WordSpan]
+    /// The syllables this candidate was decoded from — alignment indexes
+    /// into this list. Repair and pending-run segmentation happen inside the
+    /// decoder, so the composition alone cannot rebuild it (a toneless run
+    /// is one fused syllable there). Empty for legacy constructions.
+    public let syllables: [Syllable]
+    /// Syllable range of each Zhuyin run in decodeSegments order (empty runs
+    /// included, so indexes match the positional session-pin keys).
+    public let runs: [Range<Int>]
 
     public init(text: String, score: Double, repairs: Int, unresolved: Int,
-                alignment: [WordSpan] = []) {
+                alignment: [WordSpan] = [], syllables: [Syllable] = [],
+                runs: [Range<Int>] = []) {
         self.text = text
         self.score = score
         self.repairs = repairs
         self.unresolved = unresolved
         self.alignment = alignment
+        self.syllables = syllables
+        self.runs = runs
     }
 }
 
@@ -107,39 +118,31 @@ public final class LexiconDecoder {
             if let prev = scored[reading], prev.cost <= cost { return }
             scored[reading] = (cost, correction)
         }
-        if let tone = syllable.tone, tone != "" {
-            // Explicit tone: deliberate evidence (it cost a keystroke), so a
-            // same-base other-tone rival pays 4.0 — above toneless spread
-            // (0.5) and beside transpose (4), below substitute (5). Measured
-            // 2026-09-18: at 2.0, 作ˋ outscored explicitly-typed 左ˇ
-            // (-6.2-2.0 > -8.8); at 4.0 the typed tone holds while the rival
-            // stays listed for genuine tone typos. Toneless (nil) and
-            // space-first-tone ("", often a separator habit) stay at 0.5.
+        if syllable.tone != nil {
+            // Explicit tone — including the space key's first tone (""), as
+            // in RIME's bopomofo schema: deliberate evidence (it cost a
+            // keystroke), so a same-base other-tone rival pays 4.0 — above
+            // toneless spread (0.5) and beside transpose (4), below
+            // substitute (5). Measured 2026-09-18: at 2.0, 作ˋ outscored
+            // explicitly-typed 左ˇ (-6.2-2.0 > -8.8); at 4.0 the typed tone
+            // holds while the rival stays listed for genuine tone typos.
+            // Space used to be weak (0.5, "often a separator habit"), which
+            // let frequency override a typed first tone (喝->和, 約->說,
+            // 交->教); continuous typing now converts live instead of
+            // needing space, so space means ˉ (user decision 2026-09-27).
             if readings.contains(reading) { add(reading, 0, 0) }
             if toneTolerance, let variants = toneless[Self.withoutTone(reading)] {
                 for variant in variants where variant != reading { add(variant, 4.0, 1) }
             }
-        }
-        // Toneless (nil) leaves the tone fully to the engine. A space
-        // terminator ("") is stronger: an exact first-tone reading ranks at
-        // cost 0, other tones stay viable below it — so explicit first tone
-        // wins, while toneless-with-spaces still decodes (bases without an
-        // exact first-tone form fall through to variants alone).
-        if syllable.tone == nil {
-            if let variants = toneless[Self.withoutTone(reading)] {
-                for variant in variants { add(variant, 0.5, 0) }
-            }
-        } else if syllable.tone == "" {
-            if readings.contains(reading) { add(reading, 0, 0) }
-            if toneTolerance, let variants = toneless[Self.withoutTone(reading)] {
-                for variant in variants where variant != reading { add(variant, 0.5, 0) }
-            }
+        } else if let variants = toneless[Self.withoutTone(reading)] {
+            // Toneless (nil) leaves the tone fully to the engine.
+            for variant in variants { add(variant, 0.5, 0) }
         }
         if fuzzy {
             // Auto-repair: adjacent transposition (key order slips), neighbor
             // and phonetic-confusion substitution, deletion of an extra key,
             // insertion of a missing key.
-            let tonelessProbe = syllable.tone == nil || syllable.tone == ""
+            let tonelessProbe = syllable.tone == nil
             func consider(keys: [String], cost: Double) {
                 let repaired = Syllable(keys: keys, tone: syllable.tone).reading
                 if !tonelessProbe {
@@ -236,6 +239,26 @@ public final class LexiconDecoder {
         return Array(lattice[keys.count].prefix(12).map(\.syllables))
     }
 
+    /// Live conversion (RIME-style continuous typing): how many leading
+    /// pending keys to convert now. The whole run when it segments cleanly;
+    /// otherwise drop up to 3 trailing keys — the syllable still being typed
+    /// (ㄉ of 好ㄉ) stays raw instead of being "repaired" into a random char.
+    /// Otherwise: a run that cannot even start with a syllable (ㄏㄏㄏㄏ) is
+    /// 注音文 and stays raw whole; a run that starts clean has a typo inside
+    /// and converts whole with repair, exactly as commit used to.
+    public func livePendingCut(_ keys: [String], toneTolerance: Bool = true) -> Int {
+        guard !keys.isEmpty else { return 0 }
+        func clean(_ count: Int) -> Bool {
+            count == 0 || !segmentations(of: Array(keys.prefix(count)), fuzzy: false,
+                                         toneTolerance: toneTolerance).isEmpty
+        }
+        for cut in stride(from: keys.count, through: max(0, keys.count - 3), by: -1) where clean(cut) {
+            return cut
+        }
+        let startsClean = (1...min(Self.maxSyllableKeys, keys.count)).contains(where: clean)
+        return startsClean ? keys.count : 0
+    }
+
     /// Public pending-run segmentation for the IME syllable cursor: the
     /// cursor rebuilds the converted syllable list as
     /// complete + segmentKeys(pending)[0] and validates it against the top
@@ -284,14 +307,41 @@ public final class LexiconDecoder {
     private func repairComplete(_ syllable: Syllable, toneTolerance: Bool = true) -> [[Syllable]] {
         if !alternatives(syllable, fuzzy: false).isEmpty { return [[syllable]] }
         guard syllable.keys.count > 1 else { return [] }
-        var out: [[Syllable]] = []
+        var byTail: [[[Syllable]]] = []
         for tailLen in 1...min(Self.maxSyllableKeys, syllable.keys.count - 1) {
             let tail = Syllable(keys: Array(syllable.keys.suffix(tailLen)), tone: syllable.tone)
             guard !alternatives(tail, fuzzy: false, toneTolerance: toneTolerance).isEmpty else { continue }
             let leadKeys = Array(syllable.keys.prefix(syllable.keys.count - tailLen))
-            for lead in segmentations(of: leadKeys, fuzzy: false, toneTolerance: toneTolerance).prefix(6) {
-                out.append(lead + [tail])
+            byTail.append(segmentations(of: leadKeys, fuzzy: false, toneTolerance: toneTolerance)
+                .prefix(6).map { $0 + [tail] })
+        }
+        // Round-robin across tail lengths: emitting all of tail 1 first let a
+        // one-symbol tail (ㄟ 欸) fill the caller's prefix(6), so the real
+        // final syllable (ㄉㄨㄟ) was never decoded — toneless runs ended in
+        // 大都欸 / 一誒 / 主恩 (tools/cursor_replay.py, 2026-09-27).
+        var out: [[Syllable]] = []
+        for rank in 0..<6 {
+            for options in byTail where rank < options.count {
+                out.append(options[rank])
                 if out.count >= 12 { return out }
+            }
+        }
+        // No valid tail (a typo, or an initial alone: 眼睛ㄐ + Space): keep
+        // the clean lead and hand the invalid tail to decode as-is, where
+        // fuzzy repair gets a shot and anything left stays raw. Returning
+        // nothing made the WHOLE run one unresolved syllable, so every
+        // converted char reverted to Bopomofo (ㄧㄢㄐㄧㄥㄐ; user report
+        // 2026-09-27, made common by Space now meaning first tone).
+        // A run of <= 4 keys may still be ONE mistyped syllable (ㄘㄧˋ ->
+        // 次ˋ by deletion), so it keeps its whole-syllable repair chance;
+        // a longer run cannot be one syllable and must not fall back whole.
+        if out.isEmpty {
+            if syllable.keys.count <= Self.maxSyllableKeys { out.append([syllable]) }
+            for tailLen in 1...min(3, syllable.keys.count - 1) {
+                let leadKeys = Array(syllable.keys.prefix(syllable.keys.count - tailLen))
+                guard let lead = segmentations(of: leadKeys, fuzzy: false,
+                                               toneTolerance: toneTolerance).first else { continue }
+                out.append(lead + [Syllable(keys: Array(syllable.keys.suffix(tailLen)), tone: syllable.tone)])
             }
         }
         return out
@@ -395,7 +445,8 @@ public final class LexiconDecoder {
             let tops = decodeComposition(complete: run,
                                          pendingKeys: trailing ? pendingKeys : [],
                                          fuzzy: fuzzy, toneTolerance: toneTolerance,
-                                         userLexicon: userLexicon, locked: locked)
+                                         userLexicon: userLexicon,
+                                         locked: locked?.pins(forRun: index))
             runTops.append(tops.isEmpty ? [empty] : tops)
         }
         func render(_ picks: [SentenceCandidate]) -> SentenceCandidate {
@@ -407,6 +458,8 @@ public final class LexiconDecoder {
             // offsets accumulate through separators, syllable offsets through
             // each run's consumed length (== its alignment's last end).
             var align: [WordSpan] = []
+            var syllables: [Syllable] = []
+            var runs: [Range<Int>] = []
             var sylBase = 0
             for (index, pick) in picks.enumerated() {
                 let charBase = text.utf16.count
@@ -415,14 +468,17 @@ public final class LexiconDecoder {
                         syllables: (span.syllables.lowerBound + sylBase)..<(span.syllables.upperBound + sylBase),
                         chars: (span.chars.lowerBound + charBase)..<(span.chars.upperBound + charBase)))
                 }
-                sylBase += pick.alignment.last?.syllables.upperBound ?? 0
+                let consumed = pick.alignment.last?.syllables.upperBound ?? 0
+                runs.append(sylBase..<sylBase + consumed)
+                sylBase += consumed
+                syllables += pick.syllables
                 text += pick.text
                 score += pick.score
                 repairs += pick.repairs
                 unresolved += pick.unresolved
                 if index < seps.count { text += seps[index] }
             }
-            return SentenceCandidate(text: text, score: score, repairs: repairs, unresolved: unresolved, alignment: align)
+            return SentenceCandidate(text: text, score: score, repairs: repairs, unresolved: unresolved, alignment: align, syllables: syllables, runs: runs)
         }
         let base = runTops.map { $0[0] }
         var out = [render(base)]
@@ -441,6 +497,14 @@ public final class LexiconDecoder {
 
     public func decode(_ syllables: [Syllable], fuzzy: Bool = true, toneTolerance: Bool = true, userLexicon: UserLexicon? = nil, locked: UserLexicon? = nil) -> [SentenceCandidate] {        guard !syllables.isEmpty else { return [] }
         let options = syllables.map { alternatives($0, fuzzy: fuzzy, toneTolerance: toneTolerance) }
+        // Context-keyed learning (previous word -> readings -> text), nil
+        // unless the user lexicon holds any (see UserLexicon.contextKey).
+        let contextRules = userLexicon?.contextRules()
+        // Character-level settle pins (run-local UTF-16 offset -> unit): a
+        // word earns pinBonus per settled char it reproduces, whatever its
+        // boundaries — word-level settling froze 這 as a single-char word
+        // and blocked the later merge into 這部 (這不電影).
+        let settledUnits = locked?.settledUnits()
         var paths = Array(repeating: [SentenceCandidate](), count: syllables.count + 1)
         paths[0] = [SentenceCandidate(text: "", score: 0, repairs: 0, unresolved: 0)]
         func add(_ candidate: SentenceCandidate, at index: Int) {
@@ -464,6 +528,14 @@ public final class LexiconDecoder {
                         syllables: start..<start + 1,
                         chars: prefix.text.utf16.count..<(prefix.text + raw).utf16.count)]), at: start + 1)
             }
+            // Previous word of each prefix, for context rules (run-local:
+            // decode sees one run, so context never crosses punctuation).
+            let previousWords: [String] = contextRules == nil ? [] : prefixes.map { prefix in
+                guard let last = prefix.alignment.last else { return "" }
+                let units = Array(prefix.text.utf16)
+                guard last.chars.upperBound <= units.count else { return "" }
+                return String(decoding: units[last.chars], as: UTF16.self)
+            }
             var states: [(node: Node, penalty: Double, repairs: Int, readings: [String])] = [(root, 0, 0, [])]
             for end in start..<min(syllables.count, start + 8) {
                 var next: [(node: Node, penalty: Double, repairs: Int, readings: [String])] = []
@@ -484,14 +556,35 @@ public final class LexiconDecoder {
                             // words included, and no path ever starves (a
                             // filter could kill every route when the head
                             // re-segments; a dormant pin just adds nothing).
-                            let pinned = locked?.entries[spanKey]?.keys.contains(entry.text) ?? false
+                            // Legacy pins (CLI --lock) are reading-only; the
+                            // IME's are positional (run-local UTF-16 offset of
+                            // the word start), so a path can collect a pin once
+                            // and only where it was picked — reading-only pins
+                            // paid per occurrence, and the decoder re-segmented
+                            // toneless runs (even via repairs) to repeat them:
+                            // one 吃 pick turned 晚餐想吃什麼 into 灣吃安詳吃什麼.
+                            let legacyPinned = locked?.entries[spanKey]?.keys.contains(entry.text) ?? false
                             // User overlay: bonus keys on the dictionary span
                             // readings (stable trie path), toneless-joined so
                             // toned learns hit toneless retypes and vice versa.
                             // Only boosts produced candidates — never new paths.
-                            let boost = (userLexicon?.bonus(key: spanKey,
-                                text: entry.text) ?? 0) + (pinned ? UserLexicon.pinBonus : 0)
-                            for prefix in prefixes {
+                            let learned = userLexicon?.bonus(key: spanKey, text: entry.text) ?? 0
+                            let rules = contextRules?[spanKey]?.filter { $0.text == entry.text }
+                            for (index, prefix) in prefixes.enumerated() {
+                                let pinned = legacyPinned || (locked?.entries[UserLexicon.pinKey(
+                                    offset: prefix.text.utf16.count, readings: spanKey)]?.keys
+                                    .contains(entry.text) ?? false)
+                                let contextual = rules?.first { $0.previous == previousWords[index] }?.bonus ?? 0
+                                var settledHits = 0
+                                if let settledUnits {
+                                    var offset = prefix.text.utf16.count
+                                    for unit in entry.text.utf16 {
+                                        if settledUnits[offset] == unit { settledHits += 1 }
+                                        offset += 1
+                                    }
+                                }
+                                let boost = learned + contextual + (pinned ? UserLexicon.pinBonus : 0)
+                                    + Double(settledHits) * UserLexicon.pinBonus
                                 add(SentenceCandidate(text: prefix.text + entry.text,
                                     score: prefix.score + entry.score - penalty - cost + boost,
                                     repairs: prefix.repairs + repairs + correction,
@@ -509,6 +602,10 @@ public final class LexiconDecoder {
                 if states.isEmpty { break }
             }
         }
-        return paths[syllables.count]
+        return paths[syllables.count].map {
+            SentenceCandidate(text: $0.text, score: $0.score, repairs: $0.repairs,
+                              unresolved: $0.unresolved, alignment: $0.alignment,
+                              syllables: syllables, runs: [0..<syllables.count])
+        }
     }
 }
