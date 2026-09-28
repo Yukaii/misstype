@@ -36,8 +36,11 @@ def is_bopomofo(char: str) -> bool:
     return "ㄅ" <= char <= "ㄯ"
 
 
-def trace(keys: str) -> list[str]:
-    proc = subprocess.run([str(APP_BIN), "--decode", keys, "--live-trace"],
+def trace(keys: str, settle: int | None = None) -> list[str]:
+    command = [str(APP_BIN), "--decode", keys, "--live-trace"]
+    if settle is not None:
+        command += ["--settle", str(settle)]
+    proc = subprocess.run(command,
                           capture_output=True, text=True, timeout=120, check=True)
     return [line.split("\t", 2)[2] if line.count("\t") >= 2 else ""
             for line in proc.stdout.splitlines() if line.startswith("live\t")]
@@ -68,6 +71,8 @@ def main() -> int:
     parser.add_argument("--show", type=int, default=0,
                         help="print the per-keystroke preview for the N worst sentences")
     parser.add_argument("--json", action="store_true")
+    parser.add_argument("--settle", type=int, default=None,
+                        help="auto-settle words this many syllables before the end")
     args = parser.parse_args()
     if not APP_BIN.exists():
         print("missing build: run ./script/build_and_run.sh --build-only")
@@ -75,7 +80,7 @@ def main() -> int:
     rows = []
     for expected, readings in sentence_set(args.set):
         for style in ("toned", "toneless"):
-            previews = trace(encode(readings, style == "toned"))
+            previews = trace(encode(readings, style == "toned"), args.settle)
             rows.append({"expected": expected, "style": style, "final": previews[-1] if previews else "",
                          "previews": previews, **stability(previews)})
     summary: dict[str, dict[str, int]] = {}

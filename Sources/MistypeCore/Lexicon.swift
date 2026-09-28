@@ -500,6 +500,11 @@ public final class LexiconDecoder {
         // Context-keyed learning (previous word -> readings -> text), nil
         // unless the user lexicon holds any (see UserLexicon.contextKey).
         let contextRules = userLexicon?.contextRules()
+        // Character-level settle pins (run-local UTF-16 offset -> unit): a
+        // word earns pinBonus per settled char it reproduces, whatever its
+        // boundaries — word-level settling froze 這 as a single-char word
+        // and blocked the later merge into 這部 (這不電影).
+        let settledUnits = locked?.settledUnits()
         var paths = Array(repeating: [SentenceCandidate](), count: syllables.count + 1)
         paths[0] = [SentenceCandidate(text: "", score: 0, repairs: 0, unresolved: 0)]
         func add(_ candidate: SentenceCandidate, at index: Int) {
@@ -570,7 +575,16 @@ public final class LexiconDecoder {
                                     offset: prefix.text.utf16.count, readings: spanKey)]?.keys
                                     .contains(entry.text) ?? false)
                                 let contextual = rules?.first { $0.previous == previousWords[index] }?.bonus ?? 0
+                                var settledHits = 0
+                                if let settledUnits {
+                                    var offset = prefix.text.utf16.count
+                                    for unit in entry.text.utf16 {
+                                        if settledUnits[offset] == unit { settledHits += 1 }
+                                        offset += 1
+                                    }
+                                }
                                 let boost = learned + contextual + (pinned ? UserLexicon.pinBonus : 0)
+                                    + Double(settledHits) * UserLexicon.pinBonus
                                 add(SentenceCandidate(text: prefix.text + entry.text,
                                     score: prefix.score + entry.score - penalty - cost + boost,
                                     repairs: prefix.repairs + repairs + correction,
