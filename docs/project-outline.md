@@ -229,6 +229,19 @@ shipping. ChiaKey's margins are near ties (帶/代 0.01), so no margin gate
 separates good flips from bad. Still open: accept or reject each flip,
 and the license terms for shipping a derived order.
 
+Shipped (curated order, `Resources/reading_order.tsv`): 276 flips
+hand-reviewed for "which char is typed alone in Taiwan everyday
+writing". 95 accepted (帶, 做, 門, 聊, 店, 記, 見, 住, 常, 話, 還, 睡, 認,
+嗯, 嘛, 的 ㄉㄧˊ …), about 40 rejected (呵 over 喝, 宜 over 一, 甚 over 蛇,
+中 over 重, 維 over 為, 各 over 個, 加 over 家, 劉 over 流 …), the rest
+left alone as near ties or rare chars. `prepare_lexicon.py` swaps only
+the reviewed pair's scores and fails on stale rows. Battery: +6/-0 (dev
+56→60, holdout 55→57, i.e. 111→117/160), offline, decode latency
+unchanged (dada ~50 ms, 26-syllable ~90 ms). The rows are our own
+decisions (no ChiaKey scores copied); ChiaKey was only the source of
+candidates. Toneless cross-reading misses (吃→持, 再→在) stay open;
+they need context, not per-reading order.
+
 Pilot (triage, NOT a finding yet, `--jev-mode trust`, n=5, threshold 0.6
 read post-hoc): one boolean on offline top-1 ("候選1是最正確的嗎")
 separates 10/10 — right top-1 trusts 0.82+ (hide-panel), wrong top-1

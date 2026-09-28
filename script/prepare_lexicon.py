@@ -25,6 +25,22 @@ def heterophone_score(score, rank):
     return max(score - HETEROPHONE_STEP * (rank - 1), HETEROPHONE_FLOOR)
 
 
+def apply_reading_order(entries, path):
+    """Hand-reviewed single-syllable order: swap scores so `preferred`
+    takes `displaced`'s place for that reading. Stale rows fail loudly."""
+    if not path.exists():
+        return
+    for line in path.read_text(encoding='utf-8').splitlines():
+        if not line or line.startswith('#'):
+            continue
+        reading, preferred, displaced = line.split('\t')
+        a, b = (reading, preferred), (reading, displaced)
+        if a not in entries or b not in entries:
+            raise ValueError(f'reading_order.tsv row not in lexicon: {line!r}')
+        if entries[a] < entries[b]:
+            entries[a], entries[b] = entries[b], entries[a]
+
+
 def main():
     manifest = json.loads((ROOT / 'third_party/McBopomofo/sources.json').read_text())
     cache = ROOT / '.cache/mcbopomofo'
@@ -80,6 +96,7 @@ def main():
             if len(text) == 1 and text in ranked:
                 score = heterophone_score(score, ranked[text].get(readings[0]))
             entries[(reading, text)] = score
+    apply_reading_order(entries, ROOT / 'Resources/reading_order.tsv')
     output = cache / 'lexicon.tsv'
     output.write_text(''.join(f'{reading}\t{text}\t{score:.6f}\n'
                              for (reading, text), score in sorted(entries.items())))
