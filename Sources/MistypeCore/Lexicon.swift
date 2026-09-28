@@ -87,6 +87,10 @@ public final class LexiconDecoder {
     public private(set) var entryCount = 0
     /// Optional homophone bigram overlay (nil = byte-identical decode).
     public var contextBigrams: ContextBigrams?
+    /// Cost per dictionary word on a path (0 = off). McBopomofo single-char
+    /// scores count bound morphemes, so splitting a word into chars is
+    /// over-rewarded; a per-token cost rebalances word vs chars.
+    public var wordPenalty = 0.0
 
     /// `toneless` rows (`reading<TAB>text<TAB>score`) override a single
     /// char's score only when its syllable was typed without a tone — the
@@ -614,7 +618,7 @@ public final class LexiconDecoder {
                                 let boost = learned + contextual + (pinned ? UserLexicon.pinBonus : 0)
                                     + Double(settledHits) * UserLexicon.pinBonus
                                 add(SentenceCandidate(text: prefix.text + entry.text,
-                                    score: prefix.score + entry.score - penalty - cost + boost,
+                                    score: prefix.score + entry.score - penalty - cost + boost - wordPenalty,
                                     repairs: prefix.repairs + repairs + correction,
                                     unresolved: prefix.unresolved,
                                     alignment: prefix.alignment + [WordSpan(

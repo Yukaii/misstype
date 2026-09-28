@@ -75,6 +75,9 @@ def decode(keys: str, overlay: Path | None, weight: float,
         env["MISTYPE_LEXICON"] = str(lexicon)
         if (lexicon.parent / "toneless.tsv").exists():
             env["MISTYPE_TONELESS"] = str(lexicon.parent / "toneless.tsv")
+    env.pop("MISTYPE_WORD_PENALTY", None)
+    if overlay is None and lexicon is None and weight is not None:
+        env["MISTYPE_WORD_PENALTY"] = str(weight)
     if overlay is not None:
         env["MISTYPE_BIGRAM"] = str(overlay)
         env["MISTYPE_BIGRAM_WEIGHT"] = str(weight)
@@ -96,6 +99,9 @@ def config(spec: str) -> tuple[str, Path | None, Path | None, float]:
     chiakey_export.py), without / with its calibrated bigram bonuses.
     `lex:<dir>` / `lex+full:<dir>`: see below."""
     source, _, value = spec.partition(":")
+    if source == "wp":
+        # `wp:<penalty>`: shipped lexicon, per-word cost via MISTYPE_WORD_PENALTY.
+        return spec, None, None, float(value)
     if source in ("lex", "lex+full"):
         # `lex:<cache dir>`: a rescored copy of our lexicon (e.g. reorder-all),
         # optionally with the full ChiaKey bigram table at weight 3.
@@ -123,7 +129,7 @@ def main() -> int:
              for name in sets
              for text, readings in source.get(name, lambda: sentence_set(name))()
              for style in ("toned", "toneless")]
-    base = run(cases, None, 0)
+    base = run(cases, None, None)  # shipped defaults
     report = []
     for spec in args.configs.split(","):
         name, overlay, lexicon, weight = config(spec)

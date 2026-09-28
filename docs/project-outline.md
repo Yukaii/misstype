@@ -266,6 +266,25 @@ accident. Offline; latency unchanged (dada 51 vs 52 ms, 26-syllable 93
 vs 95 ms, sequential). `tools/bigram_eval.py --set cv` is the new
 held-out gate (sentences stay in `~/.cache`).
 
+Finding (word vs char segmentation, per-word cost, 2026-09-27). Of 325
+Common Voice misses, 179 are segmentation errors, mostly a dictionary
+word losing to a split into common chars (面試→面是, 各式→個是,
+進程→近成, 成見→成件). Scores explain it: relative to NAER's token
+counts, McBopomofo single chars are about 1.26 too high and words about 0.48
+too low (medians over 5.6k chars and 63k words). So each extra token is
+over-rewarded by about 1.7 (面試 -11.9 vs 面+是 -11.1; NAER -11.3 vs -13.1).
+Fix: the classic word insertion penalty, a constant cost per dictionary
+word on a path (`LexiconDecoder.wordPenalty`; `Runtime` sets 0.5; core
+default 0 keeps fixtures identical). Sweep on Common Voice (800):
+0.5 +18/-3, 1.0 +25/-11, 1.5 +33/-15, 2 +33/-17, 3 +37/-22. Larger
+values fix more words but merge toneless coincidences faster (想吃→相持,
+在找→在朝, 弟弟→低低: under toneless input any tone forms a word).
+Synthetic battery at 0.5: +1/-2. Shipped 0.5, net +14 over 960 cases,
+latency unchanged. Deliberately not tuned further (e.g. a separate
+toneless value): both sets are too small to tune on without overfitting.
+Remaining: words that need >= 1.0 (面試), and context-bound picks
+(再/在, 得/的, 打對).
+
 Pilot (triage, NOT a finding yet, `--jev-mode trust`, n=5, threshold 0.6
 read post-hoc): one boolean on offline top-1 ("候選1是最正確的嗎")
 separates 10/10 — right top-1 trusts 0.82+ (hide-panel), wrong top-1

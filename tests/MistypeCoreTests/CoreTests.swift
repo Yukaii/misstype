@@ -704,6 +704,15 @@ final class CoreTests: XCTestCase {
         XCTAssertEqual(decoder.decodeSegments(composition("t6").segments, pendingKeys: [])[0].text, "持")
         XCTAssertEqual(decoder.decodeSegments(composition("t ").segments, pendingKeys: [])[0].text, "吃")
     }
+    func testWordPenaltyFavorsWholeWordsOverSplits() {
+        // 面試 loses to 面+是 on raw scores (-11.9 vs -11.1); two tokens pay
+        // the penalty twice, one word once.
+        let decoder = LexiconDecoder(tsv: "ㄇㄧㄢˋ\t面\t-6.5\nㄕˋ\t是\t-4.6\nㄕˋ\t試\t-8.1\nㄇㄧㄢˋ-ㄕˋ\t面試\t-11.9\n")
+        let typed = composition("au04g4")
+        XCTAssertEqual(decoder.decodeSegments(typed.segments, pendingKeys: typed.parsed.pending)[0].text, "面是")
+        decoder.wordPenalty = 1.0
+        XCTAssertEqual(decoder.decodeSegments(typed.segments, pendingKeys: typed.parsed.pending)[0].text, "面試")
+    }
     func testVersionOneLearningFilesLoadEmpty() throws {
         let v1 = #"{"version":1,"entries":{"ㄘㄜㄕ":{"測試":{"count":3,"updatedAt":0}}}}"#
         XCTAssertTrue(try UserLexicon.decoded(from: Data(v1.utf8)).isEmpty)
