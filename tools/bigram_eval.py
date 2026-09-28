@@ -61,8 +61,14 @@ def run(cases, overlay, weight, lexicon=None):
 def config(spec: str) -> tuple[str, Path | None, Path | None, float]:
     """`full:w` / `clean:w`: ChiaKey bigram table over our lexicon.
     `ck:k` / `ck+bi:k`: ChiaKey unigram (exported at scale k, see
-    chiakey_export.py), without / with its calibrated bigram bonuses."""
+    chiakey_export.py), without / with its calibrated bigram bonuses.
+    `lex:<dir>` / `lex+full:<dir>`: see below."""
     source, _, value = spec.partition(":")
+    if source in ("lex", "lex+full"):
+        # `lex:<cache dir>`: a rescored copy of our lexicon (e.g. reorder-all),
+        # optionally with the full ChiaKey bigram table at weight 3.
+        overlay = SOURCES["full"] if source == "lex+full" else None
+        return spec, overlay, CACHE / value / "lexicon.tsv", 3.0
     number = float(value or 1)
     if source in SOURCES:
         return spec, SOURCES[source], None, number
