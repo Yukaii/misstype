@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking // URLSession lives here on Linux
+#endif
 
 /// Result of a remote Jev evaluation request.
 public struct JevEvaluationResult: Equatable, Sendable {

@@ -156,11 +156,20 @@ public struct UserLexicon: Codable, Equatable {
         return UserLexicon(entries: wrapper.entries)
     }
 
-    /// Default location: ~/Library/Application Support/Mistype/user_phrases.json.
-    /// Documented export path — the file is portable JSON the user can copy.
+    /// Default location: ~/Library/Application Support/Mistype/user_phrases.json
+    /// on macOS, $XDG_DATA_HOME/mistype/user_phrases.json (default
+    /// ~/.local/share) elsewhere. Documented export path — the file is
+    /// portable JSON the user can copy between platforms.
     public static var defaultURL: URL {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/Mistype/user_phrases.json")
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        #if os(macOS)
+        return home.appendingPathComponent("Library/Application Support/Mistype/user_phrases.json")
+        #else
+        let xdg = ProcessInfo.processInfo.environment["XDG_DATA_HOME"].flatMap { $0.hasPrefix("/") ? $0 : nil }
+        let data = xdg.map { URL(fileURLWithPath: $0, isDirectory: true) }
+            ?? home.appendingPathComponent(".local/share", isDirectory: true)
+        return data.appendingPathComponent("mistype/user_phrases.json")
+        #endif
     }
 
     public static func load(from url: URL = defaultURL) -> UserLexicon {
