@@ -242,6 +242,30 @@ decisions (no ChiaKey scores copied); ChiaKey was only the source of
 candidates. Toneless cross-reading misses (吃→持, 再→在) stay open;
 they need context, not per-reading order.
 
+Finding (toneless cross-tone order, NAER 通用詞頻表, 2026-09-27). After
+the curated order, 38 of 43 battery misses have no ChiaKey bigram row
+(so it is a data gap, not a trigger problem). Most are toneless
+cross-tone picks (吃→持, 請→情, 貴→規, 嗎→馬, 找→照): McBopomofo's char
+counts include bound morphemes (持 via 支持, 情 via 事情), so formal
+chars beat standalone ones. NAER's word-frequency table counts segmented
+tokens, so a single char's value is its standalone use (吃 931 vs 持 48
+per million; CC BY 4.0). Falsified first: interpolating it into
+unigrams. At 0.5 the gain nets ~0; single chars only at 0.9 gives +7/-4
+(記得→及的, 吃辣→吃那: standalone chars outgrow words and the 5.0 repair
+cost); all words at 0.9–0.99 also brings 週→周 variants. Scale changes
+leak everywhere. Also falsified: a lexicon-wide slot permutation within a
+toneless base. On a fresh set (400 Common Voice zh-TW sentences, CC0,
+unrelated to tuning, 800 cases) it scored +32/-17, but toned was +15/-16
+churn, because it rewrote each char's own-reading score. Shipped:
+the same permutation as a *toneless-only* override (`toneless.tsv`, 4,616
+chars). It is read only for a one-syllable span typed without a tone, so
+toned input is untouched by construction. Common Voice: 459→475/800,
++17/-1 (toned 0/0). Battery: 117→122/160, +6/-1. Both breaks are word
+vs char segmentation (這件事|請, 刷|處) that the old order hid by
+accident. Offline; latency unchanged (dada 51 vs 52 ms, 26-syllable 93
+vs 95 ms, sequential). `tools/bigram_eval.py --set cv` is the new
+held-out gate (sentences stay in `~/.cache`).
+
 Pilot (triage, NOT a finding yet, `--jev-mode trust`, n=5, threshold 0.6
 read post-hoc): one boolean on offline top-1 ("候選1是最正確的嗎")
 separates 10/10 — right top-1 trusts 0.82+ (hide-panel), wrong top-1

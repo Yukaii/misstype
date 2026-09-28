@@ -280,6 +280,24 @@ class ToolTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 prepare_lexicon.apply_reading_order(entries, path)
 
+    def test_toneless_order_permutes_slots_within_a_base(self):
+        entries = {("ㄔ", "吃"): -9.0, ("ㄔˊ", "持"): -7.0, ("ㄔˊ", "池"): -8.0,
+                   ("ㄔˊ", "匙"): -12.0, ("ㄓ-ㄔˊ", "支持"): -8.5,
+                   ("ㄉㄜ˙", "的"): -3.6, ("ㄉㄧˊ", "的"): -15.0}
+        general = {"吃": 9e-4, "持": 5e-5, "池": 1e-4, "的": 5e-2, "支持": 1e-4}
+        ranked = {"的": {"ㄉㄜ˙": 1, "ㄉㄧˊ": 2}}
+        before = dict(entries)
+        changed = prepare_lexicon.toneless_order(entries, general, ranked)
+        self.assertEqual(entries, before)  # toned scores untouched
+        # Same slots {-7, -8, -9}, reassigned by standalone frequency
+        # (吃 > 池 > 持); 池 keeps its slot, so only two rows change.
+        self.assertEqual(changed, {("ㄔ", "吃"): -7.0, ("ㄔˊ", "持"): -9.0})
+        # Chars missing from the table, words, and secondary heterophone
+        # readings keep their scores.
+        self.assertNotIn(("ㄔˊ", "匙"), changed)
+        self.assertNotIn(("ㄓ-ㄔˊ", "支持"), changed)
+        self.assertNotIn(("ㄉㄧˊ", "的"), changed)
+
     def test_shipped_reading_order_rows_are_well_formed(self):
         path = TOOLS.parent / "Resources" / "reading_order.tsv"
         rows = [line.split("\t") for line in path.read_text(encoding="utf-8").splitlines()

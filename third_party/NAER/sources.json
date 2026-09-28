@@ -1,0 +1,7 @@
+{
+  "repository": "https://github.com/chiakich/ChiaKey-Lexicon",
+  "commit": "889efe0da5e10f5eea5920027748e9dd1f58169a",
+  "files": {
+    "sources/naer-word-frequency/frequency.tsv": "d8bf3ebec541c3dde967d536e05a33a2b8d5e4c4aeea1205feb4f0867220169a"
+  }
+}

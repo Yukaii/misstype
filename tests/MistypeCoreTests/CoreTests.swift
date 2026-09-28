@@ -691,6 +691,19 @@ final class CoreTests: XCTestCase {
         decoder.contextBigrams = nil
         XCTAssertEqual(decoder.decodeSegments(after, pendingKeys: [])[0].text, "下次在聊")
     }
+    func testTonelessOverridesApplyOnlyToToneless() {
+        // 持 (ㄔˊ) outranks 吃 (ㄔ) in the corpus; standalone use says 吃.
+        let lexicon = "ㄔ\t吃\t-9\nㄔˊ\t持\t-7\n"
+        let decoder = LexiconDecoder(tsv: lexicon, toneless: "ㄔ\t吃\t-7\nㄔˊ\t持\t-9\n")
+        let toneless = composition("t")
+        XCTAssertEqual(LexiconDecoder(tsv: lexicon).decodeSegments(
+            toneless.segments, pendingKeys: toneless.parsed.pending)[0].text, "持")
+        XCTAssertEqual(decoder.decodeSegments(
+            toneless.segments, pendingKeys: toneless.parsed.pending)[0].text, "吃")
+        // An explicit tone keeps the corpus scores (ˊ: 持 exact, 吃 pays 4.0).
+        XCTAssertEqual(decoder.decodeSegments(composition("t6").segments, pendingKeys: [])[0].text, "持")
+        XCTAssertEqual(decoder.decodeSegments(composition("t ").segments, pendingKeys: [])[0].text, "吃")
+    }
     func testVersionOneLearningFilesLoadEmpty() throws {
         let v1 = #"{"version":1,"entries":{"ㄘㄜㄕ":{"測試":{"count":3,"updatedAt":0}}}}"#
         XCTAssertTrue(try UserLexicon.decoded(from: Data(v1.utf8)).isEmpty)
