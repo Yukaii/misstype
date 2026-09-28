@@ -25,6 +25,11 @@ lm_choose = load_tool("lm_choose")
 jev_success = load_tool("jev_success")
 cursor_replay = load_tool("cursor_replay")
 learned = load_tool("learned")
+_spec = importlib.util.spec_from_file_location(
+    "prepare_lexicon", TOOLS.parent / "script" / "prepare_lexicon.py")
+assert _spec is not None and _spec.loader is not None
+prepare_lexicon = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(prepare_lexicon)
 
 
 class ToolTests(unittest.TestCase):
@@ -247,6 +252,16 @@ class ToolTests(unittest.TestCase):
         rendered = jev_success.report(summary)
         self.assertIn("accept_rate=0.50", rendered)
         self.assertNotIn("xxx", rendered + "yyy")
+
+    def test_heterophone_secondary_readings_drop(self):
+        # 暫: ㄓㄢˋ is heterophony1; the unlisted variant ㄗㄢˋ must not keep
+        # the char's full count (it outranked 讚 for ㄗㄢˋ).
+        floor = prepare_lexicon.HETEROPHONE_FLOOR
+        self.assertEqual(prepare_lexicon.heterophone_score(-9.5, 1), -9.5)
+        self.assertEqual(prepare_lexicon.heterophone_score(-9.5, None), floor)
+        self.assertAlmostEqual(prepare_lexicon.heterophone_score(-9.5, 2),
+                               -9.5 - prepare_lexicon.HETEROPHONE_STEP)
+        self.assertEqual(prepare_lexicon.heterophone_score(-15.0, 3), floor)
 
 
 if __name__ == "__main__":

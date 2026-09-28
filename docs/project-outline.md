@@ -468,6 +468,18 @@ one holdout sentence; K=3 keeps dev identical, holdout toned 31 = 31,
 toneless 21 -> 22, and 4-sentence ，-joined inputs identical. Panel
 windows longer than a row now keep the end nearest the cursor.
 
+Heterophone weighting (2026-09-27, user report: typed ㄗㄢˋ, got 暫):
+not a fuzzy slip — BPMFBase lists 暫 under both ㄓㄢˋ and the variant
+ㄗㄢˋ, and `prepare_lexicon.py` gave every reading the char's whole
+count. It now ports McBopomofo cook.py: heterophony1 keeps the count,
+heterophony2/3 drop 0.693 log10 per rank, unlisted readings sit at the
+-6.8 log10 floor (618 entries move; 長 ㄓㄤˇ alone relies on phrases like
+成長). Replay, no sentence lost: toned top-1 dev 32 -> 33, holdout
+31 -> 33 (散步, 下個月, 吃辣 fixed); toneless dev 23 = 23, holdout
+21 -> 22. ㄗㄢˋ now lists 贊 讚 暫 (贊/讚 0.29 apart; learning settles it).
+Shift+Return commits the keys as typed, for 注音文 made of valid
+syllables (a lone ㄗ decodes to 資).
+
 ## Measures
 
 Track phrase-level character error rate, syllable error rate, commit latency, p50/p95 decode latency, backspaces or replays, candidate interruptions, and task completion time. Log confidence and decoder source for every result. Run a fixed synthetic fixture set plus consented user sessions kept outside the repository.

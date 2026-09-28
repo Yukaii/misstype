@@ -477,6 +477,12 @@ final class MistypeInputController: IMKInputController {    private var composit
         }
         if keyCode == 36 || keyCode == 76 {
             guard !composition.isEmpty else { return false }
+            if modifiers.contains(.shift) {
+                // Shift+Return sends the keys as typed: 注音文 even when every
+                // syllable is valid (a lone ㄗ is 資 to the decoder).
+                commit(client, raw: true)
+                return true
+            }
             if let texts = segmentTexts, texts.indices.contains(segmentSelected) {
                 // Focused Return pins the highlighted segment, re-decodes so
                 // top-1 honors it, then commits everything at once.
@@ -870,7 +876,7 @@ final class MistypeInputController: IMKInputController {    private var composit
         }
     }
 
-    private func commit(_ client: IMKTextInput) {
+    private func commit(_ client: IMKTextInput, raw: Bool = false) {
         guard !composition.isEmpty else { return }
         var text: String
         // What you see is what commits: the converted text plus any raw
@@ -879,8 +885,8 @@ final class MistypeInputController: IMKInputController {    private var composit
         // the preview never showed (user decision 2026-09-27).
         // Learning-grade: nothing left raw and an explicit pick. Anything
         // else — raw tail, separator pinning, raw fallback — never trains.
-        let learnable = rawTail.isEmpty && candidates.indices.contains(selected)
-        text = previewText
+        let learnable = !raw && rawTail.isEmpty && candidates.indices.contains(selected)
+        text = raw ? composition.rawPhonetic : previewText
         if text.isEmpty {
             // Defensive: nothing rendered yet (no refresh since the last
             // edit). Offline recompute, Jev gate closed as in refresh.
