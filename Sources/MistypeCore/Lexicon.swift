@@ -62,6 +62,9 @@ public final class LexiconDecoder {
     private final class Node {
         var children: [String: Node] = [:]
         var entries: [(text: String, score: Double)] = []
+        /// Single-syllable nodes only: entries rescored for toneless input
+        /// (nil = same as `entries`). See `init(tsv:toneless:)`.
+        var tonelessEntries: [(text: String, score: Double)]?
     }
     /// Full per-reading entries, best-first (was: top 3). +5% entries
     /// corpus-wide, so frequency-buried daily chars (鍵 is #22 under
@@ -84,6 +87,25 @@ public final class LexiconDecoder {
     public private(set) var entryCount = 0
     /// Optional homophone bigram overlay (nil = byte-identical decode).
     public var contextBigrams: ContextBigrams?
+
+    /// `toneless` rows (`reading<TAB>text<TAB>score`) override a single
+    /// char's score only when its syllable was typed without a tone — the
+    /// only case that compares chars across tones (吃 ㄔ vs 持 ㄔˊ). Toned
+    /// input and multi-syllable words never see them.
+    public convenience init(tsv: String, toneless: String) {
+        self.init(tsv: tsv)
+        var overrides: [String: [String: Double]] = [:]
+        for line in toneless.split(separator: "\n") where !line.hasPrefix("#") {
+            let fields = line.split(separator: "\t")
+            guard fields.count == 3, let score = Double(fields[2]), score.isFinite else { continue }
+            overrides[String(fields[0]), default: [:]][String(fields[1])] = score
+        }
+        for (reading, texts) in overrides {
+            guard let node = root.children[reading] else { continue }
+            node.tonelessEntries = node.entries.map { ($0.text, texts[$0.text] ?? $0.score) }
+                .sorted { $0.1 == $1.1 ? $0.0 < $1.0 : $0.1 > $1.1 }
+        }
+    }
 
     public init(tsv: String) {
         for line in tsv.split(separator: "\n") {
@@ -549,8 +571,10 @@ public final class LexiconDecoder {
                         // Single-syllable inputs ARE homophone browsing: walk
                         // the full node (cheap, no lattice). Longer spans pay
                         // per extra entry with zero beam benefit past a few.
-                        let cap = syllables.count == 1 ? child.entries.count : Self.decodeEntriesPerNode
-                        for entry in child.entries.prefix(cap) {
+                        let entries = end == start && syllables[start].tone == nil
+                            ? child.tonelessEntries ?? child.entries : child.entries
+                        let cap = syllables.count == 1 ? entries.count : Self.decodeEntriesPerNode
+                        for entry in entries.prefix(cap) {
                             let spanKey = UserLexicon.key(forReadings: span)
                             // Session pin: a decisive bonus for the pinned
                             // (span, text) pair — paths through it always win

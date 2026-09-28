@@ -7,10 +7,12 @@ enum Runtime {
     static let decoder: LexiconDecoder = {
         // Experiment hook (dev only): MISTYPE_LEXICON=<tsv> replaces the
         // bundled lexicon and supplement (different score scale).
-        if let path = ProcessInfo.processInfo.environment["MISTYPE_LEXICON"],
+        let env = ProcessInfo.processInfo.environment
+        if let path = env["MISTYPE_LEXICON"],
            let data = try? String(contentsOfFile: path, encoding: .utf8) {
             NSLog("Mistype: lexicon override \(path)")
-            return withBigrams(LexiconDecoder(tsv: data))
+            let toneless = env["MISTYPE_TONELESS"].flatMap { try? String(contentsOfFile: $0, encoding: .utf8) } ?? ""
+            return withBigrams(LexiconDecoder(tsv: data, toneless: toneless))
         }
         guard let url = Bundle.main.url(forResource: "lexicon", withExtension: "tsv"),
               let data = try? String(contentsOf: url, encoding: .utf8) else {
@@ -22,7 +24,11 @@ enum Runtime {
         // one parse path, first-class entries. Missing file means empty.
         let supplement = Bundle.main.url(forResource: "local_phrases", withExtension: "tsv")
             .flatMap { try? String(contentsOf: $0, encoding: .utf8) } ?? ""
-        return withBigrams(LexiconDecoder(tsv: data + "\n" + supplement))
+        // Toneless single-char order (Resources/toneless.tsv, optional; see
+        // prepare_lexicon.py --word-frequency): missing file = no override.
+        let toneless = Bundle.main.url(forResource: "toneless", withExtension: "tsv")
+            .flatMap { try? String(contentsOf: $0, encoding: .utf8) } ?? ""
+        return withBigrams(LexiconDecoder(tsv: data + "\n" + supplement, toneless: toneless))
     }()
     private static func withBigrams(_ decoder: LexiconDecoder) -> LexiconDecoder {
         // Experiment hook (dev only, local file, never user input):

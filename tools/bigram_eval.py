@@ -27,7 +27,36 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from cursor_replay import APP_BIN, encode, sentence_set  # noqa: E402
+from cursor_replay import (APP_BIN, encode, load_reverse_lexicon,  # noqa: E402
+                           readings_for, sentence_set)
+
+CV_SENTENCES = Path.home() / ".cache/mistype/cv/validated_sentences.tsv"
+
+
+def cv_set(count: int) -> list[tuple[str, str]]:
+    """Common Voice 25 zh-TW validated sentences (CC0, OpenFormosa on
+    Hugging Face, source/validated_sentences.tsv; local cache only):
+    pure-Han 4..16 chars, first `count` by sentence_id (a content hash, so
+    the sample is stable and unrelated to tuning). Readings come from the
+    pinned lexicon like the synthetic sets; unreadable sentences skip."""
+    rows = []
+    for line in CV_SENTENCES.read_text(encoding="utf-8").splitlines()[1:]:
+        fields = line.split("\t")
+        if len(fields) < 2:
+            continue
+        text = fields[1].strip()
+        if 4 <= len(text) <= 16 and all("\u4e00" <= c <= "\u9fff" for c in text):
+            rows.append((fields[0], text))
+    reverse = load_reverse_lexicon()
+    out = []
+    for _, text in sorted(rows):
+        try:
+            out.append((text, readings_for(text, reverse)))
+        except ValueError:
+            continue
+        if len(out) >= count:
+            break
+    return out
 
 CACHE = Path.home() / ".cache/mistype/chiakey"
 SOURCES = {
@@ -41,8 +70,11 @@ def decode(keys: str, overlay: Path | None, weight: float,
     env = dict(os.environ)
     env.pop("MISTYPE_BIGRAM", None)
     env.pop("MISTYPE_LEXICON", None)
+    env.pop("MISTYPE_TONELESS", None)
     if lexicon is not None:
         env["MISTYPE_LEXICON"] = str(lexicon)
+        if (lexicon.parent / "toneless.tsv").exists():
+            env["MISTYPE_TONELESS"] = str(lexicon.parent / "toneless.tsv")
     if overlay is not None:
         env["MISTYPE_BIGRAM"] = str(overlay)
         env["MISTYPE_BIGRAM_WEIGHT"] = str(weight)
@@ -79,14 +111,17 @@ def config(spec: str) -> tuple[str, Path | None, Path | None, float]:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--set", default="all", choices=["dev", "holdout", "all"])
+    parser.add_argument("--set", default="all", choices=["dev", "holdout", "all", "cv"])
+    parser.add_argument("--cv-count", type=int, default=400)
     parser.add_argument("--configs", default="full:3,ck:1,ck+bi:1,ck:3,ck+bi:3,ck:6,ck+bi:6")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
 
     sets = ["dev", "holdout"] if args.set == "all" else [args.set]
+    source = {"cv": lambda: cv_set(args.cv_count)}
     cases = [(name, style, encode(readings, style == "toned"), text)
-             for name in sets for text, readings in sentence_set(name)
+             for name in sets
+             for text, readings in source.get(name, lambda: sentence_set(name))()
              for style in ("toned", "toneless")]
     base = run(cases, None, 0)
     report = []
