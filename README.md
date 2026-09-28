@@ -69,3 +69,8 @@ dist/MistypeIME.app/Contents/MacOS/MistypeIME --decode su3cl3
 The installer keeps the previous bundle at `.cache/MistypeIME-previous.app`
 when replacing an existing Mistype installation. Disable the source with
 `swift run -c release MistypeSourceTool disable` if needed.
+
+## License
+
+MIT (see `LICENSE`). The bundled dictionary data comes from McBopomofo (MIT)
+and libtabe (BSD-style); see `THIRD_PARTY_NOTICES.md`.
