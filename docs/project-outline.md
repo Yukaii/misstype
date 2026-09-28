@@ -190,6 +190,32 @@ Noul-argmax with a threshold is the right shape. Standing verdict across 2
 models x 4 framings (generation, scoring, choice, decomposed-noul): the
 答對/打對 class needs a user signal, not a better voter.
 
+Finding (ChiaKey word bigram, 2026-09-27, `tools/bigram_eval.py` +
+`tools/chiakey_export.py`, 40 dev + 40 holdout synthetic sentences from
+`cursor_replay`, toned + toneless; baseline top-1 dev 56/80, holdout
+55/80). Hypothesis: a word-level, Taiwan-corpus homophone bigram (ChiaKey
+Lexicon 2026.09.3, previous-word -> current-word bonus) can replace Jev
+for tie breaking where the char-level LCCC bigram failed. Results:
+(a) ChiaKey's bigram table over our lexicon: clean/ODbL 0 flips at any
+weight; full (CC BY-NC) at weight 3 +3/-0 (上線 after 還沒, 已經寄出).
+Safe but nearly inert — rows exist only where they change a pick under
+*ChiaKey's own* unigram, and most of our misses are single-char ties
+(帶/代, 再/在, 做/作, 吃/持, 得/的) that their unigram already decides, so
+no row covers them. (b) ChiaKey unigram replacing ours: +21/-21, net 0
+(scale 1/3/6 all alike); with its bigram +25/-22. It fixes exactly those
+function-word ties but breaks 他→她, 你→妳, 那→哪, 在→債/再, 時間→事件,
+and the damage concentrates in toneless input (+13/-15 vs toned +8/-6):
+KeyKey scores rank words *within* a reading, so they are not comparable
+across tones, which toneless decoding needs. Decode ~2x slower (27 → 55
+ms mean, bigger table). Verdict: no drop-in replacement for Jev; the
+lever that transfers is the *data*, not the table — a per-reading
+function-word tie fix on our unigram (the 帶/再/吃/得 class) and a
+bigram layer calibrated against our own unigram with our own held-out
+fix/steal gate. `ContextBigrams` stays as a nil-by-default seam
+(`MISTYPE_BIGRAM`/`MISTYPE_LEXICON` dev-only env hooks, byte-identical
+decode when unset); ChiaKey data stays in `~/.cache`, never committed
+(full table is CC BY-NC; clean is ODbL, share-alike on derived DBs).
+
 Pilot (triage, NOT a finding yet, `--jev-mode trust`, n=5, threshold 0.6
 read post-hoc): one boolean on offline top-1 ("候選1是最正確的嗎")
 separates 10/10 — right top-1 trusts 0.82+ (hide-panel), wrong top-1

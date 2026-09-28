@@ -5,6 +5,13 @@ import MistypeCore
 
 enum Runtime {
     static let decoder: LexiconDecoder = {
+        // Experiment hook (dev only): MISTYPE_LEXICON=<tsv> replaces the
+        // bundled lexicon and supplement (different score scale).
+        if let path = ProcessInfo.processInfo.environment["MISTYPE_LEXICON"],
+           let data = try? String(contentsOfFile: path, encoding: .utf8) {
+            NSLog("Mistype: lexicon override \(path)")
+            return withBigrams(LexiconDecoder(tsv: data))
+        }
         guard let url = Bundle.main.url(forResource: "lexicon", withExtension: "tsv"),
               let data = try? String(contentsOf: url, encoding: .utf8) else {
             NSLog("Mistype: missing lexicon; refusing to start with a fixture decoder")
@@ -15,8 +22,20 @@ enum Runtime {
         // one parse path, first-class entries. Missing file means empty.
         let supplement = Bundle.main.url(forResource: "local_phrases", withExtension: "tsv")
             .flatMap { try? String(contentsOf: $0, encoding: .utf8) } ?? ""
-        return LexiconDecoder(tsv: data + "\n" + supplement)
+        return withBigrams(LexiconDecoder(tsv: data + "\n" + supplement))
     }()
+    private static func withBigrams(_ decoder: LexiconDecoder) -> LexiconDecoder {
+        // Experiment hook (dev only, local file, never user input):
+        // MISTYPE_BIGRAM=<ChiaKey bigrams.tsv> [MISTYPE_BIGRAM_WEIGHT=w].
+        let env = ProcessInfo.processInfo.environment
+        if let path = env["MISTYPE_BIGRAM"],
+           let tsv = try? String(contentsOfFile: path, encoding: .utf8) {
+            let weight = env["MISTYPE_BIGRAM_WEIGHT"].flatMap(Double.init) ?? 1.0
+            decoder.contextBigrams = ContextBigrams(tsv: tsv, weight: weight)
+            NSLog("Mistype: bigram overlay \(path) rows=\(decoder.contextBigrams!.count) weight=\(weight)")
+        }
+        return decoder
+    }
     /// Explicit-opt-in user overlay, loaded once at startup and reloaded
     /// when the preference flips on. Gated per keystroke by
     /// MistypePrefs.userLearning — off means nil, i.e. byte-identical decode.
