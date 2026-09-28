@@ -1,6 +1,6 @@
 import Foundation
 
-/// CJK punctuation table for the macOS adapter (pure, unit-tested).
+/// CJK punctuation table, keyed by physical key label (pure, unit-tested).
 ///
 /// Thesis first: keys that carry Zhuyin symbols (`,`, `.`, `/`, `;`, `-`,
 /// digits) stay phonetic even with an empty composition, so syllable-initial
@@ -21,39 +21,39 @@ public enum Punctuation {
         "、", "·", "；", "——",
         "＠", "＃", "＄", "％", "︿", "＆", "＊", "（", "）", "＋", "｛", "｝", "～",
     ]
-    public static func output(keyCode: Int, shift: Bool, ctrl: Bool = false) -> String? {
-        if ctrl && !shift && keyCode == 41 { return "；" }
+    public static func output(label: String, shift: Bool, ctrl: Bool = false) -> String? {
+        if ctrl && !shift && label == ";" { return "；" }
         if shift {
-            switch keyCode {
-            case 18: return "！"
-            case 19: return "＠"
-            case 20: return "＃"
-            case 21: return "＄"
-            case 23: return "％"
-            case 22: return "︿"
-            case 26: return "＆"
-            case 28: return "＊"
-            case 25: return "（"
-            case 29: return "）"
-            case 24: return "＋"
-            case 33: return "｛"
-            case 30: return "｝"
-            case 50: return "～"
-            case 27: return "——"
-            case 39: return "」"
-            case 41: return "："
-            case 42: return "·"
-            case 43: return "，"
-            case 44: return "？"
-            case 47: return "。"
+            switch label {
+            case "1": return "！"
+            case "2": return "＠"
+            case "3": return "＃"
+            case "4": return "＄"
+            case "5": return "％"
+            case "6": return "︿"
+            case "7": return "＆"
+            case "8": return "＊"
+            case "9": return "（"
+            case "0": return "）"
+            case "=": return "＋"
+            case "[": return "｛"
+            case "]": return "｝"
+            case "`": return "～"
+            case "-": return "——"
+            case "'": return "」"
+            case ";": return "："
+            case "\\": return "·"
+            case ",": return "，"
+            case "/": return "？"
+            case ".": return "。"
             default: break
             }
         }
-        switch keyCode {
-        case 30: return "』"
-        case 33: return "『"
-        case 39: return "「"
-        case 42: return "、"
+        switch label {
+        case "]": return "』"
+        case "[": return "『"
+        case "'": return "「"
+        case "\\": return "、"
         default: return nil
         }
     }

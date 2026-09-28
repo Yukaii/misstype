@@ -274,8 +274,8 @@ counts, McBopomofo single chars are about 1.26 too high and words about 0.48
 too low (medians over 5.6k chars and 63k words). So each extra token is
 over-rewarded by about 1.7 (面試 -11.9 vs 面+是 -11.1; NAER -11.3 vs -13.1).
 Fix: the classic word insertion penalty, a constant cost per dictionary
-word on a path (`LexiconDecoder.wordPenalty`; `Runtime` sets 0.5; core
-default 0 keeps fixtures identical). Sweep on Common Voice (800):
+word on a path (`LexiconDecoder.wordPenalty`; `LexiconLoader` sets 0.5;
+core default 0 keeps fixtures identical). Sweep on Common Voice (800):
 0.5 +18/-3, 1.0 +25/-11, 1.5 +33/-15, 2 +33/-17, 3 +37/-22. Larger
 values fix more words but merge toneless coincidences faster (想吃→相持,
 在找→在朝, 弟弟→低低: under toneless input any tone forms a word).

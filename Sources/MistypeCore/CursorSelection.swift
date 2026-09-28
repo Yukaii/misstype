@@ -28,7 +28,7 @@ public enum SelectionKeys {
     /// Preferences input -> usable keys: lowercased, distinct, only keys the
     /// keyboard map knows (never space), capped at one page; empty -> default.
     public static func sanitize(_ input: String, pageSize: Int = 8) -> String {
-        let known = Set(ZhuyinKeyboard.labels.values).subtracting([" "])
+        let known = Set(ZhuyinKeyboard.symbols.keys).union(ZhuyinKeyboard.tones.keys).subtracting([" "])
         var seen = Set<String>()
         let keys = input.lowercased().map(String.init)
             .filter { known.contains($0) && seen.insert($0).inserted }

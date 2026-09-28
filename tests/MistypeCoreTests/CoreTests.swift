@@ -21,12 +21,21 @@ final class CoreTests: XCTestCase {
         """)
     }
     func testHardwareMapCoversEverySymbolOnce() {
-        let mapped = ZhuyinKeyboard.labels.values.filter { ZhuyinKeyboard.symbols[$0] != nil }
+        let mapped = MacKeyCode.labels.values.filter { ZhuyinKeyboard.symbols[$0] != nil }
         XCTAssertEqual(mapped.count, 37)
         XCTAssertEqual(Set(mapped), Set(ZhuyinKeyboard.symbols.keys))
-        XCTAssertEqual(ZhuyinKeyboard.labels[45], "n")
-        XCTAssertEqual(ZhuyinKeyboard.labels[28], "8")
-        XCTAssertEqual(ZhuyinKeyboard.labels[27], "-")
+        XCTAssertEqual(MacKeyCode.labels[45], "n")
+        XCTAssertEqual(MacKeyCode.labels[28], "8")
+        XCTAssertEqual(MacKeyCode.labels[27], "-")
+        // Every Zhuyin and tone key is reachable; space is its own key.
+        let zhuyin = Set(ZhuyinKeyboard.symbols.keys).union(ZhuyinKeyboard.tones.keys).subtracting([" "])
+        XCTAssertTrue(zhuyin.isSubset(of: Set(MacKeyCode.labels.values)))
+        XCTAssertEqual(MacKeyCode.key(49), .space)
+        XCTAssertEqual(MacKeyCode.key(49).zhuyinLabel, " ")
+        XCTAssertEqual(MacKeyCode.key(56), .shift(.left))
+        XCTAssertEqual(MacKeyCode.key(76), .enter)
+        XCTAssertEqual(MacKeyCode.key(58), .modifier)
+        XCTAssertNil(MacKeyCode.key(24).zhuyinLabel) // "=" is not a Zhuyin key
     }
     func testToneKeysAndSpaceEndSyllables() {
         let input = composition("su3cl3a87")
@@ -100,42 +109,42 @@ final class CoreTests: XCTestCase {
         input.deleteLastSyllable()
         XCTAssertTrue(input.isEmpty)
     }
-    func testCjkPunctuationTable() {        XCTAssertEqual(Punctuation.output(keyCode: 43, shift: true), "，")
-        XCTAssertEqual(Punctuation.output(keyCode: 47, shift: true), "。")
-        XCTAssertEqual(Punctuation.output(keyCode: 44, shift: true), "？")
-        XCTAssertEqual(Punctuation.output(keyCode: 18, shift: true), "！")
-        XCTAssertEqual(Punctuation.output(keyCode: 41, shift: true), "：")
-        XCTAssertEqual(Punctuation.output(keyCode: 39, shift: false), "「")
-        XCTAssertEqual(Punctuation.output(keyCode: 39, shift: true), "」")
-        XCTAssertEqual(Punctuation.output(keyCode: 33, shift: false), "『")
-        XCTAssertEqual(Punctuation.output(keyCode: 30, shift: false), "』")
-        XCTAssertEqual(Punctuation.output(keyCode: 42, shift: false), "、")
-        XCTAssertEqual(Punctuation.output(keyCode: 42, shift: true), "·")
-        XCTAssertEqual(Punctuation.output(keyCode: 27, shift: true), "——")
-        XCTAssertEqual(Punctuation.output(keyCode: 41, shift: false, ctrl: true), "；")
+    func testCjkPunctuationTable() {        XCTAssertEqual(Punctuation.output(label: ",", shift: true), "，")
+        XCTAssertEqual(Punctuation.output(label: ".", shift: true), "。")
+        XCTAssertEqual(Punctuation.output(label: "/", shift: true), "？")
+        XCTAssertEqual(Punctuation.output(label: "1", shift: true), "！")
+        XCTAssertEqual(Punctuation.output(label: ";", shift: true), "：")
+        XCTAssertEqual(Punctuation.output(label: "'", shift: false), "「")
+        XCTAssertEqual(Punctuation.output(label: "'", shift: true), "」")
+        XCTAssertEqual(Punctuation.output(label: "[", shift: false), "『")
+        XCTAssertEqual(Punctuation.output(label: "]", shift: false), "』")
+        XCTAssertEqual(Punctuation.output(label: "\\", shift: false), "、")
+        XCTAssertEqual(Punctuation.output(label: "\\", shift: true), "·")
+        XCTAssertEqual(Punctuation.output(label: "-", shift: true), "——")
+        XCTAssertEqual(Punctuation.output(label: ";", shift: false, ctrl: true), "；")
         // Ctrl/Cmd must not hijack anything else; plain letters untouched.
-        XCTAssertNil(Punctuation.output(keyCode: 0, shift: false, ctrl: true))
-        XCTAssertNil(Punctuation.output(keyCode: 27, shift: false))
+        XCTAssertNil(Punctuation.output(label: "a", shift: false, ctrl: true))
+        XCTAssertNil(Punctuation.output(label: "-", shift: false))
         // Zhuyin-position keys stay phonetic: no mapping unshifted, and
         // plain letters are untouched so Shift-hold Latin still passes through.
-        XCTAssertNil(Punctuation.output(keyCode: 43, shift: false))
-        XCTAssertNil(Punctuation.output(keyCode: 44, shift: false))
-        XCTAssertNil(Punctuation.output(keyCode: 41, shift: false))
-        XCTAssertNil(Punctuation.output(keyCode: 0, shift: false))
-        XCTAssertNil(Punctuation.output(keyCode: 0, shift: true))
+        XCTAssertNil(Punctuation.output(label: ",", shift: false))
+        XCTAssertNil(Punctuation.output(label: "/", shift: false))
+        XCTAssertNil(Punctuation.output(label: ";", shift: false))
+        XCTAssertNil(Punctuation.output(label: "a", shift: false))
+        XCTAssertNil(Punctuation.output(label: "a", shift: true))
     }
     func testFullWidthShiftLayer() {
         // 大千 Shift layer: digit row + = [ ] ` (selection moved off Shift+digit).
-        let expected: [Int: String] = [18: "！", 19: "＠", 20: "＃", 21: "＄", 23: "％", 22: "︿",
-                                       26: "＆", 28: "＊", 25: "（", 29: "）", 24: "＋",
-                                       33: "｛", 30: "｝", 50: "～"]
-        for (keyCode, mark) in expected {
-            XCTAssertEqual(Punctuation.output(keyCode: keyCode, shift: true), mark)
+        let expected: [String: String] = ["1": "！", "2": "＠", "3": "＃", "4": "＄", "5": "％", "6": "︿",
+                                          "7": "＆", "8": "＊", "9": "（", "0": "）", "=": "＋",
+                                          "[": "｛", "]": "｝", "`": "～"]
+        for (label, mark) in expected {
+            XCTAssertEqual(Punctuation.output(label: label, shift: true), mark)
             XCTAssertTrue(Punctuation.literals.contains(mark))
         }
         // Unshifted digits stay Zhuyin; unshifted ` stays the latin toggle.
-        for keyCode in [18, 19, 20, 21, 23, 22, 26, 28, 25, 29, 50] {
-            XCTAssertNil(Punctuation.output(keyCode: keyCode, shift: false))
+        for label in ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "`"] {
+            XCTAssertNil(Punctuation.output(label: label, shift: false))
         }
         var input = composition("su3")
         XCTAssertTrue(input.appendLiteral("（"))
@@ -1184,46 +1193,46 @@ final class CoreTests: XCTestCase {
 
     func testShiftTapPressReleaseWithinLimitToggles() {
         var tracker = ShiftTapTracker()
-        XCTAssertFalse(tracker.feed(keyCode: 56, shiftHeld: true, isRealKeyDown: false, otherMods: false, now: 100.0))
-        XCTAssertTrue(tracker.feed(keyCode: 56, shiftHeld: false, isRealKeyDown: false, otherMods: false, now: 100.1))
+        XCTAssertFalse(tracker.feed(shift: .left, shiftHeld: true, isRealKeyDown: false, otherMods: false, now: 100.0))
+        XCTAssertTrue(tracker.feed(shift: .left, shiftHeld: false, isRealKeyDown: false, otherMods: false, now: 100.1))
         // One-shot: release without press does nothing.
-        XCTAssertFalse(tracker.feed(keyCode: 56, shiftHeld: false, isRealKeyDown: false, otherMods: false, now: 100.2))
+        XCTAssertFalse(tracker.feed(shift: .left, shiftHeld: false, isRealKeyDown: false, otherMods: false, now: 100.2))
     }
 
     func testShiftTapHoldPastLimitDoesNotToggle() {
         var tracker = ShiftTapTracker()
-        XCTAssertFalse(tracker.feed(keyCode: 60, shiftHeld: true, isRealKeyDown: false, otherMods: false, now: 100.0))
-        XCTAssertFalse(tracker.feed(keyCode: 60, shiftHeld: false, isRealKeyDown: false, otherMods: false, now: 100.5))
+        XCTAssertFalse(tracker.feed(shift: .right, shiftHeld: true, isRealKeyDown: false, otherMods: false, now: 100.0))
+        XCTAssertFalse(tracker.feed(shift: .right, shiftHeld: false, isRealKeyDown: false, otherMods: false, now: 100.5))
     }
 
     func testShiftTapCancelledByInterveningKeyDown() {
         // Shift+A capital inline: press, real keyDown, release → no toggle.
         var tracker = ShiftTapTracker()
-        XCTAssertFalse(tracker.feed(keyCode: 56, shiftHeld: true, isRealKeyDown: false, otherMods: false, now: 100.0))
-        XCTAssertFalse(tracker.feed(keyCode: 0, shiftHeld: true, isRealKeyDown: true, otherMods: false, now: 100.05))
-        XCTAssertFalse(tracker.feed(keyCode: 56, shiftHeld: false, isRealKeyDown: false, otherMods: false, now: 100.1))
+        XCTAssertFalse(tracker.feed(shift: .left, shiftHeld: true, isRealKeyDown: false, otherMods: false, now: 100.0))
+        XCTAssertFalse(tracker.feed(shift: nil, shiftHeld: true, isRealKeyDown: true, otherMods: false, now: 100.05))
+        XCTAssertFalse(tracker.feed(shift: .left, shiftHeld: false, isRealKeyDown: false, otherMods: false, now: 100.1))
     }
 
     func testShiftTapRejectsChordsAndMismatchedKeys() {
         var tracker = ShiftTapTracker()
         // Cmd+Shift press never arms.
-        XCTAssertFalse(tracker.feed(keyCode: 56, shiftHeld: true, isRealKeyDown: false, otherMods: true, now: 100.0))
-        XCTAssertFalse(tracker.feed(keyCode: 56, shiftHeld: false, isRealKeyDown: false, otherMods: false, now: 100.1))
+        XCTAssertFalse(tracker.feed(shift: .left, shiftHeld: true, isRealKeyDown: false, otherMods: true, now: 100.0))
+        XCTAssertFalse(tracker.feed(shift: .left, shiftHeld: false, isRealKeyDown: false, otherMods: false, now: 100.1))
         // Left press + right release never completes.
-        XCTAssertFalse(tracker.feed(keyCode: 56, shiftHeld: true, isRealKeyDown: false, otherMods: false, now: 101.0))
-        XCTAssertFalse(tracker.feed(keyCode: 60, shiftHeld: false, isRealKeyDown: false, otherMods: false, now: 101.1))
+        XCTAssertFalse(tracker.feed(shift: .left, shiftHeld: true, isRealKeyDown: false, otherMods: false, now: 101.0))
+        XCTAssertFalse(tracker.feed(shift: .right, shiftHeld: false, isRealKeyDown: false, otherMods: false, now: 101.1))
     }
 
     func testShiftTapDuplicateCycleGuard() {
         // Electron-style duplicate press/release pair right after a trigger.
         var tracker = ShiftTapTracker()
-        XCTAssertFalse(tracker.feed(keyCode: 56, shiftHeld: true, isRealKeyDown: false, otherMods: false, now: 100.0))
-        XCTAssertTrue(tracker.feed(keyCode: 56, shiftHeld: false, isRealKeyDown: false, otherMods: false, now: 100.1))
-        XCTAssertFalse(tracker.feed(keyCode: 56, shiftHeld: true, isRealKeyDown: false, otherMods: false, now: 100.12))
-        XCTAssertFalse(tracker.feed(keyCode: 56, shiftHeld: false, isRealKeyDown: false, otherMods: false, now: 100.14))
+        XCTAssertFalse(tracker.feed(shift: .left, shiftHeld: true, isRealKeyDown: false, otherMods: false, now: 100.0))
+        XCTAssertTrue(tracker.feed(shift: .left, shiftHeld: false, isRealKeyDown: false, otherMods: false, now: 100.1))
+        XCTAssertFalse(tracker.feed(shift: .left, shiftHeld: true, isRealKeyDown: false, otherMods: false, now: 100.12))
+        XCTAssertFalse(tracker.feed(shift: .left, shiftHeld: false, isRealKeyDown: false, otherMods: false, now: 100.14))
         // After cooldown, tapping works again.
-        XCTAssertFalse(tracker.feed(keyCode: 56, shiftHeld: true, isRealKeyDown: false, otherMods: false, now: 101.0))
-        XCTAssertTrue(tracker.feed(keyCode: 56, shiftHeld: false, isRealKeyDown: false, otherMods: false, now: 101.1))
+        XCTAssertFalse(tracker.feed(shift: .left, shiftHeld: true, isRealKeyDown: false, otherMods: false, now: 101.0))
+        XCTAssertTrue(tracker.feed(shift: .left, shiftHeld: false, isRealKeyDown: false, otherMods: false, now: 101.1))
     }
 
     // MARK: - Local phrase supplement (lexicon gaps like 選詞)

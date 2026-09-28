@@ -3,9 +3,9 @@ import Foundation
 /// Lone-Shift-tap detection for 中/英 mode toggle (pure state machine so the
 /// IME call site and unit tests share one definition).
 ///
-/// Delivery: taps arrive via IMK `handleEvent:client:` (keyDown/keyUp/
-/// flagsChanged for keyCodes 56/60) — never via `inputText`, which only sees
-/// text keyDowns. Approach follows vChewing's ModifierKeyHitChecker: track
+/// Delivery: `InputSession` feeds every `KeyEvent` (macOS: IMK
+/// `handleEvent:client:` keyDown/keyUp/flagsChanged, never `inputText`,
+/// which only sees text keyDowns). Approach follows vChewing's ModifierKeyHitChecker: track
 /// Shift modifier STATE TRANSITIONS, never trust event types (Electron /
 /// Chromium splits one physical tap into duplicate cycles and emits
 /// redundant flagsChanged), cancel on any real keyDown, cap tap length
@@ -13,8 +13,6 @@ import Foundation
 /// re-detection. Press additionally requires no sibling modifiers so
 /// Cmd/Opt/Ctrl chords can never arm.
 public struct ShiftTapTracker {
-    /// ANSI keyCodes for left/right Shift.
-    public static let shiftKeyCodes = [56, 60]
     /// Max press→release span counting as a tap (longer = hold).
     public var tapTimeLimit: TimeInterval = 0.2
     /// Cooldown after a trigger (humans can't tap twice this fast; bounces can).
@@ -22,32 +20,33 @@ public struct ShiftTapTracker {
 
     private var down = false
     private var downTime: TimeInterval?
-    private var downKeyCode: Int?
+    private var downSide: KeyEvent.ShiftSide?
     private var lastTrigger: TimeInterval?
 
     public init() {}
 
     /// Feed one event; returns true exactly when a lone tap completes.
+    /// `shift` is the Shift key this event is about (nil for any other key).
     /// `now` is injected so tests don't depend on the wall clock.
-    public mutating func feed(keyCode: Int,
+    public mutating func feed(shift: KeyEvent.ShiftSide?,
                               shiftHeld: Bool,
                               isRealKeyDown: Bool,
                               otherMods: Bool,
                               now: TimeInterval = Date().timeIntervalSinceReferenceDate) -> Bool {
-        let isShiftKey = Self.shiftKeyCodes.contains(keyCode)
+        let isShiftKey = shift != nil
         // Any other real keyDown cancels immediately (Shift+A capitals,
         // Shift+Tab stepping, …). lastTrigger survives: cooldown is per trigger.
         if isRealKeyDown, !isShiftKey {
             down = false
             downTime = nil
-            downKeyCode = nil
+            downSide = nil
             return false
         }
         // Sibling modifiers disarm: chords are never taps.
         if otherMods {
             down = false
             downTime = nil
-            downKeyCode = nil
+            downSide = nil
             return false
         }
         // Press transition: pure Shift down.
@@ -56,7 +55,7 @@ public struct ShiftTapTracker {
             if let last = lastTrigger, now - last < retriggerGuard { return false }
             down = true
             downTime = now
-            downKeyCode = keyCode
+            downSide = shift
             return false
         }
         // Release transition: shift bit cleared on a Shift key. Any such
@@ -66,9 +65,9 @@ public struct ShiftTapTracker {
             defer {
                 down = false
                 downTime = nil
-                downKeyCode = nil
+                downSide = nil
             }
-            guard downKeyCode == keyCode else { return false }
+            guard downSide == shift else { return false }
             guard now - (downTime ?? now) <= tapTimeLimit else { return false }
             if let last = lastTrigger, now - last < retriggerGuard { return false }
             lastTrigger = now
@@ -80,7 +79,7 @@ public struct ShiftTapTracker {
     public mutating func reset() {
         down = false
         downTime = nil
-        downKeyCode = nil
+        downSide = nil
     }
 }
 
@@ -93,13 +92,6 @@ public enum ZhuyinKeyboard {
         "0":"ㄢ", "p":"ㄣ", ";":"ㄤ", "/":"ㄥ", "-":"ㄦ",
     ]
     public static let tones = ["3":"ˇ", "4":"ˋ", "6":"ˊ", "7":"˙", " ":""]
-    // ANSI virtual key codes, independent of the user's active Latin layout.
-    public static let labels: [Int: String] = [
-        0:"a",1:"s",2:"d",3:"f",4:"h",5:"g",6:"z",7:"x",8:"c",9:"v",11:"b",
-        12:"q",13:"w",14:"e",15:"r",16:"y",17:"t",18:"1",19:"2",20:"3",21:"4",
-        22:"6",23:"5",25:"9",26:"7",27:"-",28:"8",29:"0",31:"o",32:"u",
-        34:"i",35:"p",37:"l",38:"j",40:"k",41:";",43:",",44:"/",45:"n",46:"m",47:".",49:" ",
-    ]
 
     /// Bopomofo symbols confused in real typing but far apart on QWERTY —
     /// neighbor substitution can never reach them. Medials (ㄧㄨㄩ taps as
