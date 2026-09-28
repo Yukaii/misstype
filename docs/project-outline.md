@@ -455,6 +455,19 @@ keys keep their whole-syllable repair. Replay unchanged, keynoise one row
 better (swap CER 1.067 -> 0.933). Remaining: churn 38/1738 keystrokes
 toned, 78/1168 toneless (e.g. 我進體 -> 我今天).
 
+Settling accepted text (2026-09-27, user report: long input listed
+sentence alternatives that only varied old text before a ，, while the
+part being typed was cut off). Earlier runs, and words ending 3+
+syllables before the end of the run being typed, settle automatically:
+character-level pins (word-level ones froze 這 as a one-char word and
+blocked the later merge into 這部 -> 這不電影), kept apart from explicit
+picks (never learned; explicit picks override them per run), and
+candidates that break a pin drop out of the list. `live_trace.py
+--settle K`: K=1 wrecks accuracy (toneless final dev 23 -> 8); K=2 loses
+one holdout sentence; K=3 keeps dev identical, holdout toned 31 = 31,
+toneless 21 -> 22, and 4-sentence ，-joined inputs identical. Panel
+windows longer than a row now keep the end nearest the cursor.
+
 ## Measures
 
 Track phrase-level character error rate, syllable error rate, commit latency, p50/p95 decode latency, backspaces or replays, candidate interruptions, and task completion time. Log confidence and decoder source for every result. Run a fixed synthetic fixture set plus consented user sessions kept outside the repository.

@@ -736,6 +736,23 @@ final class CoreTests: XCTestCase {
         XCTAssertEqual(top.unresolved, 1)
         XCTAssertEqual(top.syllables.map(\.base), ["ㄋㄧ", "ㄏㄠ", "ㄉ"])
     }
+    func testSettledPinsFreezeAcceptedTextButNotTheTail() {
+        let decoder = boundaryDecoder
+        var input = composition("2842jo4")      // 大對
+        input.appendLiteral("，")
+        for key in "294fu061l " { _ = input.append(String(key)) }  // 代錢包
+        let top = decoder.livePreview(input).candidates[0]
+        XCTAssertEqual(top.text, "大對，代錢包")
+        let settled = UserLexicon.settled(from: top, keep: 3)
+        // The closed run settles whole; the run being typed is too short.
+        XCTAssertEqual(Set(settled.entries.values.flatMap(\.keys)), ["大", "對"])
+        let preview = decoder.livePreview(input, settled: settled)
+        XCTAssertTrue(preview.candidates.allSatisfy { $0.text.hasPrefix("大對，") })
+        // An explicit pin overrides a settled one on the same key.
+        var explicit = UserLexicon()
+        explicit.pin(CursorOption(text: "打對", span: 0..<2, score: -16), over: top)
+        XCTAssertEqual(decoder.livePreview(input, locked: explicit, settled: settled).candidates[0].text, "打對，代錢包")
+    }
     func testCandidateDisplayShowsWhereRowsDiffer() {
         let rows = ["但中間有些字都會立即找到配對", "但中間有些字都會立即找到配隊", "但中間有些字都會立即找到佩對"]
         XCTAssertEqual(CandidateDisplay.windows(rows), ["…找到配對", "…找到配隊", "…找到佩對"])
@@ -747,6 +764,9 @@ final class CoreTests: XCTestCase {
         // A single long row keeps its tail, as before.
         XCTAssertEqual(CandidateDisplay.windows([String(repeating: "字", count: 20)], maxChars: 5), ["…字字字字字"])
         XCTAssertEqual(CandidateDisplay.windows([]), [])
+        // A window wider than a row keeps the end nearest the cursor.
+        XCTAssertEqual(CandidateDisplay.windows(["學系的狀況是怎麼樣字典", "學習的狀況是怎麼樣自點"], maxChars: 6),
+                       ["…是怎麼樣字典", "…是怎麼樣自點"])
     }
     func testLivePendingCutLeavesOnlyTheSyllableInProgressRaw() {
         let keys = { (text: String) in text.map(String.init) }

@@ -219,6 +219,12 @@ final class MistypeInputController: IMKInputController {    private var composit
     /// UTF-16 offset of the cursor syllable (caret for marked text/panel).
     private var segmentCaret: Int?
     private var sessionPins = UserLexicon()
+    /// Automatic pins for accepted text (earlier runs, and words 3+
+    /// syllables before the end): re-derived from top-1 every refresh, kept
+    /// apart from explicit sessionPins so they never train, and dropped
+    /// whenever an explicit pick lands (the next refresh re-derives them).
+    private var settledPins = UserLexicon()
+    private static let settleDistance = 3
     /// Pending keys shown raw after the live conversion: the syllable still
     /// being typed (`livePendingCut`). Empty = everything on screen converted.
     private var rawTail: [String] = []
@@ -366,6 +372,7 @@ final class MistypeInputController: IMKInputController {    private var composit
                 composition.clear()
                 candidates = []
                 rawTail = []
+                settledPins = UserLexicon()
                 selecting = false
                 pinnedPick = nil
                 explicitPick = false
@@ -451,6 +458,7 @@ final class MistypeInputController: IMKInputController {    private var composit
             composition.clear()
             candidates = []
             rawTail = []
+            settledPins = UserLexicon()
             selecting = false
             pinnedPick = nil
             explicitPick = false
@@ -650,13 +658,18 @@ final class MistypeInputController: IMKInputController {    private var composit
         // so re-segmentation of the live tail cannot drop it.
         if !keepCursor, pinnedPick != nil, selected != 0, candidates.indices.contains(selected) {
             sessionPins.pinDifferences(of: candidates[selected], from: candidates[0])
+            settledPins = UserLexicon()
         }
         let live = Runtime.decoder.livePreview(composition, fuzzy: MistypePrefs.fuzzyRepair,
                                                toneTolerance: MistypePrefs.toneTolerance,
                                                userLexicon: Runtime.activeUserLexicon,
-                                               locked: sessionPins.isEmpty ? nil : sessionPins)
+                                               locked: sessionPins.isEmpty ? nil : sessionPins,
+                                               settled: settledPins.isEmpty ? nil : settledPins)
         rawTail = live.rawTail
         candidates = live.candidates
+        if let top = candidates.first {
+            settledPins = UserLexicon.settled(from: top, keep: Self.settleDistance)
+        }
         if let pin = pinnedPick, !pin.isEmpty {
             if let exact = candidates.firstIndex(where: { $0.text == pin }) {
                 selected = exact
@@ -899,6 +912,7 @@ final class MistypeInputController: IMKInputController {    private var composit
         composition.clear()
         candidates = []
         rawTail = []
+        settledPins = UserLexicon()
         selecting = false
         pinnedPick = nil
         explicitPick = false
@@ -1038,6 +1052,7 @@ final class MistypeInputController: IMKInputController {    private var composit
         guard segmentOptions.indices.contains(index), let frame = focusFrame() else { return }
         let option = segmentOptions[index]
         sessionPins.pin(option, over: frame.top)
+        settledPins = UserLexicon()
         pinnedPick = nil
         explicitPick = true
         cursor = option.span.upperBound
@@ -1112,10 +1127,18 @@ if let decodeIndex = CommandLine.arguments.firstIndex(of: "--decode"),
     if CommandLine.arguments.contains("--live-trace") {
         let decoder = Runtime.decoder
         let keys = Array(keyText)
+        // --settle K: auto-settle words K+ syllables before the end (and
+        // earlier runs), carried across keystrokes as the IME does.
+        var keep: Int?
+        if let settleIndex = CommandLine.arguments.firstIndex(of: "--settle"),
+           settleIndex + 1 < CommandLine.arguments.count { keep = Int(CommandLine.arguments[settleIndex + 1]) }
+        var settled = UserLexicon()
         for count in 1...max(keys.count, 1) where count <= keys.count {
             let preview = decoder.livePreview(compose(keys.prefix(count)), fuzzy: MistypePrefs.fuzzyRepair,
-                                              toneTolerance: MistypePrefs.toneTolerance)
+                                              toneTolerance: MistypePrefs.toneTolerance,
+                                              settled: keep == nil || settled.isEmpty ? nil : settled)
             print("live\t\(count)\t\(preview.text())")
+            if let keep, let top = preview.candidates.first { settled = UserLexicon.settled(from: top, keep: keep) }
         }
         exit(0)
     }

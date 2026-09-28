@@ -17,14 +17,73 @@ public struct LivePreview {
 }
 
 extension LexiconDecoder {
+    /// `settled` holds automatic pins for text already accepted (see
+    /// `UserLexicon.settled(from:keep:)`); explicit `locked` pins win over
+    /// them. Candidates that break a pin (scoring far below top-1 by the pin
+    /// bonus) are dropped: they vary accepted text, which only buried the
+    /// alternatives near the cursor.
     public func livePreview(_ composition: Composition, fuzzy: Bool = true, toneTolerance: Bool = true,
-                            userLexicon: UserLexicon? = nil, locked: UserLexicon? = nil) -> LivePreview {
+                            userLexicon: UserLexicon? = nil, locked: UserLexicon? = nil,
+                            settled: UserLexicon? = nil) -> LivePreview {
         let pending = composition.parsed.pending
         let cut = livePendingCut(pending, toneTolerance: toneTolerance)
-        let candidates = decodeSegments(composition.segments, pendingKeys: Array(pending.prefix(cut)),
+        // Explicit pins win: settled pins are dropped from any run that has
+        // an explicit pin, since spans may overlap without sharing a key
+        // (打對 over settled 大 + 對) and both at pinBonus cannot hold.
+        let explicitRuns = Set((locked?.entries.keys ?? [:].keys).compactMap { $0.split(separator: "#").first })
+        var pins = UserLexicon()
+        for (key, texts) in settled?.entries ?? [:]
+        where !explicitRuns.contains(key.split(separator: "#").first ?? "") {
+            pins.entries[key] = texts
+        }
+        for (key, texts) in locked?.entries ?? [:] { pins.entries[key] = texts }
+        var candidates = decodeSegments(composition.segments, pendingKeys: Array(pending.prefix(cut)),
                                         fuzzy: fuzzy, toneTolerance: toneTolerance,
-                                        userLexicon: userLexicon, locked: locked)
+                                        userLexicon: userLexicon, locked: pins.isEmpty ? nil : pins)
+        if !pins.isEmpty, let top = candidates.first {
+            candidates = candidates.filter { $0.score > top.score - UserLexicon.pinBonus / 2 }
+        }
         return LivePreview(candidates: candidates, rawTail: Array(pending.dropFirst(cut)))
+    }
+}
+
+extension UserLexicon {
+    /// Automatic pins for accepted text: every word of an earlier run
+    /// (punctuation or latin closed it) and every word of the run being
+    /// typed that ends at least `keep` syllables before its end. Derived
+    /// fresh from the displayed top-1 each keystroke — it already honors the
+    /// previous settle — so Backspace un-settles naturally. Never learned:
+    /// kept apart from explicit pins (user report 2026-09-27: "the front was
+    /// already accepted; only compose near the cursor").
+    ///
+    /// Pins are per CHARACTER ("run#@offset" -> char), not per word: the
+    /// accepted text is fixed but word boundaries stay free, so an accepted
+    /// 這 can still merge into 這部 when 部 arrives.
+    public static func settled(from top: SentenceCandidate, keep: Int) -> UserLexicon {
+        var out = UserLexicon()
+        guard let lastRun = top.runs.last else { return out }
+        let units = Array(top.text.utf16)
+        for word in top.alignment where word.chars.upperBound <= units.count {
+            let inLastRun = lastRun.contains(word.syllables.lowerBound)
+            guard !inLastRun || word.syllables.upperBound <= lastRun.upperBound - keep,
+                  let run = top.runs.firstIndex(where: { $0.contains(word.syllables.lowerBound) }),
+                  let runStart = top.charOffset(ofSyllable: top.runs[run].lowerBound) else { continue }
+            for unit in word.chars {
+                out.entries["\(run)#@\(unit - runStart)"] =
+                    [String(decoding: units[unit..<unit + 1], as: UTF16.self): Record(count: 1, updatedAt: 0)]
+            }
+        }
+        return out
+    }
+
+    /// Run-local settled characters ("@offset" keys after pins(forRun:)).
+    func settledUnits() -> [Int: UInt16]? {
+        var out: [Int: UInt16] = [:]
+        for (key, texts) in entries where key.hasPrefix("@") {
+            guard let offset = Int(key.dropFirst()), let unit = texts.keys.first?.utf16.first else { continue }
+            out[offset] = unit
+        }
+        return out.isEmpty ? nil : out
     }
 }
 
@@ -56,12 +115,14 @@ public enum CandidateDisplay {
         return rows.map { row in
             let from = min(start, row.count), to = max(from, row.count - tail)
             var body = Array(row[from..<to])
-            var trailing = to < row.count
+            var leading = from > 0
+            // Too long: keep the end nearest the cursor — the front of the
+            // window is older text (user report 2026-09-27).
             if body.count > maxChars {
-                body = Array(body.prefix(maxChars))
-                trailing = true
+                body = Array(body.suffix(maxChars))
+                leading = true
             }
-            return (from > 0 ? "…" : "") + String(body) + (trailing ? "…" : "")
+            return (leading ? "…" : "") + String(body) + (to < row.count ? "…" : "")
         }
     }
 }
