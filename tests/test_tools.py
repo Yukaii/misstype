@@ -24,6 +24,7 @@ lm_rescore = load_tool("lm_rescore")
 lm_choose = load_tool("lm_choose")
 jev_success = load_tool("jev_success")
 cursor_replay = load_tool("cursor_replay")
+learned = load_tool("learned")
 
 
 class ToolTests(unittest.TestCase):
@@ -161,6 +162,14 @@ class ToolTests(unittest.TestCase):
             reverse = cursor_replay.load_reverse_lexicon(path)
         self.assertEqual(reverse["了"][0], "ㄌㄜ˙")
         self.assertEqual(reverse["一下"][0], "ㄧ ㄒㄧㄚˋ")
+
+    def test_learned_splits_word_and_context_entries(self):
+        store = {"version": 2, "entries": {
+            "ㄉㄚㄉㄨㄟ": {"打對": {"count": 2, "updatedAt": 0}},
+            "下次|ㄗㄞ": {"再": {"count": 9, "updatedAt": 0}}}}
+        words, contexts = learned.rows(store)
+        self.assertEqual(words, [("ㄉㄚㄉㄨㄟ", "打對", 2, 7.0)])
+        self.assertEqual(contexts, [("下次", "ㄗㄞ", "再", 9, 10.0)])
 
     def test_cursor_replay_parses_binary_output(self):
         stdout = ("entries=1 user=0\n大對\t-7.0\trepairs=0 unresolved=0\n"
