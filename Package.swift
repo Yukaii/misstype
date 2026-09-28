@@ -3,9 +3,14 @@ import PackageDescription
 
 // MistypeCore (decoder + InputSession) builds everywhere Swift does; the
 // InputMethodKit adapter and the Carbon source tool are macOS-only.
-var products: [Product] = []
+// MistypeCAPI (C ABI over MistypeCore) and CMistype (C header) build on all platforms.
+var products: [Product] = [
+    .library(name: "MistypeCAPI", type: .dynamic, targets: ["MistypeCAPI"]),
+]
 var targets: [Target] = [
     .target(name: "MistypeCore"),
+    .target(name: "CMistype"),
+    .target(name: "MistypeCAPI", dependencies: ["MistypeCore", "CMistype"]),
     .testTarget(name: "MistypeCoreTests", dependencies: ["MistypeCore"],
                 path: "tests/MistypeCoreTests"),
 ]
