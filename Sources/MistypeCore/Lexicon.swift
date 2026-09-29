@@ -578,8 +578,16 @@ public final class LexiconDecoder {
                         let entries = end == start && syllables[start].tone == nil
                             ? child.tonelessEntries ?? child.entries : child.entries
                         let cap = syllables.count == 1 ? entries.count : Self.decodeEntriesPerNode
-                        for entry in entries.prefix(cap) {
-                            let spanKey = UserLexicon.key(forReadings: span)
+                        let spanKey = UserLexicon.key(forReadings: span)
+                        for (rank, entry) in entries.enumerated() {
+                            // The cap trims the beam, never a user's pick: a
+                            // homophone past it (page 2 of the picker) would
+                            // otherwise be pinned yet unreachable, so the
+                            // pick silently did nothing.
+                            if rank >= cap {
+                                guard let locked, !locked.isEmpty else { break }
+                                if !locked.hasPin(readings: spanKey, text: entry.text) { continue }
+                            }
                             // Session pin: a decisive bonus for the pinned
                             // (span, text) pair — paths through it always win
                             // (bonus dwarfs any score gap), longer covering

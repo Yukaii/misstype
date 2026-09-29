@@ -92,6 +92,23 @@ final class InputSessionTests: XCTestCase {
         XCTAssertEqual(session.engine.userLexicon.count, 1)
     }
 
+    func testSelectionKeyPicksFromSecondPageInASentence() {
+        // Homophones past the decoder's per-node cap (page 2 of the picker)
+        // must still win once picked; they used to be pinned but unreachable.
+        var rows = ""
+        for (i, c) in "你妳尼泥擬逆匿膩溺暱".enumerated() { rows += "ㄋㄧˇ\t\(c)\t-\(5 + i)\n" }
+        rows += "ㄏㄠˇ\t好\t-5\n"
+        let engine = InputEngine(decoder: LexiconDecoder(tsv: rows), settings: { [unowned self] in self.settings })
+        let session = InputSession(engine: engine)
+        session.host = host
+        type("su3cl3", into: session)
+        _ = session.handle(key(.left)); _ = session.handle(key(.left))
+        for _ in 0..<8 { _ = session.handle(key(.down)) }
+        XCTAssertEqual(session.view.selected, 8)
+        XCTAssertEqual(session.handle(key(.character("a"), text: "a")).consumed, true)
+        XCTAssertEqual(session.view.preedit, "溺好")
+    }
+
     func testEscapeLeavesSelectionFirstThenClears() {
         let session = makeSession()
         type("su3", into: session)
