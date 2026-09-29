@@ -1,5 +1,5 @@
 /* Mistype UI strings; keys are the English source text. */
-"Mistype Settings" = "隨打 設定";
+"Mistype Settings" = "隨打注音 設定";
 "General" = "一般";
 "Decoding" = "解碼";
 "Learning" = "學習";
@@ -36,7 +36,7 @@
 "Clear" = "清除";
 "Cancel" = "取消";
 "This can't be undone." = "此操作無法復原。";
-"Optional. When candidates are too close to call, a remote model can help decide. Off by default: Mistype decodes fully offline unless you enable this and provide a key." = "選用功能。候選難分高下時，可由遠端模型協助判斷。預設關閉：除非你啟用並提供金鑰，隨打完全離線解碼。";
+"Optional. When candidates are too close to call, a remote model can help decide. Off by default: Mistype decodes fully offline unless you enable this and provide a key." = "選用功能。候選難分高下時，可由遠端模型協助判斷。預設關閉：除非你啟用並提供金鑰，隨打注音完全離線解碼。";
 "Enable Jev assistance" = "啟用 Jev 協助";
 "Allow richer context" = "允許更豐富的上下文";
 "Also sends alignment and diff metadata." = "額外傳送對齊與差異資訊。";
@@ -56,7 +56,7 @@
 "Once enabled and a gateway key is present, candidate ties are sent to a remote model." = "啟用且提供金鑰後，候選難分高下時會傳送給遠端模型。";
 "Enable" = "啟用";
 "Turning it off returns to offline decoding immediately." = "關閉後立即回到離線解碼。";
-"Mistype" = "隨打";
+"Mistype" = "隨打注音";
 "Capture first, decode later." = "先打，再解碼。";
 "Version %@ (%@)" = "版本 %@（%@）";
 "Privacy" = "隱私";

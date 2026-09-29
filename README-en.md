@@ -1,4 +1,4 @@
-# Mistype (隨打)
+# Mistype (隨打注音)
 
 [繁體中文](README.md) | **English**
 
