@@ -14,7 +14,7 @@
 - [Linux (fcitx5) 移植計畫 (Linux Port)](docs/linux-port.md)：Linux 移植現況、工具鏈、開發容器與測試驗證說明。
 - [開發與代理人指南 (AGENTS.md)](AGENTS.md)：開發循環、隱私原則與 Definition of Done。
 
-本專案概念借鏡於 [青鍵 (Qingjian)](https://github.com/qingjian-team/qingjian)，特別是其平台無關的核心設計與整句延遲重組思維。隨打是一項獨立發展的實驗；與青鍵的相容性為長期里程碑，而非必然承諾。
+本專案概念借鏡於 [青鍵 (Qingjian)](https://github.com/qingjian-team/qingjian)，特別是其平台無關的核心設計與整句延遲重組思維。隨打注音是一項獨立發展的實驗；與青鍵的相容性為長期里程碑，而非必然承諾。
 
 ## macOS 原生輸入法
 
