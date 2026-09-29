@@ -58,13 +58,16 @@ struct SettingsView: View {
     @State private var pane: Pane = .general
 
     var body: some View {
-        NavigationSplitView {
+        // Fixed two-column layout instead of NavigationSplitView: that adds
+        // a translucent detail toolbar (a blank bar hiding the first section
+        // header) and a sidebar-collapse button this window has no use for.
+        HStack(spacing: 0) {
             List(Pane.allCases, selection: $pane) { item in
                 Label(item.title, systemImage: item.symbol).tag(item)
             }
             .listStyle(.sidebar)
-            .navigationSplitViewColumnWidth(190)
-        } detail: {
+            .frame(width: 190)
+            Divider()
             Group {
                 switch pane {
                 case .general: GeneralPane()
@@ -75,8 +78,9 @@ struct SettingsView: View {
                 }
             }
             .formStyle(.grouped)
-            .navigationTitle(pane.title)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .ignoresSafeArea()
     }
 }
 
