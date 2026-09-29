@@ -29,7 +29,7 @@ class PackagingMetadataTests(unittest.TestCase):
         self.assertTrue(svg.is_file())
         svg_text = svg.read_text()
         self.assertIn('viewBox="0 0 16 16"', svg_text)
-        self.assertEqual(svg_text.count("<path "), 3)
+        self.assertIn('#262C34', svg_text)
         menu_svg = ROOT / "Resources" / "MistypeMenuIcon.svg"
         self.assertTrue(menu_svg.is_file())
         menu_svg_text = menu_svg.read_text()
