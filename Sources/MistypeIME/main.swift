@@ -269,11 +269,12 @@ final class MistypeInputController: IMKInputController, InputSessionHost {
         menu.autoenablesItems = false
         // Persistent mode readout (the flash pill is transient): which
         // language bare keys will produce right now.
-        let mode = NSMenuItem(title: Runtime.engine.english ? "英文 English ✓" : "中文 Chinese ✓",
+        let mode = NSMenuItem(title: Runtime.engine.english ? L("English mode") : L("Chinese mode"),
                               action: nil, keyEquivalent: "")
+        mode.state = .on
         mode.isEnabled = false
         menu.addItem(mode)
-        let prefs = NSMenuItem(title: "Mistype Preferences…", action: #selector(openPreferences(_:)), keyEquivalent: "")
+        let prefs = NSMenuItem(title: L("Settings…"), action: #selector(openPreferences(_:)), keyEquivalent: "")
         prefs.target = nil
         prefs.isEnabled = true
         menu.addItem(prefs)
@@ -287,7 +288,7 @@ final class MistypeInputController: IMKInputController, InputSessionHost {
     @objc func openPreferences(_ sender: Any?) {
         Runtime.debugLog("[ime] openPreferences called")
         DispatchQueue.main.async {
-            PreferencesPanel.shared.show()
+            SettingsWindow.shared.show()
         }
     }
 
@@ -473,7 +474,7 @@ extension NSApplication {
     @objc func openPreferences(_ sender: Any?) {
         Runtime.debugLog("[ime] NSApp openPreferences called")
         DispatchQueue.main.async {
-            PreferencesPanel.shared.show()
+            SettingsWindow.shared.show()
         }
     }
 }
@@ -489,9 +490,9 @@ prefsObserver = DistributedNotificationCenter.default().addObserver(
     queue: .main
 ) { _ in
     Runtime.debugLog("[ime] notification openPreferences received")
-    PreferencesPanel.shared.show()
+    SettingsWindow.shared.show()
 }
 if CommandLine.arguments.contains("--preferences") {
-    PreferencesPanel.shared.show()
+    SettingsWindow.shared.show()
 }
 withExtendedLifetime((server, candidatePanel)) { app.run() }

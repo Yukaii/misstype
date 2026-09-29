@@ -1,0 +1,39 @@
+#!/usr/bin/env python3
+"""Every L("…") key used by the IME must exist in each Localizable.strings,
+and no language may carry keys the source no longer uses.
+
+    python3 tools/check_localizations.py
+"""
+import re
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+STRING = r'"((?:[^"\\]|\\.)*)"'
+
+def used_keys():
+    keys = set()
+    for path in (ROOT / "Sources" / "MistypeIME").glob("*.swift"):
+        for match in re.finditer(r'\bL\(\s*' + STRING, path.read_text()):
+            keys.add(match.group(1).replace('\\"', '"'))
+    keys.discard("")
+    return keys
+
+def strings_keys(path):
+    return {m.group(1).replace('\\"', '"')
+            for m in re.finditer(r'^' + STRING + r'\s*=', path.read_text(), re.M)}
+
+def main():
+    used = used_keys()
+    failed = False
+    for path in sorted((ROOT / "Resources").glob("*.lproj/Localizable.strings")):
+        have = strings_keys(path)
+        for label, keys in (("missing", used - have), ("unused", have - used)):
+            for key in sorted(keys):
+                print(f"{path.parent.name}: {label}: {key!r}")
+                failed = True
+    print("localizations OK" if not failed else "localizations FAILED")
+    return 1 if failed else 0
+
+if __name__ == "__main__":
+    sys.exit(main())
