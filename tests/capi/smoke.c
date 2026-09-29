@@ -383,6 +383,36 @@ void run_c12(const char *res) {
     mistype_engine_free(eng);
 }
 
+static mistype_key_result shift_tap(mistype_session *s, mistype_key_kind kind, int release, double t) {
+    mistype_key_event ev = {0};
+    ev.kind = kind;
+    ev.modifiers = release ? 0 : MISTYPE_MOD_SHIFT;
+    ev.is_release = release;
+    ev.native_code = -1;
+    ev.timestamp = t;
+    return mistype_session_handle(s, &ev);
+}
+
+/* mistype_engine_set_settings must reach live sessions: with shift_toggle=0
+ * (fcitx5 owns lone Shift) a Shift tap no longer flips 中/英. */
+void run_settings(const char *res) {
+    mistype_engine *eng = mistype_engine_new(res, "");
+    ASSERT(eng, "engine settings");
+    mistype_session *s = mistype_session_new(eng);
+    shift_tap(s, MISTYPE_KEY_SHIFT_LEFT, 0, 100.0);
+    mistype_key_result r = shift_tap(s, MISTYPE_KEY_SHIFT_LEFT, 1, 100.1);
+    ASSERT(r.mode_changed == 1 && mistype_engine_is_english(eng) == 1, "default settings: Shift tap toggles");
+    mistype_settings st = mistype_settings_default();
+    st.shift_toggle = 0;
+    mistype_engine_set_settings(eng, &st);
+    shift_tap(s, MISTYPE_KEY_SHIFT_LEFT, 0, 101.0);
+    r = shift_tap(s, MISTYPE_KEY_SHIFT_LEFT, 1, 101.1);
+    ASSERT(r.mode_changed == 0 && mistype_engine_is_english(eng) == 1, "shift_toggle=0: Shift tap ignored");
+    printf("settings shift_toggle=0 tap ignored\n");
+    mistype_session_free(s);
+    mistype_engine_free(eng);
+}
+
 int main(int argc, char **argv) {
     if (argc < 2) {
         fprintf(stderr, "usage: %s <resource_dir> [keys]\n", argv[0]);
@@ -401,6 +431,7 @@ int main(int argc, char **argv) {
         run_c10(res);
         run_c11(res);
         run_c12(res);
+        run_settings(res);
         test_keymap();
         printf("DONE\n");
         return 0;

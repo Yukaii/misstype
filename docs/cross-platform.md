@@ -127,6 +127,7 @@ platforms.
 | Key release / modifier-only change | return `consumed` (always true) | pass to the session, **never** `filterAndAccept()` |
 | Bare modifier press (Ctrl alone…) | return `consumed` (true) | pass to the session, **never** filter |
 | Any other press | return `consumed` | `filterAndAccept()` iff `consumed` |
+| Focus out with a composition | `commit()`, insert | fcitx5 itself inserts client-side preedit on focus out: the engine only clears its session (a second insert would duplicate the text). Without client preedit, or when switching input method, the engine inserts. Client `reset` discards |
 
 Filtering releases or bare modifiers on X11/Wayland can desynchronize the
 application's own modifier state; the session never changes the composition

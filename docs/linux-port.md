@@ -313,7 +313,12 @@ Negative check (do it, then revert): change `C1 commit=你好` in
     `updateUserInterface(UserInterfaceComponent::InputPanel)`. Skip when the
     view equals the last rendered one.
   - `activate` → `mistype_session_reset_modifiers`. `deactivate` and `reset`
-    → `mistype_session_commit`, `commitString` if non-NULL, render.
+    always call `mistype_session_commit` (the session drops its composition)
+    and render, but insert the text only when nobody else will: fcitx5
+    already commits client-side preedit itself on focus out (verified in the
+    harness: a second insert duplicates it), so `deactivate` inserts only for
+    a switch of input method or when the context has no client preedit;
+    `reset` never inserts.
 - `test/testmistype.cpp`: the fcitx5 harness pattern (verified in the
   spike): `setupTestingEnvironment(TESTING_BINARY_DIR, {"src"},
   {TESTING_BINARY_DIR "/data", TESTING_SOURCE_DIR "/data"})`, `Instance` with
@@ -324,7 +329,9 @@ Negative check (do it, then revert): change `C1 commit=你好` in
   `setCapabilityFlags(CapabilityFlag::Preedit)`,
   `instance.setCurrentInputMethod(ic, "mistype", false)`. Keys are
   `Key(sym, states, evdev + 8)` with **pre-event** states (X11 semantics).
-  Use `pushCommitExpectation` for every expected commit and the
+  The user lexicon is redirected to `build/fcitx5/xdg-data` (wiped per run);
+  C4 runs last because committing 尼 teaches it and reorders every later
+  scenario. Use `pushCommitExpectation` for every expected commit and the
   `sendKeyEvent` return value for filtered/passed assertions. Implement
   C1–C12 (C9 uses Ctrl+c; C11 = `ic->focusOut()`; C12 = `select()` on the
   list's candidate 3) plus:

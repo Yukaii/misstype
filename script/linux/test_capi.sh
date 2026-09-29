@@ -1,30 +1,26 @@
 #!/usr/bin/env bash
-# L2 C ABI smoke test (runs inside the container, from /w)
+# L2 C ABI check (runs inside the container, from /w): builds libMistypeCAPI.so,
+# runs tests/capi/smoke.c against expected.txt, and checks that the exported
+# symbols are exactly the functions declared in mistype.h.
 set -euo pipefail
+cd "$(dirname "$0")/../.."
 
-# Build the CAPI library
-swift build -c release --product MistypeCAPI -Xswiftc -static-stdlib -Xlinker -soname=libMistypeCAPI.so
+script/linux/build_capi.sh
+BIN_DIR=$(cat build/capi/libdir)
 
-# Find the built library
-BIN_DIR=$(find .build -name "libMistypeCAPI.so" -type f | head -1 | xargs dirname)
-echo "Library at: $BIN_DIR"
-
-# Build smoke test
 mkdir -p build/capi
-cc -std=c11 -Wall -Wextra -Werror -ISources/CMistype/include tests/capi/smoke.c -L"$BIN_DIR" -lMistypeCAPI -Wl,-rpath,"$BIN_DIR" -o build/capi/smoke
+cc -std=c11 -Wall -Wextra -Werror -ISources/CMistype/include tests/capi/smoke.c \
+    -L"$BIN_DIR" -lMistypeCAPI -Wl,-rpath,"$BIN_DIR" -o build/capi/smoke
 build/capi/smoke tests/fixtures/lexicon | diff -u tests/capi/expected.txt -
 
-# Symbol parity check
-HEADER_SYMBOLS=$(grep -oE '\bmistype_[a-z_]+\(\)' Sources/CMistype/include/mistype.h | tr -d '()' | sort -u)
-SO_SYMBOLS=$(nm -D --defined-only "$BIN_DIR/libMistypeCAPI.so" | grep ' T mistype_' | awk '{print $3}' | sort -u)
-if [ "$HEADER_SYMBOLS" != "$SO_SYMBOLS" ]; then
-    echo "Symbol mismatch!"
-    echo "Header:" $HEADER_SYMBOLS
-    echo "SO:" $SO_SYMBOLS
+HEADER_SYMBOLS=$(grep -oE '\bmistype_[a-z0-9_]+\(' Sources/CMistype/include/mistype.h | tr -d '(' | sort -u)
+SO_SYMBOLS=$(nm -D --defined-only "$BIN_DIR/libMistypeCAPI.so" | awk '$2 == "T" && $3 ~ /^mistype_/ {print $3}' | sort -u)
+if [ -z "$HEADER_SYMBOLS" ] || [ "$HEADER_SYMBOLS" != "$SO_SYMBOLS" ]; then
+    echo "Symbol mismatch between mistype.h and libMistypeCAPI.so"
+    diff <(echo "$HEADER_SYMBOLS") <(echo "$SO_SYMBOLS") || true
     exit 1
 fi
+echo "$(echo "$HEADER_SYMBOLS" | wc -l | tr -d ' ') exported symbols match the header"
 
-# C++ compilation check
-g++ -std=c++17 -fsyntax-only -x c++ Sources/CMistype/include/mistype.h
-
+g++ -std=c++17 -Wall -Wextra -Werror -fsyntax-only -x c++ Sources/CMistype/include/mistype.h
 echo "CAPI OK"

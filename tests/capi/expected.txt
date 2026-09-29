@@ -12,5 +12,6 @@ C10 shift-space consumed=1 commit=[你] mode_changed=1 english=1
 C10 s consumed=0 commit=(null)
 C11 commit=[你]
 C12 pick preedit=泥 selected=3
+settings shift_toggle=0 tap ignored
 keymap evdev31=s evdev57=space evdev42=shift-left A=a+shift !=1+shift
 DONE
