@@ -28,12 +28,12 @@ class PackagingMetadataTests(unittest.TestCase):
         svg = ROOT / "Resources" / "MistypeIcon.svg"
         self.assertTrue(svg.is_file())
         svg_text = svg.read_text()
-        self.assertIn("viewBox=\"0 0 16 16\"", svg_text)
+        self.assertIn('viewBox="0 0 16 16"', svg_text)
         self.assertEqual(svg_text.count("<path "), 3)
         menu_svg = ROOT / "Resources" / "MistypeMenuIcon.svg"
         self.assertTrue(menu_svg.is_file())
         menu_svg_text = menu_svg.read_text()
-        self.assertIn("viewBox=\"0 0 22 16\"", menu_svg_text)
+        self.assertIn('viewBox="0 0 22 16"', menu_svg_text)
         self.assertIn('shape-rendering="crispEdges"', menu_svg_text)
         menu_icon = ROOT / "Resources" / "MistypeMenuIcon.tiff"
         self.assertTrue(menu_icon.is_file())
@@ -50,7 +50,9 @@ class PackagingMetadataTests(unittest.TestCase):
 
         for locale, expected in {
             "en.lproj": "Mistype Bopomofo",
-            "zh-Hant.lproj": "Mistype 注音",
+            "zh-Hant.lproj": "隨打注音",
+            "zh-Hans.lproj": "随打注音",
+            "ja.lproj": "随打注音",
         }.items():
             strings = (ROOT / "Resources" / locale / "InfoPlist.strings").read_text()
             self.assertIn(
