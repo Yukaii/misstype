@@ -109,6 +109,58 @@ final class InputSessionTests: XCTestCase {
         XCTAssertEqual(session.view.preedit, "溺好")
     }
 
+    /// 10 homophones of ㄋㄧˇ: two pages (8 + 2) in the focused list.
+    private func homophoneSession() -> InputSession {
+        var rows = ""
+        for (i, c) in "你妳尼泥擬逆匿膩溺暱".enumerated() { rows += "ㄋㄧˇ\t\(c)\t-\(5 + i)\n" }
+        let engine = InputEngine(decoder: LexiconDecoder(tsv: rows), settings: { [unowned self] in self.settings })
+        let session = InputSession(engine: engine)
+        session.host = host
+        type("su3", into: session)
+        return session
+    }
+
+    func testPageKeysFlipPagesKeepingTheRow() {
+        let session = homophoneSession()
+        XCTAssertEqual(session.handle(key(.pageDown)), KeyResult(consumed: true))
+        XCTAssertEqual(session.view.selected, 8)
+        XCTAssertTrue(session.view.keysActive)
+        _ = session.handle(key(.pageDown)) // wraps to page 1, row 0
+        XCTAssertEqual(session.view.selected, 0)
+        XCTAssertEqual(session.view.candidates.count, 11) // 10 homophones + the raw fallback
+        for _ in 0..<5 { _ = session.handle(key(.down)) } // row 5
+        _ = session.handle(key(.pageDown)) // page 2 has 3 rows: clamp to last
+        XCTAssertEqual(session.view.selected, 10)
+        _ = session.handle(key(.pageUp))
+        XCTAssertEqual(session.view.selected, 2)
+    }
+
+    func testMinusEqualsPageOnlyInSelectionMode() {
+        let session = homophoneSession()
+        // Not selecting: `-` is ㄦ and types.
+        _ = session.handle(key(.character("-"), text: "-"))
+        XCTAssertFalse(session.view.keysActive)
+        XCTAssertTrue(session.view.preedit.hasSuffix("ㄦ"))
+        _ = session.handle(key(.backspace))
+        _ = session.handle(key(.down))
+        _ = session.handle(key(.character("="), text: "="))
+        XCTAssertEqual(session.view.selected, 9)
+        _ = session.handle(key(.character("-"), text: "-"))
+        XCTAssertEqual(session.view.selected, 1)
+    }
+
+    func testPageKeyBeepsWhenOnePage() {
+        let session = makeSession()
+        type("su3", into: session)
+        XCTAssertEqual(session.handle(key(.pageDown)), KeyResult(consumed: true, beep: true))
+        XCTAssertEqual(session.handle(key(.pageDown)).commit, nil)
+    }
+
+    func testPageKeyPassesThroughWithoutComposition() {
+        let session = makeSession()
+        XCTAssertEqual(session.handle(key(.pageDown)), KeyResult(consumed: false))
+    }
+
     func testEscapeLeavesSelectionFirstThenClears() {
         let session = makeSession()
         type("su3", into: session)

@@ -425,7 +425,10 @@ window out of the critical path):
    Update (measured, landed): width-16 keeps 不打 #14, 嗎 #9, 打對 #8 at
    ~50 ms for 26 syllables, so the beam widened to 16 and the panel shows
    a window of 8 around the selection — Tab/arrows/digits walk the full
-    list, Left/Right flip pages (same row, clamped), footer shows `n / m`.
+    list, footer shows `n / m`. Update (landed): Left/Right never page (they
+    move the syllable cursor); PageUp/PageDown, and `-`/`=` while in
+    selection mode, flip a page keeping the row (clamped, wrapping at the
+    ends). Manual check pending: Fn+↑/↓ on laptop keyboards.
     Panel frame hugs content (rows or preedit header, 300pt cap) with x
     sticky per visible session and y bottom-anchored to the caret line —
     resizes ease instead of snapping; height fits shown rows (plus the

@@ -126,8 +126,9 @@ final class CandidatesPanel: NSPanel {
     /// Rebuild rows, move highlight, follow the caret. No-op animations.
     /// Anchor chain: fresh caret rect > last good rect > mouse position.
     /// Paging is a window over the list: 8 rows show the page holding
-    /// `selected` (Tab / Shift+Tab / Down / Up walk the full list, no page
-    /// keys; plain Left/Right move the syllable cursor and never page).
+    /// `selected` (Tab / Shift+Tab / Down / Up walk the full list; PageUp /
+    /// PageDown, or - / = in selection mode, flip whole pages; plain
+    /// Left/Right move the syllable cursor and never page).
     /// `preedit` + `caret` render the composition with our own cursor on a
     /// header row (nil preedit hides it); `caret` is a UTF-16 offset.
     /// Frame stability (the anti-jitter contract): x sticky for the whole

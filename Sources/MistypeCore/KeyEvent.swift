@@ -13,6 +13,7 @@ public struct KeyEvent: Equatable, Sendable {
         case character(String)
         case space, enter, tab, backspace, forwardDelete, escape
         case left, right, up, down
+        case pageUp, pageDown
         /// Left or right Shift on its own (lone-Shift tap toggles 中/英).
         case shift(ShiftSide)
         /// Any other bare modifier (Control, Option/Alt, Command/Super,
@@ -113,6 +114,8 @@ public enum MacKeyCode {
         case 124: return .right
         case 125: return .down
         case 126: return .up
+        case 116: return .pageUp
+        case 121: return .pageDown
         case 56: return .shift(.left)
         case 60: return .shift(.right)
         // Command 55/54, Caps 57, Option 58/61, Control 59/62, Fn 63, Help 114.
@@ -159,6 +162,8 @@ public enum EvdevKeyCode {
         case 105: return .left
         case 106: return .right
         case 103: return .up
+        case 104: return .pageUp
+        case 109: return .pageDown
         case 108: return .down
         case 42: return .shift(.left)
         case 54: return .shift(.right)
