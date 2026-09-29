@@ -1,4 +1,4 @@
-"CFBundleDisplayName" = "Mistype";
-"CFBundleName" = "Mistype";
-"org.mistype.inputmethod.Mistype" = "Mistype";
-"org.mistype.inputmethod.Mistype.Zhuyin" = "Mistype 注音";
+"CFBundleDisplayName" = "隨打";
+"CFBundleName" = "隨打";
+"org.mistype.inputmethod.Mistype" = "隨打";
+"org.mistype.inputmethod.Mistype.Zhuyin" = "隨打注音";

@@ -21,7 +21,7 @@
 <key>TICapsLockLanguageSwitchCapable</key><true/>
 <key>TISInputSourceID</key><string>org.mistype.inputmethod.Mistype</string>
 <key>TISIntendedLanguage</key><string>zh-Hant</string>
-<key>TISIconIsTemplate</key><false/>
+<key>TISIconIsTemplate</key><true/>
 <key>tsInputMethodIconFileKey</key><string>MistypeMenuIcon.tiff</string>
 <key>tsInputMethodCharacterRepertoireKey</key><array><string>Hant</string></array>
 <key>ComponentInputModeDict</key><dict>
