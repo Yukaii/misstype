@@ -1,374 +1,335 @@
+// Headless conformance tests for the fcitx5 adapter: docs/cross-platform.md
+// scenarios C1-C12 plus the Linux delivery rules LR1-LR4, driven through
+// fcitx5's in-process test frontend. A wrong commit aborts inside
+// pushCommitExpectation; every other check is FCITX_ASSERT.
+#include <fcitx-utils/eventdispatcher.h>
+#include <fcitx-utils/key.h>
 #include <fcitx-utils/log.h>
-#include <fcitx-utils/standardpath.h>
-#include <fcitx/instance.h>
+#include <fcitx-utils/testing.h>
+#include <fcitx/addonmanager.h>
+#include <fcitx/candidatelist.h>
 #include <fcitx/inputcontext.h>
 #include <fcitx/inputcontextmanager.h>
-#include <fcitx-utils/key.h>
-#include <fcitx/event.h>
-#include <fcitx/addonmanager.h>
-#include <fcitx-utils/testing.h>
+#include <fcitx/inputmethodgroup.h>
+#include <fcitx/inputmethodmanager.h>
+#include <fcitx/inputpanel.h>
+#include <fcitx/instance.h>
+#include <testfrontend_public.h>
 
-#include <cstdio>
 #include <cstdlib>
-#include <cstring>
+#include <filesystem>
+#include <string>
 
-#define PASS(id) FCITX_INFO() << "PASS " << id
+using namespace fcitx;
 
-// Helper to send a key event
-static void sendKey(fcitx::ITestFrontend *frontend, const char *sym, fcitx::KeyStates states, int evdev) {
-    fcitx::Key key(sym, states, evdev + 8);
-    frontend->sendKeyEvent(key, false);
-}
+namespace {
 
-// Helper to send a key release
-static void sendKeyRelease(fcitx::ITestFrontend *frontend, const char *sym, fcitx::KeyStates states, int evdev) {
-    fcitx::Key key(sym, states, evdev + 8);
-    frontend->sendKeyEvent(key, true);
-}
+struct PhysicalKey {
+    KeySym sym;
+    int evdev;
+};
 
-static void expectCommit(fcitx::ITestFrontend *frontend, const char *expected) {
-    frontend->pushCommitExpectation(expected);
-}
-
-static void checkPreedit(fcitx::ITestFrontend *frontend, const char *expected) {
-    auto *ic = frontend->inputContext();
-    std::string preedit = ic->inputPanel().preedit().toString();
-    if (preedit != expected) {
-        FCITX_ERROR() << "Preedit mismatch: expected '" << expected << "' got '" << preedit << "'";
-        std::exit(1);
+// US-ANSI physical keys by unshifted label; evdev codes from linux/input-event-codes.h.
+PhysicalKey physical(char c) {
+    static const std::string rows[] = {"qwertyuiop", "asdfghjkl", "zxcvbnm", "1234567890"};
+    static const int starts[] = {16, 30, 44, 2};
+    for (int r = 0; r < 4; ++r) {
+        auto pos = rows[r].find(c);
+        if (pos != std::string::npos) {
+            return {static_cast<KeySym>(c), starts[r] + static_cast<int>(pos)};
+        }
     }
+    switch (c) {
+    case ';': return {FcitxKey_semicolon, 39};
+    case '`': return {FcitxKey_grave, 41};
+    case ',': return {FcitxKey_comma, 51};
+    }
+    FCITX_ASSERT(false) << "no physical key for " << c;
+    return {};
 }
 
-static void checkCaret(fcitx::ITestFrontend *frontend, int expectedBytes, int expectedUtf16) {
-    auto *ic = frontend->inputContext();
-    if (ic->inputPanel().preedit().cursor() != expectedBytes) {
-        FCITX_ERROR() << "Caret bytes mismatch: expected " << expectedBytes << " got " << ic->inputPanel().preedit().cursor();
-        std::exit(1);
+constexpr int kEnter = 28, kBackspace = 14, kTab = 15, kEsc = 1, kLeft = 105, kRight = 106, kDown = 108,
+              kSpace = 57, kShiftL = 42, kCtrlL = 29;
+
+class Session {
+public:
+    explicit Session(Instance &instance) : instance_(instance) {
+        frontend_ = instance.addonManager().addon("testfrontend");
+        FCITX_ASSERT(frontend_) << "testfrontend addon not loaded";
+        auto &imm = instance.inputMethodManager();
+        InputMethodGroup group("Default");
+        group.inputMethodList().emplace_back("keyboard-us");
+        group.inputMethodList().emplace_back("mistype");
+        group.setDefaultInputMethod("mistype");
+        imm.setGroup(std::move(group));
+        uuid_ = frontend_->call<ITestFrontend::createInputContext>("testapp");
+        ic_ = instance.inputContextManager().findByUUID(uuid_);
+        FCITX_ASSERT(ic_);
+        ic_->setCapabilityFlags(CapabilityFlag::Preedit);
+        ic_->focusIn();
+        instance.setCurrentInputMethod(ic_, "mistype", true);
+        FCITX_ASSERT(instance.inputMethod(ic_) == "mistype") << "mistype input method not active";
     }
+
+    InputContext *ic() { return ic_; }
+
+    /// Returns whether fcitx5 considers the key filtered (swallowed by the IM).
+    bool key(KeySym sym, int evdev, KeyStates states = KeyStates(), bool release = false) {
+        return frontend_->call<ITestFrontend::sendKeyEvent>(uuid_, Key(sym, states, evdev + 8), release);
+    }
+
+    /// Types unshifted physical keys; every one must be swallowed.
+    void type(const std::string &keys) {
+        for (char c : keys) {
+            auto k = physical(c);
+            FCITX_ASSERT(key(k.sym, k.evdev)) << "key '" << c << "' should be swallowed";
+        }
+    }
+
+    void expectCommit(const std::string &text) { frontend_->call<ITestFrontend::pushCommitExpectation>(text); }
+
+    std::string preedit() { return ic_->inputPanel().clientPreedit().toString(); }
+    int caretBytes() { return ic_->inputPanel().clientPreedit().cursor(); }
+    std::string aux() { return ic_->inputPanel().auxUp().toString(); }
+
+    CommonCandidateList *candidates() {
+        return dynamic_cast<CommonCandidateList *>(ic_->inputPanel().candidateList().get());
+    }
+
+    /// Ends whatever composition is left (Escape leaves selection, then clears).
+    void clear() {
+        for (int i = 0; i < 3; ++i) {
+            key(FcitxKey_Escape, kEsc);
+        }
+        FCITX_ASSERT(preedit().empty()) << "composition not cleared: " << preedit();
+        FCITX_ASSERT(!candidates()) << "candidate list not cleared";
+    }
+
+private:
+    Instance &instance_;
+    AddonInstance *frontend_ = nullptr;
+    ICUUID uuid_;
+    InputContext *ic_ = nullptr;
+};
+
+void pass(const char *id) { FCITX_INFO() << "PASS " << id; }
+
+void runAll(Instance &instance) {
+    Session s(instance);
+    auto &ic = *s.ic();
+    const KeyStates shift(KeyState::Shift), ctrl(KeyState::Ctrl);
+
+    // C1: su3cl3, then Enter commits the preview.
+    s.type("su3cl3");
+    FCITX_ASSERT(s.preedit() == "你好") << s.preedit();
+    FCITX_ASSERT(s.caretBytes() == 6);
+    {
+        auto *list = s.candidates();
+        FCITX_ASSERT(list);
+        FCITX_ASSERT(list->totalSize() == 10);
+        FCITX_ASSERT(list->pageSize() == 8 && list->totalPages() == 2) << "8 rows per page";
+        FCITX_ASSERT(list->globalCursorIndex() == 0);
+        FCITX_ASSERT(list->label(0).toString().empty()) << "selection keys type Zhuyin, so no labels";
+    }
+    s.expectCommit("你好");
+    FCITX_ASSERT(s.key(FcitxKey_Return, kEnter));
+    FCITX_ASSERT(s.preedit().empty() && !s.candidates());
+    pass("C1");
+
+    // C2: empty composition passes Enter/Backspace/Left; Space commits " ".
+    FCITX_ASSERT(!s.key(FcitxKey_Return, kEnter));
+    FCITX_ASSERT(!s.key(FcitxKey_BackSpace, kBackspace));
+    FCITX_ASSERT(!s.key(FcitxKey_Left, kLeft));
+    s.expectCommit(" ");
+    FCITX_ASSERT(s.key(FcitxKey_space, kSpace));
+    pass("C2");
+
+    // C3: Backspace edits without committing.
+    s.type("su3cl3");
+    FCITX_ASSERT(s.key(FcitxKey_BackSpace, kBackspace));
+    FCITX_ASSERT(s.preedit() == "你") << s.preedit();
+    s.clear();
+    pass("C3");
+
+    // C5: Down selects 妳; first Esc leaves selection, second clears.
+    s.type("su3");
+    FCITX_ASSERT(s.key(FcitxKey_Down, kDown));
+    FCITX_ASSERT(s.preedit() == "妳") << s.preedit();
+    FCITX_ASSERT(s.key(FcitxKey_Escape, kEsc));
+    FCITX_ASSERT(s.preedit() == "妳");
+    FCITX_ASSERT(s.key(FcitxKey_Escape, kEsc));
+    FCITX_ASSERT(s.preedit().empty());
+    pass("C5");
+
+    // C6: Shift+, and Shift+a stay inside the composition.
+    s.type("su3");
+    FCITX_ASSERT(s.key(FcitxKey_less, physical(',').evdev, shift));
+    FCITX_ASSERT(s.preedit() == "你，") << s.preedit();
+    FCITX_ASSERT(s.key(FcitxKey_A, physical('a').evdev, shift));
+    FCITX_ASSERT(s.preedit() == "你，A") << s.preedit();
+    s.expectCommit("你，A");
+    FCITX_ASSERT(s.key(FcitxKey_Return, kEnter));
+    pass("C6");
+
+    // C7: backtick starts a Latin run.
+    s.type("su3`hi");
+    FCITX_ASSERT(s.preedit() == "你hi") << s.preedit();
+    s.clear();
+    pass("C7");
+
+    // C8: Right at the end beeps (consumed, no change); Left focuses a word.
+    s.type("su3cl3");
+    FCITX_ASSERT(s.key(FcitxKey_Right, kRight));
+    FCITX_ASSERT(s.preedit() == "你好");
+    FCITX_ASSERT(s.key(FcitxKey_Left, kLeft));
+    FCITX_ASSERT(s.preedit() == "你好" && s.caretBytes() == 3) << s.caretBytes();
+    {
+        auto *list = s.candidates();
+        FCITX_ASSERT(list && list->candidateFromAll(0).text().toString() == "你好");
+        FCITX_ASSERT(list->label(0).toString() == "a") << "selection keys active in cursor mode";
+    }
+    s.clear();
+    pass("C8");
+
+    // C9: Ctrl+c commits the preview, then the shortcut reaches the application.
+    s.type("su3");
+    s.expectCommit("你");
+    FCITX_ASSERT(!s.key(FcitxKey_c, physical('c').evdev, ctrl));
+    FCITX_ASSERT(s.preedit().empty());
+    pass("C9");
+
+    // C10: Shift+Space commits, flips to English (indicator), and letters pass.
+    s.type("su3");
+    s.expectCommit("你");
+    FCITX_ASSERT(s.key(FcitxKey_space, kSpace, shift));
+    FCITX_ASSERT(s.aux() == "英") << "mode indicator: " << s.aux();
+    FCITX_ASSERT(!s.key(FcitxKey_s, physical('s').evdev)) << "English mode passes letters";
+    FCITX_ASSERT(s.aux().empty()) << "next render clears the indicator";
+    FCITX_ASSERT(s.key(FcitxKey_space, kSpace, shift));
+    FCITX_ASSERT(s.aux() == "中");
+    s.type("su3"); // Chinese again, as after the toggle above
+    s.clear();
+    pass("C10");
+
+    // C11: focus out commits the composition exactly once. With client-side
+    // preedit fcitx5 itself inserts the preedit; the engine must not add a
+    // second copy but must still clear its session.
+    s.clear();
+    s.type("su3");
+    s.expectCommit("你");
+    ic.focusOut();
+    ic.focusIn();
+    FCITX_ASSERT(s.preedit().empty() && !s.candidates());
+    FCITX_ASSERT(s.key(FcitxKey_Return, kEnter) == false) << "session must be empty after focus out";
+    // Without client preedit nobody else inserts the text: the engine does.
+    ic.setCapabilityFlags(CapabilityFlags());
+    s.type("su3");
+    s.expectCommit("你");
+    ic.focusOut();
+    ic.focusIn();
+    ic.setCapabilityFlags(CapabilityFlag::Preedit);
+    // Switching input method commits too (fcitx5 does not do it for us).
+    s.type("su3");
+    s.expectCommit("你");
+    instance.setCurrentInputMethod(&ic, "keyboard-us", true);
+    instance.setCurrentInputMethod(&ic, "mistype", true);
+    FCITX_ASSERT(s.preedit().empty());
+    pass("C11");
+
+    // C12: picking row 3 (a click) replaces the preview with 泥.
+    s.type("su3");
+    {
+        auto *list = s.candidates();
+        FCITX_ASSERT(list && list->totalSize() == 5);
+        list->candidateFromAll(3).select(&ic);
+    }
+    FCITX_ASSERT(s.preedit() == "泥") << s.preedit();
+    s.clear();
+    pass("C12");
+
+    // LR1: a key release is never filtered and changes nothing.
+    s.type("su3");
+    FCITX_ASSERT(!s.key(FcitxKey_s, physical('s').evdev, KeyStates(), /*release=*/true));
+    FCITX_ASSERT(s.preedit() == "你");
+    pass("LR1");
+
+    // LR2: a bare Control press is not filtered and leaves the preedit alone.
+    FCITX_ASSERT(!s.key(FcitxKey_Control_L, kCtrlL));
+    FCITX_ASSERT(s.preedit() == "你");
+    FCITX_ASSERT(!s.key(FcitxKey_Control_L, kCtrlL, ctrl, /*release=*/true));
+    FCITX_ASSERT(s.preedit() == "你");
+    pass("LR2");
+
+    // LR3: without client-side preedit the composition goes to the panel.
+    s.clear();
+    ic.setCapabilityFlags(CapabilityFlags());
+    s.type("su3");
+    FCITX_ASSERT(ic.inputPanel().preedit().toString() == "你") << ic.inputPanel().preedit().toString();
+    FCITX_ASSERT(s.preedit().empty()) << "client preedit must stay empty";
+    s.clear();
+    ic.setCapabilityFlags(CapabilityFlag::Preedit);
+    pass("LR3");
+
+    // LR4: a lone Shift_L tap belongs to fcitx5 (AltTriggerKeys): it switches
+    // input method and does not flip Mistype's own 中/英 state.
+    FCITX_ASSERT(!s.key(FcitxKey_Shift_L, kShiftL));
+    s.key(FcitxKey_Shift_L, kShiftL, shift, /*release=*/true);
+    FCITX_ASSERT(instance.inputMethod(&ic) == "keyboard-us") << instance.inputMethod(&ic);
+    instance.setCurrentInputMethod(&ic, "mistype", true);
+    s.type("su3");
+    FCITX_ASSERT(s.preedit() == "你") << "still Chinese after the fcitx5 Shift switch";
+    s.expectCommit("你");
+    ic.focusOut();
+    pass("LR4");
+
+    // C4 runs last: committing 尼 teaches the user lexicon, which would
+    // reorder the candidates every other scenario expects.
+    // C4: Tab selects, a selection key picks row 2 (尼), Enter commits it.
+    ic.focusIn();
+    s.type("su3");
+    {
+        auto *list = s.candidates();
+        FCITX_ASSERT(list && list->totalSize() == 5 && list->globalCursorIndex() == 0);
+    }
+    FCITX_ASSERT(s.key(FcitxKey_Tab, kTab));
+    {
+        auto *list = s.candidates();
+        FCITX_ASSERT(list && list->globalCursorIndex() == 1);
+        FCITX_ASSERT(list->label(0).toString() == "a" && list->label(1).toString() == "s")
+            << "labels are the selection keys while they pick";
+    }
+    FCITX_ASSERT(s.key(FcitxKey_d, 32));
+    FCITX_ASSERT(s.preedit() == "尼") << s.preedit();
+    s.expectCommit("尼");
+    FCITX_ASSERT(s.key(FcitxKey_Return, kEnter));
+    pass("C4");
 }
 
-static void checkCandidates(fcitx::ITestFrontend *frontend, int expectedCount, int expectedSelected, bool expectedKeysActive) {
-    auto *ic = frontend->inputContext();
-    auto *list = ic->inputPanel().candidateList();
-    if (!list) {
-        FCITX_ERROR() << "No candidate list";
-        std::exit(1);
-    }
-    if (list->candidateCount() != expectedCount) {
-        FCITX_ERROR() << "Candidate count mismatch: expected " << expectedCount << " got " << list->candidateCount();
-        std::exit(1);
-    }
-    if (list->cursorPosition() != expectedSelected) {
-        FCITX_ERROR() << "Candidate selected mismatch: expected " << expectedSelected << " got " << list->cursorPosition();
-        std::exit(1);
-    }
-}
+} // namespace
 
-int main(int argc, char **argv) {
-    fcitx::setupTestingEnvironment(TESTING_BINARY_DIR, {"src"},
-                                   {TESTING_BINARY_DIR "/data", TESTING_SOURCE_DIR "/data"});
+int main() {
+    // Learned phrases (C4) must not touch the developer's home, and every run
+    // must start from an empty user lexicon.
+    const std::string xdg = TESTING_BINARY_DIR "/xdg-data";
+    std::filesystem::remove_all(xdg);
+    setenv("XDG_DATA_HOME", xdg.c_str(), 1);
+    setupTestingEnvironment(TESTING_BINARY_DIR, {"src", FCITX_TESTING_ADDONDIR},
+                            {TESTING_BINARY_DIR "/data", FCITX_TESTING_DATADIR});
 
-    fcitx::Instance instance(fcitx::Instance::CreateArgs()
-                                 .setDisableAll(true)
-                                 .setEnable("testim", "testfrontend", "mistype", "testui"));
-
+    char arg0[] = "testmistype";
+    char arg1[] = "--disable=all";
+    char arg2[] = "--enable=testim,testfrontend,mistype,testui";
+    char *argv[] = {arg0, arg1, arg2};
+    Instance instance(3, argv);
     instance.addonManager().registerDefaultLoader(nullptr);
 
-    fcitx::EventDispatcher dispatcher;
-    dispatcher.schedule([&]() {
-        auto *frontend = instance.testFrontend();
-        if (!frontend) {
-            FCITX_ERROR() << "No test frontend";
-            std::exit(1);
-        }
-
-        // Create input context
-        auto *ic = frontend->createInputContext();
-        frontend->focusIn(ic);
-        ic->setCapabilityFlags(fcitx::CapabilityFlag::Preedit);
-        instance.setCurrentInputMethod(ic, "mistype", false);
-
-        auto checkFiltered = [&](const char *desc, bool shouldFilter) {
-            bool filtered = frontend->sendKeyEvent(fcitx::Key("a", {}, 38), false);
-            if (filtered != shouldFilter) {
-                FCITX_ERROR() << desc << ": expected filter=" << shouldFilter << " got " << filtered;
-                std::exit(1);
-            }
-        };
-
-        // C1: su3cl3 then Enter
-        {
-            sendKey(frontend, "s", {}, 31);
-            sendKey(frontend, "u", {}, 30);
-            sendKey(frontend, "3", {}, 4);
-            sendKey(frontend, "c", {}, 46);
-            sendKey(frontend, "l", {}, 37);
-            sendKey(frontend, "3", {}, 4);
-
-            checkPreedit(frontend, "你好");
-            checkCaret(frontend, 6, 2);
-            checkCandidates(frontend, 10, 0, false);
-
-            expectCommit(frontend, "你好");
-            sendKey(frontend, "Return", {}, 28);
-            PASS("C1");
-        }
-
-        // C2: empty: Enter, Backspace, Left; then Space
-        {
-            frontend->reset();
-
-            expectCommit(frontend, "");
-            sendKey(frontend, "Return", {}, 28);
-            checkFiltered("C2 enter pass", false);
-
-            sendKey(frontend, "BackSpace", {}, 14);
-            checkFiltered("C2 backspace pass", false);
-
-            sendKey(frontend, "Left", {}, 105);
-            checkFiltered("C2 left pass", false);
-
-            expectCommit(frontend, " ");
-            sendKey(frontend, "space", {}, 57);
-            checkFiltered("C2 space commit", true);
-            PASS("C2");
-        }
-
-        // C3: su3cl3, Backspace
-        {
-            frontend->reset();
-            sendKey(frontend, "s", {}, 31);
-            sendKey(frontend, "u", {}, 30);
-            sendKey(frontend, "3", {}, 4);
-            sendKey(frontend, "c", {}, 46);
-            sendKey(frontend, "l", {}, 37);
-            sendKey(frontend, "3", {}, 4);
-            checkPreedit(frontend, "你好");
-
-            sendKey(frontend, "BackSpace", {}, 14);
-            checkPreedit(frontend, "你");
-            PASS("C3");
-        }
-
-        // C4: su3, Tab, d, Enter
-        {
-            frontend->reset();
-            sendKey(frontend, "s", {}, 31);
-            sendKey(frontend, "u", {}, 30);
-            sendKey(frontend, "3", {}, 4);
-
-            checkCandidates(frontend, 5, 0, false);
-
-            sendKey(frontend, "Tab", {}, 15);
-            checkCandidates(frontend, 5, 1, true);
-
-            // d selects row 2 (0-indexed: 1)
-            sendKey(frontend, "d", {}, 32);
-            checkPreedit(frontend, "尼");
-            checkCandidates(frontend, 5, 1, false);
-
-            expectCommit(frontend, "尼");
-            sendKey(frontend, "Return", {}, 28);
-            PASS("C4");
-        }
-
-        // C5: su3, Down, Esc, Esc
-        {
-            frontend->reset();
-            sendKey(frontend, "s", {}, 31);
-            sendKey(frontend, "u", {}, 30);
-            sendKey(frontend, "3", {}, 4);
-
-            sendKey(frontend, "Down", {}, 108);
-            checkPreedit(frontend, "妳");
-
-            sendKey(frontend, "Escape", {}, 1);
-            checkPreedit(frontend, "妳");
-
-            sendKey(frontend, "Escape", {}, 1);
-            checkPreedit(frontend, "");
-            PASS("C5");
-        }
-
-        // C6: su3, Shift+,, Shift+a, Enter
-        {
-            frontend->reset();
-            sendKey(frontend, "s", {}, 31);
-            sendKey(frontend, "u", {}, 30);
-            sendKey(frontend, "3", {}, 4);
-            checkPreedit(frontend, "你");
-
-            sendKey(frontend, ",", {fcitx::KeyState::Shift}, 51);
-            checkPreedit(frontend, "你，");
-
-            sendKey(frontend, "a", {fcitx::KeyState::Shift}, 38);
-            checkPreedit(frontend, "你，A");
-
-            expectCommit(frontend, "你，A");
-            sendKey(frontend, "Return", {}, 28);
-            PASS("C6");
-        }
-
-        // C7: su3, backtick, h i
-        {
-            frontend->reset();
-            sendKey(frontend, "s", {}, 31);
-            sendKey(frontend, "u", {}, 30);
-            sendKey(frontend, "3", {}, 4);
-            checkPreedit(frontend, "你");
-
-            sendKey(frontend, "`", {}, 49);
-            sendKey(frontend, "h", {}, 35);
-            sendKey(frontend, "i", {}, 23);
-            checkPreedit(frontend, "你hi");
-            PASS("C7");
-        }
-
-        // C8: su3cl3, Right, Left
-        {
-            frontend->reset();
-            sendKey(frontend, "s", {}, 31);
-            sendKey(frontend, "u", {}, 30);
-            sendKey(frontend, "3", {}, 4);
-            sendKey(frontend, "c", {}, 46);
-            sendKey(frontend, "l", {}, 37);
-            sendKey(frontend, "3", {}, 4);
-
-            // Right beeps, no change
-            sendKey(frontend, "Right", {}, 106);
-            checkPreedit(frontend, "你好");
-
-            // Left enters cursor mode
-            sendKey(frontend, "Left", {}, 105);
-            checkPreedit(frontend, "你好");
-            checkCaret(frontend, 3, 1);
-            checkCandidates(frontend, 10, 0, true);
-            PASS("C8");
-        }
-
-        // C9: su3, Ctrl+C
-        {
-            frontend->reset();
-            sendKey(frontend, "s", {}, 31);
-            sendKey(frontend, "u", {}, 30);
-            sendKey(frontend, "3", {}, 4);
-
-            expectCommit(frontend, "你");
-            // Ctrl+C: send 'c' with Control modifier
-            sendKey(frontend, "c", {fcitx::KeyState::Ctrl}, 46);
-            checkFiltered("C9 ctrl-c pass", false);
-            PASS("C9");
-        }
-
-        // C10: su3, Shift+Space, s
-        {
-            frontend->reset();
-            sendKey(frontend, "s", {}, 31);
-            sendKey(frontend, "u", {}, 30);
-            sendKey(frontend, "3", {}, 4);
-
-            expectCommit(frontend, "你");
-            sendKey(frontend, "space", {fcitx::KeyState::Shift}, 57);
-            checkFiltered("C10 shift-space commit", true);
-
-            // Check English mode
-            // Send 's' - should pass through
-            checkFiltered("C10 s pass", false);
-            PASS("C10");
-        }
-
-        // C11: su3, focus out
-        {
-            frontend->reset();
-            sendKey(frontend, "s", {}, 31);
-            sendKey(frontend, "u", {}, 30);
-            sendKey(frontend, "3", {}, 4);
-
-            expectCommit(frontend, "你");
-            ic->focusOut();
-            PASS("C11");
-        }
-
-        // C12: su3, click row 3
-        {
-            frontend->reset();
-            sendKey(frontend, "s", {}, 31);
-            sendKey(frontend, "u", {}, 30);
-            sendKey(frontend, "3", {}, 4);
-
-            // Select candidate at index 3
-            auto *list = ic->inputPanel().candidateList();
-            if (list && list->candidateCount() > 3) {
-                list->candidateAt(3)->select();
-            }
-            checkPreedit(frontend, "泥");
-            PASS("C12");
-        }
-
-        // LR1: Key release never filtered
-        {
-            frontend->reset();
-            sendKeyRelease(frontend, "a", {}, 38);
-            checkFiltered("LR1 release not filtered", false);
-            PASS("LR1");
-        }
-
-        // LR2: Bare Control_L press not filtered, preedit unchanged
-        {
-            frontend->reset();
-            sendKey(frontend, "s", {}, 31);
-            sendKey(frontend, "u", {}, 30);
-            sendKey(frontend, "3", {}, 4);
-            checkPreedit(frontend, "你");
-
-            sendKey(frontend, "Control_L", {}, 29);
-            checkFiltered("LR2 ctrl press not filtered", false);
-            checkPreedit(frontend, "你");
-            PASS("LR2");
-        }
-
-        // LR3: Without Preedit capability, preedit goes to panel
-        {
-            frontend->reset();
-            ic->setCapabilityFlags(fcitx::CapabilityFlag::None);
-            sendKey(frontend, "s", {}, 31);
-            sendKey(frontend, "u", {}, 30);
-            sendKey(frontend, "3", {}, 4);
-
-            std::string panelPreedit = ic->inputPanel().preedit().toString();
-            if (panelPreedit != "你") {
-                FCITX_ERROR() << "LR3 panel preedit mismatch: expected '你' got '" << panelPreedit << "'";
-                std::exit(1);
-            }
-            if (ic->inputPanel().preedit().toString() != "") {
-                FCITX_ERROR() << "LR3 client preedit should be empty";
-                std::exit(1);
-            }
-            PASS("LR3");
-        }
-
-        // LR4: Lone Shift_L tap switches to keyboard-us
-        {
-            frontend->reset();
-            // Need to send press and release with pre-event states (X11 semantics)
-            // Press: no modifiers before
-            frontend->sendKeyEvent(fcitx::Key("Shift_L", {}, 50), false);
-            // Release: Shift modifier before release
-            frontend->sendKeyEvent(fcitx::Key("Shift_L", {fcitx::KeyState::Shift}, 50), true);
-
-            // Check IC switched to keyboard-us
-            std::string currentIM = instance.currentInputMethod();
-            if (currentIM != "keyboard-us") {
-                FCITX_ERROR() << "LR4: expected keyboard-us, got " << currentIM;
-                std::exit(1);
-            }
-            PASS("LR4");
-        }
-
-        FCITX_INFO() << "All tests passed";
-        instance.exit(0);
+    EventDispatcher dispatcher;
+    dispatcher.attach(&instance.eventLoop());
+    dispatcher.schedule([&instance]() {
+        runAll(instance);
+        FCITX_INFO() << "All 16 scenarios passed";
+        instance.exit();
     });
-
     instance.exec();
     return 0;
 }

@@ -4,10 +4,16 @@ import CMistype
 
 // MARK: - Handle management
 
+/// The engine reads settings through this box on every call, so
+/// `mistype_engine_set_settings` takes effect immediately.
+private final class SettingsBox {
+    var value = SessionSettings()
+}
+
 private final class EngineHandle {
     let engine: InputEngine
-    var settings: SessionSettings
-    init(engine: InputEngine, settings: SessionSettings) {
+    let settings: SettingsBox
+    init(engine: InputEngine, settings: SettingsBox) {
         self.engine = engine
         self.settings = settings
     }
@@ -159,22 +165,20 @@ private func freeStringArray(_ ptr: UnsafeMutablePointer<UnsafeMutablePointer<CC
 }
 
 private func caretBytes(_ preedit: String, caretUTF16: Int) -> Int {
-    let utf16 = Array(preedit.utf16)
-    let prefix = utf16.prefix(caretUTF16)
-    var count = 0
-    for codeUnit in prefix {
-        if codeUnit <= 0x7F {
-            count += 1
-        } else if codeUnit <= 0x7FF {
-            count += 2
-        } else if codeUnit <= 0xFFFF {
-            count += 3
-        } else {
-            count += 4
-        }
-    }
-    return count
+    let utf16 = preedit.utf16
+    let end = utf16.index(utf16.startIndex, offsetBy: min(max(caretUTF16, 0), utf16.count))
+    return preedit.utf8.distance(from: preedit.utf8.startIndex, to: end)
 }
+
+/// Key labels are handed out as static C strings (the header promises callers
+/// never free them), so each distinct label is duplicated exactly once.
+private let staticLabels: [String: UnsafePointer<CChar>] = {
+    var table: [String: UnsafePointer<CChar>] = [:]
+    for label in Set(EvdevKeyCode.labels.values).union(MacKeyCode.labels.values) {
+        table[label] = UnsafePointer(strdup(label))
+    }
+    return table
+}()
 
 // MARK: - C ABI implementations
 
@@ -206,8 +210,8 @@ public func mistype_engine_new(
     guard FileManager.default.fileExists(atPath: lexiconURL.path) else { return nil }
     
     guard let decoder = LexiconLoader.load(resourceDirectory: URL(fileURLWithPath: resourceDir)) else { return nil }
-    let settings = SessionSettings()
-    let engine = InputEngine(decoder: decoder, settings: { settings })
+    let settings = SettingsBox()
+    let engine = InputEngine(decoder: decoder, settings: { settings.value })
     
     let userLexiconURL: URL?
     if let pathPtr = user_lexicon_path {
@@ -247,7 +251,7 @@ public func mistype_engine_set_settings(
 ) {
     guard let engine = engine, let settings = settings else { return }
     let handle = getEngine(engine)
-    handle?.settings = SessionSettings(
+    handle?.settings.value = SessionSettings(
         fuzzyRepair: settings.pointee.fuzzy_repair != 0,
         toneTolerance: settings.pointee.tone_tolerance != 0,
         candidateKeys: settings.pointee.candidate_keys.map { String(cString: $0) } ?? "asdfghjkl;",
@@ -358,7 +362,7 @@ public func mistype_key_from_evdev(_ evdev_code: Int32, _ label: UnsafeMutablePo
     if let labelPtr = label {
         switch key {
         case .character(let l):
-            labelPtr.pointee = UnsafePointer(strdupSwift(l))
+            labelPtr.pointee = staticLabels[l]
         default:
             labelPtr.pointee = nil
         }
@@ -380,7 +384,7 @@ public func mistype_key_from_character(
         if let labelPtr = label {
             switch mapping.key {
             case .character(let l):
-                labelPtr.pointee = UnsafePointer(strdupSwift(l))
+                labelPtr.pointee = staticLabels[l]
             default:
                 labelPtr.pointee = nil
             }
