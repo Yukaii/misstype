@@ -128,6 +128,15 @@ extension UserLexicon {
         return out.isEmpty ? nil : out
     }
 
+    /// Whether any pin (legacy reading-only or positional, any offset) names
+    /// `text` for `readings`. A cheap superset test; the decoder still
+    /// checks the exact position before paying the bonus.
+    public func hasPin(readings: String, text: String) -> Bool {
+        if entries[readings]?.keys.contains(text) ?? false { return true }
+        let suffix = "@" + readings
+        return entries.contains { $0.key.hasSuffix(suffix) && $0.value.keys.contains(text) }
+    }
+
     /// Session-pin `option` over the displayed `top`, changing nothing but
     /// the option's own span. Pins are positional, so they hold only where
     /// they were picked. Older pinned words that overlap the span are split:
