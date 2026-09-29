@@ -67,6 +67,8 @@ private func toMistypeKey(_ key: KeyEvent.Key) -> mistype_key_kind {
     case .right: return MISTYPE_KEY_RIGHT
     case .up: return MISTYPE_KEY_UP
     case .down: return MISTYPE_KEY_DOWN
+    case .pageUp: return MISTYPE_KEY_PAGE_UP
+    case .pageDown: return MISTYPE_KEY_PAGE_DOWN
     case .shift(.left): return MISTYPE_KEY_SHIFT_LEFT
     case .shift(.right): return MISTYPE_KEY_SHIFT_RIGHT
     case .modifier: return MISTYPE_KEY_MODIFIER
@@ -113,6 +115,8 @@ private func keyEventFromC(_ event: mistype_key_event) -> KeyEvent {
     case MISTYPE_KEY_RIGHT: key = .right
     case MISTYPE_KEY_UP: key = .up
     case MISTYPE_KEY_DOWN: key = .down
+    case MISTYPE_KEY_PAGE_UP: key = .pageUp
+    case MISTYPE_KEY_PAGE_DOWN: key = .pageDown
     case MISTYPE_KEY_SHIFT_LEFT: key = .shift(.left)
     case MISTYPE_KEY_SHIFT_RIGHT: key = .shift(.right)
     case MISTYPE_KEY_MODIFIER: key = .modifier

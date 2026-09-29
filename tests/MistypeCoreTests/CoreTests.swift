@@ -34,6 +34,10 @@ final class CoreTests: XCTestCase {
         XCTAssertEqual(MacKeyCode.key(49).zhuyinLabel, " ")
         XCTAssertEqual(MacKeyCode.key(56), .shift(.left))
         XCTAssertEqual(MacKeyCode.key(76), .enter)
+        XCTAssertEqual(MacKeyCode.key(121), .pageDown)
+        XCTAssertEqual(MacKeyCode.key(116), .pageUp)
+        XCTAssertEqual(EvdevKeyCode.key(109), .pageDown)
+        XCTAssertEqual(EvdevKeyCode.key(104), .pageUp)
         XCTAssertEqual(MacKeyCode.key(58), .modifier)
         XCTAssertNil(MacKeyCode.key(24).zhuyinLabel) // "=" is not a Zhuyin key
     }

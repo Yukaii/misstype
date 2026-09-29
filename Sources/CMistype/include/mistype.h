@@ -35,7 +35,9 @@ typedef enum mistype_key_kind {
     MISTYPE_KEY_SHIFT_LEFT = 11,
     MISTYPE_KEY_SHIFT_RIGHT = 12,
     MISTYPE_KEY_MODIFIER = 13, /* Ctrl, Alt, Super, Caps Lock, Fn alone */
-    MISTYPE_KEY_OTHER = 14
+    MISTYPE_KEY_OTHER = 14,
+    MISTYPE_KEY_PAGE_UP = 15,  /* appended: values above are ABI-stable */
+    MISTYPE_KEY_PAGE_DOWN = 16
 } mistype_key_kind;
 
 /* Bit values equal KeyEvent.Modifiers raw values. */

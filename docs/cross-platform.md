@@ -82,6 +82,9 @@ shortcut runs.
   it 8 per page with the page containing `selected` visible and `selected`
   highlighted. Label visible rows with `selectionKeys`; dim or hide labels
   when `keysActive` is false (selection keys type Zhuyin then).
+- Page keys: translate PageUp/PageDown to `MISTYPE_KEY_PAGE_UP/DOWN` (ABI
+  values 15/16, appended); the core pages the highlight, the host just
+  redraws the page holding `selected`.
 - A click/tap on row `i` of the full list calls `pick(at: i)`, then render.
 - Never mutate or reorder the list: the session owns the highlight.
 

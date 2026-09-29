@@ -272,6 +272,11 @@ public final class InputSession {
             }
             return pass()
         }
+        if key == .pageUp || key == .pageDown {
+            guard !composition.isEmpty else { return pass(committing: false) }
+            if chord { return pass() }
+            return page(forward: key == .pageDown)
+        }
         // Modified arrows never edit the composition: commit first, then let
         // the app move its caret (word jump, line start, selection). Plain
         // arrows below drive the syllable cursor / candidate list instead.
@@ -281,9 +286,9 @@ public final class InputSession {
         if key == .left || key == .right { // syllable cursor only
             // Paging used to live here as a fallback, which made the arrows
             // unpredictable (cursor sometimes, page-flip others, so stepping
-            // back usually paged instead). Paging is Tab / Shift+Tab /
-            // Down / Up's job (they walk the full list across pages), so
-            // arrows never flip pages: failure beeps and stays put.
+            // back usually paged instead). Paging is PageUp / PageDown (or - / =
+            // in selection mode) or Tab / Down / Up (they walk the full list
+            // across pages), so Left/Right never flip pages: failure beeps and stays put.
             guard !composition.isEmpty else { return pass(committing: false) }
             let moved = key == .left ? moveCursorBack() : moveCursorForward()
             return moved ? .handled : .beeped
@@ -340,6 +345,12 @@ public final class InputSession {
             latinMode.toggle()
             engine.log("latin=\(latinMode ? 1 : 0)")
             return .handled
+        }
+        // `-` / `=` turn pages in selection mode (the Rime/Pinyin convention);
+        // they are ㄦ / unmapped elsewhere, so outside it they still type.
+        if inSelection, !composition.isEmpty, !shift,
+           key == .character("-") || key == .character("=") {
+            return page(forward: key == .character("="))
         }
         // Selection keys pick from the visible page, but only in selection
         // mode: they are Zhuyin keys (a=ㄇ, s=ㄋ, …), so outside it they type.
@@ -414,6 +425,27 @@ public final class InputSession {
             return .beeped
         }
         return pass()
+    }
+
+    /// Flip one page of 8, keeping the row (clamped on a short last page) and
+    /// wrapping at the ends. Moves the highlight only, like Down: nothing pins
+    /// until a pick. Beeps when everything fits on one page.
+    private func page(forward: Bool) -> KeyResult {
+        func target(_ current: Int, _ count: Int) -> Int? {
+            guard count > 8 else { return nil }
+            let pages = (count + 7) / 8
+            let next = (current / 8 + (forward ? 1 : pages - 1)) % pages
+            return min(next * 8 + current % 8, count - 1)
+        }
+        if let texts = segmentTexts {
+            guard let index = target(segmentSelected, texts.count) else { return .beeped }
+            segmentSelected = index
+            return .handled
+        }
+        guard let index = target(selected, candidates.count) else { return .beeped }
+        selectCandidate(index)
+        selecting = true
+        return .handled
     }
 
     private func selectCandidate(_ index: Int) {
