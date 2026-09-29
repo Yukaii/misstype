@@ -596,3 +596,5 @@ The main comparison is not raw key accuracy. It is whether users can capture tho
 - Should a pause commit automatically, or only preview a reconstruction?
 - How should Latin text, numbers, punctuation, and code tokens interrupt a Zhuyin span?
 - What local model size meets the latency budget on the target device?
+
+- Settings window (landed 2026-09-29): the 360pt utility panel became a full `SettingsWindow` (SwiftUI, sidebar: General / Decoding / Learning / Jev Assist / About; controls bind to the same `Mistype*` UserDefaults keys). UI strings go through `L()` with English keys and `Resources/{zh-Hant,zh-Hans,ja}.lproj/Localizable.strings`, following the system language; `tools/check_localizations.py` fails on missing or stale keys. Manual check pending: language switch, Jev consent alert, Clear learned phrases.
