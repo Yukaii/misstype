@@ -535,26 +535,49 @@ public final class LexiconDecoder {
         let settledUnits = locked?.settledUnits()
         var paths = Array(repeating: [SentenceCandidate](), count: syllables.count + 1)
         paths[0] = [SentenceCandidate(text: "", score: 0, repairs: 0, unresolved: 0)]
+        // Beam of 16 per position, best score first, text ascending on ties.
+        // Hot path (every keystroke re-decodes the whole composition), so:
+        // `admits` rejects a hopeless score before the candidate (a long
+        // string + alignment copy) is built, and text is compared as UTF-8
+        // bytes — identical order/equality for NFC text, without Swift's
+        // Unicode-normalizing String comparison.
+        func admits(_ score: Double, at index: Int) -> Bool {
+            paths[index].count < 16 || score >= paths[index][15].score
+        }
+        func precedes(_ a: SentenceCandidate, _ b: SentenceCandidate) -> Bool {
+            a.score == b.score ? a.text.utf8.lexicographicallyPrecedes(b.text.utf8) : a.score > b.score
+        }
+        func sameText(_ a: String, _ b: String) -> Bool {
+            guard a.utf8.count == b.utf8.count else { return false }
+            let bytes = a.utf8.withContiguousStorageIfAvailable { left in
+                b.utf8.withContiguousStorageIfAvailable { right in
+                    memcmp(left.baseAddress, right.baseAddress, left.count) == 0
+                }
+            }
+            return bytes.flatMap { $0 } ?? a.utf8.elementsEqual(b.utf8)
+        }
         func add(_ candidate: SentenceCandidate, at index: Int) {
-            if let same = paths[index].firstIndex(where: { $0.text == candidate.text }) {
+            if let same = paths[index].firstIndex(where: { sameText($0.text, candidate.text) }) {
                 if paths[index][same].score >= candidate.score { return }
                 paths[index].remove(at: same)
             }
-            paths[index].append(candidate)
-            paths[index].sort { $0.score == $1.score ? $0.text < $1.text : $0.score > $1.score }
-            paths[index] = Array(paths[index].prefix(16))
+            let position = paths[index].firstIndex { precedes(candidate, $0) } ?? paths[index].endIndex
+            paths[index].insert(candidate, at: position)
+            if paths[index].count > 16 { paths[index].removeLast() }
         }
         for start in syllables.indices {
             guard !paths[start].isEmpty else { continue }
             let prefixes = paths[start]
-            for prefix in prefixes {
+            // Long-string UTF-16 counts are O(n): once per prefix, not per entry.
+            let prefixLengths = prefixes.map { $0.text.utf16.count }
+            for (index, prefix) in prefixes.enumerated() where admits(prefix.score - 100, at: start + 1) {
                 let raw = syllables[start].reading
                 add(SentenceCandidate(text: prefix.text + raw,
                     score: prefix.score - 100, repairs: prefix.repairs,
                     unresolved: prefix.unresolved + 1,
                     alignment: prefix.alignment + [WordSpan(
                         syllables: start..<start + 1,
-                        chars: prefix.text.utf16.count..<(prefix.text + raw).utf16.count)]), at: start + 1)
+                        chars: prefixLengths[index]..<prefixLengths[index] + raw.utf16.count)]), at: start + 1)
             }
             // Previous word of each prefix, for context rules (run-local:
             // decode sees one run, so context never crosses punctuation).
@@ -611,13 +634,13 @@ public final class LexiconDecoder {
                             let bigrams = contextBigrams?.following(entry.text)
                             for (index, prefix) in prefixes.enumerated() {
                                 let pinned = legacyPinned || (locked?.entries[UserLexicon.pinKey(
-                                    offset: prefix.text.utf16.count, readings: spanKey)]?.keys
+                                    offset: prefixLengths[index], readings: spanKey)]?.keys
                                     .contains(entry.text) ?? false)
                                 let contextual = (rules?.first { $0.previous == previousWords[index] }?.bonus ?? 0)
                                     + (bigrams?[previousWords[index]] ?? 0)
                                 var settledHits = 0
                                 if let settledUnits {
-                                    var offset = prefix.text.utf16.count
+                                    var offset = prefixLengths[index]
                                     for unit in entry.text.utf16 {
                                         if settledUnits[offset] == unit { settledHits += 1 }
                                         offset += 1
@@ -625,13 +648,15 @@ public final class LexiconDecoder {
                                 }
                                 let boost = learned + contextual + (pinned ? UserLexicon.pinBonus : 0)
                                     + Double(settledHits) * UserLexicon.pinBonus
+                                let score = prefix.score + entry.score - penalty - cost + boost - wordPenalty
+                                guard admits(score, at: end + 1) else { continue }
                                 add(SentenceCandidate(text: prefix.text + entry.text,
-                                    score: prefix.score + entry.score - penalty - cost + boost - wordPenalty,
+                                    score: score,
                                     repairs: prefix.repairs + repairs + correction,
                                     unresolved: prefix.unresolved,
                                     alignment: prefix.alignment + [WordSpan(
                                         syllables: start..<end + 1,
-                                        chars: prefix.text.utf16.count..<(prefix.text + entry.text).utf16.count)]), at: end + 1)
+                                        chars: prefixLengths[index]..<prefixLengths[index] + entry.text.utf16.count)]), at: end + 1)
                             }
                         }
                     }
