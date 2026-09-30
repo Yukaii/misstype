@@ -248,6 +248,27 @@ final class InputSessionTests: XCTestCase {
         XCTAssertFalse(session.handle(KeyEvent(.shift(.right), phase: .release, timestamp: 102.1)).modeChanged)
     }
 
+    func testLoneShiftTapMidCompositionOpensLatinRunWithoutCommitting() {
+        let session = makeSession()
+        type("su3", into: session)
+        session.handle(KeyEvent(.shift(.left), phase: .press, modifiers: [.shift], timestamp: 100))
+        // No commit, no global mode flip.
+        XCTAssertEqual(session.handle(KeyEvent(.shift(.left), phase: .release, timestamp: 100.1)),
+                       KeyResult(consumed: true))
+        XCTAssertFalse(session.engine.english)
+        type("hi", into: session)
+        XCTAssertEqual(session.view.preedit, "你hi")
+        // A second tap closes the run: letters are Zhuyin again.
+        session.handle(KeyEvent(.shift(.left), phase: .press, modifiers: [.shift], timestamp: 101))
+        session.handle(KeyEvent(.shift(.left), phase: .release, timestamp: 101.1))
+        type("cl3", into: session)
+        XCTAssertEqual(session.view.preedit, "你hi好")
+        XCTAssertEqual(session.handle(key(.enter, text: "\r")).commit, "你hi好")
+        // With nothing composed the tap still flips 中/英.
+        session.handle(KeyEvent(.shift(.left), phase: .press, modifiers: [.shift], timestamp: 102))
+        XCTAssertTrue(session.handle(KeyEvent(.shift(.left), phase: .release, timestamp: 102.1)).modeChanged)
+    }
+
     func testPanelPickAndHostCommit() {
         let session = makeSession()
         type("su3", into: session)
