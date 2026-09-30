@@ -622,6 +622,20 @@ replay cases are byte-identical. Same-reading rivals still lose as rank 2
 (克服/客服, 便是/辨識, 城市/程式, 藍芽/藍牙, and toneless 同志/通知, 短線/斷線,
 癌症/驗證) — real homophone ties for learning, not a scoring bug.
 
+Learned single characters leaked into sentences (2026-09-29, user report:
+預設 came out as 育設 / 與設文字). Reproduced with the user's own store
+(`--decode --user-lexicon`): a single earlier pick `ㄕㄜ -> 設` (+6) outweighed
+the word 預設 (about 3 points ahead), because word-level learning keys
+toneless-joined readings and applied to every span of that reading. Sentence
+single chars are meant to be learned by context rules only (下次|ㄗㄞ -> 再).
+Fix: a learned one-syllable bonus is paid only when the whole input is that
+one syllable. Both reports decode 預設 again; the learning battery
+(`cursor_replay.py --learning`) is unchanged: dev top-1 63 -> 79/80, picks
+19 -> 1, holdout 58 -> 61, 0 lost. Regression test:
+`testLearnedSingleCharDoesNotBeatAWordInsideASentence`. Side effect to watch:
+a user who only ever types one character and wants it learned inside longer
+input must rely on context rules, which need a preceding word.
+
 ## Measures
 
 Track phrase-level character error rate, syllable error rate, commit latency, p50/p95 decode latency, backspaces or replays, candidate interruptions, and task completion time. Log confidence and decoder source for every result. Run a fixed synthetic fixture set plus consented user sessions kept outside the repository.
