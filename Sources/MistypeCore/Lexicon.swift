@@ -629,7 +629,12 @@ public final class LexiconDecoder {
                             // readings (stable trie path), toneless-joined so
                             // toned learns hit toneless retypes and vice versa.
                             // Only boosts produced candidates — never new paths.
-                            let learned = userLexicon?.bonus(key: spanKey, text: entry.text) ?? 0
+                            // A learned single character pays only when it IS the
+                            // whole input: inside a sentence +6 on 設 outweighed the
+                            // word 預設 (育設, 與設文字). Sentence-level single chars
+                            // are learned by context rules below instead.
+                            let learned = end > start || syllables.count == 1
+                                ? userLexicon?.bonus(key: spanKey, text: entry.text) ?? 0 : 0
                             let rules = contextRules?[spanKey]?.filter { $0.text == entry.text }
                             let bigrams = contextBigrams?.following(entry.text)
                             for (index, prefix) in prefixes.enumerated() {

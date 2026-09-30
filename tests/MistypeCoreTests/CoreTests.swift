@@ -449,6 +449,25 @@ final class CoreTests: XCTestCase {
                                                userLexicon: learned)
         XCTAssertEqual(result.first?.text, "妳")
     }
+    func testLearnedSingleCharDoesNotBeatAWordInsideASentence() {
+        // User report 2026-09-29: one learned 設 (+6) made 育+設 beat the word
+        // 預設 in every sentence (育設, 與設文字). A learned single character
+        // pays only when it is the whole input.
+        let lexicon = LexiconDecoder(tsv: """
+        ㄩˋ\t育\t-7
+        ㄩˋ\t預\t-8
+        ㄕㄜˋ\t設\t-8
+        ㄩˋ-ㄕㄜˋ\t預設\t-11
+        """)
+        var learned = UserLexicon()
+        learned.record(key: UserLexicon.key(for: [Syllable(keys: ["g", "k"], tone: "ˋ")]),
+                       text: "設", at: Date(timeIntervalSince1970: 1))
+        let sentence = [Syllable(keys: ["m"], tone: "ˋ"), Syllable(keys: ["g", "k"], tone: "ˋ")]
+        XCTAssertEqual(lexicon.decode(sentence, userLexicon: learned).first?.text, "預設")
+        // Alone, the learned pick still wins its own tie.
+        let alone = lexicon.decode([Syllable(keys: ["g", "k"], tone: "ˋ")], userLexicon: learned)
+        XCTAssertEqual(alone.first?.score ?? 0, -2, accuracy: 1e-9) // -8 + 6
+    }
     func testUserLexiconBonusCapsWithRepeats() {
         var learned = UserLexicon()
         let key = UserLexicon.key(for: [Syllable(keys: ["s", "u"], tone: "ˇ")])
