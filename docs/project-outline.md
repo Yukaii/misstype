@@ -445,7 +445,8 @@ window out of the critical path):
     間建見件健漸監鍵… instead of repair junk; 12-point top-1 battery
     byte-identical. Segment lists: single-span cap 64 (homophone browser),
     multi-span 16; panel pages up to 64.
-4. English switching: Shift-hold Latin appends inline and Shift+Space
+4. English switching: a lone Shift tap mid-composition now opens/closes a latin run
+   instead of committing (2026-09-29; manual check pending). Shift-hold Latin appends inline and Shift+Space
    toggles exist; collect the exact broken cases (mode indicator? CapsLock?
    toggle state after commit?) before changing behavior.
 5. Punctuation (v1+v2 landed + pin-continue): CJK table in `Sources/MistypeCore/Punctuation.swift`

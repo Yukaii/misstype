@@ -153,7 +153,17 @@ public final class InputSession {
             // Modifier-only signals: tap bookkeeping, then consume (no text).
             let tap = engine.shiftTap.feed(shift: shift, shiftHeld: mods.contains(.shift),
                                            isRealKeyDown: false, otherMods: otherMods, now: now)
-            return tap && settings.shiftToggle ? toggleEnglish() : .handled
+            guard tap && settings.shiftToggle else { return .handled }
+            // Mid-composition a lone Shift tap opens/closes a latin run (same
+            // as backtick) instead of committing: English joins the phrase and
+            // one Return decodes the whole thing. The global 中/英 flip only
+            // happens with nothing being composed.
+            if !engine.english && !composition.isEmpty {
+                latinMode.toggle()
+                engine.log("latin=\(latinMode ? 1 : 0) via=shift")
+                return .handled
+            }
+            return toggleEnglish()
         case .press:
             if shift != nil {
                 // Bare-modifier press (press-as-keyDown delivery): arm only.
