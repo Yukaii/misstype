@@ -26,6 +26,7 @@ enum MistypePrefs {
             "MistypeJevApiKey": "",
             "MistypeJevModel": JevConfig.defaultModel,
             "MistypeShiftToggle": true,
+            "MistypeAutoCommitSyllables": 24,
         ])
     }
 
@@ -34,6 +35,13 @@ enum MistypePrefs {
     static var shiftToggle: Bool {
         get { UserDefaults.standard.bool(forKey: "MistypeShiftToggle") }
         set { UserDefaults.standard.set(newValue, forKey: "MistypeShiftToggle") }
+    }
+
+    /// Long compositions commit their settled head in chunks once they pass
+    /// this many syllables (0 = off). `defaults write` only, no UI yet.
+    static var autoCommitSyllables: Int {
+        get { max(0, UserDefaults.standard.integer(forKey: "MistypeAutoCommitSyllables")) }
+        set { UserDefaults.standard.set(newValue, forKey: "MistypeAutoCommitSyllables") }
     }
 
     static var fuzzyRepair: Bool {
@@ -89,7 +97,8 @@ enum MistypePrefs {
     static var sessionSettings: SessionSettings {
         SessionSettings(fuzzyRepair: fuzzyRepair, toneTolerance: toneTolerance,
                         candidateKeys: candidateKeys, userLearning: userLearning,
-                        shiftToggle: shiftToggle, jev: jevConfig)
+                        shiftToggle: shiftToggle, jev: jevConfig,
+                        autoCommitSyllables: autoCommitSyllables)
     }
 
     /// Live adapter config: explicit enable + key presence gate the attempt;

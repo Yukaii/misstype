@@ -316,6 +316,44 @@ final class MistypeInputController: IMKInputController, InputSessionHost {
     }
 }
 
+// --session-trace <keys> [--auto-commit N]: the full InputSession (real
+// lexicon, no user lexicon) key by key. Prints per-key latency, every
+// auto-commit chunk, and the final text (dev measurement, offline).
+if let traceIndex = CommandLine.arguments.firstIndex(of: "--session-trace"),
+   traceIndex + 1 < CommandLine.arguments.count {
+    MistypePrefs.register()
+    final class TraceHost: InputSessionHost {
+        func surroundingContext() -> ClientContext { ClientContext() }
+        func perform(_ work: @escaping () -> Void) { work() }
+        func sessionDidChange(_ session: InputSession) {}
+    }
+    var settings = MistypePrefs.sessionSettings
+    if let flag = CommandLine.arguments.firstIndex(of: "--auto-commit"),
+       flag + 1 < CommandLine.arguments.count, let value = Int(CommandLine.arguments[flag + 1]) {
+        settings.autoCommitSyllables = value
+    }
+    let engine = InputEngine(decoder: Runtime.decoder, settings: { settings })
+    let session = InputSession(engine: engine)
+    let host = TraceHost()
+    session.host = host
+    var committed = ""
+    for (count, char) in CommandLine.arguments[traceIndex + 1].enumerated() {
+        let label = String(char)
+        let event = label == " " ? KeyEvent(.space, text: " ") : KeyEvent(.character(label), text: label)
+        let started = Date()
+        let result = session.handle(event)
+        let ms = Date().timeIntervalSince(started) * 1000
+        print("time\t\(count + 1)\t\(String(format: "%.1f", ms))")
+        if let text = result.commit {
+            committed += text
+            print("chunk\t\(count + 1)\t\(text)\tpreedit=\(session.view.preedit)")
+        }
+    }
+    let rest = session.handle(KeyEvent(.enter, text: "\r")).commit ?? ""
+    print("final\t\(committed + rest)")
+    exit(0)
+}
+
 if let decodeIndex = CommandLine.arguments.firstIndex(of: "--decode"),
    decodeIndex + 1 < CommandLine.arguments.count {
     // Measurement fidelity: the decode CLI must see the same registered

@@ -12,16 +12,22 @@ public struct SessionSettings: Equatable, Sendable {
     /// Lone-Shift tap toggles 中/英 (Shift+Space always does).
     public var shiftToggle: Bool
     public var jev: JevConfig
+    /// A composition longer than this many syllables commits its settled
+    /// head in chunks while typing continues (0 = never). Bounds per-key
+    /// decode cost and how much text one Backspace/Escape can lose.
+    public var autoCommitSyllables: Int
 
     public init(fuzzyRepair: Bool = true, toneTolerance: Bool = true,
                 candidateKeys: String = SelectionKeys.defaultKeys, userLearning: Bool = true,
-                shiftToggle: Bool = true, jev: JevConfig = JevConfig()) {
+                shiftToggle: Bool = true, jev: JevConfig = JevConfig(),
+                autoCommitSyllables: Int = 24) {
         self.fuzzyRepair = fuzzyRepair
         self.toneTolerance = toneTolerance
         self.candidateKeys = candidateKeys
         self.userLearning = userLearning
         self.shiftToggle = shiftToggle
         self.jev = jev
+        self.autoCommitSyllables = autoCommitSyllables
     }
 }
 

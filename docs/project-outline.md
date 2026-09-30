@@ -579,6 +579,29 @@ heterophony2/3 drop 0.693 log10 per rank, unlisted readings sit at the
 Shift+Return commits the keys as typed, for 注音文 made of valid
 syllables (a lone ㄗ decodes to 資).
 
+Long-composition latency and chunked auto-commit (2026-09-29, user report:
+the UI gets laggy as a composition grows, and Backspace sometimes eats a
+whole run). Cause: `livePreview` re-decodes the entire composition on every
+key, so cost grows with length; profiling put it in Swift's Unicode-
+normalizing String ==/< on long sentence text inside the beam's `add` and in
+O(n) `utf16.count` calls. Two changes. (1) Output-identical decoder speedup
+(240 replay cases byte-identical): reject hopeless candidates by score before
+building them, compare text as UTF-8 bytes, cache prefix lengths — toned 250
+keys 155 -> 48 ms per key, toneless 160 keys 1060 -> 380 ms. (2) Chunked
+auto-commit: past 24 syllables the settled head commits in whole-word chunks
+while the last 12 keep composing (`tools/session_latency.py`, 12 sentences as
+one composition, real lexicon): final text unchanged, toned mean 17.2 -> 4.0
+ms (p95 53 -> 9), toneless mean 169 -> 46 ms (p95 418 -> 83, max 548 -> 107).
+Backspace: toneless words typed continuously fuse into one body when a single
+tone or Space finally closes them, and Backspace removed the whole body; it
+now removes one decoded syllable. Limits: auto-commit waits while an explicit
+pick, pin, cursor or open list exists (their learning would otherwise be
+lost) and while the head has repairs or unresolved syllables; a committed
+chunk can no longer be revised by the IME (Backspace past the tail deletes
+it in the app). Manual check pending: chunk boundaries in real apps (marked
+text redraw), feel of the 24-syllable default, and whether it needs a
+Preferences control.
+
 ## Measures
 
 Track phrase-level character error rate, syllable error rate, commit latency, p50/p95 decode latency, backspaces or replays, candidate interruptions, and task completion time. Log confidence and decoder source for every result. Run a fixed synthetic fixture set plus consented user sessions kept outside the repository.

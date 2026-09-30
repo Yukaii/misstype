@@ -213,6 +213,47 @@ final class InputSessionTests: XCTestCase {
         XCTAssertEqual(session.view.preedit, "你you")
     }
 
+    func testBackspaceAfterFusedTonelessRunDeletesOneSyllable() {
+        let session = makeSession()
+        // Toneless continuous typing, then one first-tone Space: the raw keys
+        // are a single fused body (ㄋㄧㄏㄠ + Space) but the user typed two
+        // syllables, so one Backspace must not drop both.
+        type("sucl ", into: session)
+        XCTAssertEqual(session.view.preedit, "你好")
+        session.handle(key(.backspace, text: "\u{7f}"))
+        XCTAssertEqual(session.rawPhonetic, "ㄋㄧ")
+    }
+
+    func testLongCompositionCommitsSettledHeadInChunks() {
+        settings.autoCommitSyllables = 6
+        let session = makeSession()
+        var committed = ""
+        var chunks = 0
+        for _ in 0..<20 {
+            for result in type("su3", into: session) {
+                XCTAssertTrue(result.consumed)
+                if let text = result.commit { committed += text; chunks += 1 }
+            }
+            // The composition stays bounded and keeps its look-ahead tail.
+            XCTAssertLessThanOrEqual(session.rawPhonetic.count, 6 * 3)
+        }
+        XCTAssertGreaterThan(chunks, 1, "one chunk per overflow, not one big commit")
+        XCTAssertFalse(committed.isEmpty)
+        XCTAssertGreaterThanOrEqual(session.view.preedit.count, 3)
+        // Chunks plus the final Return reproduce everything that was typed.
+        let rest = session.handle(key(.enter, text: "\r")).commit ?? ""
+        XCTAssertEqual(committed + rest, String(repeating: "你", count: 20))
+    }
+
+    func testAutoCommitOffKeepsEverythingInTheComposition() {
+        settings.autoCommitSyllables = 0
+        let session = makeSession()
+        for _ in 0..<10 {
+            XCTAssertTrue(type("su3", into: session).allSatisfy { $0.commit == nil })
+        }
+        XCTAssertEqual(session.view.preedit, String(repeating: "你", count: 10))
+    }
+
     func testSyllableCursorFocusesAWord() {
         let session = makeSession()
         type("su3cl3", into: session)

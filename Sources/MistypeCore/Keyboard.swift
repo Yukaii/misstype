@@ -301,6 +301,25 @@ public struct Composition {
     public mutating func erase() {
         if parsed.pending.isEmpty { deleteLastSyllable() } else { backspace() }
     }
+    /// Symbol keys of the syllable body closed by a trailing tone key (empty
+    /// when the composition does not end in a tone).
+    public var trailingBody: [String] {
+        guard let last = rawKeys.last, ZhuyinKeyboard.tones[last] != nil else { return [] }
+        var body: [String] = []
+        for key in rawKeys.dropLast().reversed() {
+            guard ZhuyinKeyboard.symbols[key] != nil else { break }
+            body.insert(key, at: 0)
+        }
+        return body
+    }
+    /// Erase a trailing tone and only the last `count` symbol keys of its body.
+    /// Toneless words typed continuously fuse into ONE body when a single tone
+    /// or Space finally closes them; Backspace then removes the syllable the
+    /// decoder found last, not the whole run. The rest stays as pending keys.
+    public mutating func eraseTailSyllable(symbolCount count: Int) {
+        guard count > 0, count < trailingBody.count else { return }
+        rawKeys.removeLast(count + 1)
+    }
     /// Apply a late tone keystroke onto the last boundary: replaces a trailing
     /// tone terminator (including space) with the new tone, so a tone typed
     /// after a space — or a corrected re-hit tone — is not swallowed.
@@ -363,6 +382,10 @@ public struct Composition {
               ZhuyinKeyboard.tones[last] == nil,
               !Punctuation.literals.contains(last),
               !Composition.isLatinKey(last) { rawKeys.removeLast() }
+    }
+    /// Drop the first `count` raw keys (a head that was committed).
+    public mutating func dropHead(keys count: Int) {
+        rawKeys.removeFirst(min(max(0, count), rawKeys.count))
     }
     public mutating func clear() { rawKeys.removeAll(keepingCapacity: true) }
     public func syllables(finishing: Bool) -> [Syllable] {
