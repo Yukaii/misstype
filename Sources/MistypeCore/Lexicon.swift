@@ -549,9 +549,13 @@ public final class LexiconDecoder {
         }
         func sameText(_ a: String, _ b: String) -> Bool {
             guard a.utf8.count == b.utf8.count else { return false }
+            if a.utf8.isEmpty { return true }
             let bytes = a.utf8.withContiguousStorageIfAvailable { left in
                 b.utf8.withContiguousStorageIfAvailable { right in
-                    memcmp(left.baseAddress, right.baseAddress, left.count) == 0
+                    if let leftBase = left.baseAddress, let rightBase = right.baseAddress {
+                        return memcmp(leftBase, rightBase, left.count) == 0
+                    }
+                    return left.elementsEqual(right)
                 }
             }
             return bytes.flatMap { $0 } ?? a.utf8.elementsEqual(b.utf8)
