@@ -261,6 +261,13 @@ public struct Composition {
         rawKeys.append(text)
         return true
     }
+    /// Swap the trailing punctuation literal (symbol menu).
+    @discardableResult public mutating func replaceLastLiteral(_ text: String) -> Bool {
+        guard let last = rawKeys.last, Punctuation.literals.contains(last),
+              Punctuation.literals.contains(text) else { return false }
+        rawKeys[rawKeys.count - 1] = text
+        return true
+    }
     /// Space inside a composition is a boundary, never a commit: after
     /// pending keys it terminates the syllable (first-tone mark), otherwise
     /// it stays a literal separator so toneless words survive with spaces.

@@ -117,6 +117,15 @@ public final class InputSession {
     /// typing leaves the mode; Esc leaves it without touching the text.
     private var selecting = false
     private var inSelection: Bool { selecting || segmentTexts != nil }
+    /// Symbol menu: the mark just typed, with its alternatives shown in the
+    /// candidate list. Tab/arrows step (the mark is swapped live), selection
+    /// keys pick once stepping began, Esc or any other key accepts what shows.
+    private struct SymbolMenu {
+        var choices: [String]
+        var selected = 0
+        var selecting = false
+    }
+    private var symbolMenu: SymbolMenu?
     private var jevRequestID = 0
     private let jevLock = NSLock()
 
@@ -131,6 +140,12 @@ public final class InputSession {
     public var rawPhonetic: String { composition.rawPhonetic }
 
     public var view: SessionView {
+        if let menu = symbolMenu {
+            return SessionView(
+                preedit: previewText, caret: caretOffset, candidates: menu.choices, selected: menu.selected,
+                selectionKeys: SelectionKeys.labels(keys: settings.candidateKeys),
+                keysActive: menu.selecting, showsCandidates: true)
+        }
         let texts = segmentTexts ?? candidates.map(\.text)
         return SessionView(
             preedit: previewText,
@@ -193,7 +208,7 @@ public final class InputSession {
     /// of the head are consumed with it.
     private func commitSettledHead() -> String? {
         let limit = settings.autoCommitSyllables
-        guard limit > 0, !composition.isEmpty, cursor == nil, !inSelection, sessionPins.isEmpty,
+        guard limit > 0, !composition.isEmpty, cursor == nil, !inSelection, symbolMenu == nil, sessionPins.isEmpty,
               !explicitPick, candidates.indices.contains(selected) else { return nil }
         let shown = candidates[selected]
         let total = shown.syllables.count
@@ -233,6 +248,11 @@ public final class InputSession {
     /// Panel click (or any host-side pick) on row `index` of `view.candidates`.
     public func pick(at index: Int) {
         settings = engine.settings()
+        if let menu = symbolMenu {
+            if menu.choices.indices.contains(index) { applyMenuChoice(index) }
+            symbolMenu = nil
+            return
+        }
         if let texts = segmentTexts, texts.indices.contains(index) {
             pinAdvance(at: index)
             return
@@ -297,6 +317,49 @@ public final class InputSession {
         let latinLetter = latinMode && !chord && key.letterLabel != nil
         if !latinLetter && key != .character("`") && key != .space && key != .backspace {
             latinMode = false
+        }
+        if var menu = symbolMenu {
+            let count = menu.choices.count
+            let label = key.zhuyinLabel
+            func step(to index: Int) -> KeyResult {
+                menu.selected = index
+                menu.selecting = true
+                symbolMenu = menu
+                applyMenuChoice(index)
+                return .handled
+            }
+            if !chord {
+                switch key {
+                case .tab, .down, .up:
+                    let forward = key == .down || (key == .tab && !shift)
+                    return step(to: (menu.selected + (forward ? 1 : count - 1)) % count)
+                case .pageUp, .pageDown:
+                    guard count > 8 else { return .beeped }
+                    let pages = (count + 7) / 8
+                    let next = (menu.selected / 8 + (key == .pageDown ? 1 : pages - 1)) % pages
+                    return step(to: min(next * 8 + menu.selected % 8, count - 1))
+                case .escape:
+                    symbolMenu = nil // keep the mark that shows
+                    return .handled
+                default:
+                    break
+                }
+                if menu.selecting, !shift, let label {
+                    if (label == "-" || label == "="), count > 8 {
+                        let pages = (count + 7) / 8
+                        let next = (menu.selected / 8 + (label == "=" ? 1 : pages - 1)) % pages
+                        return step(to: min(next * 8 + menu.selected % 8, count - 1))
+                    }
+                    if let slot = SelectionKeys.slot(forLabel: label, keys: settings.candidateKeys) {
+                        let global = (menu.selected / 8) * 8 + slot
+                        guard global < count else { return .beeped }
+                        applyMenuChoice(global)
+                        symbolMenu = nil
+                        return .handled
+                    }
+                }
+            }
+            symbolMenu = nil // any other key accepts the mark and acts normally
         }
         // Destructive editing is handled before the generic modifier
         // commit-passthrough further below, so deleting phonetic evidence
@@ -455,12 +518,16 @@ public final class InputSession {
         // here (passed through above), so the table's Ctrl+; entry is
         // unreachable — as it was in the pre-extraction controller.
         if case .character(let label) = key,
-           let punct = Punctuation.output(label: label, shift: shift, ctrl: mods.contains(.control)) {
+           let punct = Punctuation.smartQuote(label: label, shift: shift, ctrl: mods.contains(.control),
+                                              in: composition.rawKeys)
+                ?? Punctuation.output(label: label, shift: shift, ctrl: mods.contains(.control)) {
             if candidates.indices.contains(selected) {
                 pinnedPick = candidates[selected].text
             }
             guard composition.appendLiteral(punct) else { return .beeped }
             refresh()
+            let choices = Punctuation.choices(for: punct)
+            symbolMenu = choices.count > 1 ? SymbolMenu(choices: choices) : nil
             return .handled
         }
         // Latin letters append verbatim (case from the event text) and keep
@@ -503,6 +570,12 @@ public final class InputSession {
             return .beeped
         }
         return pass()
+    }
+
+    private func applyMenuChoice(_ index: Int) {
+        guard let menu = symbolMenu, menu.choices.indices.contains(index) else { return }
+        _ = composition.replaceLastLiteral(menu.choices[index])
+        refresh()
     }
 
     /// Flip one page of 8, keeping the row (clamped on a short last page) and
@@ -650,6 +723,7 @@ public final class InputSession {
         rawTail = []
         settledPins = UserLexicon()
         selecting = false
+        symbolMenu = nil
         pinnedPick = nil
         explicitPick = false
         cursor = nil

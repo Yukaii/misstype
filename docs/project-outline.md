@@ -602,6 +602,26 @@ it in the app). Manual check pending: chunk boundaries in real apps (marked
 text redraw), feel of the 24-syllable default, and whether it needs a
 Preferences control.
 
+Smart quotes, symbol menu, modern vocabulary (2026-09-29, user request).
+`'` now pairs itself inside the composition (「 opens, 」 closes while one is
+unclosed; Shift+`'` does the same for 『』; `[` `]` still type 『 』 directly).
+Only the composition is inspected, so a 「 already committed to the app is
+not seen. Symbol menu: typing a mark opens the candidate list with its group
+(`Punctuation.groups`: ，、；：, 。．…, quotes and brackets as separate open
+and close groups so a swap never flips direction, dashes, dots, and one
+group per Shift-row symbol — currency, math, ※★ …). The typed mark is row 1;
+Tab/Up/Down swap it live and arm the selection keys, which pick; Esc keeps
+what shows; any other key accepts it and acts normally; panel click picks.
+`…` now has a home (the period group). No ASCII choices: they would collide
+with physical key labels in the raw key stream. Manual check pending: panel
+noise after every comma, and whether Up/Down should open the menu without
+Tab. Lexicon: 預設 already ranked first alone; a 86-word modern probe list
+found 14 missing words (貼文, 預覽, 截圖, 資料夾, 表單, 推播, 貼圖, 迷因, 按讚,
+轉貼, 外送, 掃碼, 行動支付, 表情符號), now in `local_phrases.tsv`; the 240
+replay cases are byte-identical. Same-reading rivals still lose as rank 2
+(克服/客服, 便是/辨識, 城市/程式, 藍芽/藍牙, and toneless 同志/通知, 短線/斷線,
+癌症/驗證) — real homophone ties for learning, not a scoring bug.
+
 ## Measures
 
 Track phrase-level character error rate, syllable error rate, commit latency, p50/p95 decode latency, backspaces or replays, candidate interruptions, and task completion time. Log confidence and decoder source for every result. Run a fixed synthetic fixture set plus consented user sessions kept outside the repository.

@@ -254,6 +254,64 @@ final class InputSessionTests: XCTestCase {
         XCTAssertEqual(session.view.preedit, String(repeating: "你", count: 10))
     }
 
+    func testSmartQuotesOpenThenCloseAndNestWithShift() {
+        let session = makeSession()
+        session.handle(key(.character("'"), text: "'"))
+        type("su3cl3", into: session)
+        XCTAssertEqual(session.view.preedit, "「你好")
+        session.handle(key(.character("'"), text: "'"))
+        XCTAssertEqual(session.view.preedit, "「你好」")
+        // Balanced again, so the next one opens; Shift pairs 『』 on its own.
+        session.handle(key(.character("'"), [.shift], text: "\""))
+        session.handle(key(.character("'"), [.shift], text: "\""))
+        XCTAssertEqual(session.view.preedit, "「你好」『』")
+        // The direct bracket keys keep working.
+        session.handle(key(.character("["), text: "["))
+        XCTAssertEqual(session.view.preedit, "「你好」『』『")
+    }
+
+    func testSymbolMenuStepsPicksAndAcceptsOnAnyOtherKey() {
+        let session = makeSession()
+        type("su3", into: session)
+        session.handle(key(.character(","), [.shift], text: "<"))
+        XCTAssertEqual(session.view.preedit, "你，")
+        XCTAssertTrue(session.view.showsCandidates)
+        XCTAssertEqual(Array(session.view.candidates.prefix(3)), ["，", "、", "；"])
+        XCTAssertFalse(session.view.keysActive)
+        // Letters are still Zhuyin until stepping starts.
+        // Tab swaps the mark live and arms the selection keys.
+        session.handle(key(.tab, text: "\t"))
+        XCTAssertEqual(session.view.preedit, "你、")
+        XCTAssertTrue(session.view.keysActive)
+        // Selection key `d` = slot 2 on the page: 「；」.
+        XCTAssertEqual(session.handle(key(.character("d"), text: "d")), KeyResult(consumed: true))
+        XCTAssertEqual(session.view.preedit, "你；")
+        XCTAssertFalse(session.view.showsCandidates)
+        XCTAssertEqual(session.handle(key(.enter, text: "\r")).commit, "你；")
+    }
+
+    func testSymbolMenuAnyOtherKeyAcceptsEscKeepsAndClickPicks() {
+        let session = makeSession()
+        type("su3", into: session)
+        session.handle(key(.character("."), [.shift], text: ">"))
+        XCTAssertEqual(session.view.preedit, "你。")
+        // Typing on accepts the mark and composes normally.
+        type("cl3", into: session)
+        XCTAssertEqual(session.view.preedit, "你。好")
+        XCTAssertFalse(session.view.candidates.contains("．"))
+        // Esc closes the menu but keeps the composition; a second one clears.
+        session.handle(key(.character("1"), [.shift], text: "!"))
+        XCTAssertTrue(session.view.candidates.contains("‼"))
+        XCTAssertEqual(session.handle(key(.escape, text: "\u{1b}")), KeyResult(consumed: true))
+        XCTAssertEqual(session.view.preedit, "你。好！")
+        XCTAssertFalse(session.view.candidates.contains("‼"))
+        // Panel click picks a row.
+        session.handle(key(.character("/"), [.shift], text: "?"))
+        session.pick(at: 1)
+        XCTAssertEqual(session.view.preedit, "你。好！⁇")
+        XCTAssertFalse(session.view.showsCandidates)
+    }
+
     func testSyllableCursorFocusesAWord() {
         let session = makeSession()
         type("su3cl3", into: session)
