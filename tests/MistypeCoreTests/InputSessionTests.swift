@@ -194,6 +194,25 @@ final class InputSessionTests: XCTestCase {
         XCTAssertEqual(session.view.preedit, "你hi好")
     }
 
+    func testBackspaceInsideLatinRunKeepsTheRun() {
+        let session = makeSession()
+        type("su3`hx", into: session)
+        XCTAssertEqual(session.handle(key(.backspace, text: "\u{7f}")), KeyResult(consumed: true))
+        type("i", into: session)
+        XCTAssertEqual(session.view.preedit, "你hi")
+        // Deleting the whole word keeps the run open for retyping.
+        session.handle(key(.backspace, text: "\u{7f}"))
+        session.handle(key(.backspace, text: "\u{7f}"))
+        type("yo", into: session)
+        XCTAssertEqual(session.view.preedit, "你yo")
+        // Ended by punctuation, then edited back into the word: the run resumes.
+        session.handle(key(.character(","), [.shift], text: "<"))
+        XCTAssertEqual(session.view.preedit, "你yo，")
+        session.handle(key(.backspace, text: "\u{7f}"))
+        type("u", into: session)
+        XCTAssertEqual(session.view.preedit, "你you")
+    }
+
     func testSyllableCursorFocusesAWord() {
         let session = makeSession()
         type("su3cl3", into: session)

@@ -242,14 +242,20 @@ public final class InputSession {
         if engine.english || mods.contains(.capsLock) { return pass() }
         // Latin mode ends on anything but letters, space (multi-word runs
         // stay latin: `hello world`), and the backtick toggle: tones,
-        // punctuation, digits and commit keys resume Zhuyin.
+        // punctuation, digits and commit keys resume Zhuyin. Backspace keeps
+        // the run so a typo can be fixed without re-toggling; see below.
         let latinLetter = latinMode && !chord && key.letterLabel != nil
-        if !latinLetter && key != .character("`") && key != .space { latinMode = false }
+        if !latinLetter && key != .character("`") && key != .space && key != .backspace {
+            latinMode = false
+        }
         // Destructive editing is handled before the generic modifier
         // commit-passthrough further below, so deleting phonetic evidence
         // never commits the composition first.
         if key == .backspace {
-            guard !composition.isEmpty else { return pass(committing: false) }
+            guard !composition.isEmpty else {
+                latinMode = false
+                return pass(committing: false)
+            }
             selected = 0
             if mods.contains(.command) {
                 clear()
@@ -260,6 +266,9 @@ public final class InputSession {
                 composition.erase()
                 refresh()
             }
+            // Editing into a latin tail resumes that run; an open run stays
+            // open even when the whole word is deleted (retyping it).
+            if !composition.trailingLatin.isEmpty { latinMode = true }
             return .handled
         }
         if key == .forwardDelete { // caret sits after marked text
