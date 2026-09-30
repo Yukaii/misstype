@@ -7,3 +7,21 @@
 # Policy: add only words a user demonstrably hit (debug trace / fixture);
 # never bulk-import. Learned picks (UserLexicon) remain the per-user layer.
 ㄒㄩㄢˇ-ㄘˊ	選詞	-9.2
+# 2026-09-29 modern everyday/tech vocabulary absent from the pinned upstream
+# (checked against a 86-word probe list: 14 missing). Scores sit next to
+# siblings (影片 -9.40, 分享 -9.75, 圖片 -10.79, 標籤 -11.77) so they compete
+# honestly; same-reading rivals (克服/客服, 便是/辨識) are left to learning.
+ㄊㄧㄝ-ㄨㄣˊ	貼文	-10.6
+ㄩˋ-ㄌㄢˇ	預覽	-10.6
+ㄐㄧㄝˊ-ㄊㄨˊ	截圖	-11.2
+ㄗ-ㄌㄧㄠˋ-ㄐㄧㄚ	資料夾	-11.6
+ㄅㄧㄠˇ-ㄉㄢ	表單	-11.2
+ㄊㄨㄟ-ㄅㄛ	推播	-11.6
+ㄊㄧㄝ-ㄊㄨˊ	貼圖	-11.2
+ㄇㄧˊ-ㄧㄣ	迷因	-11.6
+ㄢˋ-ㄗㄢˋ	按讚	-11.2
+ㄓㄨㄢˇ-ㄊㄧㄝ	轉貼	-11.6
+ㄨㄞˋ-ㄙㄨㄥˋ	外送	-10.8
+ㄙㄠˇ-ㄇㄚˇ	掃碼	-11.8
+ㄒㄧㄥˊ-ㄉㄨㄥˋ-ㄓ-ㄈㄨˋ	行動支付	-12.4
+ㄅㄧㄠˇ-ㄑㄧㄥˊ-ㄈㄨˊ-ㄏㄠˋ	表情符號	-12.4
