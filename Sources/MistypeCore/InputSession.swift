@@ -176,8 +176,58 @@ public final class InputSession {
             // Bare-modifier presses (Caps/Opt/Ctrl alone) carry no text:
             // consume silently instead of committing the composition first.
             if event.key == .modifier, event.text?.isEmpty ?? true { return .handled }
-            return type(event)
+            var result = type(event)
+            if result.consumed, !result.beep, result.commit == nil, let chunk = commitSettledHead() {
+                result.commit = chunk
+            }
+            return result
         }
+    }
+
+    /// Chunked auto-commit: past `autoCommitSyllables`, the head of the
+    /// shown sentence (whole words, all but the last `limit / 2` syllables)
+    /// is committed while the tail keeps composing. Only when the head is
+    /// exactly what the keys said — no repairs, no unresolved syllables —
+    /// and the user holds no explicit picks or open list; otherwise it waits.
+    /// Never trains learning (like every routine commit), and the raw keys
+    /// of the head are consumed with it.
+    private func commitSettledHead() -> String? {
+        let limit = settings.autoCommitSyllables
+        guard limit > 0, !composition.isEmpty, cursor == nil, !inSelection, sessionPins.isEmpty,
+              !explicitPick, candidates.indices.contains(selected) else { return nil }
+        let shown = candidates[selected]
+        let total = shown.syllables.count
+        guard total > limit, shown.unresolved == 0,
+              let cut = shown.alignment.last(where: { $0.syllables.upperBound <= total - limit / 2 }),
+              cut.syllables.upperBound > 0 else { return nil }
+        let head = shown.syllables.prefix(cut.syllables.upperBound)
+        // Raw keys the head consumed: walk symbol keys until the head's are
+        // used up, then take the tone key that closes the last syllable.
+        var wanted = head.flatMap(\.keys)[...]
+        var cutIndex = 0
+        for (index, key) in composition.rawKeys.enumerated() where ZhuyinKeyboard.symbols[key] != nil {
+            guard key == wanted.first else { return nil }
+            wanted.removeFirst()
+            cutIndex = index + 1
+            if wanted.isEmpty { break }
+        }
+        guard wanted.isEmpty else { return nil }
+        if composition.rawKeys.indices.contains(cutIndex),
+           ZhuyinKeyboard.tones[composition.rawKeys[cutIndex]] != nil { cutIndex += 1 }
+        let units = Array(shown.text.utf16)
+        guard cut.chars.upperBound <= units.count else { return nil }
+        let chunk = String(decoding: units[0..<cut.chars.upperBound], as: UTF16.self)
+        guard !chunk.isEmpty else { return nil }
+        engine.log("autocommit syllables=\(head.count) keys=\(cutIndex) of=\(composition.rawKeys.count)")
+        engine.recordCommit(chunk)
+        _ = nextJevID()
+        composition.dropHead(keys: cutIndex)
+        candidates = []
+        settledPins = UserLexicon()
+        pinnedPick = nil
+        selected = 0
+        refresh()
+        return chunk
     }
 
     /// Panel click (or any host-side pick) on row `index` of `view.candidates`.
@@ -263,7 +313,16 @@ public final class InputSession {
                 composition.deleteLastSyllable()
                 refresh()
             } else {
-                composition.erase()
+                // A tone closing a fused toneless body erases one decoded
+                // syllable, not the whole run (which read as "Backspace ate
+                // the sentence").
+                if let last = candidates.indices.contains(selected) ? candidates[selected].syllables.last : nil,
+                   composition.trailingBody.suffix(last.keys.count) == last.keys[...] {
+                    composition.eraseTailSyllable(symbolCount: last.keys.count)
+                    if composition.parsed.pending.isEmpty { composition.erase() }
+                } else {
+                    composition.erase()
+                }
                 refresh()
             }
             // Editing into a latin tail resumes that run; an open run stays
