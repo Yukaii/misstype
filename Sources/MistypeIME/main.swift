@@ -370,10 +370,13 @@ if let decodeIndex = CommandLine.arguments.firstIndex(of: "--decode"),
            settleIndex + 1 < CommandLine.arguments.count { keep = Int(CommandLine.arguments[settleIndex + 1]) }
         var settled = UserLexicon()
         for count in 1...max(keys.count, 1) where count <= keys.count {
+            let keyStarted = Date()
             let preview = decoder.livePreview(compose(keys.prefix(count)), fuzzy: MistypePrefs.fuzzyRepair,
                                               toneTolerance: MistypePrefs.toneTolerance,
                                               settled: keep == nil || settled.isEmpty ? nil : settled)
+            let keyMs = Date().timeIntervalSince(keyStarted) * 1000
             print("live\t\(count)\t\(preview.text())")
+            print("time\t\(count)\t\(String(format: "%.1f", keyMs))")
             if let keep, let top = preview.candidates.first { settled = UserLexicon.settled(from: top, keep: keep) }
         }
         exit(0)
