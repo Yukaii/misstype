@@ -411,6 +411,35 @@ void run_settings(const char *res) {
     printf("settings shift_toggle=0 tap ignored\n");
     mistype_session_free(s);
     mistype_engine_free(eng);
+
+    // auto_commit_syllables: past the limit, the settled head commits in chunks.
+    eng = mistype_engine_new(res, "");
+    ASSERT(eng, "engine settings autocommit");
+    st = mistype_settings_default();
+    ASSERT(st.auto_commit_syllables == 24, "default auto_commit_syllables=24");
+    st.auto_commit_syllables = 2;
+    mistype_engine_set_settings(eng, &st);
+    s = mistype_session_new(eng);
+    // su3 cl3 su3 -> 你好 + a third syllable; the 你好 head must auto-commit.
+    const char *ac[] = {"s", "u", "3", "c", "l", "3", "s", "u", "3"};
+    char *chunk = NULL;
+    for (size_t i = 0; i < 9; i++) {
+        mistype_key_event ev = {0};
+        ev.kind = MISTYPE_KEY_CHARACTER;
+        ev.label = ac[i];
+        ev.text = ac[i];
+        mistype_key_result rr = mistype_session_handle(s, &ev);
+        if (rr.commit && !chunk) {
+            chunk = rr.commit;
+        } else {
+            mistype_string_free(rr.commit);
+        }
+    }
+    ASSERT(chunk && strcmp(chunk, "你好") == 0, "auto_commit_syllables=2 commits 你好 head");
+    printf("settings auto_commit_syllables=2 head=你好\n");
+    mistype_string_free(chunk);
+    mistype_session_free(s);
+    mistype_engine_free(eng);
 }
 
 int main(int argc, char **argv) {

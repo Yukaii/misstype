@@ -2,6 +2,7 @@
 // scenarios C1-C12 plus the Linux delivery rules LR1-LR4, driven through
 // fcitx5's in-process test frontend. A wrong commit aborts inside
 // pushCommitExpectation; every other check is FCITX_ASSERT.
+#include <fcitx-config/rawconfig.h>
 #include <fcitx-utils/eventdispatcher.h>
 #include <fcitx-utils/key.h>
 #include <fcitx-utils/log.h>
@@ -128,6 +129,8 @@ void runAll(Instance &instance) {
         FCITX_ASSERT(list);
         FCITX_ASSERT(list->totalSize() == 10);
         FCITX_ASSERT(list->pageSize() == 8 && list->totalPages() == 2) << "8 rows per page";
+        FCITX_ASSERT(list->layoutHint() == CandidateLayoutHint::Vertical)
+            << "vertical candidate list (macOS parity)";
         FCITX_ASSERT(list->globalCursorIndex() == 0);
         FCITX_ASSERT(list->label(0).toString().empty()) << "selection keys type Zhuyin, so no labels";
     }
@@ -187,6 +190,13 @@ void runAll(Instance &instance) {
         auto *list = s.candidates();
         FCITX_ASSERT(list && list->candidateFromAll(0).text().toString() == "你好");
         FCITX_ASSERT(list->label(0).toString() == "a") << "selection keys active in cursor mode";
+        {
+            const auto &word = list->candidateFromAll(0);
+            FCITX_ASSERT(word.hasCustomLabel()) << "key styled distinctly from the character";
+            FCITX_ASSERT(word.customLabel().toString() == "a  ") << "two-space gap after the key";
+            FCITX_ASSERT(word.customLabel().formatAt(0).test(fcitx::TextFormatFlag::Bold))
+                << "key label is bold";
+        }
     }
     s.clear();
     pass("C8");
@@ -282,6 +292,39 @@ void runAll(Instance &instance) {
     ic.focusOut();
     pass("LR4");
 
+    // CFG: the addon exposes its settings (macOS parity: FuzzyRepair,
+    // ToneTolerance, CandidateKeys, UserLearning, AutoCommitSyllables) and
+    // applies them live. Restores defaults afterwards so C4 is unaffected.
+    {
+        auto *addon = instance.addonManager().addon("mistype");
+        FCITX_ASSERT(addon) << "mistype addon loaded";
+        FCITX_ASSERT(addon->getConfig()) << "addon must be Configurable";
+        RawConfig keys;
+        keys["CandidateKeys"].setValue("12345678");
+        addon->setConfig(keys);
+        s.type("su3");
+        FCITX_ASSERT(s.key(FcitxKey_Tab, kTab));
+        {
+            auto *list = s.candidates();
+            FCITX_ASSERT(list);
+            FCITX_ASSERT(list->label(0).toString() == "1" && list->label(1).toString() == "2")
+                << "row labels follow the CandidateKeys setting";
+        }
+        s.clear();
+        RawConfig ac;
+        ac["CandidateKeys"].setValue("asdfghjkl;");
+        ac["AutoCommitSyllables"].setValue("2");
+        addon->setConfig(ac);
+        // Past 2 syllables the settled 你好 head commits on its own.
+        s.expectCommit("你好");
+        s.type("su3cl3su3");
+        s.clear();
+        RawConfig restore;
+        restore["AutoCommitSyllables"].setValue("24");
+        addon->setConfig(restore);
+    }
+    pass("CFG");
+
     // C4 runs last: committing 尼 teaches the user lexicon, which would
     // reorder the candidates every other scenario expects.
     // C4: Tab selects, a selection key picks row 2 (尼), Enter commits it.
@@ -327,7 +370,7 @@ int main() {
     dispatcher.attach(&instance.eventLoop());
     dispatcher.schedule([&instance]() {
         runAll(instance);
-        FCITX_INFO() << "All 16 scenarios passed";
+        FCITX_INFO() << "All 17 scenarios passed";
         instance.exit();
     });
     instance.exec();

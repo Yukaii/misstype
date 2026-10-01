@@ -198,7 +198,8 @@ public func mistype_settings_default() -> mistype_settings {
         tone_tolerance: 1,
         user_learning: 1,
         shift_toggle: 1,
-        candidate_keys: nil
+        candidate_keys: nil,
+        auto_commit_syllables: 24
     )
 }
 
@@ -260,7 +261,8 @@ public func mistype_engine_set_settings(
         toneTolerance: settings.pointee.tone_tolerance != 0,
         candidateKeys: settings.pointee.candidate_keys.map { String(cString: $0) } ?? "asdfghjkl;",
         userLearning: settings.pointee.user_learning != 0,
-        shiftToggle: settings.pointee.shift_toggle != 0
+        shiftToggle: settings.pointee.shift_toggle != 0,
+        autoCommitSyllables: max(0, Int(settings.pointee.auto_commit_syllables))
     )
 }
 

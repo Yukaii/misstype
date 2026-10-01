@@ -4,6 +4,7 @@
 // draws the session view.
 #include <fcitx-utils/key.h>
 #include <fcitx-utils/log.h>
+#include <fcitx-config/configuration.h>
 #include <fcitx/addonfactory.h>
 #include <fcitx/addoninstance.h>
 #include <fcitx/addonmanager.h>
@@ -92,11 +93,37 @@ private:
 
 class MistypeEngine;
 
+/// macOS parity: the same option set as MistypePrefs (minus ShiftToggle,
+/// which fcitx5 owns through AltTriggerKeys, and minus the Jev gateway,
+/// which needs an async session host the C ABI does not have yet).
+/// Surfaced in fcitx5-configtool via Configurable=True in mistype.conf.
+FCITX_CONFIGURATION(MistypeConfig,
+    fcitx::Option<bool> fuzzyRepair{this, "FuzzyRepair",
+        "Fuzzy repair: recovers from transposed, substituted, missing or extra keys.", true};
+    fcitx::Option<bool> toneTolerance{this, "ToneTolerance",
+        "Tone tolerance: a wrong tone stays viable with a ranking penalty.", true};
+    fcitx::Option<std::string> candidateKeys{this, "CandidateKeys",
+        "Selection keys: pick a candidate in selection mode; while typing they stay Zhuyin keys.",
+        "asdfghjkl;"};
+    fcitx::Option<bool> userLearning{this, "UserLearning",
+        "Learn from explicit picks: remembers candidates chosen on purpose and ranks them higher next time. Stored locally.", true};
+    fcitx::Option<int, fcitx::IntConstrain> autoCommitSyllables{this, "AutoCommitSyllables",
+        "Auto-commit long compositions: compositions longer than this many syllables commit their settled head in chunks (0 = off).",
+        24, fcitx::IntConstrain(0, 200)};
+);
+
 /// One row of the candidate list; selecting it picks that row in the session.
+/// macOS parity: the selection key is visually distinct from the character —
+/// bold with a two-space gap, like the macOS panel's dimmed key + "  ".
 class MistypeCandidate : public fcitx::CandidateWord {
 public:
-    MistypeCandidate(MistypeEngine *engine, int index, const std::string &text)
-        : fcitx::CandidateWord(fcitx::Text(text)), engine_(engine), index_(index) {}
+    MistypeCandidate(MistypeEngine *engine, int index, const std::string &text,
+                     const std::string &labelKey = "")
+        : fcitx::CandidateWord(fcitx::Text(text)), engine_(engine), index_(index) {
+        if (!labelKey.empty()) {
+            setCustomLabel(fcitx::Text(labelKey + "  ", fcitx::TextFormatFlag::Bold));
+        }
+    }
     void select(fcitx::InputContext *ic) const override;
 
 private:
@@ -109,14 +136,17 @@ public:
     explicit MistypeEngine(fcitx::Instance *instance)
         : stateFactory_([this](fcitx::InputContext &) { return new MistypeState(engine_); }) {
         const std::string resources = resourcesDir();
+        // Never run against a C ABI we were not compiled for: the struct
+        // layout is versioned, and a skew would read garbage settings.
+        if (mistype_abi_version() != MISTYPE_ABI_VERSION) {
+            FCITX_ERROR() << "Mistype: C ABI version mismatch (want " << MISTYPE_ABI_VERSION
+                          << ", got " << mistype_abi_version() << "); not filtering keys.";
+            return;
+        }
         // NULL user lexicon path: learned phrases go to $XDG_DATA_HOME/mistype.
         engine_ = mistype_engine_new(resources.c_str(), nullptr);
         if (engine_) {
-            // fcitx5 owns lone Shift (AltTriggerKeys), so the session must not
-            // also toggle 中/英 on a Shift tap.
-            mistype_settings settings = mistype_settings_default();
-            settings.shift_toggle = 0;
-            mistype_engine_set_settings(engine_, &settings);
+            applySettings();
         } else {
             // Never crash and never filter: every key passes through.
             FCITX_ERROR() << "Mistype: cannot load lexicon.tsv from " << resources;
@@ -189,7 +219,31 @@ public:
         }
     }
 
+    const fcitx::Configuration *getConfig() const override { return &config_; }
+    void setConfig(const fcitx::RawConfig &config) override {
+        config_.load(config, /*partial=*/true);
+        applySettings();
+    }
+    void reloadConfig() override { applySettings(); }
+
 private:
+    /// Push the fcitx5 config into the core. fcitx5 owns lone Shift
+    /// (AltTriggerKeys), so shift_toggle stays 0 here even though the macOS
+    /// default is on; everything else mirrors MistypePrefs one-to-one.
+    void applySettings() {
+        if (!engine_) {
+            return;
+        }
+        mistype_settings settings = mistype_settings_default();
+        settings.fuzzy_repair = *config_.fuzzyRepair ? 1 : 0;
+        settings.tone_tolerance = *config_.toneTolerance ? 1 : 0;
+        settings.user_learning = *config_.userLearning ? 1 : 0;
+        settings.shift_toggle = 0;
+        candidateKeys_ = *config_.candidateKeys;
+        settings.candidate_keys = candidateKeys_.c_str();
+        settings.auto_commit_syllables = *config_.autoCommitSyllables;
+        mistype_engine_set_settings(engine_, &settings);
+    }
     static std::string resourcesDir() {
         const char *env = std::getenv("MISTYPE_RESOURCES");
         return env && *env ? env : MISTYPE_DATADIR;
@@ -307,8 +361,14 @@ private:
         if (view.showsCandidates && !view.candidates.empty()) {
             auto list = std::make_unique<fcitx::CommonCandidateList>();
             list->setPageSize(kPageSize);
+            // macOS parity: the candidate panel is a vertical list.
+            list->setLayoutHint(fcitx::CandidateLayoutHint::Vertical);
             for (size_t i = 0; i < view.candidates.size(); ++i) {
-                list->append<MistypeCandidate>(this, static_cast<int>(i), view.candidates[i]);
+                std::string key;
+                if (view.keysActive && i < view.selectionKeys.size()) {
+                    key = view.selectionKeys[i];
+                }
+                list->append<MistypeCandidate>(this, static_cast<int>(i), view.candidates[i], key);
             }
             // Labels are selection keys only while they pick; otherwise they type Zhuyin.
             list->setLabels(view.keysActive ? view.selectionKeys : std::vector<std::string>{});
@@ -322,6 +382,8 @@ private:
 
     mistype_engine *engine_ = nullptr;
     fcitx::FactoryFor<MistypeState> stateFactory_;
+    MistypeConfig config_;
+    std::string candidateKeys_; // backs settings.candidate_keys during applySettings
     std::string text_; // backs mistype_key_event::text during one keyEvent
 };
 

@@ -3,7 +3,7 @@
 Status (2026-10-01): L1–L5 landed (key tables, C ABI, fcitx5 addon + headless
 tests, install layout, CI `core-linux` + `fcitx5-linux`). The Linux layers
 were additionally verified **bare-metal** (no Docker) on Ubuntu 24.04 x86_64:
-`script/linux/test_all.sh` → 140/140 Swift tests, CAPI OK, fcitx5 16/16
+`script/linux/test_all.sh` → 140/140 Swift tests, CAPI OK, fcitx5 17/17
 scenarios; L4 `build.sh` + staged install matches the spec file-for-file,
 RUNPATH/ldd resolve, smoke types `你好` on the real lexicon. L6 (desktop
 acceptance) still needs a human or a VM with a display.
@@ -306,15 +306,17 @@ Negative check (do it, then revert): change `C1 commit=你好` in
   `${CMAKE_BINARY_DIR}/data/addon/mistype.conf`:
   `[Addon] Name=Mistype, Category=InputMethod, Version=<project version>,
   Library=libmistype-fcitx5, Type=SharedLibrary, OnDemand=True,
-  Configurable=False`. `data/inputmethod/mistype.conf`:
+  Configurable=True` (the settings below surface in fcitx5-configtool).
+  `data/inputmethod/mistype.conf`:
   `[InputMethod] Name=Mistype, Label=注, LangCode=zh_TW, Addon=mistype,
   Configurable=False`. The addon's name is the file's basename (`mistype`).
 - Engine (`fcitx::InputMethodEngineV2`, registered with
   `FCITX_ADDON_FACTORY`):
-  - Constructor: `mistype_engine_new(resources, NULL)`; apply
-    `mistype_settings_default()` with `shift_toggle = 0`. If the engine is
-    `NULL`, log with `FCITX_ERROR()` and pass every key through (never crash,
-    never filter).
+  - Constructor: refuse to load when `mistype_abi_version()` !=
+    `MISTYPE_ABI_VERSION` (never crash, never filter), then
+    `mistype_engine_new(resources, NULL)` and `applySettings()` from the
+    addon config. If the engine is `NULL`, log with `FCITX_ERROR()` and
+    pass every key through (never crash, never filter).
   - Per-input-context state via `fcitx::FactoryFor<MistypeState>`
     registered on `instance->inputContextManager()`; `MistypeState` owns one
     `mistype_session*` (freed in its destructor) and the last rendered view.
@@ -337,10 +339,18 @@ Negative check (do it, then revert): change `C1 commit=你好` in
     client preedit, else the panel preedit (`inputPanel().setPreedit`), as a
     `fcitx::Text` with `TextFormatFlag::Underline` and
     `setCursor(caret_bytes)`. Candidates: when `shows_candidates`, a
-    `CommonCandidateList` with page size 8, one `CandidateWord` per entry
+    `CommonCandidateList` with page size 8 and a vertical layout hint
+    (macOS parity: the macOS panel is a vertical 8-row list), one
+    `CandidateWord` per entry
     whose `select()` calls `mistype_session_pick(index)` and re-renders, the
     global cursor on `selected` (its page current), labels =
-    `selection_keys` when `keys_active` else empty labels. Otherwise clear
+    `selection_keys` when `keys_active` else empty labels. Each candidate also
+    carries a styled custom label — the selection key bold with a two-space
+    gap before the character (macOS parity: the macOS panel renders the key
+    dimmed, monospaced, followed by `"\(key)  "`; fcitx5's `Text` has no
+    size/color flag, so bold + spacing is the closest theme-independent
+    equivalent, on top of the classic UI's own label/text theme colors).
+    Otherwise clear
     the candidate list. Then `updatePreedit()` and
     `updateUserInterface(UserInterfaceComponent::InputPanel)`. Skip when the
     view equals the last rendered one.
@@ -395,6 +405,28 @@ swift build && swift test                          # macOS host: all pass
 
 Negative check (do it, then revert): expect `錯` in C1 → the test aborts and
 the script exits non-zero.
+
+### Settings (macOS parity)
+
+The addon is `Configurable=True`: `MistypeConfig`
+(`FCITX_CONFIGURATION` in `src/engine.cpp`) exposes the same options as
+the macOS `MistypePrefs`, with the same defaults, in fcitx5-configtool:
+
+| macOS (`Mistype*`) | fcitx5 option | notes |
+|---|---|---|
+| `MistypeFuzzyRepair` | `FuzzyRepair` | default on |
+| `MistypeToneTolerance` | `ToneTolerance` | default on |
+| `MistypeCandidateKeys` | `CandidateKeys` | default `asdfghjkl;`, sanitized by the core |
+| `MistypeUserLearning` | `UserLearning` | default on |
+| `MistypeAutoCommitSyllables` | `AutoCommitSyllables` | default 24, 0–200 (new in C ABI v2) |
+| `MistypeShiftToggle` | — | fcitx5 owns lone Shift via `AltTriggerKeys`; the addon forces `shift_toggle = 0` (see D1) |
+| `MistypeJev*` (4 keys) | — | needs an async session host in the C ABI; still L7 backlog |
+
+`getConfig`/`setConfig`/`reloadConfig` are overridden on the engine;
+`setConfig` loads partial configs and pushes them through
+`mistype_engine_set_settings`, so a change applies on the next keystroke
+(same contract as macOS). The candidate list carries a vertical layout
+hint, matching the macOS panel's vertical 8-row list.
 
 ---
 
@@ -514,8 +546,6 @@ scripts).
 - Jev on Linux: host callbacks in the C ABI (`surrounding_text`,
   `perform`, `session_did_change`), settings, and the consent flow; privacy
   rules from `AGENTS.md` apply.
-- fcitx5 configuration (candidate keys, fuzzy repair, tone tolerance,
-  learning) mapped onto `mistype_settings`.
 - Library size (~56–71 MB): `-Xlinker --gc-sections`, strip at install, or a
   Foundation-free core.
 - Packaging: `.deb`, AUR, Flatpak (fcitx5 addon in a Flatpak runtime needs
@@ -535,7 +565,7 @@ scripts).
 - **D3 Distribution channel** (L7) and whether ~56 MB is acceptable for a
   prototype.
 
-## Appendix A: `mistype.h` (ABI v1)
+## Appendix A: `mistype.h` (ABI v2)
 
 Checked on 2026-09-28 with `cc -std=c11 -Wall -Wextra -Werror -pedantic`
 and `g++ -std=c++17 -Wall -Wextra -Werror` in the dev container.
@@ -626,6 +656,7 @@ typedef struct mistype_settings {
     int32_t user_learning;      /* default 1 */
     int32_t shift_toggle;       /* default 1; fcitx5 sets 0 (AltTriggerKeys owns Shift_L) */
     const char *candidate_keys; /* NULL = "asdfghjkl;"; sanitized like SelectionKeys.sanitize */
+    int32_t auto_commit_syllables; /* ABI v2, default 24 (macOS MistypeAutoCommitSyllables) */
 } mistype_settings;
 
 mistype_settings mistype_settings_default(void);

@@ -14,7 +14,7 @@
 extern "C" {
 #endif
 
-#define MISTYPE_ABI_VERSION 1
+#define MISTYPE_ABI_VERSION 2
 int32_t mistype_abi_version(void);
 
 typedef struct mistype_engine mistype_engine;
@@ -85,6 +85,10 @@ typedef struct mistype_settings {
     int32_t user_learning;      /* default 1 */
     int32_t shift_toggle;       /* default 1; fcitx5 sets 0 (AltTriggerKeys owns Shift_L) */
     const char *candidate_keys; /* NULL = "asdfghjkl;"; sanitized like SelectionKeys.sanitize */
+    /* ABI v2: long compositions commit their settled head in chunks once
+     * they pass this many syllables (0 = off). Same default as macOS
+     * (MistypeAutoCommitSyllables = 24). */
+    int32_t auto_commit_syllables;
 } mistype_settings;
 
 mistype_settings mistype_settings_default(void);
