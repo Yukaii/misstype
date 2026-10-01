@@ -1,9 +1,12 @@
 # Linux port (fcitx5): task plan
 
-Status (2026-09-28): planned. The toolchain and the risky integration points
-were proven by a throwaway spike (below); no port code is in the repository
-yet except the dev container. Each task is sized for one agent, lands as its
-own commit, and ends with commands whose output decides pass/fail.
+Status (2026-10-01): L1–L5 landed (key tables, C ABI, fcitx5 addon + headless
+tests, install layout, CI `core-linux` + `fcitx5-linux`). The Linux layers
+were additionally verified **bare-metal** (no Docker) on Ubuntu 24.04 x86_64:
+`script/linux/test_all.sh` → 140/140 Swift tests, CAPI OK, fcitx5 16/16
+scenarios; L4 `build.sh` + staged install matches the spec file-for-file,
+RUNPATH/ldd resolve, smoke types `你好` on the real lexicon. L6 (desktop
+acceptance) still needs a human or a VM with a display.
 
 **Goal:** Mistype runs as an fcitx5 input method on Linux with the same
 behavior as macOS, built from the same `MistypeCore`, and verified headlessly
@@ -41,6 +44,33 @@ settings UI, distro packages. See the backlog (L7).
   plus the macOS checks. Paste their output in the commit message body or the
   hand-off note.
 
+## Bare-metal (no Docker)
+
+The container remains the canonical path, but the Linux layers also run
+directly on an Ubuntu 24.04 host (verified 2026-10-01):
+
+```sh
+script/linux/bootstrap.sh   # Swift 6.0 toolchain + native deps (idempotent)
+export PATH="$HOME/swift-toolchain/swift-6.0-RELEASE-ubuntu24.04/usr/bin:$PATH"
+script/linux/test_all.sh    # swift test + test_capi.sh + test_fcitx5.sh
+```
+
+Notes:
+
+- `bootstrap.sh` installs the same package set as `linux/Dockerfile`, plus
+  `libcurl4-openssl-dev` (the `swift:6.0` image already ships curl headers;
+  bare Ubuntu needs them to link the release `.so`). It waits out apt locks
+  (unattended-upgrades, provisioners) instead of failing on them.
+- System packages do **not** survive a machine reprovision — re-run
+  `bootstrap.sh` afterwards. The toolchain tarball is cached under
+  `$SWIFT_TOOLCHAIN_ROOT` (default `~/swift-toolchain`), so only apt repeats.
+- The lexicon cache (`.cache/`, never committed) is seeded by
+  `script/prepare_lexicon.py`; its `urllib` fetch can time out on flaky
+  networks while `curl` succeeds, so `test_all.sh` pre-seeds `.cache` with
+  `curl` and retries on failure.
+- L4's `script/linux/build.sh` and the staged-install check also run
+  bare-metal; replace `script/linux/dev.sh '<cmd>'` with `<cmd>`.
+
 ## Verified facts (spike, 2026-09-28)
 
 Each was run end to end in the dev container, so tasks can rely on them:
@@ -77,6 +107,8 @@ linux/fcitx5/src/                     engine + per-IC state + candidate word
 linux/fcitx5/data/addon/mistype.conf.in, data/inputmethod/mistype.conf
 linux/fcitx5/test/testmistype.cpp     C1–C12 + Linux delivery rules, headless
 script/linux/dev.sh                   run a command in the container (exists)
+script/linux/bootstrap.sh           provision a bare-metal Ubuntu 24.04 host (no Docker)
+script/linux/test_all.sh            bare-metal: swift test + C ABI + fcitx5 checks
 script/linux/test_capi.sh             L2 check
 script/linux/test_fcitx5.sh           L3 check
 script/linux/build.sh                 L4 release build (real lexicon)
