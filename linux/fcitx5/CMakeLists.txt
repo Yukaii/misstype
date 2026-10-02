@@ -54,7 +54,7 @@ install(FILES
 install(FILES "${MISTYPE_ROOT}/LICENSE" "${MISTYPE_ROOT}/THIRD_PARTY_NOTICES.md" DESTINATION "${CMAKE_INSTALL_DOCDIR}")
 install(DIRECTORY "${MISTYPE_ROOT}/third_party/" DESTINATION "${CMAKE_INSTALL_DOCDIR}/third_party")
 
-# Headless conformance tests (docs/cross-platform.md C1-C12 + delivery rules).
+# Headless conformance tests (docs/cross-platform.md C1-C13 + delivery rules).
 find_package(Fcitx5ModuleTestFrontend REQUIRED)
 enable_testing()
 add_executable(testmistype test/testmistype.cpp)

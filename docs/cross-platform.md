@@ -113,7 +113,9 @@ shortcut runs.
 | | macOS | Linux (fcitx5) |
 |---|---|---|
 | Lexicon dir (`LexiconLoader`) | `MistypeIME.app/Contents/Resources` | `/usr/share/mistype` (compiled-in), `MISTYPE_RESOURCES` overrides |
+| My words (`UserDictionary.defaultURL`) | `~/Library/Application Support/Mistype/user_dictionary.tsv` | `$XDG_DATA_HOME/mistype/user_dictionary.tsv`; the host calls `mistype_engine_set_user_dictionary_path(engine, NULL)` (default after `_new` is memory only) |
 | Learned phrases (`UserLexicon.defaultURL`) | `~/Library/Application Support/Mistype/user_phrases.json` | `$XDG_DATA_HOME/mistype/user_phrases.json` (default `~/.local/share`) |
+| My-words editor | Settings → My Dictionary (text editor over the file) | none yet: edit the TSV in any editor, reloaded at the next composition |
 | Settings store | UserDefaults (`MistypePrefs`) | defaults in v1 (`mistype_settings_default()`), fcitx5 config later |
 | Lone-Shift 中/英 | session (`shiftToggle` pref, default on) | fcitx5 `AltTriggerKeys` (default `Shift_L`) → session `shift_toggle = 0` |
 | Diagnostic log | `~/Library/Logs/MistypeIME-debug.log` | none in v1 (codes only, never text, if added) |

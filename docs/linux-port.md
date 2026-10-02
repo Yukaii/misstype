@@ -1,6 +1,9 @@
 # Linux port (fcitx5): task plan
 
-Status (2026-10-01): L1–L5 landed (key tables, C ABI, fcitx5 addon + headless
+Status (2026-10-02): the user dictionary (conformance C13: Shift+arrow phrase
+marking, Return files it) is wired through the C ABI and drawn by the fcitx5
+addon; verified in Docker (aarch64): Swift tests, CAPI OK, fcitx5 17/17.
+Earlier (2026-10-01): L1–L5 landed (key tables, C ABI, fcitx5 addon + headless
 tests, install layout, CI `core-linux` + `fcitx5-linux`). The Linux layers
 were additionally verified **bare-metal** (no Docker) on Ubuntu 24.04 x86_64:
 `script/linux/test_all.sh` → 140/140 Swift tests, CAPI OK, fcitx5 16/16
@@ -19,7 +22,7 @@ settings UI, distro packages. See the backlog (L7).
 
 1. `AGENTS.md`: product constraints, privacy rules, definition of done.
 2. `docs/cross-platform.md`: the adapter contract (§1–§6), delivery rules,
-   and conformance scenarios C1–C12. **It is normative; this plan applies it.**
+   and conformance scenarios C1–C13. **It is normative; this plan applies it.**
 3. `docs/architecture.md`, section "Platform boundary: InputSession".
 4. `Sources/MistypeCore/InputSession.swift`, `KeyEvent.swift`, and
    `tests/MistypeCoreTests/InputSessionTests.swift`: the reference behavior.
@@ -105,7 +108,7 @@ linux/Dockerfile                      dev/CI image (exists)
 linux/fcitx5/CMakeLists.txt
 linux/fcitx5/src/                     engine + per-IC state + candidate word
 linux/fcitx5/data/addon/mistype.conf.in, data/inputmethod/mistype.conf
-linux/fcitx5/test/testmistype.cpp     C1–C12 + Linux delivery rules, headless
+linux/fcitx5/test/testmistype.cpp     C1–C13 + Linux delivery rules, headless
 script/linux/dev.sh                   run a command in the container (exists)
 script/linux/bootstrap.sh           provision a bare-metal Ubuntu 24.04 host (no Docker)
 script/linux/test_all.sh            bare-metal: swift test + C ABI + fcitx5 checks
@@ -490,7 +493,7 @@ scripts).
 2. `sudo apt install fcitx5 fcitx5-frontend-gtk3 fcitx5-frontend-gtk4 fcitx5-frontend-qt5 fcitx5-config-qt`,
    `im-config -n fcitx5`, log out and back in, add **Mistype** in
    `fcitx5-configtool`.
-3. Run C1–C12 from `docs/cross-platform.md` with the **real** lexicon
+3. Run C1–C13 from `docs/cross-platform.md` with the **real** lexicon
    (expected text can differ from the fixture; check behavior: what commits
    when, what passes through, where the caret is) in: GNOME Text Editor
    (GTK4), Firefox, Chromium or VS Code (Electron,
@@ -510,12 +513,10 @@ scripts).
 
 ## L7: Backlog (not scheduled)
 
-- User dictionary (conformance C13): pass a `user_dictionary.tsv` path into
-  `InputEngine` from `mistype_create`, expose `SessionView.mark` (range, text,
-  reading, action) through the C ABI, and draw it in fcitx5 (selection in the
-  preedit + a hint row). Until then Shift+Left/Right marks invisibly on Linux
-  and Return files nothing durable.
-
+- User dictionary: no Linux editor yet (macOS has a Settings pane). The file
+  is plain text — edit `$XDG_DATA_HOME/mistype/user_dictionary.tsv` with any
+  editor; changes load when the next composition starts. A fcitx5 config
+  page or `mistype-dict` CLI (list / add / remove) would be the next step.
 - IBus adapter over the same C ABI (GNOME's default IM framework).
 - Jev on Linux: host callbacks in the C ABI (`surrounding_text`,
   `perform`, `session_did_change`), settings, and the consent flow; privacy
@@ -624,6 +625,11 @@ typedef struct mistype_view {
     int32_t selection_key_count;
     int32_t keys_active;        /* selection keys pick (else they type Zhuyin) */
     int32_t shows_candidates;
+    /* Phrase mark (C13), appended fields: see mistype.h. */
+    int32_t mark_action;        /* MISTYPE_MARK_NONE/ADD/REMOVE/TOO_SHORT/TOO_LONG/UNAVAILABLE */
+    int32_t mark_start_bytes, mark_end_bytes;   /* range in preedit, -1 when none */
+    int32_t mark_start_utf16, mark_end_utf16;
+    char *mark_text, *mark_reading;
 } mistype_view;
 
 typedef struct mistype_settings {
@@ -640,6 +646,9 @@ mistype_settings mistype_settings_default(void);
  * user_lexicon_path: NULL = UserLexicon.defaultURL, "" = memory only.
  * Returns NULL when lexicon.tsv is missing or unreadable. */
 mistype_engine *mistype_engine_new(const char *resource_dir, const char *user_lexicon_path);
+/* user_dictionary.tsv: NULL = $XDG_DATA_HOME/mistype/user_dictionary.tsv,
+ * "" = memory only (the default after _new). */
+void mistype_engine_set_user_dictionary_path(mistype_engine *engine, const char *path);
 /* Releases the caller's handle; live sessions keep the engine alive. */
 void mistype_engine_free(mistype_engine *engine);
 void mistype_engine_set_settings(mistype_engine *engine, const mistype_settings *settings);

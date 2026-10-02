@@ -66,6 +66,15 @@ typedef struct mistype_key_result {
     int32_t mode_changed; /* 中/英 flipped: see mistype_engine_is_english */
 } mistype_key_result;
 
+typedef enum mistype_mark_action {
+    MISTYPE_MARK_NONE = 0,
+    MISTYPE_MARK_ADD = 1,         /* Enter adds the phrase to the user dictionary */
+    MISTYPE_MARK_REMOVE = 2,      /* already there: Enter removes it */
+    MISTYPE_MARK_TOO_SHORT = 3,   /* mark 2-8 syllables */
+    MISTYPE_MARK_TOO_LONG = 4,
+    MISTYPE_MARK_UNAVAILABLE = 5  /* crosses punctuation/Latin or raw Zhuyin */
+} mistype_mark_action;
+
 typedef struct mistype_view {
     char *preedit;              /* UTF-8, "" when idle */
     int32_t caret_bytes;        /* caret as a UTF-8 byte offset into preedit */
@@ -77,6 +86,18 @@ typedef struct mistype_view {
     int32_t selection_key_count;
     int32_t keys_active;        /* selection keys pick (else they type Zhuyin) */
     int32_t shows_candidates;
+    /* Phrase mark (Shift+Left/Right; docs/cross-platform.md C13). Appended
+     * fields: ABI v1 callers that predate them never read past
+     * shows_candidates. While mark_action != MISTYPE_MARK_NONE the host draws
+     * [mark_start_*, mark_end_*) highlighted inside preedit and shows
+     * mark_text / mark_reading as the hint for what Enter will do. */
+    int32_t mark_action;        /* mistype_mark_action */
+    int32_t mark_start_bytes;   /* UTF-8 byte offsets into preedit, else -1 */
+    int32_t mark_end_bytes;
+    int32_t mark_start_utf16;   /* same range in UTF-16 units, else -1 */
+    int32_t mark_end_utf16;
+    char *mark_text;            /* "" when no mark or unavailable */
+    char *mark_reading;         /* hyphen-joined toned Zhuyin, "" when none */
 } mistype_view;
 
 typedef struct mistype_settings {
@@ -97,6 +118,13 @@ mistype_engine *mistype_engine_new(const char *resource_dir, const char *user_le
 void mistype_engine_free(mistype_engine *engine);
 void mistype_engine_set_settings(mistype_engine *engine, const mistype_settings *settings);
 int32_t mistype_engine_is_english(const mistype_engine *engine);
+
+/* User dictionary (my words): path of user_dictionary.tsv. NULL =
+ * UserDictionary.defaultURL ($XDG_DATA_HOME/mistype/user_dictionary.tsv),
+ * "" = memory only (the default after mistype_engine_new, so tests are
+ * hermetic). Loads the file now; Enter on a mark persists to it, and edits
+ * made outside are picked up when the next composition starts. */
+void mistype_engine_set_user_dictionary_path(mistype_engine *engine, const char *path);
 
 mistype_session *mistype_session_new(mistype_engine *engine);
 void mistype_session_free(mistype_session *session);
