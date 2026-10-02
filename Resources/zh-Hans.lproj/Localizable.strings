@@ -79,3 +79,9 @@
 "⏎ remove “%@”  %@" = "⏎ 移除“%@” %@";
 "Mark %d–%d syllables" = "请标记 %d–%d 个音节";
 "Can't add this selection" = "无法加入此选区";
+"Candidate display" = "候选显示";
+"Show candidates" = "显示候选字";
+"Inline, window in unsupported apps" = "行内显示（不支持的 App 改用窗口）";
+"Always inline" = "始终行内显示";
+"Always in a window" = "始终使用窗口";
+"Inline puts the list after the text you are typing, only once you open it (Tab, ↓, ← →). Terminals and apps that can't show it get a window instead." = "行内显示会把候选列表接在输入中的文字后面，且只在你打开时（Tab、↓、← →）出现。终端与无法显示的 App 会改用窗口。";

@@ -31,6 +31,7 @@ After installation, select **隨打注音** (`Mistype Bopomofo`) from the macOS 
 - **Commit**: Return commits exactly what is shown, unfinished Bopomofo included (注音文 works); Shift+Return sends raw typed Bopomofo.
 - **Candidate selection**: Down/Tab (or Left arrow to walk back to an earlier word) enters candidate selection mode, where home-row keys `asdfghjk` pick from the candidate panel (configurable in Preferences; they type Zhuyin outside this mode). Escape leaves the selection mode; outside selection mode, Escape cancels the composition.
 - **Symbols & English toggle**: Shift+digit and Shift+= [ ] ` type full-width symbols (`！＠＃＄％︿＆＊（）＋｛｝～`). Backspace edits the raw composition; tapping Shift or pressing Shift-Space commits and toggles Chinese / English mode.
+- **Inline candidates**: no popup window by default — Tab/↓/arrows append the candidate list after the text you are typing; terminals and apps that can't show it fall back to a window (Settings → General → Candidate display).
 - **My dictionary**: while typing, Shift+←/→ marks syllables of the converted text and Return adds the phrase (a name, jargon) to your own dictionary; Return on the same mark removes it. Settings → My Dictionary (macOS) is a plain-text editor over `user_dictionary.tsv`; on Linux edit `~/.local/share/mistype/user_dictionary.tsv` directly.
 - **Learning**: Candidate selections are learned locally per word, and single characters are learned in context with the preceding word.
 
