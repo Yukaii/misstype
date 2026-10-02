@@ -168,6 +168,17 @@ private func freeStringArray(_ ptr: UnsafeMutablePointer<UnsafeMutablePointer<CC
     ptr.deallocate()
 }
 
+private func markAction(_ mark: SessionView.Mark?) -> Int32 {
+    guard let mark else { return Int32(MISTYPE_MARK_NONE.rawValue) }
+    switch mark.action {
+    case .add: return Int32(MISTYPE_MARK_ADD.rawValue)
+    case .remove: return Int32(MISTYPE_MARK_REMOVE.rawValue)
+    case .tooShort: return Int32(MISTYPE_MARK_TOO_SHORT.rawValue)
+    case .tooLong: return Int32(MISTYPE_MARK_TOO_LONG.rawValue)
+    case .unavailable: return Int32(MISTYPE_MARK_UNAVAILABLE.rawValue)
+    }
+}
+
 private func caretBytes(_ preedit: String, caretUTF16: Int) -> Int {
     let utf16 = preedit.utf16
     let end = utf16.index(utf16.startIndex, offsetBy: min(max(caretUTF16, 0), utf16.count))
@@ -264,6 +275,20 @@ public func mistype_engine_set_settings(
     )
 }
 
+@_cdecl("mistype_engine_set_user_dictionary_path")
+public func mistype_engine_set_user_dictionary_path(_ engine: OpaquePointer?, _ path: UnsafePointer<CChar>?) {
+    guard let engine = engine, let handle = getEngine(engine) else { return }
+    let url: URL?
+    if let path = path {
+        let text = String(cString: path)
+        url = text.isEmpty ? nil : URL(fileURLWithPath: text)
+    } else {
+        url = UserDictionary.defaultURL
+    }
+    handle.engine.userDictionaryURL = url
+    handle.engine.setUserDictionary(url.map { UserDictionary.load(from: $0) } ?? UserDictionary(), persist: false)
+}
+
 @_cdecl("mistype_engine_is_english")
 public func mistype_engine_is_english(_ engine: OpaquePointer?) -> Int32 {
     guard let engine = engine else { return 0 }
@@ -355,7 +380,14 @@ public func mistype_session_view(_ session: OpaquePointer?) -> UnsafeMutablePoin
         selection_keys: copyStringArray(view.selectionKeys),
         selection_key_count: Int32(view.selectionKeys.count),
         keys_active: view.keysActive ? 1 : 0,
-        shows_candidates: view.showsCandidates ? 1 : 0
+        shows_candidates: view.showsCandidates ? 1 : 0,
+        mark_action: markAction(view.mark),
+        mark_start_bytes: view.mark.map { Int32(caretBytes(view.preedit, caretUTF16: $0.range.lowerBound)) } ?? -1,
+        mark_end_bytes: view.mark.map { Int32(caretBytes(view.preedit, caretUTF16: $0.range.upperBound)) } ?? -1,
+        mark_start_utf16: view.mark.map { Int32($0.range.lowerBound) } ?? -1,
+        mark_end_utf16: view.mark.map { Int32($0.range.upperBound) } ?? -1,
+        mark_text: strdupSwift(view.mark?.text ?? ""),
+        mark_reading: strdupSwift(view.mark?.reading ?? "")
     ))
     return viewPtr
 }
@@ -403,6 +435,8 @@ public func mistype_key_from_character(
 public func mistype_view_free(_ view: UnsafeMutablePointer<mistype_view>?) {
     guard let view = view else { return }
     freeString(view.pointee.preedit)
+    freeString(view.pointee.mark_text)
+    freeString(view.pointee.mark_reading)
     freeStringArray(view.pointee.candidates, count: Int(view.pointee.candidate_count))
     freeStringArray(view.pointee.selection_keys, count: Int(view.pointee.selection_key_count))
     view.deallocate()

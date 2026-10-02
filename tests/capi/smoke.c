@@ -87,6 +87,58 @@ void run_c1(const char *res) {
     mistype_engine_free(eng);
 }
 
+static mistype_key_result send(mistype_session *s, mistype_key_kind kind, const char *label, uint32_t mods) {
+    mistype_key_event ev = {0};
+    ev.kind = kind;
+    ev.label = label;
+    ev.text = label ? label : (kind == MISTYPE_KEY_ENTER ? "\r" : NULL);
+    ev.modifiers = mods;
+    ev.native_code = -1;
+    ev.timestamp = -1;
+    return mistype_session_handle(s, &ev);
+}
+
+void run_c13(const char *res) {
+    mistype_engine *eng = mistype_engine_new(res, "");
+    mistype_engine_set_user_dictionary_path(eng, ""); /* memory only */
+    mistype_session *s = mistype_session_new(eng);
+    const char *keys[] = {"s", "u", "3", "c", "l", "3"};
+    for (size_t i = 0; i < 6; i++) mistype_string_free(send(s, MISTYPE_KEY_CHARACTER, keys[i], 0).commit);
+
+    mistype_view *v = mistype_session_view(s);
+    ASSERT(v->mark_action == MISTYPE_MARK_NONE && v->mark_start_bytes == -1 && v->mark_start_utf16 == -1, "C13 no mark yet");
+    mistype_view_free(v);
+
+    for (int i = 0; i < 2; i++) {
+        mistype_key_result r = send(s, MISTYPE_KEY_LEFT, NULL, MISTYPE_MOD_SHIFT);
+        ASSERT(r.consumed == 1 && r.commit == NULL && r.beep == 0, "C13 shift-left");
+    }
+    v = mistype_session_view(s);
+    ASSERT(v->mark_action == MISTYPE_MARK_ADD, "C13 action add");
+    ASSERT(v->mark_start_utf16 == 0 && v->mark_end_utf16 == 2, "C13 utf16 range");
+    ASSERT(v->mark_start_bytes == 0 && v->mark_end_bytes == 6, "C13 byte range");
+    ASSERT(strcmp(v->mark_text, "你好") == 0 && strcmp(v->mark_reading, "ㄋㄧˇ-ㄏㄠˇ") == 0, "C13 text+reading");
+    ASSERT(v->candidate_count == 0 && v->shows_candidates == 1, "C13 hint only");
+    printf("C13 mark add range=0..6 text=你好 reading=ㄋㄧˇ-ㄏㄠˇ\n");
+    mistype_view_free(v);
+
+    mistype_key_result r = send(s, MISTYPE_KEY_ENTER, NULL, 0);
+    ASSERT(r.consumed == 1 && r.commit == NULL, "C13 enter files, no commit");
+    v = mistype_session_view(s);
+    ASSERT(v->mark_action == MISTYPE_MARK_NONE && strcmp(v->preedit, "你好") == 0, "C13 mark cleared");
+    mistype_view_free(v);
+
+    /* The same mark now offers removal. */
+    for (int i = 0; i < 2; i++) mistype_string_free(send(s, MISTYPE_KEY_LEFT, NULL, MISTYPE_MOD_SHIFT).commit);
+    v = mistype_session_view(s);
+    ASSERT(v->mark_action == MISTYPE_MARK_REMOVE, "C13 action remove");
+    printf("C13 filed then mark remove\n");
+    mistype_view_free(v);
+
+    mistype_session_free(s);
+    mistype_engine_free(eng);
+}
+
 void run_c2(const char *res) {
     mistype_engine *eng = mistype_engine_new(res, "");
     mistype_session *s = mistype_session_new(eng);
@@ -431,6 +483,7 @@ int main(int argc, char **argv) {
         run_c10(res);
         run_c11(res);
         run_c12(res);
+        run_c13(res);
         run_settings(res);
         test_keymap();
         printf("DONE\n");

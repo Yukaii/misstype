@@ -1,5 +1,5 @@
 // Headless conformance tests for the fcitx5 adapter: docs/cross-platform.md
-// scenarios C1-C12 plus the Linux delivery rules LR1-LR4, driven through
+// scenarios C1-C13 plus the Linux delivery rules LR1-LR4, driven through
 // fcitx5's in-process test frontend. A wrong commit aborts inside
 // pushCommitExpectation; every other check is FCITX_ASSERT.
 #include <fcitx-utils/eventdispatcher.h>
@@ -18,6 +18,8 @@
 
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <string>
 
 using namespace fcitx;
@@ -282,6 +284,34 @@ void runAll(Instance &instance) {
     ic.focusOut();
     pass("LR4");
 
+    // C13: Shift+Left x2 marks 你好 (highlighted, hint under the preedit);
+    // Enter files it in the user dictionary without committing.
+    ic.focusIn();
+    s.type("su3cl3");
+    FCITX_ASSERT(s.key(FcitxKey_Left, kLeft, shift));
+    FCITX_ASSERT(s.key(FcitxKey_Left, kLeft, shift));
+    {
+        const auto &text = ic.inputPanel().clientPreedit();
+        FCITX_ASSERT(text.toString() == "你好") << text.toString();
+        std::string highlighted;
+        for (size_t i = 0; i < text.size(); ++i) {
+            if (text.formatAt(i).test(TextFormatFlag::HighLight)) highlighted += text.stringAt(i);
+        }
+        FCITX_ASSERT(highlighted == "你好") << "marked span is highlighted: " << highlighted;
+        FCITX_ASSERT(ic.inputPanel().auxDown().toString() == "⏎ add \"你好\"  ㄋㄧˇ-ㄏㄠˇ")
+            << ic.inputPanel().auxDown().toString();
+        FCITX_ASSERT(!s.candidates()) << "the hint replaces the candidate list";
+    }
+    FCITX_ASSERT(s.key(FcitxKey_Return, kEnter));
+    FCITX_ASSERT(s.preedit() == "你好" && ic.inputPanel().auxDown().toString().empty());
+    {
+        std::ifstream file(std::string(TESTING_BINARY_DIR) + "/xdg-data/mistype/user_dictionary.tsv");
+        std::string saved((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+        FCITX_ASSERT(saved.find("ㄋㄧˇ-ㄏㄠˇ\t你好") != std::string::npos) << "dictionary not persisted: " << saved;
+    }
+    s.clear();
+    pass("C13");
+
     // C4 runs last: committing 尼 teaches the user lexicon, which would
     // reorder the candidates every other scenario expects.
     // C4: Tab selects, a selection key picks row 2 (尼), Enter commits it.
@@ -327,7 +357,7 @@ int main() {
     dispatcher.attach(&instance.eventLoop());
     dispatcher.schedule([&instance]() {
         runAll(instance);
-        FCITX_INFO() << "All 16 scenarios passed";
+        FCITX_INFO() << "All 17 scenarios passed";
         instance.exit();
     });
     instance.exec();

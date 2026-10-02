@@ -182,8 +182,11 @@ Use monotonic timestamps for ordering and a separate wall-clock field only for d
    not cross punctuation/Latin or raw-Zhuyin text. The file is re-read when a
    composition starts if its mtime changed, so the macOS Settings "My
    Dictionary" pane (a text editor over the same file) and any external edit
-   apply without a restart. Not yet wired on Linux: the C ABI creates the
-   engine without a dictionary URL and does not expose `mark` (docs/linux-port.md, L7).
+   apply without a restart. Linux (fcitx5) gets the same behavior through the
+   C ABI: `mistype_engine_set_user_dictionary_path` and the appended
+   `mistype_view.mark_*` fields; the addon draws the mark as a highlighted
+   preedit segment and the hint in the aux-down line (C13). Only the editor is
+   macOS-only for now.
 8. Syllable cursor (no modifiers): going back pins a word choice as a
    session-only decisive bonus (+1000, same overlay mechanism as learning
    but never persisted); the sentence still commits once at Return.

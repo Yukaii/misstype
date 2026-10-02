@@ -37,11 +37,19 @@ struct ViewSnapshot {
     std::vector<std::string> selectionKeys;
     bool keysActive = false;
     bool showsCandidates = false;
+    // Phrase mark (C13); markAction == MISTYPE_MARK_NONE when not marking.
+    int markAction = MISTYPE_MARK_NONE;
+    int markStartBytes = -1;
+    int markEndBytes = -1;
+    std::string markText;
+    std::string markReading;
 
     bool operator==(const ViewSnapshot &o) const {
         return preedit == o.preedit && caretBytes == o.caretBytes && candidates == o.candidates &&
                selected == o.selected && selectionKeys == o.selectionKeys && keysActive == o.keysActive &&
-               showsCandidates == o.showsCandidates;
+               showsCandidates == o.showsCandidates && markAction == o.markAction &&
+               markStartBytes == o.markStartBytes && markEndBytes == o.markEndBytes && markText == o.markText &&
+               markReading == o.markReading;
     }
 };
 
@@ -62,6 +70,11 @@ bool snapshot(mistype_session *session, ViewSnapshot &out) {
     }
     out.keysActive = view->keys_active != 0;
     out.showsCandidates = view->shows_candidates != 0;
+    out.markAction = view->mark_action;
+    out.markStartBytes = view->mark_start_bytes;
+    out.markEndBytes = view->mark_end_bytes;
+    out.markText = view->mark_text ? view->mark_text : "";
+    out.markReading = view->mark_reading ? view->mark_reading : "";
     mistype_view_free(view);
     return true;
 }
@@ -112,6 +125,8 @@ public:
         // NULL user lexicon path: learned phrases go to $XDG_DATA_HOME/mistype.
         engine_ = mistype_engine_new(resources.c_str(), nullptr);
         if (engine_) {
+            // My words: $XDG_DATA_HOME/mistype/user_dictionary.tsv.
+            mistype_engine_set_user_dictionary_path(engine_, nullptr);
             // fcitx5 owns lone Shift (AltTriggerKeys), so the session must not
             // also toggle 中/英 on a Shift tap.
             mistype_settings settings = mistype_settings_default();
@@ -281,6 +296,20 @@ private:
         }
     }
 
+    /// What Enter will do with the mark (shown under the preedit).
+    static std::string markHint(const ViewSnapshot &view) {
+        switch (view.markAction) {
+        case MISTYPE_MARK_ADD:
+            return "⏎ add \"" + view.markText + "\"  " + view.markReading;
+        case MISTYPE_MARK_REMOVE:
+            return "⏎ remove \"" + view.markText + "\"  " + view.markReading;
+        case MISTYPE_MARK_UNAVAILABLE:
+            return "Can't add this selection";
+        default:
+            return "Mark 2-8 syllables";
+        }
+    }
+
     /// Contract §3: draw the session view; skip when nothing changed.
     void render(fcitx::InputContext *ic, MistypeState *state, bool force) {
         ViewSnapshot view;
@@ -296,7 +325,19 @@ private:
         auto &panel = ic->inputPanel();
         panel.reset(); // also clears the 中/英 indicator
 
-        fcitx::Text preedit(view.preedit, fcitx::TextFormatFlag::Underline);
+        fcitx::Text preedit;
+        const bool marking = view.markAction != MISTYPE_MARK_NONE && view.markStartBytes >= 0 &&
+                             view.markEndBytes >= view.markStartBytes &&
+                             view.markEndBytes <= static_cast<int>(view.preedit.size());
+        if (marking) {
+            // The marked span is drawn highlighted inside the preedit.
+            preedit.append(view.preedit.substr(0, view.markStartBytes), fcitx::TextFormatFlag::Underline);
+            preedit.append(view.preedit.substr(view.markStartBytes, view.markEndBytes - view.markStartBytes),
+                           fcitx::TextFormatFlags{fcitx::TextFormatFlag::Underline, fcitx::TextFormatFlag::HighLight});
+            preedit.append(view.preedit.substr(view.markEndBytes), fcitx::TextFormatFlag::Underline);
+        } else {
+            preedit.append(view.preedit, fcitx::TextFormatFlag::Underline);
+        }
         preedit.setCursor(view.caretBytes);
         if (ic->capabilityFlags().test(fcitx::CapabilityFlag::Preedit)) {
             panel.setClientPreedit(preedit);
@@ -314,6 +355,10 @@ private:
             list->setLabels(view.keysActive ? view.selectionKeys : std::vector<std::string>{});
             list->setGlobalCursorIndex(view.selected);
             panel.setCandidateList(std::move(list));
+        }
+
+        if (marking) {
+            panel.setAuxDown(fcitx::Text(markHint(view)));
         }
 
         ic->updatePreedit();
