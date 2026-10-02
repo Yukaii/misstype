@@ -207,8 +207,6 @@ final class MistypeInputController: IMKInputController, InputSessionHost {
                                   keyLabels: view.selectionKeys,
                                   keysActive: view.keysActive,
                                   anchor: caretAnchor(client, length: view.preedit.utf16.count),
-                                  preedit: view.preedit,
-                                  caret: view.caret,
                                   mark: view.mark)
         } else {
             candidatePanel.hidePanel()

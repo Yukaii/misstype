@@ -8,7 +8,6 @@ import MistypeCore
 final class CandidatesPanel: NSPanel {
     private var rows: [NSButton] = []
     private let stack = NSStackView()
-    private let preedit = NSTextField(labelWithString: "")
     private var onPick: (Int) -> Void = { _ in }
     private let rowHeight: CGFloat = 28
     private var lastAnchor: NSRect?
@@ -46,13 +45,6 @@ final class CandidatesPanel: NSPanel {
             stack.topAnchor.constraint(equalTo: body.topAnchor, constant: 3),
             stack.bottomAnchor.constraint(equalTo: body.bottomAnchor, constant: -3),
         ])
-        // Preedit header: our own composition + cursor rendering (vChewing's
-        // floating-buffer idea) — some clients never draw the marked-text
-        // caret, so the cursor must be visible here regardless.
-        preedit.font = .systemFont(ofSize: 13)
-        preedit.lineBreakMode = .byTruncatingHead
-        stack.addArrangedSubview(preedit)
-        preedit.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         for index in 0..<8 {
             let row = NSButton(title: "", target: self, action: #selector(rowClicked(_:)))
             row.tag = index
@@ -79,33 +71,6 @@ final class CandidatesPanel: NSPanel {
 
     @objc private func rowClicked(_ sender: NSButton) {
         onPick(page * 8 + sender.tag)
-    }
-
-    /// Header content: composition with a colored cursor marker. The marker
-    /// char comes last in the string, so a backwards search finds ours even
-    /// if the composition somehow contained one already.
-    private func preeditAttributed(_ text: String, caret: Int, mark: Range<Int>? = nil) -> NSAttributedString {
-        let composed = MistypeCore.preeditWithCursor(text, caretUTF16: caret)
-        let out = NSMutableAttributedString(
-            string: composed,
-            attributes: [.font: NSFont.systemFont(ofSize: 13),
-                         .foregroundColor: NSColor.secondaryLabelColor])
-        // The marker char shifts everything after the caret by one unit.
-        if let mark {
-            let shift = { (offset: Int) in offset + (offset >= caret ? 1 : 0) }
-            let start = shift(mark.lowerBound), end = mark.upperBound > caret ? mark.upperBound + 1 : mark.upperBound
-            if end > start, end <= (composed as NSString).length {
-                out.addAttributes([.backgroundColor: NSColor.unemphasizedSelectedContentBackgroundColor,
-                                   .foregroundColor: NSColor.labelColor],
-                                  range: NSRange(location: start, length: end - start))
-            }
-        }
-        let ns = composed as NSString
-        let found = ns.range(of: "|", options: .backwards)
-        if found.location != NSNotFound {
-            out.addAttribute(.foregroundColor, value: NSColor.labelColor, range: found)
-        }
-        return out
     }
 
     static func hint(for mark: SessionView.Mark) -> String {
@@ -149,11 +114,11 @@ final class CandidatesPanel: NSPanel {
     /// `selected` (Tab / Shift+Tab / Down / Up walk the full list; PageUp /
     /// PageDown, or - / = in selection mode, flip whole pages; plain
     /// Left/Right move the syllable cursor and never page).
-    /// `preedit` + `caret` render the composition with our own cursor on a
-    /// header row (nil preedit hides it); `caret` is a UTF-16 offset.
+    /// The composition itself is the client's marked text (and caret): the
+    /// panel draws only the rows, never a copy of the preedit.
     /// Frame stability (the anti-jitter contract): x sticky for the whole
     /// visible session, y bottom-anchored to the caret line. Width fits the
-    /// widest content (rows or preedit header, capped) and eases via
+    /// widest row (capped) and eases via
     /// placeFrame instead of snapping — the panel breathes smoothly, never
     /// jumps or chases the caret horizontally mid-composition. Content
     /// itself always swaps instantly.
@@ -169,7 +134,7 @@ final class CandidatesPanel: NSPanel {
 
     func update(candidates: [String], selected: Int,
                 keyLabels: [String] = [], keysActive: Bool = false,
-                anchor: NSRect?, preedit: String? = nil, caret: Int = 0,
+                anchor: NSRect?,
                 mark: SessionView.Mark? = nil) {
         self.keyLabels = keyLabels
         self.keysActive = keysActive
@@ -204,26 +169,14 @@ final class CandidatesPanel: NSPanel {
             footer.stringValue = Self.hint(for: mark)
             footer.textColor = mark.action == .add || mark.action == .remove ? .secondaryLabelColor : .systemOrange
         }
-        if let preedit {
-            self.preedit.attributedStringValue = preeditAttributed(preedit, caret: caret, mark: mark?.range)
-            self.preedit.isHidden = false
-        } else {
-            self.preedit.isHidden = true
-        }
-        let headerHeight = self.preedit.isHidden ? 0 : rowHeight
-        let height = CGFloat(shown.count) * rowHeight + 6 + 16 + headerHeight
-        // Fitted width: rows or the preedit header, whichever is wider —
-        // capped, eased by placeFrame, so the panel hugs content without
-        // snapping. The header keeps long compositions (and a mid-sentence
-        // cursor) visible instead of truncating early.
+        let height = CGFloat(shown.count) * rowHeight + 6 + 16
+        // Fitted width: the widest row, capped and eased by placeFrame, so
+        // the panel hugs content without snapping.
         var fittedWidth: CGFloat = 0
         // Measured from the strings, not fittingSize: rows are pinned to the
         // stack width, so their fitting size no longer reflects content.
         for row in rows where !row.isHidden {
             fittedWidth = max(fittedWidth, ceil(row.attributedTitle.size().width) + 12)
-        }
-        if !self.preedit.isHidden {
-            fittedWidth = max(fittedWidth, ceil(self.preedit.attributedStringValue.size().width) + 8)
         }
         fittedWidth += 8 // stack leading/trailing insets
         if let anchor = anchor { lastAnchor = anchor }
