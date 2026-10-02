@@ -664,6 +664,32 @@ should be taken:
    highlighted candidate that writes a `!` exclusion line. The file format and
    decoder already support exclusions; only the gesture is missing.
 
+**Parked: porting the core to Rust (decision 2026-10-02: stay on Swift for
+now).** Revisit when a target Swift serves badly is real — web (wasm),
+Android, Windows, or a mobile keyboard with a tight memory limit — or when the
+~71 MB static Foundation in `libMistypeCAPI.so` hurts distribution. Go was
+rejected (runtime and GC inside IME/mobile processes; the gain over Swift is
+mostly a size win, not speed). Zig is the lightweight alternative (tiny
+toolchain, fast builds, native C ABI) but pre-1.0. Notes for whoever does it:
+- Cheap checks first, in Swift: drop full Foundation from `MistypeCore`
+  (`FoundationEssentials`) and re-measure the Linux library size; profile
+  `tools/bench.py` / `tools/session_latency.py` (p95 for a 25-syllable
+  sentence) before blaming the language.
+- Smallest experiment: port only the decoder (trie, `decode`,
+  `decodeComposition`, `decodeSegments`) plus the `CoreTests` that exercise it,
+  run on the real lexicon; require identical top candidates on the fixtures
+  and a clear latency win before porting `InputSession`.
+- The contract that makes a port safe already exists: the C ABI
+  (`mistype.h`) and conformance scenarios C1–C13 are language-neutral, and
+  the fcitx5 addon would not change. Alignment, caret and mark ranges are
+  UTF-16 offsets (macOS marked text), so a UTF-8 language needs explicit
+  conversion at those points.
+- Web would ship as wasm in a Web Worker with a prebuilt binary trie instead
+  of `lexicon.tsv` (cached in IndexedDB); the touch prototype is the natural
+  first web surface since it needs raw `(x, y)`. Do the touch-fuzzy port
+  (step 2) in whichever language the decoder will live in, to avoid porting it
+  twice.
+
 Done and recorded: user dictionary and its Linux parity (architecture.md,
 decode policy 9), styled marked text for IMK (the candidate window shows rows
 only; AGENTS.md).
