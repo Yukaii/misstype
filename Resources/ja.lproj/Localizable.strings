@@ -84,4 +84,4 @@
 "Inline, window in unsupported apps" = "インライン（非対応アプリはウィンドウ）";
 "Always inline" = "常にインライン";
 "Always in a window" = "常にウィンドウ";
-"Inline puts a vertical list under the text you are typing, only once you open it (Tab, ↓, ← →). Terminals and apps that can't show it get a window instead." = "インライン表示は、入力中の文字の下に縦の候補リストを表示します（Tab、↓、← → で開いたときのみ）。ターミナルなど表示できないアプリではウィンドウを使います。";
+"Inline puts the list after the text you are typing, only once you open it (Tab, ↓, ← →). Terminals and apps that can't show it get a window instead." = "インライン表示は、入力中の文字の後ろに候補リストを表示します（Tab、↓、← → で開いたときのみ）。ターミナルなど表示できないアプリではウィンドウを使います。";
