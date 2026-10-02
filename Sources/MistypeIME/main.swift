@@ -239,7 +239,7 @@ final class MistypeInputController: IMKInputController, InputSessionHost {
         var annotation: (text: String, selected: Range<Int>)?
         if inline {
             if let mark = view.mark {
-                annotation = ("  ‹" + CandidatesPanel.hint(for: mark) + "›", 0..<0)
+                annotation = ("\n  " + CandidatesPanel.hint(for: mark), 0..<0)
             } else {
                 annotation = view.inlineList()
             }
@@ -288,8 +288,9 @@ final class MistypeInputController: IMKInputController, InputSessionHost {
     }
 
     /// Preedit plus the inline annotation as one attributed marked string:
-    /// the annotation is its own clause segment, dimmed, with the highlighted
-    /// row underlined thickly (clients that ignore attributes still show text).
+    /// the annotation is its own clause segment, dimmed, one row per line, the
+    /// highlighted row on the window's gray (clients that ignore attributes
+    /// still show the text).
     private func markedText(_ preedit: String, annotation: (text: String, selected: Range<Int>)?) -> NSAttributedString {
         let out = NSMutableAttributedString(string: preedit, attributes: [
             .underlineStyle: NSUnderlineStyle.single.rawValue, .markedClauseSegment: 0])
@@ -297,7 +298,9 @@ final class MistypeInputController: IMKInputController, InputSessionHost {
         let tail = NSMutableAttributedString(string: annotation.text, attributes: [
             .foregroundColor: NSColor.secondaryLabelColor, .markedClauseSegment: 1])
         if !annotation.selected.isEmpty {
-            tail.addAttributes([.underlineStyle: NSUnderlineStyle.thick.rawValue, .foregroundColor: NSColor.labelColor],
+            // The window's neutral gray highlight (not the system accent).
+            tail.addAttributes([.backgroundColor: NSColor.unemphasizedSelectedContentBackgroundColor,
+                                .foregroundColor: NSColor.labelColor],
                                range: NSRange(location: annotation.selected.lowerBound, length: annotation.selected.count))
         }
         out.append(tail)

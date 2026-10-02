@@ -131,7 +131,7 @@ private struct GeneralPane: View {
                     Text(L("Always inline")).tag(MistypePrefs.CandidateStyle.inline.rawValue)
                     Text(L("Always in a window")).tag(MistypePrefs.CandidateStyle.panel.rawValue)
                 }
-                Text(L("Inline puts the list after the text you are typing, only once you open it (Tab, ↓, ← →). Terminals and apps that can't show it get a window instead."))
+                Text(L("Inline puts a vertical list under the text you are typing, only once you open it (Tab, ↓, ← →). Terminals and apps that can't show it get a window instead."))
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
