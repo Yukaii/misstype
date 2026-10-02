@@ -45,6 +45,12 @@ public final class InputEngine {
     public var userLexicon: UserLexicon
     /// Where learned words persist; nil = memory only (tests, replay).
     public var userLexiconURL: URL?
+    /// Words the user added on purpose (and built-in words they hid): real
+    /// trie entries in `decoder`, independent of `userLearning` — an explicit
+    /// dictionary is not inference. Persisted at `userDictionaryURL`.
+    public private(set) var userDictionary: UserDictionary
+    public var userDictionaryURL: URL?
+    private var userDictionaryStamp: Date?
     /// 中/英 mode: GLOBAL, not per-session — one physical keyboard, all
     /// clients. (Per-session state surprised users: toggling in one app
     /// never reached another.) Chinese on every launch.
@@ -62,13 +68,46 @@ public final class InputEngine {
     public init(decoder: LexiconDecoder,
                 userLexicon: UserLexicon = UserLexicon(),
                 userLexiconURL: URL? = nil,
+                userDictionary: UserDictionary = UserDictionary(),
+                userDictionaryURL: URL? = nil,
                 settings: @escaping () -> SessionSettings = { SessionSettings() },
                 log: @escaping (String) -> Void = { _ in }) {
         self.decoder = decoder
         self.userLexicon = userLexicon
         self.userLexiconURL = userLexiconURL
+        self.userDictionary = userDictionary
+        self.userDictionaryURL = userDictionaryURL
         self.settings = settings
         self.log = log
+        decoder.applyUserDictionary(userDictionary)
+        userDictionaryStamp = Self.modificationDate(userDictionaryURL)
+    }
+
+    // MARK: - User dictionary
+
+    private static func modificationDate(_ url: URL?) -> Date? {
+        guard let url else { return nil }
+        return (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
+    }
+
+    /// Installs `dictionary` into the decoder and, when `persist`, writes it
+    /// to `userDictionaryURL`. The Settings editor and the in-session
+    /// "add phrase" gesture both land here.
+    public func setUserDictionary(_ dictionary: UserDictionary, persist: Bool = true) {
+        userDictionary = dictionary
+        decoder.applyUserDictionary(dictionary)
+        if persist, let url = userDictionaryURL { dictionary.save(to: url) }
+        userDictionaryStamp = Self.modificationDate(userDictionaryURL)
+        log("userdict words=\(dictionary.added.count) hidden=\(dictionary.excluded.count)")
+    }
+
+    /// Picks up edits made outside this process (a text editor, a sync tool).
+    /// One `stat` — called when a composition starts, never per keystroke.
+    public func reloadUserDictionaryIfChanged() {
+        guard let url = userDictionaryURL else { return }
+        let stamp = Self.modificationDate(url)
+        guard stamp != userDictionaryStamp else { return }
+        setUserDictionary(UserDictionary.load(from: url), persist: false)
     }
 
     func activeUserLexicon(_ settings: SessionSettings) -> UserLexicon? {

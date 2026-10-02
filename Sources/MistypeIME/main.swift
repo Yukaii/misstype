@@ -17,6 +17,8 @@ enum Runtime {
     static let engine = InputEngine(decoder: decoder,
                                     userLexicon: UserLexicon.load(),
                                     userLexiconURL: UserLexicon.defaultURL,
+                                    userDictionary: UserDictionary.load(),
+                                    userDictionaryURL: UserDictionary.defaultURL,
                                     settings: { MistypePrefs.sessionSettings },
                                     log: debugLog)
     /// File trace for routing diagnosis (~/Library/Logs/MistypeIME-debug.log).
@@ -206,14 +208,19 @@ final class MistypeInputController: IMKInputController, InputSessionHost {
                                   keysActive: view.keysActive,
                                   anchor: caretAnchor(client, length: view.preedit.utf16.count),
                                   preedit: view.preedit,
-                                  caret: view.caret)
+                                  caret: view.caret,
+                                  mark: view.mark)
         } else {
             candidatePanel.hidePanel()
         }
-        if view.preedit != rendered.preedit || view.caret != rendered.caret {
+        if view.preedit != rendered.preedit || view.caret != rendered.caret || view.mark != rendered.mark {
             // Focused mode parks the caret at the start of the focused word;
             // end mode keeps it after the last unit (converted or pending raw).
-            client.setMarkedText(view.preedit, selectionRange: NSRange(location: view.caret, length: 0),
+            // A phrase mark is the marked text's selection, which clients
+            // draw highlighted.
+            let selection = view.mark.map { NSRange(location: $0.range.lowerBound, length: $0.range.count) }
+                ?? NSRange(location: view.caret, length: 0)
+            client.setMarkedText(view.preedit, selectionRange: selection,
                                  replacementRange: missingRange)
         }
         rendered = view

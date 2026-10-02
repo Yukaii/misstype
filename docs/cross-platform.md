@@ -170,8 +170,9 @@ each is the named `InputSessionTests` case.
 | C10 | `s u 3`, Shift+`Space`, `s` | Shift+Space commits `你` and flips to English (mode indicator); `s` passes | `testShiftSpaceTogglesEnglishCommittingFirst` |
 | C11 | `s u 3`, focus out | commits `你` | `testPanelPickAndHostCommit` (host commit) |
 | C12 | `s u 3`, click row 3 | preedit `泥` | `testPanelPickAndHostCommit` |
+| C13 | `s u 3 c l 3`, Shift+`Left` ×2, `⏎` | after the arrows `view.mark` = range UTF-16 0..<2, text `你好`, reading `ㄋㄧˇ-ㄏㄠˇ`, action `add`, no candidates but `showsCandidates`; `⏎` is consumed with no commit, the mark clears, preedit stays `你好`, and the user dictionary holds the pair | `testConformanceC13MarkAndFileAPhrase` |
 
-A new adapter is conformant when all twelve pass headlessly in CI (Linux: the
+A new adapter is conformant when all thirteen pass headlessly in CI (Linux: the
 fcitx5 `testfrontend` harness). Behavior that differs from this table is a
 core bug or an intentional contract change — never an adapter special case.
 
@@ -181,7 +182,7 @@ core bug or an intentional contract change — never an adapter special case.
    `MacKeyCode`, unit-tested).
 2. Adapter over the Swift API (Swift platforms) or `mistype.h` (everything
    else), following §1–§6 and the delivery rules.
-3. Headless integration tests for C1–C12.
+3. Headless integration tests for C1–C13.
 4. Resource/data locations added to the §6 table.
 5. A row in the delivery-rules table if the platform's event model differs.
 

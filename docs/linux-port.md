@@ -510,6 +510,12 @@ scripts).
 
 ## L7: Backlog (not scheduled)
 
+- User dictionary (conformance C13): pass a `user_dictionary.tsv` path into
+  `InputEngine` from `mistype_create`, expose `SessionView.mark` (range, text,
+  reading, action) through the C ABI, and draw it in fcitx5 (selection in the
+  preedit + a hint row). Until then Shift+Left/Right marks invisibly on Linux
+  and Return files nothing durable.
+
 - IBus adapter over the same C ABI (GNOME's default IM framework).
 - Jev on Linux: host callbacks in the C ABI (`surrounding_text`,
   `perform`, `session_did_change`), settings, and the consent flow; privacy

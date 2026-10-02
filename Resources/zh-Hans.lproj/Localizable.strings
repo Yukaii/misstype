@@ -66,3 +66,16 @@
 "English mode" = "英文模式";
 "Chinese mode" = "中文模式";
 "Settings…" = "设置…";
+"My Dictionary" = "我的词库";
+"Mark text while typing with Shift+← / → and press Return to add it here. Press Return on the same mark again to remove it." = "打字时用 Shift+← / → 标记文字，按 Return 即可加入此处；对同一段标记再按一次 Return 则移除。";
+"Words" = "词语";
+"One word per line: Zhuyin readings joined by hyphens, a tab, then the word. Start a line with ! to hide a built-in word. # starts a comment." = "每行一个词：以连字符相连的注音、一个 Tab，再接词语。行首加 ! 可隐藏内置词；# 开头为注释。";
+"Line %d: %@" = "第 %d 行：%@";
+"…and %d more" = "…还有 %d 项";
+"%d words, %d hidden" = "%d 个词、%d 个已隐藏";
+"Revert" = "还原";
+"Save" = "存储";
+"⏎ add “%@”  %@" = "⏎ 加入“%@” %@";
+"⏎ remove “%@”  %@" = "⏎ 移除“%@” %@";
+"Mark %d–%d syllables" = "请标记 %d–%d 个音节";
+"Can't add this selection" = "无法加入此选区";

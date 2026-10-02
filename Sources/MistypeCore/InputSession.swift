@@ -57,6 +57,35 @@ public struct SessionView: Equatable, Sendable {
     /// Cursor mode shows even a single option (the header carries the
     /// cursor); end mode shows the list only when there is a choice.
     public var showsCandidates: Bool
+    /// Phrase marking in progress (Shift+Left/Right): what is selected and
+    /// what Return would do. While set, `candidates` is empty and
+    /// `showsCandidates` is true — hosts draw their panel with this as the
+    /// hint instead of a list.
+    public var mark: Mark?
+
+    /// A marked span of the converted text, offered to the user dictionary.
+    public struct Mark: Equatable, Sendable {
+        /// What Return does with the mark.
+        public enum Action: Equatable, Sendable {
+            /// Add the phrase (also promotes a built-in word to the top).
+            case add
+            /// Already in the user dictionary: Return removes it.
+            case remove
+            /// Mark at least `UserDictionary.minSyllables` syllables.
+            case tooShort
+            /// Mark at most `UserDictionary.maxSyllables` syllables.
+            case tooLong
+            /// Spans punctuation/Latin, or text that is not dictionary words.
+            case unavailable
+        }
+        /// Selected UTF-16 range inside `SessionView.preedit`.
+        public var range: Range<Int>
+        public var text: String
+        /// Hyphen-joined toned readings (the user dictionary key); empty
+        /// when `action == .unavailable`.
+        public var reading: String
+        public var action: Action
+    }
 
     public static let empty = SessionView(preedit: "", caret: 0, candidates: [], selected: 0,
                                           selectionKeys: [], keysActive: false, showsCandidates: false)
@@ -126,6 +155,11 @@ public final class InputSession {
         var selecting = false
     }
     private var symbolMenu: SymbolMenu?
+    /// Phrase marking: syllable-boundary positions (0…n, between syllables)
+    /// of the anchor and the moving end. Started and moved by Shift+Left/
+    /// Right from the cursor (or the end); Return files the marked span in
+    /// the user dictionary, anything else drops it.
+    private var mark: (anchor: Int, head: Int)?
     private var jevRequestID = 0
     private let jevLock = NSLock()
 
@@ -145,6 +179,11 @@ public final class InputSession {
                 preedit: previewText, caret: caretOffset, candidates: menu.choices, selected: menu.selected,
                 selectionKeys: SelectionKeys.labels(keys: settings.candidateKeys),
                 keysActive: menu.selecting, showsCandidates: true)
+        }
+        if let marked = markView() {
+            return SessionView(
+                preedit: previewText, caret: marked.caret, candidates: [], selected: 0,
+                selectionKeys: [], keysActive: false, showsCandidates: true, mark: marked.mark)
         }
         let texts = segmentTexts ?? candidates.map(\.text)
         return SessionView(
@@ -188,6 +227,7 @@ public final class InputSession {
             }
             _ = engine.shiftTap.feed(shift: nil, shiftHeld: mods.contains(.shift),
                                      isRealKeyDown: true, otherMods: otherMods, now: now)
+            if composition.isEmpty { engine.reloadUserDictionaryIfChanged() }
             // Bare-modifier presses (Caps/Opt/Ctrl alone) carry no text:
             // consume silently instead of committing the composition first.
             if event.key == .modifier, event.text?.isEmpty ?? true { return .handled }
@@ -299,6 +339,10 @@ public final class InputSession {
         let chord = !mods.isDisjoint(with: [.command, .control, .option])
         // Key trace for routing diagnosis (codes only, never text content).
         engine.log("key=\(event.nativeCode ?? -1) flags=\(mods.rawValue) comp=\(composition.isEmpty ? 0 : 1) sel=\(selected) n=\(candidates.count) cur=\(cursor ?? -1) seg=\(segmentTexts == nil ? 0 : 1)")
+        // A mark survives only its own gestures: Shift+arrows move it, Return
+        // files it, Escape drops it. Any other key abandons it first.
+        let markGesture = (shift && (key == .left || key == .right)) || key == .escape || (key == .enter && !shift)
+        if mark != nil, !markGesture || chord { mark = nil }
         // Text-producing keys that produce no text (dead keys, …) are
         // swallowed: there is nothing to type or commit around.
         let text = event.text ?? ""
@@ -424,6 +468,10 @@ public final class InputSession {
         if (key == .left || key == .right) && chord {
             return pass()
         }
+        if (key == .left || key == .right) && shift { // mark a phrase
+            guard !composition.isEmpty else { return pass(committing: false) }
+            return extendMark(forward: key == .right) ? .handled : .beeped
+        }
         if key == .left || key == .right { // syllable cursor only
             // Paging used to live here as a fallback, which made the arrows
             // unpredictable (cursor sometimes, page-flip others, so stepping
@@ -436,6 +484,11 @@ public final class InputSession {
         }
         if key == .escape {
             guard !composition.isEmpty else { return pass(committing: false) }
+            if mark != nil {
+                let visible = markView() != nil
+                mark = nil
+                if visible { return .handled } // a collapsed mark shows nothing: Esc goes on
+            }
             if inSelection {
                 // First Esc only leaves selection mode (and the cursor);
                 // the text and any picks stay. A second Esc clears.
@@ -450,6 +503,7 @@ public final class InputSession {
         if chord { return pass() }
         if key == .enter {
             guard !composition.isEmpty else { return pass(committing: false) }
+            if mark != nil { return fileMark() }
             if shift {
                 // Shift+Return sends the keys as typed: 注音文 even when every
                 // syllable is valid (a lone ㄗ is 資 to the decoder).
@@ -624,6 +678,7 @@ public final class InputSession {
         // Preview converts every run, the pending one live (below);
         // punctuation passes through in place.
         let previous = candidates.map(\.text)
+        mark = nil
         // Jev gate threads through every decode entry point but changes
         // nothing while off (the default): the offline decode below is the
         // single source of candidates. Presence-only logging keeps remote
@@ -727,6 +782,7 @@ public final class InputSession {
         pinnedPick = nil
         explicitPick = false
         cursor = nil
+        mark = nil
         clearSegment()
         sessionPins = UserLexicon()
         selected = 0
@@ -842,6 +898,101 @@ public final class InputSession {
         explicitPick = true
         cursor = option.span.upperBound
         refresh(keepCursor: true)
+    }
+
+    // MARK: - Phrase marking (Shift+Left/Right, Return files it)
+
+    /// Moves the marked end one syllable, starting a mark at the cursor (or
+    /// the end of the converted text) the first time. The mark may collapse
+    /// onto its anchor (nothing selected, `markView` is nil) and grow again
+    /// on the other side. The focused-word list is hidden while
+    /// marking (the panel shows the mark's hint instead).
+    private func extendMark(forward: Bool) -> Bool {
+        guard let frame = focusFrame(),
+              let end = frame.top.alignment.last?.syllables.upperBound, end > 0 else { return false }
+        var next = mark ?? { let start = cursor ?? end; return (start, start) }()
+        let head = next.head + (forward ? 1 : -1)
+        guard (0...end).contains(head) else { return false }
+        next.head = head
+        mark = next
+        selecting = false
+        cursor = nil
+        clearSegment()
+        return true
+    }
+
+    /// Everything the host needs to draw the mark; nil when not marking.
+    private func markView() -> (mark: SessionView.Mark, caret: Int)? {
+        guard let marked = mark, marked.anchor != marked.head, let frame = focusFrame() else { return nil }
+        let span = min(marked.anchor, marked.head)..<max(marked.anchor, marked.head)
+        func offset(_ boundary: Int) -> Int? {
+            boundary >= frame.syllables.count
+                ? frame.top.alignment.last?.chars.upperBound
+                : frame.top.charOffset(ofSyllable: boundary)
+        }
+        guard let start = offset(span.lowerBound), let end = offset(span.upperBound),
+              let caret = offset(marked.head), start <= end else { return nil }
+        let phrase = markedPhrase(span, in: frame)
+        let action: SessionView.Mark.Action
+        if span.count > UserDictionary.maxSyllables {
+            action = .tooLong
+        } else if span.count < UserDictionary.minSyllables {
+            action = .tooShort
+        } else if let phrase {
+            action = engine.userDictionary.contains(reading: phrase.reading, text: phrase.text) ? .remove : .add
+        } else {
+            action = .unavailable
+        }
+        return (SessionView.Mark(range: start..<end, text: phrase?.text ?? "",
+                                 reading: phrase?.reading ?? "", action: action), caret)
+    }
+
+    /// Text and toned readings of a syllable span, read off the displayed
+    /// sentence: each word it touches is looked up in the lexicon over its
+    /// own syllables (a tone-exact trie path), then sliced to the span. Nil
+    /// when the span crosses a run break or touches text that is not a
+    /// dictionary word (raw Zhuyin fallback, 1:many alignments).
+    private func markedPhrase(_ span: Range<Int>, in frame: FocusFrame) -> (text: String, reading: String)? {
+        guard !span.isEmpty, let run = frame.top.run(containing: span.lowerBound),
+              span.upperBound <= run.upperBound else { return nil }
+        var chars: [String] = []
+        var readings: [String] = []
+        for word in frame.top.alignment where word.syllables.overlaps(span) {
+            guard let text = spanText(frame.top.text, word.chars), text.count == word.syllables.count,
+                  let path = engine.decoder.readings(
+                      of: text, syllables: frame.syllables, span: word.syllables,
+                      fuzzy: settings.fuzzyRepair, toneTolerance: settings.toneTolerance) else { return nil }
+            let parts = path.split(separator: "-").map(String.init), letters = Array(text)
+            for index in word.syllables where span.contains(index) {
+                chars.append(String(letters[index - word.syllables.lowerBound]))
+                readings.append(parts[index - word.syllables.lowerBound])
+            }
+        }
+        guard chars.count == span.count else { return nil }
+        return (chars.joined(), readings.joined(separator: "-"))
+    }
+
+    /// Return on a mark: add the phrase to the user dictionary (or remove it
+    /// when it is already there) and re-decode so the effect shows at once.
+    /// Never commits — the composition goes on with the new word in it.
+    private func fileMark() -> KeyResult {
+        guard let marked = markView()?.mark else {
+            mark = nil
+            return .beeped
+        }
+        var dictionary = engine.userDictionary
+        switch marked.action {
+        case .add: dictionary.add(reading: marked.reading, text: marked.text)
+        case .remove: dictionary.remove(reading: marked.reading, text: marked.text)
+        case .tooShort, .tooLong, .unavailable: return .beeped
+        }
+        engine.setUserDictionary(dictionary)
+        // The edit changes what the span decodes to: drop the automatic pins
+        // that froze the old text and the whole-sentence pick, then redecode.
+        settledPins = UserLexicon()
+        pinnedPick = nil
+        refresh()
+        return .handled
     }
 
     // MARK: - Jev (explicit opt-in remote assistance)

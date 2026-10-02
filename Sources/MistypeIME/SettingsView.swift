@@ -30,7 +30,7 @@ final class SettingsWindow: NSWindow {
 }
 
 private enum Pane: String, CaseIterable, Identifiable {
-    case general, decoding, learning, jev, about
+    case general, decoding, learning, dictionary, jev, about
     var id: String { rawValue }
 
     var title: String {
@@ -38,6 +38,7 @@ private enum Pane: String, CaseIterable, Identifiable {
         case .general: return L("General")
         case .decoding: return L("Decoding")
         case .learning: return L("Learning")
+        case .dictionary: return L("My Dictionary")
         case .jev: return L("Jev Assist")
         case .about: return L("About")
         }
@@ -48,6 +49,7 @@ private enum Pane: String, CaseIterable, Identifiable {
         case .general: return "keyboard"
         case .decoding: return "wand.and.stars"
         case .learning: return "book.closed"
+        case .dictionary: return "character.book.closed"
         case .jev: return "cloud"
         case .about: return "info.circle"
         }
@@ -73,6 +75,7 @@ struct SettingsView: View {
                 case .general: GeneralPane()
                 case .decoding: DecodingPane()
                 case .learning: LearningPane()
+                case .dictionary: DictionaryPane()
                 case .jev: JevPane()
                 case .about: AboutPane()
                 }
@@ -250,6 +253,81 @@ private struct LearningPane: View {
         } message: {
             Text(L("This can't be undone."))
         }
+    }
+}
+
+// MARK: - My dictionary
+
+/// Plain-text editor over `user_dictionary.tsv` (the format is documented in
+/// `UserDictionary`). Words are usually added from the keyboard — mark them
+/// with Shift+←/→ and press Return — so this pane is for review, cleanup and
+/// hand edits. Saving applies at once: the engine swaps the decoder overlay.
+private struct DictionaryPane: View {
+    @State private var text = ""
+    @State private var saved = ""
+    @State private var loaded = false
+
+    private var parsed: (dictionary: UserDictionary, problems: [UserDictionary.Problem]) {
+        UserDictionary.parse(text)
+    }
+
+    var body: some View {
+        let result = parsed
+        Form {
+            Section {
+                Text(L("Mark text while typing with Shift+← / → and press Return to add it here. Press Return on the same mark again to remove it."))
+                    .font(.callout).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Section(L("Words")) {
+                TextEditor(text: $text)
+                    .font(.system(.body, design: .monospaced))
+                    .frame(minHeight: 240)
+                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(.quaternary))
+                Text(L("One word per line: Zhuyin readings joined by hyphens, a tab, then the word. Start a line with ! to hide a built-in word. # starts a comment."))
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if !result.problems.isEmpty {
+                    VStack(alignment: .leading, spacing: 2) {
+                        ForEach(Array(result.problems.prefix(5).enumerated()), id: \.offset) { _, problem in
+                            Text(L("Line %d: %@", problem.line, problem.message))
+                                .font(.caption).foregroundStyle(.red)
+                        }
+                        if result.problems.count > 5 {
+                            Text(L("…and %d more", result.problems.count - 5))
+                                .font(.caption).foregroundStyle(.red)
+                        }
+                    }
+                }
+                HStack {
+                    Text(L("%d words, %d hidden", result.dictionary.added.count, result.dictionary.excluded.count))
+                        .font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Button(L("Show in Finder")) {
+                        if !FileManager.default.fileExists(atPath: UserDictionary.defaultURL.path) { save() }
+                        NSWorkspace.shared.activateFileViewerSelecting([UserDictionary.defaultURL])
+                    }
+                    Button(L("Revert")) { load() }.disabled(text == saved)
+                    Button(L("Save")) { save() }
+                        .keyboardShortcut("s", modifiers: .command)
+                        .disabled(text == saved)
+                }
+            }
+        }
+        .onAppear { if !loaded { load() } }
+    }
+
+    private func load() {
+        let url = UserDictionary.defaultURL
+        text = (try? String(contentsOf: url, encoding: .utf8)) ?? Runtime.engine.userDictionary.serialized()
+        saved = text
+        loaded = true
+    }
+
+    private func save() {
+        guard UserDictionary.write(text: text, to: UserDictionary.defaultURL) else { NSSound.beep(); return }
+        Runtime.engine.setUserDictionary(UserDictionary.parse(text).dictionary, persist: false)
+        saved = text
     }
 }
 
