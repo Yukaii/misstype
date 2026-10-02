@@ -636,6 +636,38 @@ one syllable. Both reports decode 預設 again; the learning battery
 a user who only ever types one character and wants it learned inside longer
 input must rely on context rules, which need a preceding word.
 
+## Next steps (queued 2026-10-02)
+
+State: the macOS Zhuyin IME is close to daily use and the Linux fcitx5 port
+passes the same conformance scenarios (C1–C13). Open work, in the order it
+should be taken:
+
+1. **Linux desktop acceptance (L6).** Type in a real fcitx5 session (docs/
+   linux-port.md). The headless suite cannot see client-side problems such as
+   marked-text styling (the macOS caret bug was exactly that). Done when the
+   L6 checklist passes on one X11/Wayland desktop.
+2. **Port touch/spatial fuzzy decoding to `MistypeCore`.** Coordinate-aware
+   neighbor hypotheses from raw `(x, y)`, the versioned `full-split-1` layout
+   and the `tools/noise.py` jitter measurements exist only in `src/mistype`
+   (M2/M3). Hypothesis: the Swift decoder, fed the same weighted hypotheses,
+   matches the Python rescue rates at radius 0.08–0.15 without hurting exact
+   input. Smallest experiment: a Swift touch mapper + replay of
+   `tests/fixtures/touch-*.jsonl`, then the noise sweep driven against the
+   Swift binary. Only after this does the touchscreen prototype have a
+   measurable claim against a conventional keyboard.
+3. **Measure against a conventional keyboard.** The gate in AGENTS.md for any
+   hardware work: task completion time, backspaces, interruptions (see
+   Measures), on the Swift decoder.
+4. **Linux user-dictionary editor.** The file is plain text; a `mistype-dict`
+   command (list / add / remove) or an fcitx5 config page. Low risk.
+5. **Hide gesture for the user dictionary** (only if wanted): a key on the
+   highlighted candidate that writes a `!` exclusion line. The file format and
+   decoder already support exclusions; only the gesture is missing.
+
+Done and recorded: user dictionary and its Linux parity (architecture.md,
+decode policy 9), styled marked text for IMK (the candidate window shows rows
+only; AGENTS.md).
+
 ## Measures
 
 Track phrase-level character error rate, syllable error rate, commit latency, p50/p95 decode latency, backspaces or replays, candidate interruptions, and task completion time. Log confidence and decoder source for every result. Run a fixed synthetic fixture set plus consented user sessions kept outside the repository.
