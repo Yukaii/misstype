@@ -87,34 +87,6 @@ extension UserLexicon {
     }
 }
 
-extension SessionView {
-    /// The open candidate list as one line of text for hosts that draw it
-    /// inline after the preedit (`你好 ‹a 妳好  s 尼好›`) instead of in a
-    /// window. `selected` is the UTF-16 range of the highlighted row inside
-    /// `text`. Nil unless the user opened the list (`listOpen`); the mark
-    /// hint is the host's (it is localized). Rows use the same differing-
-    /// window trimming as the panel, narrower, since a line holds them all.
-    public func inlineList(pageSize: Int = 8) -> (text: String, selected: Range<Int>)? {
-        guard listOpen, showsCandidates, mark == nil, !candidates.isEmpty else { return nil }
-        let page = min(max(selected, 0) / pageSize, (candidates.count - 1) / pageSize)
-        let rows = Array(candidates.dropFirst(page * pageSize).prefix(pageSize))
-        let windows = CandidateDisplay.windows(rows, maxChars: 6, context: 1)
-        var text = "  ‹"
-        var highlight = 0..<0
-        for (index, window) in windows.enumerated() {
-            if index > 0 { text += "  " }
-            let label = keysActive && index < selectionKeys.count ? selectionKeys[index] + " " : ""
-            let start = text.utf16.count
-            text += label + window
-            if page * pageSize + index == selected { highlight = start..<text.utf16.count }
-        }
-        text += "›"
-        let pages = (candidates.count + pageSize - 1) / pageSize
-        if pages > 1 { text += " \(page + 1)/\(pages)" }
-        return (text, highlight)
-    }
-}
-
 /// Panel row text for sentence candidates. Live conversion makes every row
 /// a long, near-identical sentence; front-truncating each row left eight
 /// identical-looking rows whose differences were cut off. Instead every row
