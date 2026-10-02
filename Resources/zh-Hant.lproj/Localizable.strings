@@ -84,4 +84,4 @@
 "Inline, window in unsupported apps" = "行內顯示（不支援的 App 改用視窗）";
 "Always inline" = "一律行內顯示";
 "Always in a window" = "一律使用視窗";
-"Inline puts a vertical list under the text you are typing, only once you open it (Tab, ↓, ← →). Terminals and apps that can't show it get a window instead." = "行內顯示會把垂直候選清單接在輸入中的文字下方，且只在你開啟時（Tab、↓、← →）出現。終端機與無法顯示的 App 會改用視窗。";
+"Inline puts the list after the text you are typing, only once you open it (Tab, ↓, ← →). Terminals and apps that can't show it get a window instead." = "行內顯示會把候選清單接在輸入中的文字後面，且只在你開啟時（Tab、↓、← →）出現。終端機與無法顯示的 App 會改用視窗。";
