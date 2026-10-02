@@ -84,18 +84,38 @@ final class CandidatesPanel: NSPanel {
     /// Header content: composition with a colored cursor marker. The marker
     /// char comes last in the string, so a backwards search finds ours even
     /// if the composition somehow contained one already.
-    private func preeditAttributed(_ text: String, caret: Int) -> NSAttributedString {
+    private func preeditAttributed(_ text: String, caret: Int, mark: Range<Int>? = nil) -> NSAttributedString {
         let composed = MistypeCore.preeditWithCursor(text, caretUTF16: caret)
         let out = NSMutableAttributedString(
             string: composed,
             attributes: [.font: NSFont.systemFont(ofSize: 13),
                          .foregroundColor: NSColor.secondaryLabelColor])
+        // The marker char shifts everything after the caret by one unit.
+        if let mark {
+            let shift = { (offset: Int) in offset + (offset >= caret ? 1 : 0) }
+            let start = shift(mark.lowerBound), end = mark.upperBound > caret ? mark.upperBound + 1 : mark.upperBound
+            if end > start, end <= (composed as NSString).length {
+                out.addAttributes([.backgroundColor: NSColor.unemphasizedSelectedContentBackgroundColor,
+                                   .foregroundColor: NSColor.labelColor],
+                                  range: NSRange(location: start, length: end - start))
+            }
+        }
         let ns = composed as NSString
         let found = ns.range(of: "|", options: .backwards)
         if found.location != NSNotFound {
             out.addAttribute(.foregroundColor, value: NSColor.labelColor, range: found)
         }
         return out
+    }
+
+    static func hint(for mark: SessionView.Mark) -> String {
+        switch mark.action {
+        case .add: return L("⏎ add “%@”  %@", mark.text, mark.reading)
+        case .remove: return L("⏎ remove “%@”  %@", mark.text, mark.reading)
+        case .tooShort: return L("Mark %d–%d syllables", UserDictionary.minSyllables, UserDictionary.maxSyllables)
+        case .tooLong: return L("Mark %d–%d syllables", UserDictionary.minSyllables, UserDictionary.maxSyllables)
+        case .unavailable: return L("Can't add this selection")
+        }
     }
 
     @objc override func cancelOperation(_ sender: Any?) {
@@ -149,7 +169,8 @@ final class CandidatesPanel: NSPanel {
 
     func update(candidates: [String], selected: Int,
                 keyLabels: [String] = [], keysActive: Bool = false,
-                anchor: NSRect?, preedit: String? = nil, caret: Int = 0) {
+                anchor: NSRect?, preedit: String? = nil, caret: Int = 0,
+                mark: SessionView.Mark? = nil) {
         self.keyLabels = keyLabels
         self.keysActive = keysActive
         // Up to 64 rows pageable (single-char homophone lists); the visible
@@ -177,8 +198,14 @@ final class CandidatesPanel: NSPanel {
         for index in shown.count..<rows.count { rows[index].isHidden = true }
         let pages = max((total.count + 7) / 8, 1)
         footer.stringValue = pages > 1 ? "\(page + 1) / \(pages)" : ""
+        footer.textColor = .tertiaryLabelColor
+        if let mark {
+            // Phrase marking: the footer says what Return will do.
+            footer.stringValue = Self.hint(for: mark)
+            footer.textColor = mark.action == .add || mark.action == .remove ? .secondaryLabelColor : .systemOrange
+        }
         if let preedit {
-            self.preedit.attributedStringValue = preeditAttributed(preedit, caret: caret)
+            self.preedit.attributedStringValue = preeditAttributed(preedit, caret: caret, mark: mark?.range)
             self.preedit.isHidden = false
         } else {
             self.preedit.isHidden = true

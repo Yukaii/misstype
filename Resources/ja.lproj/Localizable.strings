@@ -66,3 +66,16 @@
 "English mode" = "英語モード";
 "Chinese mode" = "中国語モード";
 "Settings…" = "設定…";
+"My Dictionary" = "マイ辞書";
+"Mark text while typing with Shift+← / → and press Return to add it here. Press Return on the same mark again to remove it." = "入力中に Shift+← / → で範囲を選び、Return を押すとここに追加されます。同じ範囲でもう一度 Return を押すと削除されます。";
+"Words" = "語句";
+"One word per line: Zhuyin readings joined by hyphens, a tab, then the word. Start a line with ! to hide a built-in word. # starts a comment." = "1 行に 1 語：ハイフンでつないだ注音、タブ、語句の順。行頭に ! を付けると内蔵語を非表示にします。# はコメントです。";
+"Line %d: %@" = "%d 行目：%@";
+"…and %d more" = "…ほか %d 件";
+"%d words, %d hidden" = "%d 語、%d 語を非表示";
+"Revert" = "元に戻す";
+"Save" = "保存";
+"⏎ add “%@”  %@" = "⏎ 「%@」を追加 %@";
+"⏎ remove “%@”  %@" = "⏎ 「%@」を削除 %@";
+"Mark %d–%d syllables" = "%d〜%d 音節を選択してください";
+"Can't add this selection" = "この選択は追加できません";

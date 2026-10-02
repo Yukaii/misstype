@@ -682,4 +682,92 @@ public final class LexiconDecoder {
                               syllables: syllables, runs: [0..<syllables.count])
         }
     }
+
+    // MARK: - User dictionary overlay
+
+    /// Nodes the user dictionary touched, with what they held before, so the
+    /// next `applyUserDictionary` can restore the built-in lexicon exactly.
+    private var pristine: [(node: Node, entries: [(text: String, score: Double)],
+                            toneless: [(text: String, score: Double)]?)] = []
+    /// Words currently contributed by the user dictionary (diagnostics).
+    public private(set) var userWordCount = 0
+
+    /// Replaces the user overlay: added words become real trie entries (new
+    /// paths, new readings included), excluded words disappear from their
+    /// node. Passing nil/empty restores the built-in lexicon byte for byte.
+    /// Call from the thread that drives decoding, never during a decode.
+    public func applyUserDictionary(_ dictionary: UserDictionary?) {
+        for saved in pristine {
+            saved.node.entries = saved.entries
+            saved.node.tonelessEntries = saved.toneless
+        }
+        pristine = []
+        userWordCount = 0
+        guard let dictionary, !dictionary.isEmpty else { return }
+        var touched = Set<ObjectIdentifier>()
+        func touch(_ node: Node) {
+            guard touched.insert(ObjectIdentifier(node)).inserted else { return }
+            pristine.append((node, node.entries, node.tonelessEntries))
+        }
+        func sort(_ entries: inout [(text: String, score: Double)]) {
+            entries.sort { $0.score == $1.score ? $0.text < $1.text : $0.score > $1.score }
+        }
+        for entry in dictionary.added {
+            var node = root
+            for reading in entry.reading.split(separator: "-").map(String.init) {
+                readings.insert(reading)
+                toneless[Self.withoutTone(reading), default: []].insert(reading)
+                if node.children[reading] == nil { node.children[reading] = Node() }
+                node = node.children[reading]!
+            }
+            touch(node)
+            node.entries.removeAll { $0.text == entry.text }
+            node.entries.append((entry.text, entry.weight))
+            sort(&node.entries)
+            if node.tonelessEntries != nil {
+                node.tonelessEntries?.removeAll { $0.text == entry.text }
+                node.tonelessEntries?.append((entry.text, entry.weight))
+                sort(&node.tonelessEntries!)
+            }
+            userWordCount += 1
+        }
+        for entry in dictionary.excluded {
+            var node: Node? = root
+            for reading in entry.reading.split(separator: "-").map(String.init) {
+                node = node?.children[reading]
+            }
+            guard let node, node.entries.contains(where: { $0.text == entry.text }) else { continue }
+            touch(node)
+            node.entries.removeAll { $0.text == entry.text }
+            node.tonelessEntries?.removeAll { $0.text == entry.text }
+        }
+    }
+
+    /// The toned readings (hyphen-joined, the trie path) under which `text`
+    /// is a dictionary word over `span` of `syllables` — the cheapest path
+    /// the typed keys admit. Powers "add this phrase to my dictionary" and
+    /// "hide this word": what the user sees is text, what the trie keys on is
+    /// tone-exact readings. Nil when no such word exists (raw fallback text,
+    /// or a word that was already excluded).
+    public func readings(of text: String, syllables: [Syllable], span: Range<Int>,
+                         fuzzy: Bool = true, toneTolerance: Bool = true) -> String? {
+        guard !span.isEmpty, span.count <= 8,
+              span.lowerBound >= 0, span.upperBound <= syllables.count else { return nil }
+        let options = syllables.map { alternatives($0, fuzzy: fuzzy, toneTolerance: toneTolerance) }
+        var best: (penalty: Double, path: [String])?
+        func walk(_ node: Node, _ index: Int, _ penalty: Double, _ path: [String]) {
+            if index == span.upperBound {
+                if node.entries.contains(where: { $0.text == text }), best.map({ penalty < $0.penalty }) ?? true {
+                    best = (penalty, path)
+                }
+                return
+            }
+            for (reading, cost, _) in options[index] {
+                guard let child = node.children[reading] else { continue }
+                walk(child, index + 1, penalty + cost, path + [reading])
+            }
+        }
+        walk(root, span.lowerBound, 0, [])
+        return best?.path.joined(separator: "-")
+    }
 }

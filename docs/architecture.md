@@ -166,6 +166,24 @@ Use monotonic timestamps for ordering and a separate wall-clock field only for d
    same readings boosts the learned text (+6 first pick, +1 per repeat,
    cap +10). Learning never creates new segmentations, only re-ranks
    produced candidates.
+9. User dictionary (explicit, local, always on): unlike learning it creates
+   paths. Shift+Left/Right mark syllables of the converted text (from the
+   cursor, else the end); `SessionView.mark` carries the UTF-16 range, the
+   text, the toned reading and what Return will do. Return files the 2–8
+   syllable span in `UserDictionary` (`user_dictionary.tsv`, sibling of
+   `user_phrases.json`: `reading<TAB>text[<TAB>weight]`, `!` lines hide a
+   built-in word) or, when the pair is already there, removes it; it never
+   commits. `InputEngine.setUserDictionary` persists and calls
+   `LexiconDecoder.applyUserDictionary`, which writes the words into the trie
+   as ordinary entries (default weight 0, above every built-in score) and can
+   restore the built-in lexicon exactly; readings come from
+   `LexiconDecoder.readings(of:syllables:span:)`, the tone-exact path of the
+   displayed word, so toneless typing still files toned readings. A mark may
+   not cross punctuation/Latin or raw-Zhuyin text. The file is re-read when a
+   composition starts if its mtime changed, so the macOS Settings "My
+   Dictionary" pane (a text editor over the same file) and any external edit
+   apply without a restart. Not yet wired on Linux: the C ABI creates the
+   engine without a dictionary URL and does not expose `mark` (docs/linux-port.md, L7).
 8. Syllable cursor (no modifiers): going back pins a word choice as a
    session-only decisive bonus (+1000, same overlay mechanism as learning
    but never persisted); the sentence still commits once at Return.
