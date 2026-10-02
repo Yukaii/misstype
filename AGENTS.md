@@ -2,6 +2,25 @@
 
 This repository is an experimental input device and decoder. The current goal is to validate the interaction model before committing to custom hardware.
 
+## Current state (2026-10-02)
+
+- The macOS Zhuyin IME (Swift `MistypeCore` + IMK adapter) is approaching
+  daily-usable: live conversion, syllable cursor, candidate window, learning,
+  a user dictionary (Shift+←/→ marks a phrase, Return files it;
+  `user_dictionary.tsv`, Settings editor on macOS), chunked auto-commit. The
+  Linux fcitx5 port is actively maintained and held to the same conformance
+  scenarios (C1–C13, `docs/cross-platform.md`); a behavior change in the core
+  is not done until Linux still passes.
+- Keyboard fuzzy matching exists in Swift only as edit repair (transpose,
+  neighbor/phonetic substitution, insert/delete, tone tolerance), costed
+  against exact input. The coordinate-aware **touch** fuzzy layer — distance-
+  weighted neighbor hypotheses from raw `(x, y)`, the `full-split-1` layout,
+  `tools/noise.py` measurements (project outline, M3) — still lives only in the
+  Python prototype. Porting it to `MistypeCore` is the open work that decides
+  whether the touchscreen idea is validated; until then Python remains the
+  reference for it, and the "do not port" rule below applies to everything
+  else.
+
 ## Product constraints
 
 - Capture first, decode later. The input path must not force candidate selection or correction while the user is composing.
@@ -36,7 +55,9 @@ A change is ready when its behavior is covered by a replayable test or documente
 The Swift `MistypeCore` package is the single source of truth for decoding
 behavior. The Python package (`src/mistype`, Python 3.11+, no runtime
 dependencies) is the capture/touch prototype slated for replacement; do not
-port decoder changes to it. Its checks still run:
+port decoder changes to it. The one exception in the other direction is the
+touch/spatial fuzzy layer (see Current state), which has to move from Python
+into Swift. Its checks still run:
 
 ```sh
 PYTHONPATH=src python -m unittest discover -s tests -v
@@ -51,6 +72,14 @@ swift test
 ./script/install_ime.sh
 ```
 
+Linux, all layers (core tests, C ABI smoke test, fcitx5 headless suite), in
+Docker or bare-metal:
+
+```sh
+script/linux/dev.sh 'bash script/linux/test_all.sh'
+bash script/linux/test_all.sh   # on a provisioned Linux box
+```
+
 Editing rules live in `MistypeCore`'s `InputSession`; platform adapters
 only translate key events and draw `SessionView` (see
 `docs/architecture.md`, Platform boundary). `swift test` also runs on Linux,
@@ -59,6 +88,13 @@ where `Package.swift` declares only the core and its tests (CI `core-linux`).
 Platform adapters follow `docs/cross-platform.md` (contract + conformance
 scenarios C1–C12). Linux work follows `docs/linux-port.md`; run Linux
 commands through `script/linux/dev.sh '<cmd>'` (Docker, `linux/Dockerfile`).
+
+Adapter lessons that cost time once (keep them): send marked text to IMK as
+an `NSAttributedString` with underline + `markedClauseSegment`, never a bare
+String — otherwise some clients draw no caret/selection and a self-drawn
+cursor in the candidate panel ends up papering over it. The candidate window
+shows rows only. User-visible UI strings go through `L()` and
+`tools/check_localizations.py`.
 
 `script/prepare_lexicon.py` downloads only the pinned public dictionary sources
 listed in `third_party/*/sources.json` (McBopomofo, NAER); it must never
