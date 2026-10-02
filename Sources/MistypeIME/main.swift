@@ -218,7 +218,15 @@ final class MistypeInputController: IMKInputController, InputSessionHost {
             // draw highlighted.
             let selection = view.mark.map { NSRange(location: $0.range.lowerBound, length: $0.range.count) }
                 ?? NSRange(location: view.caret, length: 0)
-            client.setMarkedText(view.preedit, selectionRange: selection,
+            // Styled marked text, as McBopomofo/vChewing send it: with a bare
+            // String some clients treat the text as plain and never draw the
+            // caret or the selection inside it, which is what the removed
+            // self-drawn "|" header was papering over.
+            let marked = NSAttributedString(string: view.preedit, attributes: [
+                .underlineStyle: NSUnderlineStyle.single.rawValue,
+                .markedClauseSegment: 0,
+            ])
+            client.setMarkedText(marked, selectionRange: selection,
                                  replacementRange: missingRange)
         }
         rendered = view
