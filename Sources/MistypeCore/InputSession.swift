@@ -62,6 +62,10 @@ public struct SessionView: Equatable, Sendable {
     /// `showsCandidates` is true — hosts draw their panel with this as the
     /// hint instead of a list.
     public var mark: Mark?
+    /// The user opened the list on purpose (Tab/↓, the syllable cursor's
+    /// list, a symbol menu) as opposed to alternatives that merely exist
+    /// while typing. Hosts that draw candidates inline show them only then.
+    public var listOpen = false
 
     /// A marked span of the converted text, offered to the user dictionary.
     public struct Mark: Equatable, Sendable {
@@ -178,7 +182,7 @@ public final class InputSession {
             return SessionView(
                 preedit: previewText, caret: caretOffset, candidates: menu.choices, selected: menu.selected,
                 selectionKeys: SelectionKeys.labels(keys: settings.candidateKeys),
-                keysActive: menu.selecting, showsCandidates: true)
+                keysActive: menu.selecting, showsCandidates: true, listOpen: true)
         }
         if let marked = markView() {
             return SessionView(
@@ -193,7 +197,8 @@ public final class InputSession {
             selected: segmentTexts != nil ? segmentSelected : selected,
             selectionKeys: SelectionKeys.labels(keys: settings.candidateKeys),
             keysActive: inSelection,
-            showsCandidates: segmentTexts != nil ? !texts.isEmpty : texts.count > 1)
+            showsCandidates: segmentTexts != nil ? !texts.isEmpty : texts.count > 1,
+            listOpen: inSelection)
     }
 
     public func handle(_ event: KeyEvent) -> KeyResult {

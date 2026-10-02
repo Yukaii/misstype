@@ -79,3 +79,9 @@
 "⏎ remove “%@”  %@" = "⏎ 「%@」を削除 %@";
 "Mark %d–%d syllables" = "%d〜%d 音節を選択してください";
 "Can't add this selection" = "この選択は追加できません";
+"Candidate display" = "候補の表示";
+"Show candidates" = "候補の表示方法";
+"Inline, window in unsupported apps" = "インライン（非対応アプリはウィンドウ）";
+"Always inline" = "常にインライン";
+"Always in a window" = "常にウィンドウ";
+"Inline puts the list after the text you are typing, only once you open it (Tab, ↓, ← →). Terminals and apps that can't show it get a window instead." = "インライン表示は、入力中の文字の後ろに候補リストを表示します（Tab、↓、← → で開いたときのみ）。ターミナルなど表示できないアプリではウィンドウを使います。";

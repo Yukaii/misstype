@@ -122,6 +122,30 @@ final class ModeIndicator: NSPanel {
     }
 }
 
+/// Which clients can show the candidate list inline (as extra marked text).
+/// Terminals redraw marked text per cell and mangle a long suffix; a client
+/// that does not report our marked text back (`markedRange`) is detected at
+/// runtime and remembered for the process. Both fall back to the panel.
+/// `defaults write <bundle> MistypeInlineDenylist -array id1 id2` extends the
+/// built-in list.
+enum InlineSupport {
+    static let builtInDenylist: Set<String> = [
+        "com.apple.Terminal", "com.googlecode.iterm2", "net.kovidgoyal.kitty",
+        "com.mitchellh.ghostty", "io.alacritty", "dev.warp.Warp-Stable", "co.zeit.hyper",
+    ]
+    private static var rejected: Set<String> = []
+
+    static func supported(bundleID: String?) -> Bool {
+        guard let bundleID else { return true }
+        let extra = UserDefaults.standard.stringArray(forKey: "MistypeInlineDenylist") ?? []
+        return !builtInDenylist.contains(bundleID) && !extra.contains(bundleID) && !rejected.contains(bundleID)
+    }
+
+    static func reject(bundleID: String?) {
+        if let bundleID { rejected.insert(bundleID) }
+    }
+}
+
 /// IMK adapter: translates NSEvents into `KeyEvent`s for its client's
 /// `InputSession` and draws `session.view` (marked text + panel). Every
 /// editing rule lives in the session; nothing here holds composition state.
@@ -135,6 +159,10 @@ final class MistypeInputController: IMKInputController, InputSessionHost {
     private weak var lastClient: IMKTextInput?
     /// What the client and panel show now; `render` pushes only differences.
     private var rendered = SessionView.empty
+    /// Whether `rendered` was drawn with the list inline (a style or client
+    /// change must redraw even when the view is identical).
+    private var renderedInline = false
+    private var renderedAnnotation: String?
     private let missingRange = NSRange(location: NSNotFound, length: 0)
 
     /// Raw event inlet (vChewing parity): this controller deliberately does
@@ -194,14 +222,31 @@ final class MistypeInputController: IMKInputController, InputSessionHost {
         client.insertText(text, replacementRange: missingRange)
         rendered.preedit = ""
         rendered.caret = 0
+        renderedAnnotation = nil
     }
 
     /// Push the session's view (single owner of the highlight — the panel
     /// never calls back except for clicks, so no echo loop is possible).
     private func render(_ client: IMKTextInput) {
         let view = session.view
-        guard view != rendered else { return }
-        if view.showsCandidates {
+        let bundleID = client.bundleIdentifier()
+        let style = MistypePrefs.candidateStyle
+        let inline = style == .inline || (style == .auto && InlineSupport.supported(bundleID: bundleID))
+        guard view != rendered || inline != renderedInline else { return }
+        // Inline: the list (or the mark hint) is marked text after the
+        // preedit, so there is no window at all. Not opened on purpose (plain
+        // typing) shows nothing extra: the preedit already is the top pick.
+        var annotation: (text: String, selected: Range<Int>)?
+        if inline {
+            if let mark = view.mark {
+                annotation = ("  ‹" + CandidatesPanel.hint(for: mark) + "›", 0..<0)
+            } else {
+                annotation = view.inlineList()
+            }
+        }
+        if inline {
+            candidatePanel.hidePanel()
+        } else if view.showsCandidates {
             candidatePanel.update(candidates: view.candidates,
                                   selected: view.selected,
                                   keyLabels: view.selectionKeys,
@@ -213,17 +258,50 @@ final class MistypeInputController: IMKInputController, InputSessionHost {
         } else {
             candidatePanel.hidePanel()
         }
-        if view.preedit != rendered.preedit || view.caret != rendered.caret || view.mark != rendered.mark {
+        if view.preedit != rendered.preedit || view.caret != rendered.caret || view.mark != rendered.mark
+            || inline != renderedInline || annotation?.text != renderedAnnotation {
             // Focused mode parks the caret at the start of the focused word;
             // end mode keeps it after the last unit (converted or pending raw).
             // A phrase mark is the marked text's selection, which clients
             // draw highlighted.
             let selection = view.mark.map { NSRange(location: $0.range.lowerBound, length: $0.range.count) }
                 ?? NSRange(location: view.caret, length: 0)
-            client.setMarkedText(view.preedit, selectionRange: selection,
-                                 replacementRange: missingRange)
+            let marked = markedText(view.preedit, annotation: annotation)
+            client.setMarkedText(marked, selectionRange: selection, replacementRange: missingRange)
+            // A client that does not hand our marked text back cannot show
+            // an inline list: remember it and draw the panel instead.
+            if annotation != nil, style == .auto {
+                let range = client.markedRange()
+                if range.location == NSNotFound || range.length != marked.length {
+                    Runtime.debugLog("inline rejected app=\(bundleID ?? "none") marked=\(range.length) want=\(marked.length)")
+                    InlineSupport.reject(bundleID: bundleID)
+                    renderedInline = true // force the redraw below
+                    rendered = .empty
+                    render(client)
+                    return
+                }
+            }
         }
+        renderedAnnotation = annotation?.text
+        renderedInline = inline
         rendered = view
+    }
+
+    /// Preedit plus the inline annotation as one attributed marked string:
+    /// the annotation is its own clause segment, dimmed, with the highlighted
+    /// row underlined thickly (clients that ignore attributes still show text).
+    private func markedText(_ preedit: String, annotation: (text: String, selected: Range<Int>)?) -> NSAttributedString {
+        let out = NSMutableAttributedString(string: preedit, attributes: [
+            .underlineStyle: NSUnderlineStyle.single.rawValue, .markedClauseSegment: 0])
+        guard let annotation else { return out }
+        let tail = NSMutableAttributedString(string: annotation.text, attributes: [
+            .foregroundColor: NSColor.secondaryLabelColor, .markedClauseSegment: 1])
+        if !annotation.selected.isEmpty {
+            tail.addAttributes([.underlineStyle: NSUnderlineStyle.thick.rawValue, .foregroundColor: NSColor.labelColor],
+                               range: NSRange(location: annotation.selected.lowerBound, length: annotation.selected.count))
+        }
+        out.append(tail)
+        return out
     }
 
     /// Caret rect in screen coordinates for panel placement (McBopomofo-style:

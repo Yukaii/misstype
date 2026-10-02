@@ -275,3 +275,44 @@ extension UserDictionaryTests {
         return session
     }
 }
+
+/// Inline candidate list (no window): what a host appends after the preedit.
+final class InlineListTests: XCTestCase {
+    private func view(_ candidates: [String], selected: Int = 0, keysActive: Bool = true,
+                      listOpen: Bool = true) -> SessionView {
+        SessionView(preedit: candidates[selected], caret: 0, candidates: candidates, selected: selected,
+                    selectionKeys: ["a", "s", "d", "f", "g", "h", "j", "k"], keysActive: keysActive,
+                    showsCandidates: true, listOpen: listOpen)
+    }
+
+    func testListsRowsWithKeysAndReportsTheHighlightRange() throws {
+        let list = try XCTUnwrap(view(["你好嗎", "妳好嗎", "尼好嗎"], selected: 1).inlineList())
+        XCTAssertEqual(list.text, "  ‹a 你好…  s 妳好…  d 尼好…›")
+        let units = Array(list.text.utf16)
+        XCTAssertEqual(String(decoding: units[list.selected], as: UTF16.self), "s 妳好…")
+    }
+
+    func testNoKeyLabelsUntilTheyPickAndNothingUntilTheListIsOpen() throws {
+        XCTAssertEqual(try XCTUnwrap(view(["你", "妳"], keysActive: false).inlineList()).text, "  ‹你  妳›")
+        XCTAssertNil(view(["你", "妳"], listOpen: false).inlineList())
+    }
+
+    func testLaterPagesShowTheirPageAndHighlightWithinIt() throws {
+        let rows = (0..<12).map { "字\($0)" }
+        let list = try XCTUnwrap(view(rows, selected: 9).inlineList())
+        XCTAssertTrue(list.text.hasSuffix("› 2/2"), list.text)
+        let units = Array(list.text.utf16)
+        XCTAssertEqual(String(decoding: units[list.selected], as: UTF16.self), "s 字9")
+    }
+
+    func testSessionOpensTheListOnTabOnly() {
+        let engine = InputEngine(decoder: LexiconDecoder(tsv: "ㄋㄧˇ\t你\t-5\nㄋㄧˇ\t妳\t-6"),
+                                 settings: { SessionSettings() })
+        let session = InputSession(engine: engine)
+        for key in ["s", "u", "3"] { session.handle(KeyEvent(.character(key), text: key)) }
+        XCTAssertTrue(session.view.showsCandidates)
+        XCTAssertNil(session.view.inlineList(), "typing alone does not open the list")
+        session.handle(KeyEvent(.tab, text: "\t"))
+        XCTAssertEqual(session.view.inlineList()?.text, "  ‹a 你  s 妳  d ㄋㄧˇ›")
+    }
+}

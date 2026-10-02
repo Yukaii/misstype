@@ -27,7 +27,20 @@ enum MistypePrefs {
             "MistypeJevModel": JevConfig.defaultModel,
             "MistypeShiftToggle": true,
             "MistypeAutoCommitSyllables": 24,
+            "MistypeCandidateStyle": CandidateStyle.auto.rawValue,
         ])
+    }
+
+    /// How the candidate list is shown. `auto` draws it inline after the
+    /// preedit (no window) and falls back to our panel in apps that cannot
+    /// show it (`InlineSupport`); the others force one way.
+    enum CandidateStyle: String, CaseIterable {
+        case auto, inline, panel
+    }
+
+    static var candidateStyle: CandidateStyle {
+        get { CandidateStyle(rawValue: UserDefaults.standard.string(forKey: "MistypeCandidateStyle") ?? "") ?? .auto }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: "MistypeCandidateStyle") }
     }
 
     /// Lone-Shift-tap toggles 中/英 (default on; Shift+Space always works).

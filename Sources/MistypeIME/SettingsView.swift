@@ -109,6 +109,7 @@ private struct DescribedToggle: View {
 private struct GeneralPane: View {
     @AppStorage("MistypeShiftToggle") private var shiftToggle = true
     @AppStorage("MistypeCandidateKeys") private var storedKeys = SelectionKeys.defaultKeys
+    @AppStorage("MistypeCandidateStyle") private var candidateStyle = MistypePrefs.CandidateStyle.auto.rawValue
     @State private var draft = ""
     @FocusState private var editing: Bool
 
@@ -123,6 +124,16 @@ private struct GeneralPane: View {
                     title: L("Tap Shift to switch Chinese/English"),
                     detail: L("Shift+Space always works. Turn this off if an app mishandles lone Shift presses."),
                     isOn: $shiftToggle)
+            }
+            Section(L("Candidate display")) {
+                Picker(L("Show candidates"), selection: $candidateStyle) {
+                    Text(L("Inline, window in unsupported apps")).tag(MistypePrefs.CandidateStyle.auto.rawValue)
+                    Text(L("Always inline")).tag(MistypePrefs.CandidateStyle.inline.rawValue)
+                    Text(L("Always in a window")).tag(MistypePrefs.CandidateStyle.panel.rawValue)
+                }
+                Text(L("Inline puts the list after the text you are typing, only once you open it (Tab, ↓, ← →). Terminals and apps that can't show it get a window instead."))
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Section(L("Selection keys")) {
                 HStack {
