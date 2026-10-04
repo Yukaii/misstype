@@ -9,6 +9,9 @@ Misstype is a Zhuyin (Bopomofo) input method built around two things:
 
 Everything runs locally; no network is needed. The project is still experimental: it validates the typing model in software before deciding on custom hardware.
 
+> [!IMPORTANT]
+> This project is developed entirely with LLMs, and will keep being developed, delivered and tested by LLMs. Bug reports and feature prompts are welcome, and regular contributions are very welcome too, but be prepared for them to be closed and redone from scratch XD
+
 ## How it compares
 
 Based on each project's public description (snapshot 2026-10-04, not hands-on tested). `-` means no public mention was found, not that the feature is absent.
