@@ -1,195 +1,72 @@
-# Competitor comparison and feature research
+# 競品比較與功能研究
 
-Snapshot 2026-10-04. Sources are each project's public README, release page
-or website, plus one press summary for ZingIME (its site shows only a
-tagline). Claims below are what the projects say about themselves; none were
-installed or benchmarked. Overlap between rows is expected: several projects
-share ancestry (Yahoo KeyKey/OpenVanilla, McBopomofo, libchewing).
+[繁體中文](competitors.md) | [English](competitors-en.md)
 
+資料快照：2026-10-04。以下內容整理自各專案公開的 README、發行頁面或官方網站；ZingIME 另參考一則媒體摘要。這些是專案對外宣稱的功能，未實際安裝或基準測試。`-` 代表「未找到公開說明」，不代表功能不存在。
 
-> **TODO before going public:** this page is a 2026-10-04 snapshot and must
-> be refreshed first. Re-check every release version and download size
-> (competitors ship weekly; KeyKey changed twice in one week), re-verify the
-> `-` cells in the feature matrix and the ZingIME claims (price, AI, on-disk
-> size), measure Mistype's own macOS binary and replace the "~6 MB data"
-> placeholder, cover the projects listed under "Gaps in this research", and
-> drop or soften anything we cannot source. Also confirm tone and licence
-> wording are fair to each project.
+> **發布前待辦：** 這是一份 2026-10-04 快照。重新確認每個版本、下載大小、矩陣中的 `-`、ZingIME 的價格／AI／磁碟大小，並補查「研究缺口」中的專案。無法取得來源的內容應刪除或改成保守措辭；也要確認聲調與授權描述公平準確。
 
-## Projects
+## 專案比較
 
-| | Platforms | Zhuyin engine | Mixed zh/en without switch | Learning | AI / network | Download | License / price |
+| 專案 | 平台 | 注音引擎 | 中英混輸（免切換） | 學習 | AI／網路 | 下載大小 | 授權／價格 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [Ari IME](https://github.com/kaiyasi/Ari-IME) | Linux (fcitx5), WASM core | libchewing phrase model, 11 layouts | Yes: keys show as themselves until they form a complete, toned syllable | Weighted personal dictionary | None, offline | 0.2 MB `.deb` (engine only) | GPL-3.0 |
-| [ChiaKey](https://github.com/chiakich/ChiaKey) | macOS (stable), Windows (preview), iOS (experimental core) | Yahoo KeyKey lineage, bigram model; also Cangjie, Sucheng, `.cin` | Only what Zhuyin allows inherently | Tracks user choices; imports KeyKey user dictionary | None stated | 50.2 MB macOS `.pkg` | BSD-3-Clause |
-| [Bopomix](https://github.com/lmanchu/bopomix) | macOS 13+, Apple Silicon | McBopomofo engine fork (Swift), Dachen only | Yes: letters that cannot form a syllable become English on the spot; Tab completes English (SCOWL list) | Local English-word learning | None; sentence-level AI reranking researched, not built | 6.6 MB `.dmg` | MIT |
-| [KeyKey (琦琦)](https://github.com/polobread/KeyKey/releases) | macOS 15+, Windows 11, Linux (fcitx5), iOS, Android | Yahoo 2012 codebase, 30 domain phrase libraries; also Cangjie | Not advertised | Smart phrase composition with learning | Says no network access | 38.2 MB macOS `.pkg.zip` | BSD; v1.3.1 released 2026-10-02 |
-| [ZingIME 晶晶](https://zingime.com/) | macOS, Apple Silicon | Zhuyin, 400k+ curated words | Yes (headline feature): same input state, no Caps Lock toggle; 220k-word English dictionary with Tab completion | Not stated | On-device "AI character selection" reading whole-sentence context (在/再); no cloud | 271.6 MiB `.dmg` | Paid, 14-day trial (press summary, unverified) |
-| **Mistype** (this repo) | macOS IMK, Linux fcitx5 | McBopomofo lexicon, Dachen, Swift `MistypeCore` | Yes, `mixedEnglish` (macOS default off) | Learning + user dictionary | None by default; optional Jev LLM assist, opt-in | ~6 MB of data, no model (see below) | not yet released |
+| [Ari IME](https://github.com/kaiyasi/Ari-IME) | Linux（fcitx5）、WASM 核心 | libchewing 詞組模型、11 種排列 | 有：按鍵先原樣顯示，形成完整聲調音節後才轉換 | 個人詞庫加權 | 無，離線 | 0.2 MB `.deb`（僅引擎） | GPL-3.0 |
+| [ChiaKey](https://github.com/chiakich/ChiaKey) | macOS（穩定）、Windows（預覽）、iOS（實驗核心） | Yahoo KeyKey 系列、bigram；另有倉頡、速成、`.cin` | 僅限注音本身允許的情況 | 記錄選字；可匯入 KeyKey 詞庫 | 未說明 | macOS `.pkg` 50.2 MB | BSD-3-Clause |
+| [Bopomix](https://github.com/lmanchu/bopomix) | macOS 13+、Apple Silicon | McBopomofo 引擎分支（Swift）、僅大千 | 有：不能形成音節的字母立即作英文；Tab 完成英文 | 本機英文詞學習 | 無；句級 AI 重排仍在研究 | `.dmg` 6.6 MB | MIT |
+| [KeyKey（琦琦）](https://github.com/polobread/KeyKey/releases) | macOS、Windows、Linux（fcitx5）、iOS、Android | Yahoo 2012 程式碼、30 組領域詞庫；另有倉頡 | 未宣稱 | 智慧詞組組合與學習 | 宣稱不連網 | macOS `.pkg.zip` 38.2 MB | BSD；v1.3.1（2026-10-02） |
+| [ZingIME（晶晶）](https://zingime.com/) | macOS、Apple Silicon | 注音、40 萬以上詞彙 | 有（主打功能）；同一輸入狀態可輸入中英，Tab 完成英文 | 未說明 | 裝置端「AI 選字」；無雲端（待核實） | `.dmg` 271.6 MiB | 付費、14 天試用（待核實） |
+| **Mistype（本專案）** | macOS IMK、Linux fcitx5 | McBopomofo 詞庫、大千、Swift `MistypeCore` | 有，`mixedEnglish`（macOS 預設關閉） | 學習＋使用者詞庫 | 預設無；可選 Jev LLM 輔助（需明確啟用） | 約 6 MB 資料，尚未量測二進位檔 | 尚未發布 |
 
-### Download sizes (measured 2026-10-04)
+## 技術功能矩陣
 
-Release assets read from the GitHub API (`size` field) and, for ZingIME, a
-HEAD request to its public download link (`Content-Length` 284,823,372 B =
-271.6 MiB, `ZingIME-2026100301.dmg`). Nothing was installed, so on-disk size
-after install is unknown.
+`Y`＝專案明確說明；`-`＝未找到說明；`n/a`＝不適用。
 
-| Project | Asset | Size | Notes |
-| --- | --- | --- | --- |
-| Ari IME v2.7.0 | `fcitx5-ari-ime_amd64.deb` | 0.2 MB | engine only; libchewing and its data come from the system, so not comparable. WASM core v2.6.4: 2.2 MB |
-| Bopomix v0.1.0 | `Bopomix-0.1.0.dmg` | 6.6 MB | macOS, McBopomofo-derived data and English list |
-| ChiaKey v1.2.6 | `ChiaKey-1.2.6.pkg` | 50.2 MB | macOS; Windows beta Setup.exe is 27.1 MB |
-| KeyKey v1.3.1 | macOS `.pkg.zip` | 38.2 MB | Windows x64 setup 87 MB, zip 122 MB; Linux data `.deb` 27.3 MB + fcitx5 `.deb` 0.1 MB. Grew from 37.8 / 62.6 / 23.2 MB in v1.3.0 |
-| ZingIME 2026100301 | `.dmg` | 271.6 MiB | ~41x Bopomix; the bundled model is the likely cause (inference, not measured) |
-| Mistype | no release yet | ~6 MB data, binary unmeasured | `lexicon.tsv` 4.8 MB, `english.tsv` 0.9 MB, `toneless.tsv` 0.1 MB, `Resources/` 0.14 MB |
-
-Bopomix is the fairest comparison: the same McBopomofo lexicon plus an
-English list ships in 6.6 MB, so our ~6 MB of data is in line with an IME
-that has no model.
-
-Mistype's size is the runtime data only, measured from `.cache/` and
-`Resources/` on 2026-10-04: `lexicon.tsv` 4.8 MB, `english.tsv` 0.9 MB,
-`toneless.tsv` 0.1 MB, `Resources/` 0.14 MB. The compiled macOS binary was
-not measured (this checkout builds on Linux only), so the total is a lower
-bound.
-
-## Technical feature matrix
-
-`Y` = stated by the project, `-` = not stated or not found (not proof of
-absence), `n/a` = not applicable. Unverified cells come from README/website
-text only.
-
-| Capability | Ari | ChiaKey | Bopomix | KeyKey | ZingIME | Mistype |
+| 能力 | Ari | ChiaKey | Bopomix | KeyKey | ZingIME | Mistype |
 | --- | --- | --- | --- | --- | --- | --- |
-| Zhuyin | Y | Y | Y (Dachen) | Y | Y | Y (Dachen) |
-| Other layouts (Eten, Hsu, Dvorak…) | Y (11) | - | - | - | - | - |
-| Cangjie / Sucheng / `.cin` tables | - | Y | - | Cangjie | - | - |
-| Sentence-level phrase model | libchewing | bigram | McBopomofo | Y | "AI" | lexicon DP + learning |
-| Tone optional (toneless typing) | - | - | - | - | - | Y |
-| Edit repair (transpose, neighbor, insert/delete) | - | - | - | - | - | Y |
-| Touch / coordinate-aware fuzzy | - | - | - | - | - | v1 in core, not wired to a surface |
-| Mixed zh/en, no mode switch | Y | - | Y | - | Y | Y (v1) |
-| English typo recovery | - | - | - | - | - | Y |
-| English completion (Tab) | - | - | Y | - | Y | - |
-| English word learning | - | - | Y | - | - | - |
-| Personal learning | Y | Y | Y | Y | - | Y |
-| User dictionary editor | - | Y (import) | - | Y (custom vocab) | - | Y (Shift+←/→, Settings) |
-| Syllable cursor / re-pick inside preedit | Y | - | - | - | - | Y |
-| Reconversion of committed text | Y | - | - | - | - | - |
-| Chunked auto-commit while composing | - | - | - | - | - | Y |
-| Raw trace kept / replayable | - | - | - | - | - | Y (capture side) |
-| Simplified/Traditional switch | - | - | - | Y | - | - |
-| Offline by default | Y | Y | Y | Y | Y | Y |
-| LLM / model assist | - | - | researched | - | on-device | optional, opt-in (Jev) |
+| 注音 | Y | Y | Y（大千） | Y | Y | Y（大千） |
+| 其他排列（Eten、許氏、Dvorak…） | Y（11） | - | - | - | - | - |
+| 倉頡／速成／`.cin` | - | Y | - | 倉頡 | - | - |
+| 句級詞組模型 | libchewing | bigram | McBopomofo | Y | 「AI」 | 詞庫 DP＋學習 |
+| 可省略聲調 | - | - | - | - | - | Y |
+| 編輯容錯（顛倒、鄰鍵、插入／刪除） | - | - | - | - | - | Y |
+| 觸控／座標模糊比對 | - | - | - | - | - | 核心 v1，尚未接觸控面 |
+| 中英混輸、免切換 | Y | - | Y | - | Y | Y（v1） |
+| 英文拼字修復 | - | - | - | - | - | Y |
+| 英文完成（Tab） | - | - | Y | - | Y | - |
+| 英文詞學習 | - | - | Y | - | - | - |
+| 個人學習 | Y | Y | Y | Y | - | Y |
+| 使用者詞庫編輯器 | - | Y（匯入） | - | Y（自訂詞彙） | - | Y（Shift+←/→、設定） |
+| 音節游標／組字區內重選 | Y | - | - | - | - | Y |
+| 已送出文字重新轉換 | Y | - | - | - | - | - |
+| 組字時分段自動送出 | - | - | - | - | - | Y |
+| 保留／可重放原始軌跡 | - | - | - | - | - | Y（捕捉端） |
+| 簡繁切換 | - | - | - | Y | - | - |
+| 預設離線 | Y | Y | Y | Y | Y | Y |
+| LLM／模型輔助 | - | - | 研究中 | - | 裝置端 | 可選、需明確啟用（Jev） |
 | macOS | - | Y | Y | Y | Y | Y |
-| Windows | - | preview | - | Y | - | - |
-| Linux | Y (fcitx5) | - | - | Y (fcitx5) | - | Y (fcitx5) |
-| iOS / Android | - | iOS (experimental) | - | Y / Y | - | - |
-| Portable core | WASM | - | - | - | - | C ABI + Swift core |
-| Test discipline stated | sanitizers, fuzzing, coverage | - | - | - | - | conformance C1–C13, sweeps |
-| Licence | GPL-3.0 | BSD-3 | MIT | BSD | proprietary | see repo |
+| Windows | - | 預覽 | - | Y | - | - |
+| Linux | Y（fcitx5） | - | - | Y（fcitx5） | - | Y（fcitx5） |
+| iOS／Android | - | iOS（實驗） | - | Y／Y | - | - |
+| 可攜式核心 | WASM | - | - | - | - | C ABI＋Swift 核心 |
+| 測試紀律 | sanitizer、fuzz、coverage | - | - | - | - | C1–C13、一致性與掃描 |
+| 授權 | GPL-3.0 | BSD-3 | MIT | BSD | 專有 | 見儲存庫 |
 
-## Per project
+詳細的專案分析、下載大小與「值得評估的功能」保留在[英文研究頁](competitors-en.md)。
 
-### Ari IME
+## 如何持續追蹤競品功能
 
-Fcitx5 on Linux, C++20 over libchewing. Idea: every key shows as itself
-until it forms a complete, toned syllable, so `acer螢幕` types straight
-through. Strong on layouts (11), reconversion, whole-preedit re-selection,
-and engineering hygiene (sanitizers, fuzzing). Weak spots relative to us:
-needs a tone to commit a syllable (no toneless typing), no typo repair, Linux
-only. Closest rival on Linux; the best source of ideas for the mixed-input
-rule and reconversion.
+把這頁視為可重建的研究資料，而不是永久真相。建議每個競品建立一筆追蹤記錄，至少包含：專案 URL、最後檢查日期、最新版本／發布日期、平台、功能矩陣、下載資產大小、來源連結、信心（已驗證／僅宣稱／未找到）與下一次檢查日期。
 
-### ChiaKey
+1. **版本與下載量：** 以 GitHub Releases API 或官方下載頁為主；每週檢查 release feed，每次版本變更才重測大小。把日期、資產名稱與位元組數寫入 `docs/competitor-data/` 的 TSV 或 JSON，避免只改表格文字。
+2. **功能變更：** 追蹤 README、CHANGELOG、release notes 與官方網站的 diff。新增功能先標為「待驗證」，在乾淨環境安裝後用固定的短語集做一次手動檢查，再改成「已驗證」。
+3. **可重現比較：** 維持一份不含個資的固定短語與操作腳本；只比較同一平台、同一輸入法模式、同一版本。延遲、命中率或下載大小沒有共同測量條件時，不要填入推測數字。
+4. **來源與審查：** 每個非 `-` 儲存來源 URL 與檢查日期；媒體摘要只能作線索。每月集中複核一次，刪除失效連結並把過時欄位降級為「待核實」。
+5. **候選清單：** 補查 Rime／Squirrel、vChewing、McBopomofo、Gboard 與系統注音；若要用於定位或行銷，再加入同一套矩陣與固定短語測試。
 
-Revival of Yahoo KeyKey/OpenVanilla for macOS, with a Windows TSF preview and
-an experimental iOS core. Breadth of input methods (Zhuyin, Cangjie, Sucheng,
-`.cin`) and a KeyKey user-dictionary import are its draws. Mixing English is
-only whatever Zhuyin already allows. Worth studying for the Windows TSF and
-iOS core split.
+這套流程能回答「最近誰新增了哪些能力」以及「哪些只是宣稱」；它不會把未安裝、未測量的功能誤當成事實。
 
-### Bopomix
+## 研究缺口
 
-McBopomofo fork in Swift, macOS 13+ Apple Silicon, Dachen only. Rule-based
-language detection (letters that cannot form a syllable become English),
-SCOWL English list, Tab completion and local English learning. Same
-engine and lexicon source as ours, so its mixed-input behavior is the most
-directly comparable. Sentence-level AI reranking is researched, not shipped.
-
-### KeyKey (琦琦輸入法)
-
-Maintained from Yahoo's 2012 open-source code; the widest platform spread
-(macOS, Windows, Linux, iOS, Android). 30 domain phrase libraries; says it
-makes no network connection. v1.3.1 shipped 2026-10-02, the most active
-release cadence of the five. The mobile apps are the only touch-screen
-precedent here, though nothing indicates coordinate-aware decoding.
-
-### ZingIME (晶晶輸入法)
-
-Paid macOS app, Apple Silicon, 14-day trial. Headline: mixed Chinese/English
-in one input state, plus on-device "AI" homophone correction from whole-
-sentence context, 400k+ curated words, 220k-word English dictionary, and
-English Tab completion. The 271.6 MiB download suggests the model and
-dictionaries are bundled (inference, not measured). Mixed input and context
-selection are the same ground our `MixedDecode` and Jev assist cover; the
-size and price are the contrast with our small offline lexicon.
-
-## Where Mistype stands
-
-- **Mixed input.** Ari, Bopomix and ZingIME all treat this as the main
-  selling point, so it is table stakes for the Zhuyin audience, not a
-  differentiator. Our `MixedDecode` also recovers one-letter English typos,
-  which none of the three advertise. Ari's rule (a complete toned syllable is
-  the only trigger) is simpler and deterministic; ours is a scored decision
-  and costs ~110–130 ms per keystroke on toneless mixed input. Ari is the
-  reference for whether a simpler rule loses much quality.
-- **Whole-sentence decode.** ZingIME's sentence-context homophone fix and
-  Bopomix's unbuilt "整句 AI 選字" match what the lexicon decoder plus
-  optional Jev assist already do; ours is offline-first and observable.
-- **Fuzzy input.** No project lists keyboard edit repair (transpose,
-  neighbor, tone tolerance) or any coordinate-aware touch decoding. That
-  stays our open ground, but the touch benefit is unproven until the human
-  tap-spread measurement exists.
-- **Platforms.** KeyKey and ChiaKey cover mobile today; we have macOS plus
-  Linux fcitx5 under shared conformance scenarios. Ari's WASM core is a
-  precedent for the portable-core route.
-- **Capture-first / raw trace.** None of these keep a replayable raw trace;
-  they are conventional keyboard IMEs. This is the product premise, not a
-  feature gap.
-
-## Feature ideas worth evaluating
-
-Each needs a hypothesis and a replayable check before adoption (AGENTS.md,
-working loop).
-
-1. **Tab completion for English words** (Bopomix, ZingIME). We recognise
-   English but do not complete. Experiment: top-1 completion hit rate from
-   the FrequencyWords list at 2–4 typed letters, versus keystrokes saved.
-2. **Learned English words** (Bopomix). Brand names and jargon fall outside
-   the pinned list. Needs the same opt-in and export rule as other learning.
-3. **Alternate layouts** (Ari: 11, ChiaKey: also Cangjie/Sucheng). We target
-   Dachen. Eten/Hsu cost is mostly key-to-syllable tables; check against
-   the conformance scenarios before promising it.
-4. **Domain phrase packs** (KeyKey: 30 libraries). Could be cheap lexicon
-   overlays; measure against the existing sentence set before adding data.
-5. **Reconversion of committed text** (Ari). Reopen committed Chinese for
-   re-selection; conflicts with "capture first" only if it forces choices.
-6. **Importing other user dictionaries** (ChiaKey imports KeyKey). A TSV
-   import into `user_dictionary.tsv` is small and reversible.
-7. **Whole-text candidate re-selection** (Ari). We already have a syllable
-   cursor; compare reachability and keystrokes.
-
-## Gaps in this research
-
-- ZingIME details come from a search-result summary; the press article
-  returned 403 and the site is a one-line page. Re-check before quoting.
-- Bopomix README sub-pages were unreachable (404); the tone-handling and
-  roadmap claims are from the repo front page only.
-- The matrix marks `-` where a feature was not mentioned; it can be wrong
-  in the competitors' favour. Verify a cell before using it in a claim.
-- No head-to-head typing measurements exist. Comparing latency or accuracy
-  needs the same phrase set run through each IME, which is out of scope until
-  real-typing data exists.
-- Not covered: Rime/Squirrel, vChewing, McBopomofo itself, Gboard, system
-  Zhuyin. Add them if the comparison is used for positioning.
+- ZingIME 的細節目前部分來自搜尋摘要，需重新核實。
+- Bopomix 的 README 子頁面曾無法存取，聲調處理與 roadmap 需再查。
+- 沒有跨輸入法的同場打字測量；延遲與準確率比較應等到固定短語集和真實打字資料都有後再做。
