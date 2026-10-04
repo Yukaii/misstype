@@ -114,6 +114,8 @@ app master lives in `MistypeIcon.svg`/`MistypeIcon.png`; the menu version has
 its own pixel-grid source in `MistypeMenuIcon.svg` and is exported as a hard
 edged 16×16 TIFF.
 
+**App Sandbox (macOS, decision 2026-10-04, from vChewing's design).** The IME is signed with `Resources/Mistype.entitlements`: `app-sandbox`, `network.client` (Jev only; the offline path opens no socket) and the `mach-register.global-name` exception for the IMK connection name (must equal `InputMethodConnectionName`). A sandboxed process cannot obtain a global keyboard tap, which backs the privacy stance. Consequences: `homeDirectoryForCurrentUser` resolves into `~/Library/Containers/org.mistype.inputmethod.Mistype/Data`, so the user files and the debug log live there (the paths in `cross-platform.md` §6 are container-relative); pre-sandbox files in the real home are not migrated (closed beta, never published). Anything outside the container needs a user-granted bookmark (not used yet). Unverified on a real Mac as of this entry: IMK connection, marked text, candidate panel, Jev, Settings Reveal in Finder.
+
 ## Core data contracts
 
 ```text
