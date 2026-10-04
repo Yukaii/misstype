@@ -378,10 +378,11 @@ public final class InputSession {
         // here; the toggle that opened the run (backtick, lone Shift) closes
         // it. Backspace keeps the run so a typo can be fixed without
         // re-toggling; see below.
+        // An unshifted `.` stays too (`e.g.`, `...`), not ㄡ.
         // Digits stay in the run too (`abc123`): they are text here, not
         // tone keys or Zhuyin ㄅㄉ…; Shift+digit is still the symbol layer.
         let latinLetter = latinMode && !chord
-            && (key.letterLabel != nil || (!shift && key.digitLabel != nil))
+            && (key.letterLabel != nil || (!shift && key.digitLabel != nil) || (!shift && key == .character(".")))
         if !latinLetter && key != .character("`") && key != .space && key != .backspace {
             latinMode = false
         }
@@ -631,7 +632,7 @@ public final class InputSession {
         // Shift brush leaves a stray capital in marked text instead of
         // chopping the sentence. No commit, no mode toggle either way.
         if (latinLetter || (shift && key.letterLabel != nil)),
-           text.count == 1, let char = text.first, char.isASCII, char.isLetter || (latinLetter && char.isNumber) {
+           text.count == 1, let char = text.first, char.isASCII, char.isLetter || (latinLetter && (char.isNumber || char == ".")) {
             guard composition.appendLatin(String(char)) else { return .beeped }
             refresh()
             return .handled
