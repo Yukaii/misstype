@@ -110,6 +110,7 @@ private struct GeneralPane: View {
     @AppStorage("MistypeShiftToggle") private var shiftToggle = true
     @AppStorage("MistypeAutoShowCandidates") private var autoShowCandidates = false
     @AppStorage("MistypeReturnConfirmsSelection") private var returnConfirms = true
+    @AppStorage("MistypeMixedEnglish") private var mixedEnglish = false
     @AppStorage("MistypeCandidateKeys") private var storedKeys = SelectionKeys.defaultKeys
     @State private var draft = ""
     @FocusState private var editing: Bool
@@ -133,6 +134,10 @@ private struct GeneralPane: View {
                     title: L("Return confirms the selected candidate"),
                     detail: L("On: while choosing a candidate, Return only confirms it and a second Return sends the text. Off: Return sends the text immediately."),
                     isOn: $returnConfirms)
+                DescribedToggle(
+                    title: L("Recognize English words while typing"),
+                    detail: L("Experimental. Keys that spell an English word (typos included) are offered as English without switching modes. Slower on long mixed sentences."),
+                    isOn: $mixedEnglish)
             }
             Section(L("Selection keys")) {
                 HStack {

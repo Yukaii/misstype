@@ -28,8 +28,10 @@ This repository is an experimental input device and decoder. The current goal is
   (`MixedDecode.swift`, 2026-10-04): English words and one-letter typos are
   recognized from bare keys with no false switches on 600 pure-Chinese inputs
   (English list: pinned FrequencyWords, CC BY-SA, see
-  `third_party/FrequencyWords/LICENSE.md`). Not yet wired to `InputSession`
-  (48 ms vs 18 ms per input; needs pruning before per-keystroke use). Python remains the reference for the touch semantics only; the
+  `third_party/FrequencyWords/LICENSE.md`) and is wired into `InputSession`
+  (`mixedEnglish`, macOS default off): clean English is adopted 92%, 0% of pure
+  Chinese is. Cost is the open item (toneless mixed input ~110-130 ms per
+  keystroke); real-typing quality is unmeasured. Python remains the reference for the touch semantics only; the
   "do not port" rule below applies to everything else.
 
 ## Product constraints

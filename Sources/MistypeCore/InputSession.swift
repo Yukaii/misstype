@@ -145,6 +145,13 @@ public final class InputSession {
     /// Pending keys shown raw after the live conversion: the syllable still
     /// being typed (`livePendingCut`). Empty = everything on screen converted.
     private var rawTail: [String] = []
+    /// Texts of English readings inserted by the mixed pass (see
+    /// `MixedApplication.completeTexts`): no raw tail beside them, and kept
+    /// out of the positional machinery (pins, cursor, learning, chunking).
+    private var completeTexts: Set<String> = []
+    private var showingComplete: Bool {
+        candidates.indices.contains(selected) && completeTexts.contains(candidates[selected].text)
+    }
     /// Selection mode (end-of-span list): entered with Down/Up/Tab. The
     /// cursor's focused list is selection mode too (`inSelection`). Only in
     /// it do the selection keys (`SessionSettings.candidateKeys`, home row by
@@ -260,7 +267,7 @@ public final class InputSession {
     private func commitSettledHead() -> String? {
         let limit = settings.autoCommitSyllables
         guard limit > 0, !composition.isEmpty, cursor == nil, !inSelection, symbolMenu == nil, sessionPins.isEmpty,
-              !explicitPick, candidates.indices.contains(selected) else { return nil }
+              !explicitPick, candidates.indices.contains(selected), !showingComplete else { return nil }
         let shown = candidates[selected]
         let total = shown.syllables.count
         guard total > limit, shown.unresolved == 0,
@@ -693,6 +700,7 @@ public final class InputSession {
 
     private var previewText: String {
         let converted = candidates.indices.contains(selected) ? candidates[selected].text : ""
+        if completeTexts.contains(converted) { return converted }
         return converted + rawTail.compactMap { ZhuyinKeyboard.symbols[$0] }.joined()
     }
 
@@ -720,7 +728,8 @@ public final class InputSession {
         // a "convert" key, so nothing waits for it.
         // A whole-sentence pick becomes positional pins before re-decoding,
         // so re-segmentation of the live tail cannot drop it.
-        if !keepCursor, pinnedPick != nil, selected != 0, candidates.indices.contains(selected) {
+        if !keepCursor, pinnedPick != nil, selected != 0, candidates.indices.contains(selected),
+           !completeTexts.contains(candidates[selected].text), !completeTexts.contains(candidates[0].text) {
             sessionPins.pinDifferences(of: candidates[selected], from: candidates[0])
             settledPins = UserLexicon()
         }
@@ -731,8 +740,20 @@ public final class InputSession {
                                               settled: settledPins.isEmpty ? nil : settledPins)
         rawTail = live.rawTail
         candidates = live.candidates
-        if let top = candidates.first {
+        completeTexts = []
+        if settings.mixedEnglish, let english = engine.englishLexicon,
+           let mixed = engine.decoder.applyEnglish(to: live, composition: composition, english: english,
+                                                   fuzzy: settings.fuzzyRepair,
+                                                   toneTolerance: settings.toneTolerance,
+                                                   userLexicon: engine.activeUserLexicon(settings)) {
+            candidates = mixed.candidates
+            completeTexts = mixed.completeTexts
+            engine.log("mixed adopted=\(mixed.adopted ? 1 : 0) n=\(mixed.completeTexts.count)")
+        }
+        if let top = candidates.first, !completeTexts.contains(top.text) {
             settledPins = UserLexicon.settled(from: top, keep: Self.settleDistance)
+        } else if completeTexts.contains(candidates.first?.text ?? "") {
+            settledPins = UserLexicon()
         }
         if let pin = pinnedPick, !pin.isEmpty {
             if let exact = candidates.firstIndex(where: { $0.text == pin }) {
@@ -770,7 +791,7 @@ public final class InputSession {
         // the preview never showed (user decision 2026-09-27).
         // Learning-grade: nothing left raw and an explicit pick. Anything
         // else — raw tail, separator pinning, raw fallback — never trains.
-        let learnable = !raw && rawTail.isEmpty && candidates.indices.contains(selected)
+        let learnable = !raw && rawTail.isEmpty && candidates.indices.contains(selected) && !showingComplete
         var text = raw ? composition.rawPhonetic : previewText
         if text.isEmpty {
             // Defensive: nothing rendered yet (no refresh since the last
@@ -806,6 +827,7 @@ public final class InputSession {
         composition.clear()
         candidates = []
         rawTail = []
+        completeTexts = []
         settledPins = UserLexicon()
         selecting = false
         symbolMenu = nil
@@ -838,8 +860,9 @@ public final class InputSession {
     private func focusFrame() -> FocusFrame? {
         guard candidates.indices.contains(selected) else { return nil }
         let top = candidates[selected]
-        // Unresolved (raw fallback) spans stay out: nothing to offer there.
-        guard top.unresolved == 0,
+        // Unresolved (raw fallback) spans stay out: nothing to offer there;
+        // English readings have no syllable indexes of the composition's own.
+        guard top.unresolved == 0, !completeTexts.contains(top.text),
               let end = top.alignment.last?.syllables.upperBound, end > 0,
               top.syllables.count == end else { return nil }
         return FocusFrame(syllables: top.syllables, top: top)

@@ -62,21 +62,14 @@ final class MixedSweepTests: XCTestCase {
         }.joined()
     }
 
-    func testSweep() throws {
-        let environment = ProcessInfo.processInfo.environment
-        try XCTSkipIf(environment["MISTYPE_MIXED_SWEEP"] == nil, "measurement; set MISTYPE_MIXED_SWEEP=1")
-        let decoder = try realDecoder()
-        let tsv = try String(contentsOf: root().appendingPathComponent(".cache/frequencywords/english.tsv"),
-                             encoding: .utf8)
-        let buildStarted = Date()
-        let english = EnglishLexicon(tsv: tsv)
-        let buildMillis = Date().timeIntervalSince(buildStarted) * 1000
-        XCTAssertFalse(english.isEmpty)
-        let sampleCount = environment["MISTYPE_MIXED_SAMPLES"].flatMap(Int.init) ?? 150
+    private typealias Battery = (positives: [(keys: [String], expected: String, toneless: Bool)],
+                                 typos: [(keys: [String], expected: String, toneless: Bool)],
+                                 negatives: [(keys: [String], toneless: Bool)])
 
+    private func makeBatteries(sampleCount: Int) throws -> Battery {
+        var rng = SplitMix64(state: 17)
         // Positives.
         var positives: [(keys: [String], expected: String, toneless: Bool)] = []
-        var rng = SplitMix64(state: 17)
         for _ in 0..<sampleCount {
             let pre = Self.pieces.randomElement(using: &rng)!
             let post = Self.pieces.randomElement(using: &rng)!
@@ -128,6 +121,22 @@ final class MixedSweepTests: XCTestCase {
             }
         }
 
+        return (positives, typos, negatives)
+    }
+
+    func testSweep() throws {
+        let environment = ProcessInfo.processInfo.environment
+        try XCTSkipIf(environment["MISTYPE_MIXED_SWEEP"] == nil, "measurement; set MISTYPE_MIXED_SWEEP=1")
+        let decoder = try realDecoder()
+        let tsv = try String(contentsOf: root().appendingPathComponent(".cache/frequencywords/english.tsv"),
+                             encoding: .utf8)
+        let buildStarted = Date()
+        let english = EnglishLexicon(tsv: tsv)
+        let buildMillis = Date().timeIntervalSince(buildStarted) * 1000
+        XCTAssertFalse(english.isEmpty)
+        let sampleCount = environment["MISTYPE_MIXED_SAMPLES"].flatMap(Int.init) ?? 150
+
+        let (positives, typos, negatives) = try makeBatteries(sampleCount: sampleCount)
         var out = "\nmixed typing sweep: real lexicons, \(positives.count) mixed / \(negatives.count) pure-Chinese inputs\n"
         out += "penalty |  mixed top-1 (toned / toneless) | English found | false switch (toned / toneless) | typo'd English top-1 (fuzzy on: toned / toneless; off: toned / toneless)\n"
         for penalty in Self.penalties {
@@ -176,6 +185,70 @@ final class MixedSweepTests: XCTestCase {
         }
         out += String(format: "English index build %.0f ms (%d words); decodeMixed %.1f ms vs plain decode %.1f ms per mixed input\n",
                       buildMillis, english.scores.count, millis / Double(positives.count), plain / Double(positives.count))
+        print(out)
+    }
+
+    /// The shipping path: live preview + `applyEnglish` (pruning gate, auto
+    /// margin, suggestion window), the way `InputSession.refresh` runs it.
+    func testSessionPath() throws {
+        let environment = ProcessInfo.processInfo.environment
+        try XCTSkipIf(environment["MISTYPE_MIXED_SWEEP"] == nil, "measurement; set MISTYPE_MIXED_SWEEP=1")
+        let decoder = try realDecoder()
+        let english = EnglishLexicon(tsv: try String(
+            contentsOf: root().appendingPathComponent(".cache/frequencywords/english.tsv"), encoding: .utf8))
+        let sampleCount = environment["MISTYPE_MIXED_SAMPLES"].flatMap(Int.init) ?? 150
+        let batteries = try makeBatteries(sampleCount: sampleCount)
+
+        func run(_ keys: [String]) -> (candidates: [SentenceCandidate], adopted: Bool, complete: Set<String>, ms: Double, baseMs: Double) {
+            var composition = Composition()
+            for key in keys { composition.append(key) }
+            var started = Date()
+            let live = decoder.livePreview(composition)
+            let base = Date().timeIntervalSince(started) * 1000
+            started = Date()
+            let mixed = decoder.applyEnglish(to: live, composition: composition, english: english)
+            let extra = Date().timeIntervalSince(started) * 1000
+            return (mixed?.candidates ?? live.candidates, mixed?.adopted ?? false,
+                    mixed?.completeTexts ?? [], base + extra, base)
+        }
+        func report(_ name: String, _ items: [(keys: [String], expected: String, toneless: Bool)]) -> String {
+            var line = name.padding(toLength: 22, withPad: " ", startingAt: 0)
+            for toneless in [false, true] {
+                let subset = items.filter { $0.toneless == toneless }
+                var top1 = 0, inList = 0, adopted = 0, ms = 0.0, baseMs = 0.0
+                for item in subset {
+                    let r = run(item.keys)
+                    top1 += r.candidates.first?.text == item.expected ? 1 : 0
+                    inList += r.candidates.prefix(4).contains { $0.text == item.expected } ? 1 : 0
+                    adopted += r.adopted ? 1 : 0
+                    ms += r.ms; baseMs += r.baseMs
+                }
+                let n = Double(max(subset.count, 1))
+                line += String(format: "| %@ top-1 %3.0f%%  in top-4 %3.0f%%  adopted %3.0f%%  %.0f vs %.0f ms ",
+                               toneless ? "toneless" : "toned   ", Double(top1) * 100 / n,
+                               Double(inList) * 100 / n, Double(adopted) * 100 / n, ms / n, baseMs / n)
+            }
+            return line + "\n"
+        }
+        var out = "\nsession path (livePreview + applyEnglish): \(batteries.positives.count) mixed, \(batteries.typos.count) typo'd, \(batteries.negatives.count) pure Chinese\n"
+        out += report("clean English", batteries.positives)
+        out += report("typo'd English", batteries.typos)
+        var line = "pure Chinese".padding(toLength: 22, withPad: " ", startingAt: 0)
+        for toneless in [false, true] {
+            let subset = batteries.negatives.filter { $0.toneless == toneless }
+            var adopted = 0, listed = 0, ms = 0.0, baseMs = 0.0
+            for item in subset {
+                let r = run(item.keys)
+                adopted += r.adopted ? 1 : 0
+                listed += r.complete.isEmpty ? 0 : 1
+                ms += r.ms; baseMs += r.baseMs
+            }
+            let n = Double(max(subset.count, 1))
+            line += String(format: "| %@ adopted %3.1f%%  suggested %3.1f%%  %.0f vs %.0f ms ",
+                           toneless ? "toneless" : "toned   ", Double(adopted) * 100 / n,
+                           Double(listed) * 100 / n, ms / n, baseMs / n)
+        }
+        out += line + "\n"
         print(out)
     }
 }

@@ -26,12 +26,16 @@ public struct SessionSettings: Equatable, Sendable {
     /// Return commits. Off = Return commits everything at once. The core
     /// default is the commit-at-once behavior; the macOS preference defaults on.
     public var returnConfirmsSelection: Bool
+    /// Bare keys that spell an English word (or a one-letter typo of one)
+    /// are offered as English, and adopted when clearly better than the
+    /// Chinese reading. Needs `english.tsv`; without it nothing changes.
+    public var mixedEnglish: Bool
 
     public init(fuzzyRepair: Bool = true, toneTolerance: Bool = true,
                 candidateKeys: String = SelectionKeys.defaultKeys, userLearning: Bool = true,
                 shiftToggle: Bool = true, jev: JevConfig = JevConfig(),
                 autoCommitSyllables: Int = 24, autoShowCandidates: Bool = true,
-                returnConfirmsSelection: Bool = false) {
+                returnConfirmsSelection: Bool = false, mixedEnglish: Bool = true) {
         self.fuzzyRepair = fuzzyRepair
         self.toneTolerance = toneTolerance
         self.candidateKeys = candidateKeys
@@ -41,6 +45,7 @@ public struct SessionSettings: Equatable, Sendable {
         self.autoCommitSyllables = autoCommitSyllables
         self.autoShowCandidates = autoShowCandidates
         self.returnConfirmsSelection = returnConfirmsSelection
+        self.mixedEnglish = mixedEnglish
     }
 }
 
@@ -58,6 +63,29 @@ public final class InputEngine {
     public var userLexicon: UserLexicon
     /// Where learned words persist; nil = memory only (tests, replay).
     public var userLexiconURL: URL?
+    private let englishLock = NSLock()
+    private var englishStore: EnglishLexicon?
+    /// English word list for mixed typing (`english.tsv` beside the lexicon);
+    /// nil until loaded or when the file is absent — then nothing changes.
+    public var englishLexicon: EnglishLexicon? {
+        get { englishLock.lock(); defer { englishLock.unlock() }; return englishStore }
+        set { englishLock.lock(); englishStore = newValue; englishLock.unlock() }
+    }
+
+    /// Loads `english.tsv` from the lexicon directory. The index takes a few
+    /// hundred ms to build, so by default it happens off the calling thread;
+    /// keys typed before it finishes simply skip the English pass.
+    public func loadEnglishLexicon(resourceDirectory: URL, background: Bool = true) {
+        let url = resourceDirectory.appendingPathComponent("english.tsv")
+        guard FileManager.default.fileExists(atPath: url.path) else { return }
+        let build = { [weak self] in
+            guard let tsv = try? String(contentsOf: url, encoding: .utf8) else { return }
+            self?.englishLexicon = EnglishLexicon(tsv: tsv)
+            self?.log("english words loaded")
+        }
+        if background { DispatchQueue.global(qos: .utility).async(execute: build) } else { build() }
+    }
+
     /// Words the user added on purpose (and built-in words they hid): real
     /// trie entries in `decoder`, independent of `userLearning` — an explicit
     /// dictionary is not inference. Persisted at `userDictionaryURL`.
