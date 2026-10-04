@@ -134,4 +134,4 @@ Input method engines are shaped by engineering trade-offs rather than pure super
 - **For fast blind-typing, forgiving typos, seamless English mixing, and minimal footprint → Misstype (隨打注音)**
   - **Best for**: Rapid typists who frequently omit tones, slip on adjacent keys, mix English without toggling Caps Lock, and demand real-time (< 5 ms) responsiveness in a compact (~6 MB) package.
   - **Experience**: Silent, unified error recovery with local context learning that remembers explicit picks without global noise.
-  - **Bonus reason**: And of course, being part of Yukai's circle of friends and family.
+  - **Bonus reason**: And of course, being part of Yukai's circle of friends and family—or succumbing to the author's relentless cajoling, arm-twisting, and forced beta-testing.
