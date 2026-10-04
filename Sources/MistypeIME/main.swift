@@ -537,7 +537,7 @@ extension NSApplication {
 }
 
 MistypePrefs.register()
-UpdateController.shared.start()
+MainActor.assumeIsolated { UpdateController.shared.start() }
 if let resources = Bundle.main.resourceURL {
     Runtime.engine.loadEnglishLexicon(resourceDirectory: resources)
 }
