@@ -6,11 +6,16 @@ import PackageDescription
 // MisstypeCAPI (C ABI over MisstypeCore) and CMisstype (C header) build on all platforms.
 var products: [Product] = [
     .library(name: "MisstypeCAPI", type: .dynamic, targets: ["MisstypeCAPI"]),
+    .executable(name: "misstypectl", targets: ["misstypectl"]),
 ]
 var targets: [Target] = [
     .target(name: "MisstypeCore"),
     .target(name: "CMisstype"),
     .target(name: "MisstypeCAPI", dependencies: ["MisstypeCore", "CMisstype"]),
+    .target(name: "MisstypeCtl", dependencies: ["MisstypeCore"]),
+    .executableTarget(name: "misstypectl", dependencies: ["MisstypeCtl"]),
+    .testTarget(name: "MisstypeCtlTests", dependencies: ["MisstypeCtl", "MisstypeCore"],
+                path: "tests/MisstypeCtlTests"),
     .testTarget(name: "MisstypeCoreTests", dependencies: ["MisstypeCore"],
                 path: "tests/MisstypeCoreTests"),
 ]

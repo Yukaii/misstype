@@ -511,18 +511,45 @@ scripts).
 
 ---
 
-## L7: Backlog (not scheduled)
+## L7: Settings, dictionary tools, backlog
 
-- User dictionary: no Linux editor yet (macOS has a Settings pane). The file
-  is plain text in vChewing userdata format (`詞語 注音 [權重]`, so vChewing-userdata-generator output pastes in) — edit `$XDG_DATA_HOME/misstype/user_dictionary.tsv` with any
-  editor; changes load when the next composition starts. A fcitx5 config
-  page or `misstype-dict` CLI (list / add / remove) would be the next step.
+Landed 2026-10-04 (macOS Settings parity, except Jev and About):
+
+- **Settings page**: the addon is `Configurable=True` and exposes
+  `MisstypeConfig` (`engine.cpp`), so fcitx5-configtool and the KDE/GNOME
+  input-method settings draw the page. Keys: `FuzzyRepair`, `ToneTolerance`,
+  `UserLearning`, `MixedEnglish`, `AutoShowCandidates`,
+  `ReturnConfirmsSelection`, `CandidateKeys`, `AutoCommitSyllables`; stored in
+  `~/.config/fcitx5/conf/misstype.conf`, applied to live sessions through
+  `misstype_engine_set_settings` (ABI v1 gained four appended
+  `misstype_settings` fields). Lone Shift stays with fcitx5 (`AltTriggerKeys`).
+  Covered by headless scenario LR5. The "My Dictionary" button is an
+  `ExternalOption` pointing at `misstype-dictionary-editor`; whether a given
+  configtool build launches a bare program name is **not verified** (open the
+  editor from the app menu or `misstypectl dict gui` otherwise).
+- **`misstypectl`** (Swift, `Sources/MisstypeCtl`, tests in
+  `tests/MisstypeCtlTests`): `dict list|add|remove|exclude|unexclude|check|edit|gui|path`
+  edits `user_dictionary.tsv` (vChewing userdata format, `詞語 注音 [權重]`, so
+  vChewing-userdata-generator output pastes in) line by line (comments survive) with
+  `UserDictionary`'s own validation; `config list|get|set|reset|path` edits
+  the same `misstype.conf` the page does (values validated, unknown lines
+  kept, `fcitx5-remote -r` asked to reload unless `--no-reload`).
+- **`misstype-dictionary-editor`** (GTK4, `linux/fcitx5/tools`): list, add,
+  remove, un-hide. It owns no logic, it shells out to `misstypectl dict`. The
+  reading field takes Zhuyin typed with a non-Misstype layout (typing with
+  Misstype itself would produce hanzi); marking a phrase in the IME
+  (Shift+←/→, Return) remains the easy way to add words. Built only when
+  GTK4 dev files are present; the IME needs neither tool.
+- Defaults match the core (and the conformance scenarios), not macOS's
+  `MisstypePrefs`: auto-show candidates on, Return sends at once, mixed
+  English on. Open: decide whether Linux should adopt macOS's defaults.
+
+Backlog (not scheduled):
+
 - IBus adapter over the same C ABI (GNOME's default IM framework).
 - Jev on Linux: host callbacks in the C ABI (`surrounding_text`,
   `perform`, `session_did_change`), settings, and the consent flow; privacy
   rules from `AGENTS.md` apply.
-- fcitx5 configuration (candidate keys, fuzzy repair, tone tolerance,
-  learning) mapped onto `misstype_settings`.
 - Library size (~56–71 MB): `-Xlinker --gc-sections`, strip at install, or a
   Foundation-free core.
 - Packaging: `.deb`, AUR, Flatpak (fcitx5 addon in a Flatpak runtime needs
@@ -638,6 +665,11 @@ typedef struct misstype_settings {
     int32_t user_learning;      /* default 1 */
     int32_t shift_toggle;       /* default 1; fcitx5 sets 0 (AltTriggerKeys owns Shift_L) */
     const char *candidate_keys; /* NULL = "asdfghjkl;"; sanitized like SelectionKeys.sanitize */
+    /* Appended fields. misstype_settings_default() keeps the core's behavior. */
+    int32_t auto_show_candidates;       /* default 1; 0 = panel opens on Tab/arrows only */
+    int32_t return_confirms_selection;  /* default 0; 1 = Return confirms a pick, the next Return sends */
+    int32_t mixed_english;              /* default 1; needs english.tsv, else no effect */
+    int32_t auto_commit_syllables;      /* default 24; 0 = never commit in chunks */
 } misstype_settings;
 
 misstype_settings misstype_settings_default(void);

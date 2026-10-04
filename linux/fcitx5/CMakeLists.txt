@@ -1,12 +1,13 @@
 cmake_minimum_required(VERSION 3.16)
 # The project name sets CMAKE_INSTALL_DOCDIR (share/doc/misstype).
-project(misstype VERSION 0.1 LANGUAGES CXX)
+project(misstype VERSION 0.1 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include(GNUInstallDirs)
 find_package(Fcitx5Core REQUIRED)
+find_package(Fcitx5Config REQUIRED)
 find_package(Fcitx5Utils REQUIRED)
 
 get_filename_component(MISSTYPE_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
@@ -31,7 +32,7 @@ set_target_properties(misstype-capi PROPERTIES
 add_library(misstype-fcitx5 MODULE src/engine.cpp)
 target_include_directories(misstype-fcitx5 PRIVATE "${MISSTYPE_ROOT}/Sources/CMisstype/include")
 target_compile_definitions(misstype-fcitx5 PRIVATE MISSTYPE_DATADIR="${MISSTYPE_DATADIR}")
-target_link_libraries(misstype-fcitx5 PRIVATE Fcitx5::Core Fcitx5::Utils misstype-capi)
+target_link_libraries(misstype-fcitx5 PRIVATE Fcitx5::Core Fcitx5::Config Fcitx5::Utils misstype-capi)
 set_target_properties(misstype-fcitx5 PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/src"
     BUILD_RPATH "${MISSTYPE_CAPI_DIR}"
@@ -57,6 +58,26 @@ if(EXISTS "${MISSTYPE_ROOT}/.cache/frequencywords/english.tsv")
 endif()
 install(FILES "${MISSTYPE_ROOT}/LICENSE" "${MISSTYPE_ROOT}/THIRD_PARTY_NOTICES.md" DESTINATION "${CMAKE_INSTALL_DOCDIR}")
 install(DIRECTORY "${MISSTYPE_ROOT}/third_party/" DESTINATION "${CMAKE_INSTALL_DOCDIR}/third_party")
+
+# misstypectl (settings + dictionary CLI, Swift: script/linux/build_capi.sh builds it)
+# and the GTK4 dictionary editor on top of it. Both are optional: the IME
+# itself needs neither.
+if(EXISTS "${MISSTYPE_CAPI_DIR}/misstypectl")
+    install(PROGRAMS "${MISSTYPE_CAPI_DIR}/misstypectl" DESTINATION "${CMAKE_INSTALL_BINDIR}")
+endif()
+find_package(PkgConfig QUIET)
+if(PkgConfig_FOUND)
+    pkg_check_modules(GTK4 QUIET IMPORTED_TARGET gtk4)
+endif()
+if(GTK4_FOUND)
+    add_executable(misstype-dictionary-editor tools/dictionary-editor.c)
+    target_compile_options(misstype-dictionary-editor PRIVATE -Wall -Wextra)
+    target_link_libraries(misstype-dictionary-editor PRIVATE PkgConfig::GTK4)
+    install(TARGETS misstype-dictionary-editor RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+    install(FILES data/misstype-dictionary-editor.desktop DESTINATION "${CMAKE_INSTALL_DATADIR}/applications")
+else()
+    message(STATUS "GTK4 not found: misstype-dictionary-editor not built (misstypectl dict edit still works)")
+endif()
 
 # Headless conformance tests (docs/cross-platform.md C1-C13 + delivery rules).
 find_package(Fcitx5ModuleTestFrontend REQUIRED)

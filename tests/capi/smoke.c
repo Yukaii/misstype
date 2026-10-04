@@ -455,6 +455,9 @@ void run_settings(const char *res) {
     misstype_key_result r = shift_tap(s, MISSTYPE_KEY_SHIFT_LEFT, 1, 100.1);
     ASSERT(r.mode_changed == 1 && misstype_engine_is_english(eng) == 1, "default settings: Shift tap toggles");
     misstype_settings st = misstype_settings_default();
+    ASSERT(st.auto_show_candidates == 1 && st.return_confirms_selection == 0 && st.mixed_english == 1 &&
+               st.auto_commit_syllables == 24,
+           "default settings keep the core's behavior");
     st.shift_toggle = 0;
     misstype_engine_set_settings(eng, &st);
     shift_tap(s, MISSTYPE_KEY_SHIFT_LEFT, 0, 101.0);

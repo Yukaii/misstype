@@ -2,6 +2,9 @@
 // All editing rules live in MisstypeCore's InputSession behind the C ABI in
 // misstype.h; this file only translates key events, applies key results and
 // draws the session view.
+#include <fcitx-config/configuration.h>
+#include <fcitx-config/iniparser.h>
+#include <fcitx-utils/i18n.h>
 #include <fcitx-utils/key.h>
 #include <fcitx-utils/log.h>
 #include <fcitx/addonfactory.h>
@@ -27,6 +30,26 @@
 namespace {
 
 constexpr int kPageSize = 8;
+
+/// Settings page (fcitx5-configtool, KDE/GNOME input-method settings), stored
+/// in ~/.config/fcitx5/conf/misstype.conf. Keys mirror macOS's MisstypePrefs and
+/// map onto misstype_settings; `misstypectl config` edits the same file.
+/// Defaults are the core's (what the conformance scenarios assume), so an
+/// absent file changes nothing.
+FCITX_CONFIGURATION(
+    MisstypeConfig,
+    fcitx::Option<bool> fuzzyRepair{this, "FuzzyRepair", "Repair typing mistakes", true};
+    fcitx::Option<bool> toneTolerance{this, "ToneTolerance", "Tolerate wrong tones", true};
+    fcitx::Option<bool> userLearning{this, "UserLearning", "Learn phrases you type", true};
+    fcitx::Option<bool> mixedEnglish{this, "MixedEnglish", "Recognize English words while typing", true};
+    fcitx::Option<bool> autoShowCandidates{this, "AutoShowCandidates", "Show candidates automatically", true};
+    fcitx::Option<bool> returnConfirmsSelection{this, "ReturnConfirmsSelection",
+                                                "Return confirms the selected candidate", false};
+    fcitx::Option<std::string> candidateKeys{this, "CandidateKeys", "Selection keys", "asdfghjkl;"};
+    fcitx::Option<int, fcitx::IntConstrain> autoCommitSyllables{
+        this, "AutoCommitSyllables", "Commit long input in chunks after N syllables (0 = never)", 24,
+        fcitx::IntConstrain(0, 64)};
+    fcitx::ExternalOption myDictionary{this, "MyDictionary", "My Dictionary", "misstype-dictionary-editor"};);
 
 /// Owned copy of a misstype_view; comparable so unchanged views are not redrawn.
 struct ViewSnapshot {
@@ -124,14 +147,11 @@ public:
         const std::string resources = resourcesDir();
         // NULL user lexicon path: learned phrases go to $XDG_DATA_HOME/misstype.
         engine_ = misstype_engine_new(resources.c_str(), nullptr);
+        fcitx::readAsIni(config_, kConfigPath);
         if (engine_) {
             // My words: $XDG_DATA_HOME/misstype/user_dictionary.tsv.
             misstype_engine_set_user_dictionary_path(engine_, nullptr);
-            // fcitx5 owns lone Shift (AltTriggerKeys), so the session must not
-            // also toggle 中/英 on a Shift tap.
-            misstype_settings settings = misstype_settings_default();
-            settings.shift_toggle = 0;
-            misstype_engine_set_settings(engine_, &settings);
+            applySettings();
         } else {
             // Never crash and never filter: every key passes through.
             FCITX_ERROR() << "Misstype: cannot load lexicon.tsv from " << resources;
@@ -197,6 +217,17 @@ public:
         }
     }
 
+    const fcitx::Configuration *getConfig() const override { return &config_; }
+    void setConfig(const fcitx::RawConfig &raw) override {
+        config_.load(raw, true);
+        fcitx::safeSaveAsIni(config_, kConfigPath);
+        applySettings();
+    }
+    void reloadConfig() override {
+        fcitx::readAsIni(config_, kConfigPath);
+        applySettings();
+    }
+
     void pick(fcitx::InputContext *ic, int index) {
         if (auto *state = stateFor(ic)) {
             misstype_session_pick(state->session(), index);
@@ -205,6 +236,29 @@ public:
     }
 
 private:
+    static constexpr const char *kConfigPath = "conf/misstype.conf";
+
+    /// Pushes the config into the live engine; sessions read it per key.
+    void applySettings() {
+        if (!engine_) {
+            return;
+        }
+        // fcitx5 owns lone Shift (AltTriggerKeys), so the session must not
+        // also toggle 中/英 on a Shift tap.
+        misstype_settings settings = misstype_settings_default();
+        settings.shift_toggle = 0;
+        settings.fuzzy_repair = *config_.fuzzyRepair;
+        settings.tone_tolerance = *config_.toneTolerance;
+        settings.user_learning = *config_.userLearning;
+        settings.mixed_english = *config_.mixedEnglish;
+        settings.auto_show_candidates = *config_.autoShowCandidates;
+        settings.return_confirms_selection = *config_.returnConfirmsSelection;
+        settings.auto_commit_syllables = *config_.autoCommitSyllables;
+        const std::string keys = *config_.candidateKeys; // copied by the engine during the call
+        settings.candidate_keys = keys.c_str();
+        misstype_engine_set_settings(engine_, &settings);
+    }
+
     static std::string resourcesDir() {
         const char *env = std::getenv("MISSTYPE_RESOURCES");
         return env && *env ? env : MISSTYPE_DATADIR;
@@ -365,6 +419,7 @@ private:
         ic->updateUserInterface(fcitx::UserInterfaceComponent::InputPanel);
     }
 
+    MisstypeConfig config_;
     misstype_engine *engine_ = nullptr;
     fcitx::FactoryFor<MisstypeState> stateFactory_;
     std::string text_; // backs misstype_key_event::text during one keyEvent
