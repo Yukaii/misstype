@@ -2,9 +2,28 @@
 
 [繁體中文](README.md) | **English**
 
-Misstype is an experiment in low-interference text capture: two split touch surfaces (initially simulated in software) let a user type from muscle memory without stopping to aim at precise keys or choose Chinese candidates. A phonetic trace is captured first, then reconstructed into Chinese, English, or mixed text after a pause or explicit commit.
+Misstype is a Zhuyin (Bopomofo) input method built around two things:
 
-The first target is Bopomofo (Zhuyin), with English mixing and a local decoder. The project begins as a software prototype so that interaction, decoding quality, and latency can be measured before designing hardware.
+- **Tone-optional continuous typing**: skip the tones and the per-character candidate picking. Keep typing and the whole sentence is assembled from context.
+- **Automatic typo repair**: neighboring-key slips, swapped order, and extra or missing keys are repaired toward what you meant, without affecting correct input.
+
+Everything runs locally; no network is needed. The project is still experimental: it validates the typing model in software before deciding on custom hardware.
+
+## How it compares
+
+Based on each project's public description (snapshot 2026-10-04, not hands-on tested). `-` means no public mention was found, not that the feature is absent.
+
+| | Misstype | Ari IME | ChiaKey | Bopomix | KeyKey | ZingIME |
+| --- | --- | --- | --- | --- | --- | --- |
+| Tones optional | ✓ | - | - | - | - | - |
+| Typo repair (neighbor keys, swaps, extra/missing) | ✓ | - | - | - | - | - |
+| Chinese/English mixing, no mode switch | ✓ (off by default on macOS) | ✓ | - | ✓ | - | ✓ |
+| English typo repair | ✓ | - | - | - | - | - |
+| User dictionary and learning | ✓ | ✓ | ✓ | ✓ | ✓ | - |
+| Offline by default | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Platforms | macOS, Linux | Linux | macOS, Windows (preview) | macOS | macOS, Windows, Linux, mobile | macOS |
+
+For the full comparison (platforms, licenses, download sizes) see [Competitor comparison](docs/competitors-en.md).
 
 ## Documents
 
