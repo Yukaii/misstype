@@ -2,7 +2,7 @@
 
 ## Problem
 
-Conventional touch keyboards make the user divide attention between composing and locating small, exact targets. Chinese input adds another interruption: choosing candidates while the thought is still forming. Mistype explores whether a forgiving split surface can preserve a user's learned hand motion and postpone linguistic decisions until a phrase is complete.
+Conventional touch keyboards make the user divide attention between composing and locating small, exact targets. Chinese input adds another interruption: choosing candidates while the thought is still forming. Misstype explores whether a forgiving split surface can preserve a user's learned hand motion and postpone linguistic decisions until a phrase is complete.
 
 ## Product thesis
 
@@ -212,7 +212,7 @@ lever that transfers is the *data*, not the table — a per-reading
 function-word tie fix on our unigram (the 帶/再/吃/得 class) and a
 bigram layer calibrated against our own unigram with our own held-out
 fix/steal gate. `ContextBigrams` stays as a nil-by-default seam
-(`MISTYPE_BIGRAM`/`MISTYPE_LEXICON` dev-only env hooks, byte-identical
+(`MISSTYPE_BIGRAM`/`MISSTYPE_LEXICON` dev-only env hooks, byte-identical
 decode when unset); ChiaKey data stays in `~/.cache`, never committed
 (full table is CC BY-NC; clean is ODbL, share-alike on derived DBs).
 
@@ -380,7 +380,7 @@ Falsified with `--decode --user-lexicon`: one 妳好 record flips top-1
 (#4 → #1, 9 syllables, decode stays <1 ms, offline source). v1 limits:
 pure runs only (mixed/latin/space-separated spans skip), commits with a
 pending tail skip, segment-lock heads never train, 500-entry LRU cap.
-Measure with: `MistypeIME --decode "<keys>" --user-lexicon <path>`.
+Measure with: `MisstypeIME --decode "<keys>" --user-lexicon <path>`.
 
 ### M5 roadmap — candidate window v1 landed, refinements queued
 
@@ -449,7 +449,7 @@ window out of the critical path):
    instead of committing (2026-09-29; manual check pending). Shift-hold Latin appends inline and Shift+Space
    toggles exist; collect the exact broken cases (mode indicator? CapsLock?
    toggle state after commit?) before changing behavior.
-5. Punctuation (v1+v2 landed + pin-continue): CJK table in `Sources/MistypeCore/Punctuation.swift`
+5. Punctuation (v1+v2 landed + pin-continue): CJK table in `Sources/MisstypeCore/Punctuation.swift`
    (，的那 Shift+`,`/`.`/`/`/`;`/`1`, 「」『』 on quote/bracket keys,
    、· on `\`, ； on Ctrl+`;`, —— on Shift+`-`). Zhuyin-position keys stay
    phonetic so syllable-initial ㄝㄡㄥㄤㄦ keep working; separators pin the
@@ -460,10 +460,10 @@ window out of the critical path):
    in it since 2026-10-04; see the bug note below), one commit at the end. No Shift toggle, no pause:
    `` `hello world`su3cl3 `` → `hello world你好`. Guessing is impossible by
    construction (bare keys stay Zhuyin), so `hello`-as-keys still decodes
-   Chinese — auto-detect with English scoring: measured v1 in `MistypeCore`
+   Chinese — auto-detect with English scoring: measured v1 in `MisstypeCore`
    (`decodeMixed`, see "Mixed Chinese/English without a switch" below), not
    yet wired to `InputSession`; digits-inside-latin stays future work.
-7. Preferences (v1 landed): UserDefaults-backed `MistypePrefs`
+7. Preferences (v1 landed): UserDefaults-backed `MisstypePrefs`
    (fuzzyRepair / toneTolerance / candidateKeys-reserved), read live per
    keystroke, editable from the input-menu Preferences panel or
    `defaults write`. Strict tone = explicit tones must match exactly
@@ -647,18 +647,18 @@ should be taken:
    linux-port.md). The headless suite cannot see client-side problems such as
    marked-text styling (the macOS caret bug was exactly that). Done when the
    L6 checklist passes on one X11/Wayland desktop.
-2. **Port touch/spatial fuzzy decoding to `MistypeCore`.** *(v1 and
+2. **Port touch/spatial fuzzy decoding to `MisstypeCore`.** *(v1 and
    the lattice version landed 2026-10-04, see "Touch fuzzy port" below; open:
    wiring into `InputSession`/a touch surface, fixed-cost floor.)* Coordinate-aware neighbor hypotheses from raw `(x, y)`, the
    versioned `full-split-1` layout and the `tools/noise.py` jitter measurements
-   started in `src/mistype` (M2/M3); the layout, mapper and a beam-based
-   `decodeTouch` now live in `Sources/MistypeCore/Touch.swift`.
+   started in `src/misstype` (M2/M3); the layout, mapper and a beam-based
+   `decodeTouch` now live in `Sources/MisstypeCore/Touch.swift`.
 3. **Measure against a conventional keyboard.** *(Break-even target computed
    2026-10-04, see "Keyboard comparison" above: taps must spread within
    ~0.07-0.10; the human tap-spread measurement is what is missing.)* The gate in AGENTS.md for any
    hardware work: task completion time, backspaces, interruptions (see
    Measures), on the Swift decoder.
-4. **Linux user-dictionary editor.** The file is plain text; a `mistype-dict`
+4. **Linux user-dictionary editor.** The file is plain text; a `misstype-dict`
    command (list / add / remove) or an fcitx5 config page. Low risk.
 5. **Personalization from use (direction, not started).** Per-key tap
    distributions learned from confirmed taps (a 2-D Gaussian per key replaces
@@ -679,11 +679,11 @@ should be taken:
 **Parked: porting the core to Rust (decision 2026-10-02: stay on Swift for
 now).** Revisit when a target Swift serves badly is real — web (wasm),
 Android, Windows, or a mobile keyboard with a tight memory limit — or when the
-~71 MB static Foundation in `libMistypeCAPI.so` hurts distribution. Go was
+~71 MB static Foundation in `libMisstypeCAPI.so` hurts distribution. Go was
 rejected (runtime and GC inside IME/mobile processes; the gain over Swift is
 mostly a size win, not speed). Zig is the lightweight alternative (tiny
 toolchain, fast builds, native C ABI) but pre-1.0. Notes for whoever does it:
-- Cheap checks first, in Swift: drop full Foundation from `MistypeCore`
+- Cheap checks first, in Swift: drop full Foundation from `MisstypeCore`
   (`FoundationEssentials`) and re-measure the Linux library size; profile
   `tools/bench.py` / `tools/session_latency.py` (p95 for a 25-syllable
   sentence) before blaming the language.
@@ -692,7 +692,7 @@ toolchain, fast builds, native C ABI) but pre-1.0. Notes for whoever does it:
   run on the real lexicon; require identical top candidates on the fixtures
   and a clear latency win before porting `InputSession`.
 - The contract that makes a port safe already exists: the C ABI
-  (`mistype.h`) and conformance scenarios C1–C13 are language-neutral, and
+  (`misstype.h`) and conformance scenarios C1–C13 are language-neutral, and
   the fcitx5 addon would not change. Alignment, caret and mark ranges are
   UTF-16 offsets (macOS marked text), so a UTF-8 language needs explicit
   conversion at those points.
@@ -710,7 +710,7 @@ only; AGENTS.md).
 
 `TouchLayout` (`full-split-1`, same table as `touch.py`), `TouchMapper`
 (distance-ranked neighbors, weight `max(0.1, 1 - 1.5d)`) and
-`LexiconDecoder.decodeTouch` landed in `MistypeCore`. Mapper parity with Python
+`LexiconDecoder.decodeTouch` landed in `MisstypeCore`. Mapper parity with Python
 is locked by golden values from `nearest_key` (`TouchTests`); the recorded
 `touch-*.jsonl` fixtures replay to the same keys and decode to 你好 / 早上好.
 Design: a beam of at most 16 key sequences per phrase, each charged
@@ -781,7 +781,7 @@ the 29-tap probe, so the default stays 4. (3) Cost has a fixed floor: the
 combos when the nearest-key reading is clean and the tap is well inside its
 key. (4) 29 taps at r >= 0.12 is still out of reach; that is a limit of the
 evidence (each tap is 1 of ~5 keys, errors compound), not of the search.
-Run: `MISTYPE_TOUCH_SWEEP=1 swift test -c release -Xswiftc -enable-testing
+Run: `MISSTYPE_TOUCH_SWEEP=1 swift test -c release -Xswiftc -enable-testing
 --filter TouchNoiseSweepTests` (needs `python3 script/prepare_lexicon.py`
 first; knobs in the test's header comment).
 
@@ -832,7 +832,7 @@ and over SCOWL because SCOWL has no counts and needs a build). 46,717
 lowercase a-z words after filtering; `script/prepare_lexicon.py` writes
 `.cache/frequencywords/english.tsv` (never committed).
 
-Design (`Sources/MistypeCore/MixedDecode.swift`): candidate English spans are
+Design (`Sources/MisstypeCore/MixedDecode.swift`): candidate English spans are
 substrings (>= 3 letters) of consecutive letter keys that spell a word, or
 sit one edit (substitution, insertion, deletion, adjacent swap) from a word
 of >= 5 letters (symmetric-delete index). Every non-overlapping subset of up
@@ -879,7 +879,7 @@ second when within 8 below it (`suggestWindow`), and absent otherwise. The
 word list loads off-thread (`InputEngine.loadEnglishLexicon`, ~330 ms index)
 from `english.tsv` beside the lexicon; no file, no change. Setting:
 `SessionSettings.mixedEnglish` (core/Linux default on when the file exists,
-macOS `MistypeMixedEnglish` default **off**, Settings toggle "Recognize English
+macOS `MisstypeMixedEnglish` default **off**, Settings toggle "Recognize English
 words while typing"). Bare Zhuyin/tone/space keys only: once a latin run or
 punctuation is in the composition the pass stays out. English readings are
 "complete" candidates (`completeTexts`): they show no raw tail and are kept
@@ -914,7 +914,7 @@ Not done: a Linux conformance scenario (the C1-C13 harness has no word list
 installed, so the fcitx5 suite is unaffected; coverage is `MixedSessionTests`);
 real-typing quality, which needs actual mixed text typed by a person.
 
-Run: `MISTYPE_MIXED_SWEEP=1 swift test -c release -Xswiftc -enable-testing
+Run: `MISSTYPE_MIXED_SWEEP=1 swift test -c release -Xswiftc -enable-testing
 --filter MixedSweepTests` after `python3 script/prepare_lexicon.py`.
 
 ### Digits inside a latin run (2026-10-04, user-reported bug)
@@ -987,4 +987,4 @@ Competitor comparison and feature ideas: [`competitors.md`](competitors.md).
 - How should Latin text, numbers, punctuation, and code tokens interrupt a Zhuyin span?
 - What local model size meets the latency budget on the target device?
 
-- Settings window (landed 2026-09-29): the 360pt utility panel became a full `SettingsWindow` (SwiftUI, sidebar: General / Decoding / Learning / Jev Assist / About; controls bind to the same `Mistype*` UserDefaults keys). UI strings go through `L()` with English keys and `Resources/{zh-Hant,zh-Hans,ja}.lproj/Localizable.strings`, following the system language; `tools/check_localizations.py` fails on missing or stale keys. Manual check pending: language switch, Jev consent alert, Clear learned phrases.
+- Settings window (landed 2026-09-29): the 360pt utility panel became a full `SettingsWindow` (SwiftUI, sidebar: General / Decoding / Learning / Jev Assist / About; controls bind to the same `Misstype*` UserDefaults keys). UI strings go through `L()` with English keys and `Resources/{zh-Hant,zh-Hans,ja}.lproj/Localizable.strings`, following the system language; `tools/check_localizations.py` fails on missing or stale keys. Manual check pending: language switch, Jev consent alert, Clear learned phrases.

@@ -1,10 +1,10 @@
 import json
 import unittest
 
-from mistype.models import RawEvent
-from mistype.phonetic import KEY_TO_ZHUYIN
-from mistype.normalize import normalize_events
-from mistype.touch import (
+from misstype.models import RawEvent
+from misstype.phonetic import KEY_TO_ZHUYIN
+from misstype.normalize import normalize_events
+from misstype.touch import (
     LAYOUT_VERSION,
     SPATIAL_NEIGHBOR_COUNT,
     key_position,
@@ -15,7 +15,7 @@ from mistype.touch import (
     touch_move,
     touch_up,
 )
-from mistype.touch_session import TouchSession
+from misstype.touch_session import TouchSession
 
 
 class TouchLayoutTests(unittest.TestCase):

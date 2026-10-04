@@ -13,29 +13,29 @@ class PackagingMetadataTests(unittest.TestCase):
             info = plistlib.load(handle)
 
         self.assertEqual(info["CFBundleDisplayName"], "Misstype")
-        self.assertEqual(info["tsInputMethodIconFileKey"], "MistypeMenuIcon.tiff")
+        self.assertEqual(info["tsInputMethodIconFileKey"], "MisstypeMenuIcon.tiff")
         self.assertTrue(info["LSHasLocalizedDisplayName"])
 
         mode = info["ComponentInputModeDict"]["tsInputModeListKey"][
-            "org.mistype.inputmethod.Mistype.Zhuyin"
+            "org.misstype.inputmethod.Misstype.Zhuyin"
         ]
-        self.assertEqual(mode["tsInputModeMenuIconFileKey"], "MistypeMenuIcon.tiff")
-        self.assertEqual(mode["tsInputModePaletteIconFileKey"], "MistypeMenuIcon.tiff")
+        self.assertEqual(mode["tsInputModeMenuIconFileKey"], "MisstypeMenuIcon.tiff")
+        self.assertEqual(mode["tsInputModePaletteIconFileKey"], "MisstypeMenuIcon.tiff")
 
-        icon = ROOT / "Resources" / "MistypeIcon.png"
+        icon = ROOT / "Resources" / "MisstypeIcon.png"
         self.assertTrue(icon.is_file())
         self.assertGreater(icon.stat().st_size, 0)
-        svg = ROOT / "Resources" / "MistypeIcon.svg"
+        svg = ROOT / "Resources" / "MisstypeIcon.svg"
         self.assertTrue(svg.is_file())
         svg_text = svg.read_text()
         self.assertIn('viewBox="0 0 16 16"', svg_text)
         self.assertIn('#262C34', svg_text)
-        menu_svg = ROOT / "Resources" / "MistypeMenuIcon.svg"
+        menu_svg = ROOT / "Resources" / "MisstypeMenuIcon.svg"
         self.assertTrue(menu_svg.is_file())
         menu_svg_text = menu_svg.read_text()
         self.assertIn('viewBox="0 0 22 16"', menu_svg_text)
         self.assertIn('shape-rendering="crispEdges"', menu_svg_text)
-        menu_icon = ROOT / "Resources" / "MistypeMenuIcon.tiff"
+        menu_icon = ROOT / "Resources" / "MisstypeMenuIcon.tiff"
         self.assertTrue(menu_icon.is_file())
         self.assertGreater(menu_icon.stat().st_size, 0)
         try:
@@ -49,14 +49,14 @@ class PackagingMetadataTests(unittest.TestCase):
         self.assertIn("pixelHeight: 16", dimensions)
 
         for locale, expected in {
-            "en.lproj": "Mistype Bopomofo",
+            "en.lproj": "Misstype Bopomofo",
             "zh-Hant.lproj": "隨打注音",
             "zh-Hans.lproj": "随打注音",
             "ja.lproj": "随打注音",
         }.items():
             strings = (ROOT / "Resources" / locale / "InfoPlist.strings").read_text()
             self.assertIn(
-                f'"org.mistype.inputmethod.Mistype.Zhuyin" = "{expected}";',
+                f'"org.misstype.inputmethod.Misstype.Zhuyin" = "{expected}";',
                 strings,
             )
 

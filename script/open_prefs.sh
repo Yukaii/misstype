@@ -4,10 +4,10 @@ swift -e '
 import Foundation
 
 DistributedNotificationCenter.default().postNotificationName(
-    NSNotification.Name("org.mistype.openPreferences"),
+    NSNotification.Name("org.misstype.openPreferences"),
     object: nil,
     userInfo: nil,
     deliverImmediately: true
 )
 '
-echo "Sent openPreferences notification to MistypeIME."
+echo "Sent openPreferences notification to MisstypeIME."

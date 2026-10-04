@@ -2,16 +2,16 @@ import time
 import unittest
 from threading import Event, Thread
 
-from mistype.adapters import (
+from misstype.adapters import (
     DecoderProtocol,
     StubModelAdapter,
     AdapterRunner,
     decode_with_fallback,
 )
-from mistype.decoder import OfflineDecoder
-from mistype.models import DecodeContext, RawEvent
-from mistype.normalize import normalize_events
-from mistype.session import SessionCoordinator
+from misstype.decoder import OfflineDecoder
+from misstype.models import DecodeContext, RawEvent
+from misstype.normalize import normalize_events
+from misstype.session import SessionCoordinator
 
 
 def ni_hao_events():

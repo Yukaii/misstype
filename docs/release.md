@@ -8,13 +8,13 @@ checked.
 
 | Question | Choice | Why |
 |---|---|---|
-| Install location | `~/Library/Input Methods/MistypeIME.app`, per user | No admin password at install, and the bundle stays user-writable so Sparkle updates in place without an authorization prompt on every release. McBopomofo and vChewing install this way; Squirrel, ChiaKey and KeyKey use a system `.pkg` and `/Library/Input Methods`. |
-| Installer | `Install Misstype.app` inside a DMG (`MistypeInstaller` target) | Same steps as `script/install_ime.sh`, double-clickable, localized (en/zh-Hant/zh-Hans/ja). The IME is copied by our own process, so the installed copy carries no quarantine flag. |
+| Install location | `~/Library/Input Methods/MisstypeIME.app`, per user | No admin password at install, and the bundle stays user-writable so Sparkle updates in place without an authorization prompt on every release. McBopomofo and vChewing install this way; Squirrel, ChiaKey and KeyKey use a system `.pkg` and `/Library/Input Methods`. |
+| Installer | `Install Misstype.app` inside a DMG (`MisstypeInstaller` target) | Same steps as `script/install_ime.sh`, double-clickable, localized (en/zh-Hant/zh-Hans/ja). The IME is copied by our own process, so the installed copy carries no quarantine flag. |
 | Updates | Sparkle 2 in the IME, feed on GitHub Releases | Industry standard, EdDSA-signed archives independent of Apple signing. |
 
 ## Sandbox interaction
 
-The IME is sandboxed (`Resources/Mistype.entitlements`, architecture.md).
+The IME is sandboxed (`Resources/Misstype.entitlements`, architecture.md).
 For Sparkle that means: `Installer.xpc` stays in the bundle and is signed
 by `sign_bundle.sh`, `Downloader.xpc` is removed (the app already holds
 `network.client`), `SUEnableInstallerLauncherService` is on, and the
@@ -22,11 +22,11 @@ entitlements add the `mach-lookup` exceptions `<bundle id>-spki` / `-spks`.
 The installer app itself is **not** sandboxed (it must write to the real
 `~/Library/Input Methods`); the IME's user data lives in its container, so
 an uninstaller would have to clear
-`~/Library/Containers/org.mistype.inputmethod.Mistype`.
+`~/Library/Containers/org.misstype.inputmethod.Misstype`.
 
 ## What the installer does
 
-1. Copies the bundled `MistypeIME.app` next to the target, stops a running
+1. Copies the bundled `MisstypeIME.app` next to the target, stops a running
    copy (terminate, then force), swaps it in atomically.
 2. `lsregister -f`, restarts `TextInputMenuAgent`/`TextInputSwitcher`.
 3. `TISRegisterInputSource`; on a **first install** also enables the sources.
@@ -37,7 +37,19 @@ an uninstaller would have to clear
    settings. It never launches the IME by hand (see `install_ime.sh`).
 
 `Install Misstype.app --yes` skips the dialogs and prints the outcome.
-It warns when an older `/Library/Input Methods/MistypeIME.app` exists.
+It warns when an older `/Library/Input Methods/MisstypeIME.app` exists.
+
+## Rename: Mistype → Misstype (decision 2026-10-04)
+
+The product is Misstype (隨打注音). Until now only display text said so while
+every identifier said `Mistype`; the two are unified, including the bundle id
+(`org.misstype.inputmethod.Misstype`, connection name `…Misstype_Connection`),
+Swift modules, C ABI (`misstype_*`, `misstype.h`), the Python package and the
+Linux addon. Consequences: an install of v0.0.1 (old bundle id) is a different
+app to macOS and Sparkle, so it cannot update itself in place — reinstall from
+the new DMG; its sandbox container, preferences and `user_dictionary.tsv` stay
+under the old id and are not migrated (copy the dictionary over by hand).
+Linux data moves from `~/.local/share/mistype` to `~/.local/share/misstype`.
 
 ## Updates
 
@@ -78,7 +90,7 @@ git tag v0.2.0 && git push origin v0.2.0      # CI: test, package, publish
 ./script/package_release.sh 0.2.0             # same thing locally, into dist/
 ```
 
-Artifacts: `Misstype-<v>.dmg`, `MistypeIME-<v>.zip` (the Sparkle archive),
+Artifacts: `Misstype-<v>.dmg`, `MisstypeIME-<v>.zip` (the Sparkle archive),
 `appcast.xml`, `.sha256` files. Tags containing `-` are prereleases and are
 skipped by `latest`, so they never reach existing installs.
 
@@ -111,7 +123,7 @@ Verified 2026-10-04 on macOS 27 (arm64 host, ad-hoc signed, local feed on
   production Sparkle public key and the GitHub feed URL are embedded; a
   quarantined copy of the DMG is accepted by Gatekeeper.
 - A process TIS launched while the installer was swapping the bundle never
-  started its updater (`.MistypeIME.installing` path); restarting it fixed
+  started its updater (`.MisstypeIME.installing` path); restarting it fixed
   it. Not reproduced on purpose; watch for it.
 
 ## Unverified (check before the first public release)
@@ -127,7 +139,7 @@ Verified 2026-10-04 on macOS 27 (arm64 host, ad-hoc signed, local feed on
 
 ## Not done
 
-- Uninstaller (remove the bundle, `MistypeSourceTool disable`, optionally the
+- Uninstaller (remove the bundle, `MisstypeSourceTool disable`, optionally the
   user data under the container).
 - Delta updates, release channels, downgrade protection beyond Sparkle's
   build-number comparison.

@@ -10,9 +10,9 @@ python3 script/prepare_lexicon.py
 script/linux/build_capi.sh
 BIN_DIR=$(cat build/capi/libdir)
 
-cc -std=c11 -Wall -Wextra -Werror -ISources/CMistype/include tests/capi/smoke.c \
-    -L"$BIN_DIR" -lMistypeCAPI -Wl,-rpath,"$BIN_DIR" -o build/capi/smoke
+cc -std=c11 -Wall -Wextra -Werror -ISources/CMisstype/include tests/capi/smoke.c \
+    -L"$BIN_DIR" -lMisstypeCAPI -Wl,-rpath,"$BIN_DIR" -o build/capi/smoke
 
 cmake -S linux/fcitx5 -B build/fcitx5 \
-    -DMISTYPE_CAPI_DIR="$BIN_DIR" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
+    -DMISSTYPE_CAPI_DIR="$BIN_DIR" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
 cmake --build build/fcitx5 -j"$(nproc)"

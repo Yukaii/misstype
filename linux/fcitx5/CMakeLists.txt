@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
-# The project name sets CMAKE_INSTALL_DOCDIR (share/doc/mistype).
-project(mistype VERSION 0.1 LANGUAGES CXX)
+# The project name sets CMAKE_INSTALL_DOCDIR (share/doc/misstype).
+project(misstype VERSION 0.1 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -9,66 +9,66 @@ include(GNUInstallDirs)
 find_package(Fcitx5Core REQUIRED)
 find_package(Fcitx5Utils REQUIRED)
 
-get_filename_component(MISTYPE_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
+get_filename_component(MISSTYPE_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
 
-# Directory holding libMistypeCAPI.so (built by script/linux/build_capi.sh).
-set(MISTYPE_CAPI_DIR "" CACHE PATH "Directory containing libMistypeCAPI.so")
-if(NOT EXISTS "${MISTYPE_CAPI_DIR}/libMistypeCAPI.so")
-    message(FATAL_ERROR "Set -DMISTYPE_CAPI_DIR=<dir containing libMistypeCAPI.so> (script/linux/build_capi.sh)")
+# Directory holding libMisstypeCAPI.so (built by script/linux/build_capi.sh).
+set(MISSTYPE_CAPI_DIR "" CACHE PATH "Directory containing libMisstypeCAPI.so")
+if(NOT EXISTS "${MISSTYPE_CAPI_DIR}/libMisstypeCAPI.so")
+    message(FATAL_ERROR "Set -DMISSTYPE_CAPI_DIR=<dir containing libMisstypeCAPI.so> (script/linux/build_capi.sh)")
 endif()
 # Resources installed by `cmake --install` (script/prepare_lexicon.py output).
-set(MISTYPE_LEXICON_DIR "${MISTYPE_ROOT}/.cache/mcbopomofo" CACHE PATH "Directory with lexicon.tsv and toneless.tsv")
+set(MISSTYPE_LEXICON_DIR "${MISSTYPE_ROOT}/.cache/mcbopomofo" CACHE PATH "Directory with lexicon.tsv and toneless.tsv")
 
-set(MISTYPE_DATADIR "${CMAKE_INSTALL_FULL_DATADIR}/mistype")
-set(MISTYPE_CAPI_INSTALL_DIR "${CMAKE_INSTALL_FULL_LIBDIR}/mistype")
+set(MISSTYPE_DATADIR "${CMAKE_INSTALL_FULL_DATADIR}/misstype")
+set(MISSTYPE_CAPI_INSTALL_DIR "${CMAKE_INSTALL_FULL_LIBDIR}/misstype")
 
-add_library(mistype-capi SHARED IMPORTED)
-set_target_properties(mistype-capi PROPERTIES
-    IMPORTED_LOCATION "${MISTYPE_CAPI_DIR}/libMistypeCAPI.so"
-    IMPORTED_SONAME "libMistypeCAPI.so")
+add_library(misstype-capi SHARED IMPORTED)
+set_target_properties(misstype-capi PROPERTIES
+    IMPORTED_LOCATION "${MISSTYPE_CAPI_DIR}/libMisstypeCAPI.so"
+    IMPORTED_SONAME "libMisstypeCAPI.so")
 
-# The addon: libmistype-fcitx5.so
-add_library(mistype-fcitx5 MODULE src/engine.cpp)
-target_include_directories(mistype-fcitx5 PRIVATE "${MISTYPE_ROOT}/Sources/CMistype/include")
-target_compile_definitions(mistype-fcitx5 PRIVATE MISTYPE_DATADIR="${MISTYPE_DATADIR}")
-target_link_libraries(mistype-fcitx5 PRIVATE Fcitx5::Core Fcitx5::Utils mistype-capi)
-set_target_properties(mistype-fcitx5 PROPERTIES
+# The addon: libmisstype-fcitx5.so
+add_library(misstype-fcitx5 MODULE src/engine.cpp)
+target_include_directories(misstype-fcitx5 PRIVATE "${MISSTYPE_ROOT}/Sources/CMisstype/include")
+target_compile_definitions(misstype-fcitx5 PRIVATE MISSTYPE_DATADIR="${MISSTYPE_DATADIR}")
+target_link_libraries(misstype-fcitx5 PRIVATE Fcitx5::Core Fcitx5::Utils misstype-capi)
+set_target_properties(misstype-fcitx5 PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/src"
-    BUILD_RPATH "${MISTYPE_CAPI_DIR}"
-    INSTALL_RPATH "${MISTYPE_CAPI_INSTALL_DIR}")
+    BUILD_RPATH "${MISSTYPE_CAPI_DIR}"
+    INSTALL_RPATH "${MISSTYPE_CAPI_INSTALL_DIR}")
 
 # Addon and input-method configs, laid out like fcitx5's data dir so the
 # headless tests can point setupTestingEnvironment at build/data.
-configure_file(data/addon/mistype.conf.in "${CMAKE_BINARY_DIR}/data/addon/mistype.conf" @ONLY)
-configure_file(data/inputmethod/mistype.conf "${CMAKE_BINARY_DIR}/data/inputmethod/mistype.conf" COPYONLY)
+configure_file(data/addon/misstype.conf.in "${CMAKE_BINARY_DIR}/data/addon/misstype.conf" @ONLY)
+configure_file(data/inputmethod/misstype.conf "${CMAKE_BINARY_DIR}/data/inputmethod/misstype.conf" COPYONLY)
 
-install(TARGETS mistype-fcitx5 LIBRARY DESTINATION "${FCITX_INSTALL_ADDONDIR}")
-install(PROGRAMS "${MISTYPE_CAPI_DIR}/libMistypeCAPI.so" DESTINATION "${CMAKE_INSTALL_LIBDIR}/mistype")
-install(FILES "${CMAKE_BINARY_DIR}/data/addon/mistype.conf" DESTINATION "${FCITX_INSTALL_PKGDATADIR}/addon")
-install(FILES "${CMAKE_BINARY_DIR}/data/inputmethod/mistype.conf" DESTINATION "${FCITX_INSTALL_PKGDATADIR}/inputmethod")
+install(TARGETS misstype-fcitx5 LIBRARY DESTINATION "${FCITX_INSTALL_ADDONDIR}")
+install(PROGRAMS "${MISSTYPE_CAPI_DIR}/libMisstypeCAPI.so" DESTINATION "${CMAKE_INSTALL_LIBDIR}/misstype")
+install(FILES "${CMAKE_BINARY_DIR}/data/addon/misstype.conf" DESTINATION "${FCITX_INSTALL_PKGDATADIR}/addon")
+install(FILES "${CMAKE_BINARY_DIR}/data/inputmethod/misstype.conf" DESTINATION "${FCITX_INSTALL_PKGDATADIR}/inputmethod")
 install(FILES
-    "${MISTYPE_LEXICON_DIR}/lexicon.tsv"
-    "${MISTYPE_LEXICON_DIR}/toneless.tsv"
-    "${MISTYPE_ROOT}/Resources/local_phrases.tsv"
-    DESTINATION "${CMAKE_INSTALL_DATADIR}/mistype")
+    "${MISSTYPE_LEXICON_DIR}/lexicon.tsv"
+    "${MISSTYPE_LEXICON_DIR}/toneless.tsv"
+    "${MISSTYPE_ROOT}/Resources/local_phrases.tsv"
+    DESTINATION "${CMAKE_INSTALL_DATADIR}/misstype")
 # Optional English word list (mixed typing); absent = feature off. CC BY-SA, see THIRD_PARTY_NOTICES.md.
-if(EXISTS "${MISTYPE_ROOT}/.cache/frequencywords/english.tsv")
-    install(FILES "${MISTYPE_ROOT}/.cache/frequencywords/english.tsv" DESTINATION "${CMAKE_INSTALL_DATADIR}/mistype")
+if(EXISTS "${MISSTYPE_ROOT}/.cache/frequencywords/english.tsv")
+    install(FILES "${MISSTYPE_ROOT}/.cache/frequencywords/english.tsv" DESTINATION "${CMAKE_INSTALL_DATADIR}/misstype")
 endif()
-install(FILES "${MISTYPE_ROOT}/LICENSE" "${MISTYPE_ROOT}/THIRD_PARTY_NOTICES.md" DESTINATION "${CMAKE_INSTALL_DOCDIR}")
-install(DIRECTORY "${MISTYPE_ROOT}/third_party/" DESTINATION "${CMAKE_INSTALL_DOCDIR}/third_party")
+install(FILES "${MISSTYPE_ROOT}/LICENSE" "${MISSTYPE_ROOT}/THIRD_PARTY_NOTICES.md" DESTINATION "${CMAKE_INSTALL_DOCDIR}")
+install(DIRECTORY "${MISSTYPE_ROOT}/third_party/" DESTINATION "${CMAKE_INSTALL_DOCDIR}/third_party")
 
 # Headless conformance tests (docs/cross-platform.md C1-C13 + delivery rules).
 find_package(Fcitx5ModuleTestFrontend REQUIRED)
 enable_testing()
-add_executable(testmistype test/testmistype.cpp)
-target_link_libraries(testmistype PRIVATE Fcitx5::Core Fcitx5::Utils Fcitx5::Module::TestFrontend)
-target_compile_definitions(testmistype PRIVATE
+add_executable(testmisstype test/testmisstype.cpp)
+target_link_libraries(testmisstype PRIVATE Fcitx5::Core Fcitx5::Utils Fcitx5::Module::TestFrontend)
+target_compile_definitions(testmisstype PRIVATE
     TESTING_BINARY_DIR="${CMAKE_BINARY_DIR}"
     FCITX_TESTING_ADDONDIR="${FCITX_INSTALL_ADDONDIR}"
     FCITX_TESTING_DATADIR="${FCITX_INSTALL_PKGDATADIR}/testing")
-add_dependencies(testmistype mistype-fcitx5)
-add_test(NAME testmistype COMMAND testmistype)
+add_dependencies(testmisstype misstype-fcitx5)
+add_test(NAME testmisstype COMMAND testmisstype)
 # Pass/fail is the exit code: a failed FCITX_ASSERT or a wrong commit aborts.
-set_tests_properties(testmistype PROPERTIES
-    ENVIRONMENT "MISTYPE_RESOURCES=${MISTYPE_ROOT}/tests/fixtures/lexicon;XDG_DATA_HOME=${CMAKE_BINARY_DIR}/xdg-data")
+set_tests_properties(testmisstype PROPERTIES
+    ENVIRONMENT "MISSTYPE_RESOURCES=${MISSTYPE_ROOT}/tests/fixtures/lexicon;XDG_DATA_HOME=${CMAKE_BINARY_DIR}/xdg-data")

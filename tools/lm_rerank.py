@@ -29,7 +29,7 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-APP_BIN = ROOT / "dist/MistypeIME.app/Contents/MacOS/MistypeIME"
+APP_BIN = ROOT / "dist/MisstypeIME.app/Contents/MacOS/MisstypeIME"
 SERVER = "http://localhost:8081"
 FLOOR = -12.0
 

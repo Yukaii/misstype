@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>com.apple.security.app-sandbox</key><true/>
+<!-- Jev Assist only (opt-in, off by default); the offline path never opens a socket. -->
+<key>com.apple.security.network.client</key><true/>
+<!-- Settings → My Dictionary → Import…: read the one file the user picks in the open panel. -->
+<key>com.apple.security.files.user-selected.read-only</key><true/>
+<!-- IMKServer registers this name; keep equal to InputMethodConnectionName in Info.plist. -->
+<key>com.apple.security.temporary-exception.mach-register.global-name</key>
+<string>org.misstype.inputmethod.Misstype_Connection</string>
+<!-- Sparkle (sandboxed apps): the installer launcher and status XPC services are
+     reached as <bundle id>-spki / -spks. -->
+<key>com.apple.security.temporary-exception.mach-lookup.global-name</key>
+<array>
+<string>org.misstype.inputmethod.Misstype-spks</string>
+<string>org.misstype.inputmethod.Misstype-spki</string>
+</array>
+</dict></plist>

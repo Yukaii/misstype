@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Bare-metal Linux test layers (no Docker): MistypeCore, the C ABI, and the
+# Bare-metal Linux test layers (no Docker): MisstypeCore, the C ABI, and the
 # fcitx5 addon headless conformance tests. This is what CI's fcitx5-linux
 # job runs inside the container (script/linux/dev.sh), minus Docker.
 #

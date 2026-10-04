@@ -444,7 +444,7 @@ def ensure_ai_sdk() -> Path:
     Returns the dir to put on NODE_PATH. npm output stays quiet; failure
     raises loudly so the experiment fails fast instead of half-running.
     """
-    root = Path(tempfile.gettempdir()) / "mistype-jev-sdk"
+    root = Path(tempfile.gettempdir()) / "misstype-jev-sdk"
     marker = root / "node_modules" / "ai" / "package.json"
     if marker.exists():
         return root

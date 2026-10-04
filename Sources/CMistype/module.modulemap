@@ -1,4 +1,0 @@
-module CMistype [system] {
-    header "include/mistype.h"
-    export *
-}

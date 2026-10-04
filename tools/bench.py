@@ -20,7 +20,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from replay import load_events, run  # noqa: E402
-from mistype.touch import LAYOUT_VERSION  # noqa: E402
+from misstype.touch import LAYOUT_VERSION  # noqa: E402
 
 
 def levenshtein(a: str, b: str) -> int:
@@ -79,7 +79,7 @@ def bench_fixture(path: Path, expected: str, repeats: int) -> dict:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Benchmark mistype fixtures")
+    parser = argparse.ArgumentParser(description="Benchmark misstype fixtures")
     parser.add_argument("--repeats", type=int, default=101)
     parser.add_argument("--manifest", default="tests/fixtures/manifest.json")
     args = parser.parse_args(argv)

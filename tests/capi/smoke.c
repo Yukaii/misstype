@@ -1,65 +1,65 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <mistype.h>
+#include <misstype.h>
 
 #define ASSERT(cond, msg) do { if (!(cond)) { fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, msg); exit(1); } } while (0)
 
 void test_keymap() {
     const char *label = NULL;
-    mistype_key_kind k;
+    misstype_key_kind k;
     
-    k = mistype_key_from_evdev(31, &label);
-    ASSERT(k == MISTYPE_KEY_CHARACTER && label && strcmp(label, "s") == 0, "evdev31=s");
+    k = misstype_key_from_evdev(31, &label);
+    ASSERT(k == MISSTYPE_KEY_CHARACTER && label && strcmp(label, "s") == 0, "evdev31=s");
     
-    k = mistype_key_from_evdev(57, &label);
-    ASSERT(k == MISTYPE_KEY_SPACE && label == NULL, "evdev57=space");
+    k = misstype_key_from_evdev(57, &label);
+    ASSERT(k == MISSTYPE_KEY_SPACE && label == NULL, "evdev57=space");
     
-    k = mistype_key_from_evdev(42, &label);
-    ASSERT(k == MISTYPE_KEY_SHIFT_LEFT && label == NULL, "evdev42=shift-left");
+    k = misstype_key_from_evdev(42, &label);
+    ASSERT(k == MISSTYPE_KEY_SHIFT_LEFT && label == NULL, "evdev42=shift-left");
     
-    k = mistype_key_from_character("A", &label, NULL);
-    ASSERT(k == MISTYPE_KEY_CHARACTER && label && strcmp(label, "a") == 0, "A=a+shift");
+    k = misstype_key_from_character("A", &label, NULL);
+    ASSERT(k == MISSTYPE_KEY_CHARACTER && label && strcmp(label, "a") == 0, "A=a+shift");
     
     int32_t shifted = 0;
-    k = mistype_key_from_character("!", &label, &shifted);
-    ASSERT(k == MISTYPE_KEY_CHARACTER && label && strcmp(label, "1") == 0 && shifted == 1, "! shift");
+    k = misstype_key_from_character("!", &label, &shifted);
+    ASSERT(k == MISSTYPE_KEY_CHARACTER && label && strcmp(label, "1") == 0 && shifted == 1, "! shift");
     
-    k = mistype_key_from_character("~", &label, &shifted);
-    ASSERT(k == MISTYPE_KEY_CHARACTER && label && strcmp(label, "`") == 0 && shifted == 1, "~ shift");
+    k = misstype_key_from_character("~", &label, &shifted);
+    ASSERT(k == MISSTYPE_KEY_CHARACTER && label && strcmp(label, "`") == 0 && shifted == 1, "~ shift");
     
-    k = mistype_key_from_character(";", &label, &shifted);
-    ASSERT(k == MISTYPE_KEY_CHARACTER && label && strcmp(label, ";") == 0 && shifted == 0, "; no shift");
+    k = misstype_key_from_character(";", &label, &shifted);
+    ASSERT(k == MISSTYPE_KEY_CHARACTER && label && strcmp(label, ";") == 0 && shifted == 0, "; no shift");
     
-    k = mistype_key_from_character("中", &label, &shifted);
-    ASSERT(k == MISTYPE_KEY_OTHER, "中=other");
+    k = misstype_key_from_character("中", &label, &shifted);
+    ASSERT(k == MISSTYPE_KEY_OTHER, "中=other");
     
     printf("keymap evdev31=s evdev57=space evdev42=shift-left A=a+shift !=1+shift\n");
 }
 
 void run_c1(const char *res) {
-    mistype_engine *eng = mistype_engine_new(res, "");
+    misstype_engine *eng = misstype_engine_new(res, "");
     ASSERT(eng, "engine C1");
-    mistype_session *s = mistype_session_new(eng);
+    misstype_session *s = misstype_session_new(eng);
     ASSERT(s, "session C1");
     
     // s u 3 c l 3
     const char *keys[] = {"s", "u", "3", "c", "l", "3"};
     for (size_t i = 0; i < 6; i++) {
-        mistype_key_event ev = {0};
-        ev.kind = MISTYPE_KEY_CHARACTER;
+        misstype_key_event ev = {0};
+        ev.kind = MISSTYPE_KEY_CHARACTER;
         ev.label = keys[i];
         ev.text = keys[i];
         ev.modifiers = 0;
         ev.is_release = 0;
         ev.native_code = -1;
         ev.timestamp = -1;
-        mistype_key_result r = mistype_session_handle(s, &ev);
+        misstype_key_result r = misstype_session_handle(s, &ev);
         ASSERT(r.consumed == 1 && r.commit == NULL, "C1 key consumed");
-        mistype_string_free(r.commit);
+        misstype_string_free(r.commit);
     }
     
-    mistype_view *v = mistype_session_view(s);
+    misstype_view *v = misstype_session_view(s);
     ASSERT(v, "view C1");
     ASSERT(strcmp(v->preedit, "你好") == 0, "C1 preedit");
     ASSERT(v->caret_bytes == 6, "C1 caret_bytes");
@@ -70,399 +70,399 @@ void run_c1(const char *res) {
     printf("C1 preedit=你好 caret_bytes=6 caret_utf16=2 shows=1 count=10\n");
     
     // Enter
-    mistype_key_event ev = {0};
-    ev.kind = MISTYPE_KEY_ENTER;
+    misstype_key_event ev = {0};
+    ev.kind = MISSTYPE_KEY_ENTER;
     ev.text = "\r";
     ev.modifiers = 0;
     ev.is_release = 0;
     ev.native_code = -1;
     ev.timestamp = -1;
-    mistype_key_result r = mistype_session_handle(s, &ev);
+    misstype_key_result r = misstype_session_handle(s, &ev);
     ASSERT(r.consumed == 1 && r.commit && strcmp(r.commit, "你好") == 0, "C1 commit");
     printf("C1 commit=[你好]\n");
-    mistype_string_free(r.commit);
+    misstype_string_free(r.commit);
     
-    mistype_view_free(v);
-    mistype_session_free(s);
-    mistype_engine_free(eng);
+    misstype_view_free(v);
+    misstype_session_free(s);
+    misstype_engine_free(eng);
 }
 
-static mistype_key_result send(mistype_session *s, mistype_key_kind kind, const char *label, uint32_t mods) {
-    mistype_key_event ev = {0};
+static misstype_key_result send(misstype_session *s, misstype_key_kind kind, const char *label, uint32_t mods) {
+    misstype_key_event ev = {0};
     ev.kind = kind;
     ev.label = label;
-    ev.text = label ? label : (kind == MISTYPE_KEY_ENTER ? "\r" : NULL);
+    ev.text = label ? label : (kind == MISSTYPE_KEY_ENTER ? "\r" : NULL);
     ev.modifiers = mods;
     ev.native_code = -1;
     ev.timestamp = -1;
-    return mistype_session_handle(s, &ev);
+    return misstype_session_handle(s, &ev);
 }
 
 void run_c13(const char *res) {
-    mistype_engine *eng = mistype_engine_new(res, "");
-    mistype_engine_set_user_dictionary_path(eng, ""); /* memory only */
-    mistype_session *s = mistype_session_new(eng);
+    misstype_engine *eng = misstype_engine_new(res, "");
+    misstype_engine_set_user_dictionary_path(eng, ""); /* memory only */
+    misstype_session *s = misstype_session_new(eng);
     const char *keys[] = {"s", "u", "3", "c", "l", "3"};
-    for (size_t i = 0; i < 6; i++) mistype_string_free(send(s, MISTYPE_KEY_CHARACTER, keys[i], 0).commit);
+    for (size_t i = 0; i < 6; i++) misstype_string_free(send(s, MISSTYPE_KEY_CHARACTER, keys[i], 0).commit);
 
-    mistype_view *v = mistype_session_view(s);
-    ASSERT(v->mark_action == MISTYPE_MARK_NONE && v->mark_start_bytes == -1 && v->mark_start_utf16 == -1, "C13 no mark yet");
-    mistype_view_free(v);
+    misstype_view *v = misstype_session_view(s);
+    ASSERT(v->mark_action == MISSTYPE_MARK_NONE && v->mark_start_bytes == -1 && v->mark_start_utf16 == -1, "C13 no mark yet");
+    misstype_view_free(v);
 
     for (int i = 0; i < 2; i++) {
-        mistype_key_result r = send(s, MISTYPE_KEY_LEFT, NULL, MISTYPE_MOD_SHIFT);
+        misstype_key_result r = send(s, MISSTYPE_KEY_LEFT, NULL, MISSTYPE_MOD_SHIFT);
         ASSERT(r.consumed == 1 && r.commit == NULL && r.beep == 0, "C13 shift-left");
     }
-    v = mistype_session_view(s);
-    ASSERT(v->mark_action == MISTYPE_MARK_ADD, "C13 action add");
+    v = misstype_session_view(s);
+    ASSERT(v->mark_action == MISSTYPE_MARK_ADD, "C13 action add");
     ASSERT(v->mark_start_utf16 == 0 && v->mark_end_utf16 == 2, "C13 utf16 range");
     ASSERT(v->mark_start_bytes == 0 && v->mark_end_bytes == 6, "C13 byte range");
     ASSERT(strcmp(v->mark_text, "你好") == 0 && strcmp(v->mark_reading, "ㄋㄧˇ-ㄏㄠˇ") == 0, "C13 text+reading");
     ASSERT(v->candidate_count == 0 && v->shows_candidates == 1, "C13 hint only");
     printf("C13 mark add range=0..6 text=你好 reading=ㄋㄧˇ-ㄏㄠˇ\n");
-    mistype_view_free(v);
+    misstype_view_free(v);
 
-    mistype_key_result r = send(s, MISTYPE_KEY_ENTER, NULL, 0);
+    misstype_key_result r = send(s, MISSTYPE_KEY_ENTER, NULL, 0);
     ASSERT(r.consumed == 1 && r.commit == NULL, "C13 enter files, no commit");
-    v = mistype_session_view(s);
-    ASSERT(v->mark_action == MISTYPE_MARK_NONE && strcmp(v->preedit, "你好") == 0, "C13 mark cleared");
-    mistype_view_free(v);
+    v = misstype_session_view(s);
+    ASSERT(v->mark_action == MISSTYPE_MARK_NONE && strcmp(v->preedit, "你好") == 0, "C13 mark cleared");
+    misstype_view_free(v);
 
     /* The same mark now offers removal. */
-    for (int i = 0; i < 2; i++) mistype_string_free(send(s, MISTYPE_KEY_LEFT, NULL, MISTYPE_MOD_SHIFT).commit);
-    v = mistype_session_view(s);
-    ASSERT(v->mark_action == MISTYPE_MARK_REMOVE, "C13 action remove");
+    for (int i = 0; i < 2; i++) misstype_string_free(send(s, MISSTYPE_KEY_LEFT, NULL, MISSTYPE_MOD_SHIFT).commit);
+    v = misstype_session_view(s);
+    ASSERT(v->mark_action == MISSTYPE_MARK_REMOVE, "C13 action remove");
     printf("C13 filed then mark remove\n");
-    mistype_view_free(v);
+    misstype_view_free(v);
 
-    mistype_session_free(s);
-    mistype_engine_free(eng);
+    misstype_session_free(s);
+    misstype_engine_free(eng);
 }
 
 void run_c2(const char *res) {
-    mistype_engine *eng = mistype_engine_new(res, "");
-    mistype_session *s = mistype_session_new(eng);
+    misstype_engine *eng = misstype_engine_new(res, "");
+    misstype_session *s = misstype_session_new(eng);
     
     // empty: Enter
-    mistype_key_event ev = {0};
-    ev.kind = MISTYPE_KEY_ENTER;
+    misstype_key_event ev = {0};
+    ev.kind = MISSTYPE_KEY_ENTER;
     ev.text = "\r";
     ev.modifiers = 0;
     ev.is_release = 0;
     ev.native_code = -1;
     ev.timestamp = -1;
-    mistype_key_result r = mistype_session_handle(s, &ev);
+    misstype_key_result r = misstype_session_handle(s, &ev);
     ASSERT(r.consumed == 0 && r.commit == NULL, "C2 enter pass");
     printf("C2 enter consumed=0 commit=(null)\n");
-    mistype_string_free(r.commit);
+    misstype_string_free(r.commit);
     
     // Backspace
-    ev.kind = MISTYPE_KEY_BACKSPACE;
+    ev.kind = MISSTYPE_KEY_BACKSPACE;
     ev.text = "\x7f";
-    r = mistype_session_handle(s, &ev);
+    r = misstype_session_handle(s, &ev);
     ASSERT(r.consumed == 0 && r.commit == NULL, "C2 backspace pass");
-    mistype_string_free(r.commit);
+    misstype_string_free(r.commit);
     
     // Left
-    ev.kind = MISTYPE_KEY_LEFT;
+    ev.kind = MISSTYPE_KEY_LEFT;
     ev.text = "\xF7\x02";
-    r = mistype_session_handle(s, &ev);
+    r = misstype_session_handle(s, &ev);
     ASSERT(r.consumed == 0 && r.commit == NULL, "C2 left pass");
-    mistype_string_free(r.commit);
+    misstype_string_free(r.commit);
     
     // Space
-    ev.kind = MISTYPE_KEY_SPACE;
+    ev.kind = MISSTYPE_KEY_SPACE;
     ev.text = " ";
     ev.modifiers = 0;
-    r = mistype_session_handle(s, &ev);
+    r = misstype_session_handle(s, &ev);
     ASSERT(r.consumed == 1 && r.commit && strcmp(r.commit, " ") == 0, "C2 space commit");
     printf("C2 space consumed=1 commit=[ ]\n");
-    mistype_string_free(r.commit);
+    misstype_string_free(r.commit);
     
-    mistype_session_free(s);
-    mistype_engine_free(eng);
+    misstype_session_free(s);
+    misstype_engine_free(eng);
 }
 
 void run_c4(const char *res) {
-    mistype_engine *eng = mistype_engine_new(res, "");
-    mistype_session *s = mistype_session_new(eng);
+    misstype_engine *eng = misstype_engine_new(res, "");
+    misstype_session *s = misstype_session_new(eng);
     
     // s u 3
     const char *keys[] = {"s", "u", "3"};
     for (size_t i = 0; i < 3; i++) {
-        mistype_key_event ev = {0};
-        ev.kind = MISTYPE_KEY_CHARACTER;
+        misstype_key_event ev = {0};
+        ev.kind = MISSTYPE_KEY_CHARACTER;
         ev.label = keys[i];
         ev.text = keys[i];
         ev.modifiers = 0;
         ev.is_release = 0;
         ev.native_code = -1;
         ev.timestamp = -1;
-        mistype_session_handle(s, &ev);
+        misstype_session_handle(s, &ev);
     }
     
     // Tab
-    mistype_key_event ev = {0};
-    ev.kind = MISTYPE_KEY_TAB;
+    misstype_key_event ev = {0};
+    ev.kind = MISSTYPE_KEY_TAB;
     ev.text = "\t";
     ev.modifiers = 0;
     ev.is_release = 0;
     ev.native_code = -1;
     ev.timestamp = -1;
-    mistype_session_handle(s, &ev);
+    misstype_session_handle(s, &ev);
     
-    mistype_view *v = mistype_session_view(s);
+    misstype_view *v = misstype_session_view(s);
     ASSERT(v->shows_candidates == 1 && v->selected == 1 && v->keys_active == 1 && v->candidate_count == 5, "C4 tab");
     printf("C4 tab selected=1 keys_active=1 shows=1 count=5\n");
-    mistype_view_free(v);
+    misstype_view_free(v);
     
     // d (selection key for row 2)
-    ev.kind = MISTYPE_KEY_CHARACTER;
+    ev.kind = MISSTYPE_KEY_CHARACTER;
     ev.label = "d";
     ev.text = "d";
     ev.modifiers = 0;
     ev.is_release = 0;
     ev.native_code = -1;
     ev.timestamp = -1;
-    mistype_session_handle(s, &ev);
+    misstype_session_handle(s, &ev);
     
-    v = mistype_session_view(s);
+    v = misstype_session_view(s);
     ASSERT(strcmp(v->preedit, "尼") == 0 && v->keys_active == 0, "C4 pick");
     printf("C4 pick preedit=尼 keys_active=0\n");
-    mistype_view_free(v);
+    misstype_view_free(v);
     
     // Enter
-    ev.kind = MISTYPE_KEY_ENTER;
+    ev.kind = MISSTYPE_KEY_ENTER;
     ev.text = "\r";
-    mistype_key_result r = mistype_session_handle(s, &ev);
+    misstype_key_result r = misstype_session_handle(s, &ev);
     ASSERT(r.consumed == 1 && r.commit && strcmp(r.commit, "尼") == 0, "C4 commit");
     printf("C4 commit=[尼]\n");
-    mistype_string_free(r.commit);
+    misstype_string_free(r.commit);
     
-    mistype_session_free(s);
-    mistype_engine_free(eng);
+    misstype_session_free(s);
+    misstype_engine_free(eng);
 }
 
 void run_c8(const char *res) {
-    mistype_engine *eng = mistype_engine_new(res, "");
-    mistype_session *s = mistype_session_new(eng);
+    misstype_engine *eng = misstype_engine_new(res, "");
+    misstype_session *s = misstype_session_new(eng);
     
     // s u 3 c l 3
     const char *keys[] = {"s", "u", "3", "c", "l", "3"};
     for (size_t i = 0; i < 6; i++) {
-        mistype_key_event ev = {0};
-        ev.kind = MISTYPE_KEY_CHARACTER;
+        misstype_key_event ev = {0};
+        ev.kind = MISSTYPE_KEY_CHARACTER;
         ev.label = keys[i];
         ev.text = keys[i];
         ev.modifiers = 0;
         ev.is_release = 0;
         ev.native_code = -1;
         ev.timestamp = -1;
-        mistype_session_handle(s, &ev);
+        misstype_session_handle(s, &ev);
     }
     
     // Right (beep)
-    mistype_key_event ev = {0};
-    ev.kind = MISTYPE_KEY_RIGHT;
+    misstype_key_event ev = {0};
+    ev.kind = MISSTYPE_KEY_RIGHT;
     ev.text = "\xF7\x03";
     ev.modifiers = 0;
     ev.is_release = 0;
     ev.native_code = -1;
     ev.timestamp = -1;
-    mistype_key_result r = mistype_session_handle(s, &ev);
+    misstype_key_result r = misstype_session_handle(s, &ev);
     ASSERT(r.consumed == 1 && r.beep == 1, "C8 right beep");
-    mistype_string_free(r.commit);
+    misstype_string_free(r.commit);
     
     // Left (cursor mode)
-    ev.kind = MISTYPE_KEY_LEFT;
+    ev.kind = MISSTYPE_KEY_LEFT;
     ev.text = "\xF7\x02";
-    r = mistype_session_handle(s, &ev);
+    r = misstype_session_handle(s, &ev);
     ASSERT(r.consumed == 1, "C8 left");
-    mistype_string_free(r.commit);
+    misstype_string_free(r.commit);
     
-    mistype_view *v = mistype_session_view(s);
+    misstype_view *v = misstype_session_view(s);
     ASSERT(v->caret_bytes == 3 && v->caret_utf16 == 1 && v->keys_active == 1, "C8 cursor");
     ASSERT(v->candidates && strcmp(v->candidates[0], "你好") == 0, "C8 first candidate");
     printf("C8 left caret_bytes=3 caret_utf16=1 first=你好 keys_active=1\n");
-    mistype_view_free(v);
+    misstype_view_free(v);
     
-    mistype_session_free(s);
-    mistype_engine_free(eng);
+    misstype_session_free(s);
+    misstype_engine_free(eng);
 }
 
 void run_c9(const char *res) {
-    mistype_engine *eng = mistype_engine_new(res, "");
-    mistype_session *s = mistype_session_new(eng);
+    misstype_engine *eng = misstype_engine_new(res, "");
+    misstype_session *s = misstype_session_new(eng);
     
     // s u 3
     const char *keys[] = {"s", "u", "3"};
     for (size_t i = 0; i < 3; i++) {
-        mistype_key_event ev = {0};
-        ev.kind = MISTYPE_KEY_CHARACTER;
+        misstype_key_event ev = {0};
+        ev.kind = MISSTYPE_KEY_CHARACTER;
         ev.label = keys[i];
         ev.text = keys[i];
         ev.modifiers = 0;
         ev.is_release = 0;
         ev.native_code = -1;
         ev.timestamp = -1;
-        mistype_session_handle(s, &ev);
+        misstype_session_handle(s, &ev);
     }
     
     // Ctrl+C
-    mistype_key_event ev = {0};
-    ev.kind = MISTYPE_KEY_CHARACTER;
+    misstype_key_event ev = {0};
+    ev.kind = MISSTYPE_KEY_CHARACTER;
     ev.label = "c";
     ev.text = "c";
-    ev.modifiers = MISTYPE_MOD_CONTROL;
+    ev.modifiers = MISSTYPE_MOD_CONTROL;
     ev.is_release = 0;
     ev.native_code = -1;
     ev.timestamp = -1;
-    mistype_key_result r = mistype_session_handle(s, &ev);
+    misstype_key_result r = misstype_session_handle(s, &ev);
     ASSERT(r.consumed == 0 && r.commit && strcmp(r.commit, "你") == 0, "C9 ctrl-c");
     printf("C9 ctrl-c consumed=0 commit=[你]\n");
-    mistype_string_free(r.commit);
+    misstype_string_free(r.commit);
     
-    mistype_session_free(s);
-    mistype_engine_free(eng);
+    misstype_session_free(s);
+    misstype_engine_free(eng);
 }
 
 void run_c10(const char *res) {
-    mistype_engine *eng = mistype_engine_new(res, "");
-    mistype_session *s = mistype_session_new(eng);
+    misstype_engine *eng = misstype_engine_new(res, "");
+    misstype_session *s = misstype_session_new(eng);
     
     // s u 3
     const char *keys[] = {"s", "u", "3"};
     for (size_t i = 0; i < 3; i++) {
-        mistype_key_event ev = {0};
-        ev.kind = MISTYPE_KEY_CHARACTER;
+        misstype_key_event ev = {0};
+        ev.kind = MISSTYPE_KEY_CHARACTER;
         ev.label = keys[i];
         ev.text = keys[i];
         ev.modifiers = 0;
         ev.is_release = 0;
         ev.native_code = -1;
         ev.timestamp = -1;
-        mistype_session_handle(s, &ev);
+        misstype_session_handle(s, &ev);
     }
     
     // Shift+Space
-    mistype_key_event ev = {0};
-    ev.kind = MISTYPE_KEY_SPACE;
+    misstype_key_event ev = {0};
+    ev.kind = MISSTYPE_KEY_SPACE;
     ev.text = " ";
-    ev.modifiers = MISTYPE_MOD_SHIFT;
+    ev.modifiers = MISSTYPE_MOD_SHIFT;
     ev.is_release = 0;
     ev.native_code = -1;
     ev.timestamp = -1;
-    mistype_key_result r = mistype_session_handle(s, &ev);
+    misstype_key_result r = misstype_session_handle(s, &ev);
     ASSERT(r.consumed == 1 && r.commit && strcmp(r.commit, "你") == 0 && r.mode_changed == 1, "C10 shift-space");
     printf("C10 shift-space consumed=1 commit=[你] mode_changed=1 english=1\n");
-    mistype_string_free(r.commit);
+    misstype_string_free(r.commit);
     
-    int32_t eng_mode = mistype_engine_is_english(eng);
+    int32_t eng_mode = misstype_engine_is_english(eng);
     ASSERT(eng_mode == 1, "C10 english mode");
     
     // s
-    ev.kind = MISTYPE_KEY_CHARACTER;
+    ev.kind = MISSTYPE_KEY_CHARACTER;
     ev.label = "s";
     ev.text = "s";
     ev.modifiers = 0;
     ev.is_release = 0;
     ev.native_code = -1;
     ev.timestamp = -1;
-    r = mistype_session_handle(s, &ev);
+    r = misstype_session_handle(s, &ev);
     ASSERT(r.consumed == 0 && r.commit == NULL, "C10 s pass");
     printf("C10 s consumed=0 commit=(null)\n");
-    mistype_string_free(r.commit);
+    misstype_string_free(r.commit);
     
-    mistype_session_free(s);
-    mistype_engine_free(eng);
+    misstype_session_free(s);
+    misstype_engine_free(eng);
 }
 
 void run_c11(const char *res) {
-    mistype_engine *eng = mistype_engine_new(res, "");
-    mistype_session *s = mistype_session_new(eng);
+    misstype_engine *eng = misstype_engine_new(res, "");
+    misstype_session *s = misstype_session_new(eng);
     
     // s u 3
     const char *keys[] = {"s", "u", "3"};
     for (size_t i = 0; i < 3; i++) {
-        mistype_key_event ev = {0};
-        ev.kind = MISTYPE_KEY_CHARACTER;
+        misstype_key_event ev = {0};
+        ev.kind = MISSTYPE_KEY_CHARACTER;
         ev.label = keys[i];
         ev.text = keys[i];
         ev.modifiers = 0;
         ev.is_release = 0;
         ev.native_code = -1;
         ev.timestamp = -1;
-        mistype_session_handle(s, &ev);
+        misstype_session_handle(s, &ev);
     }
     
     // focus out -> commit
-    char *commit = mistype_session_commit(s);
+    char *commit = misstype_session_commit(s);
     ASSERT(commit && strcmp(commit, "你") == 0, "C11 commit");
     printf("C11 commit=[你]\n");
-    mistype_string_free(commit);
+    misstype_string_free(commit);
     
-    mistype_session_free(s);
-    mistype_engine_free(eng);
+    misstype_session_free(s);
+    misstype_engine_free(eng);
 }
 
 void run_c12(const char *res) {
-    mistype_engine *eng = mistype_engine_new(res, "");
-    mistype_session *s = mistype_session_new(eng);
+    misstype_engine *eng = misstype_engine_new(res, "");
+    misstype_session *s = misstype_session_new(eng);
     
     // s u 3
     const char *keys[] = {"s", "u", "3"};
     for (size_t i = 0; i < 3; i++) {
-        mistype_key_event ev = {0};
-        ev.kind = MISTYPE_KEY_CHARACTER;
+        misstype_key_event ev = {0};
+        ev.kind = MISSTYPE_KEY_CHARACTER;
         ev.label = keys[i];
         ev.text = keys[i];
         ev.modifiers = 0;
         ev.is_release = 0;
         ev.native_code = -1;
         ev.timestamp = -1;
-        mistype_session_handle(s, &ev);
+        misstype_session_handle(s, &ev);
     }
     
     // pick row 3 (index 3)
-    mistype_session_pick(s, 3);
+    misstype_session_pick(s, 3);
     
-    mistype_view *v = mistype_session_view(s);
+    misstype_view *v = misstype_session_view(s);
     ASSERT(strcmp(v->preedit, "泥") == 0 && v->selected == 3, "C12 pick");
     printf("C12 pick preedit=泥 selected=3\n");
-    mistype_view_free(v);
+    misstype_view_free(v);
     
-    mistype_session_free(s);
-    mistype_engine_free(eng);
+    misstype_session_free(s);
+    misstype_engine_free(eng);
 }
 
-static mistype_key_result shift_tap(mistype_session *s, mistype_key_kind kind, int release, double t) {
-    mistype_key_event ev = {0};
+static misstype_key_result shift_tap(misstype_session *s, misstype_key_kind kind, int release, double t) {
+    misstype_key_event ev = {0};
     ev.kind = kind;
-    ev.modifiers = release ? 0 : MISTYPE_MOD_SHIFT;
+    ev.modifiers = release ? 0 : MISSTYPE_MOD_SHIFT;
     ev.is_release = release;
     ev.native_code = -1;
     ev.timestamp = t;
-    return mistype_session_handle(s, &ev);
+    return misstype_session_handle(s, &ev);
 }
 
-/* mistype_engine_set_settings must reach live sessions: with shift_toggle=0
+/* misstype_engine_set_settings must reach live sessions: with shift_toggle=0
  * (fcitx5 owns lone Shift) a Shift tap no longer flips 中/英. */
 void run_settings(const char *res) {
-    mistype_engine *eng = mistype_engine_new(res, "");
+    misstype_engine *eng = misstype_engine_new(res, "");
     ASSERT(eng, "engine settings");
-    mistype_session *s = mistype_session_new(eng);
-    shift_tap(s, MISTYPE_KEY_SHIFT_LEFT, 0, 100.0);
-    mistype_key_result r = shift_tap(s, MISTYPE_KEY_SHIFT_LEFT, 1, 100.1);
-    ASSERT(r.mode_changed == 1 && mistype_engine_is_english(eng) == 1, "default settings: Shift tap toggles");
-    mistype_settings st = mistype_settings_default();
+    misstype_session *s = misstype_session_new(eng);
+    shift_tap(s, MISSTYPE_KEY_SHIFT_LEFT, 0, 100.0);
+    misstype_key_result r = shift_tap(s, MISSTYPE_KEY_SHIFT_LEFT, 1, 100.1);
+    ASSERT(r.mode_changed == 1 && misstype_engine_is_english(eng) == 1, "default settings: Shift tap toggles");
+    misstype_settings st = misstype_settings_default();
     st.shift_toggle = 0;
-    mistype_engine_set_settings(eng, &st);
-    shift_tap(s, MISTYPE_KEY_SHIFT_LEFT, 0, 101.0);
-    r = shift_tap(s, MISTYPE_KEY_SHIFT_LEFT, 1, 101.1);
-    ASSERT(r.mode_changed == 0 && mistype_engine_is_english(eng) == 1, "shift_toggle=0: Shift tap ignored");
+    misstype_engine_set_settings(eng, &st);
+    shift_tap(s, MISSTYPE_KEY_SHIFT_LEFT, 0, 101.0);
+    r = shift_tap(s, MISSTYPE_KEY_SHIFT_LEFT, 1, 101.1);
+    ASSERT(r.mode_changed == 0 && misstype_engine_is_english(eng) == 1, "shift_toggle=0: Shift tap ignored");
     printf("settings shift_toggle=0 tap ignored\n");
-    mistype_session_free(s);
-    mistype_engine_free(eng);
+    misstype_session_free(s);
+    misstype_engine_free(eng);
 }
 
 int main(int argc, char **argv) {
@@ -474,7 +474,7 @@ int main(int argc, char **argv) {
     
     if (argc == 2) {
         // Run all conformance scenarios
-        printf("abi=%d\n", mistype_abi_version());
+        printf("abi=%d\n", misstype_abi_version());
         run_c1(res);
         run_c2(res);
         run_c4(res);
@@ -492,40 +492,40 @@ int main(int argc, char **argv) {
     
     // Single key sequence mode for L4
     const char *keys = argv[2];
-    mistype_engine *eng = mistype_engine_new(res, "");
-    mistype_session *s = mistype_session_new(eng);
+    misstype_engine *eng = misstype_engine_new(res, "");
+    misstype_session *s = misstype_session_new(eng);
     
     for (size_t i = 0; i < strlen(keys); i++) {
         char key[2] = {keys[i], 0};
-        mistype_key_event ev = {0};
-        ev.kind = MISTYPE_KEY_CHARACTER;
+        misstype_key_event ev = {0};
+        ev.kind = MISSTYPE_KEY_CHARACTER;
         ev.label = key;
         ev.text = key;
         ev.modifiers = 0;
         ev.is_release = 0;
         ev.native_code = -1;
         ev.timestamp = -1;
-        mistype_session_handle(s, &ev);
+        misstype_session_handle(s, &ev);
     }
     
     // Press Enter
-    mistype_key_event ev = {0};
-    ev.kind = MISTYPE_KEY_ENTER;
+    misstype_key_event ev = {0};
+    ev.kind = MISSTYPE_KEY_ENTER;
     ev.text = "\r";
     ev.modifiers = 0;
     ev.is_release = 0;
     ev.native_code = -1;
     ev.timestamp = -1;
-    mistype_key_result r = mistype_session_handle(s, &ev);
+    misstype_key_result r = misstype_session_handle(s, &ev);
     
     if (r.commit) {
         printf("commit=%s\n", r.commit);
-        mistype_string_free(r.commit);
+        misstype_string_free(r.commit);
     } else {
         printf("commit=(null)\n");
     }
     
-    mistype_session_free(s);
-    mistype_engine_free(eng);
+    misstype_session_free(s);
+    misstype_engine_free(eng);
     return 0;
 }

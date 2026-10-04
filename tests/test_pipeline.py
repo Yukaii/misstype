@@ -1,11 +1,11 @@
 import unittest
 
-from mistype.decoder import OfflineDecoder
-from mistype.models import DecodeContext, RawEvent
-from mistype.normalize import normalize_events
-from mistype.session import SessionCoordinator
-from mistype.touch import nearest_key, touch_event
-from mistype.touch_session import TouchSession
+from misstype.decoder import OfflineDecoder
+from misstype.models import DecodeContext, RawEvent
+from misstype.normalize import normalize_events
+from misstype.session import SessionCoordinator
+from misstype.touch import nearest_key, touch_event
+from misstype.touch_session import TouchSession
 
 
 class PipelineTests(unittest.TestCase):

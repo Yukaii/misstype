@@ -17,7 +17,7 @@
 | [Bopomix](https://github.com/lmanchu/bopomix) | macOS 13+、Apple Silicon | McBopomofo 引擎分支（Swift）、僅大千 | 有：無法構成音節之字母直接視為英文；支援 Tab 補完英文 | 本機學習英文詞 | 無；句級 AI 重排研究中，尚未實裝 | `.dmg` 6.6 MB | MIT |
 | [KeyKey（琦琦）](https://github.com/polobread/KeyKey/releases) | macOS、Windows、Linux（fcitx5）、iOS、Android | Yahoo 2012 程式碼、30 組領域詞庫；另有倉頡 | 未宣稱 | 智慧詞組組字與學習 | 標明不存取網路 | macOS `.pkg.zip` 38.2 MB | BSD；v1.3.1（2026-10-02） |
 | [ZingIME（晶晶）](https://zingime.com/) | macOS、Apple Silicon | 注音、40 萬以上詞彙 | 有（主打功能）：同一模式可直接輸入中英，支援 Tab 補完英文 | 未說明 | 裝置端模型選字，不依賴雲端（待核實） | `.dmg` 271.6 MiB | 商用付費、提供 14 天試用（待核實） |
-| **Misstype（本專案）** | macOS IMK、Linux fcitx5 | McBopomofo 詞庫、大千、Swift `MistypeCore` | 有，`mixedEnglish`（macOS 預設關閉） | 學習＋使用者詞庫 | 預設無；可選 Jev LLM 輔助（需明確啟用） | `.dmg` 4.4 MB（v0.0.1，通用版本） | MIT |
+| **Misstype（本專案）** | macOS IMK、Linux fcitx5 | McBopomofo 詞庫、大千、Swift `MisstypeCore` | 有，`mixedEnglish`（macOS 預設關閉） | 學習＋使用者詞庫 | 預設無；可選 Jev LLM 輔助（需明確啟用） | `.dmg` 4.4 MB（v0.0.1，通用版本） | MIT |
 
 ## 技術功能矩陣
 

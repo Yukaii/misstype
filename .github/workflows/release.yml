@@ -88,7 +88,7 @@ jobs:
           name: Misstype-${{ env.VERSION }}
           path: |
             dist/Misstype-*.dmg*
-            dist/MistypeIME-*.zip*
+            dist/MisstypeIME-*.zip*
             dist/appcast.xml
 
       - name: Publish release
@@ -98,7 +98,7 @@ jobs:
         run: |
           PRERELEASE=""
           [[ "$VERSION" == *-* ]] && PRERELEASE="--prerelease"
-          ASSETS=(dist/Misstype-*.dmg dist/Misstype-*.dmg.sha256 dist/MistypeIME-*.zip dist/MistypeIME-*.zip.sha256)
+          ASSETS=(dist/Misstype-*.dmg dist/Misstype-*.dmg.sha256 dist/MisstypeIME-*.zip dist/MisstypeIME-*.zip.sha256)
           [[ -f dist/appcast.xml ]] && ASSETS+=(dist/appcast.xml)
           gh release create "$VERSION" "${ASSETS[@]}" \
             --title "Misstype ${VERSION#v}" --generate-notes $PRERELEASE

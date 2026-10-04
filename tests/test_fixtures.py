@@ -5,9 +5,9 @@ import sys
 import unittest
 from pathlib import Path
 
-from mistype.decoder import OfflineDecoder
-from mistype.models import RawEvent
-from mistype.normalize import normalize_events
+from misstype.decoder import OfflineDecoder
+from misstype.models import RawEvent
+from misstype.normalize import normalize_events
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -82,9 +82,9 @@ class FixtureTests(unittest.TestCase):
 
     def test_long_unknown_fuzzy_input_has_a_bounded_decode(self):
         script = """
-from mistype.models import RawEvent
-from mistype.normalize import normalize_events
-from mistype.decoder import OfflineDecoder
+from misstype.models import RawEvent
+from misstype.normalize import normalize_events
+from misstype.decoder import OfflineDecoder
 events = [RawEvent('long', i, i, 'left', 'key', 'BPMF_FUZZY:d') for i in range(14)]
 OfflineDecoder().decode(normalize_events(events))
 """

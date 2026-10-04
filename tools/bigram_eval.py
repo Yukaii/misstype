@@ -8,10 +8,10 @@ falsified char-level LCCC bigram, which steamrolled word scores).
 Runs the cursor_replay sentence sets (synthetic, dev + holdout, toned and
 toneless) through the Swift `--decode` binary once per config and reports
 top-1 hits, fixes, breaks, and expected-text rank. The overlay is a local
-file passed via MISTYPE_BIGRAM; it is downloaded, never committed:
+file passed via MISSTYPE_BIGRAM; it is downloaded, never committed:
 
   gh api repos/chiakich/ChiaKey-Lexicon/contents/sources/<source>/bigrams.tsv \\
-     -H "Accept: application/vnd.github.raw" > ~/.cache/mistype/chiakey/<source>.tsv
+     -H "Accept: application/vnd.github.raw" > ~/.cache/misstype/chiakey/<source>.tsv
 
 Usage:
   ./script/build_and_run.sh --build-only
@@ -30,7 +30,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from cursor_replay import (APP_BIN, encode, load_reverse_lexicon,  # noqa: E402
                            readings_for, sentence_set)
 
-CV_SENTENCES = Path.home() / ".cache/mistype/cv/validated_sentences.tsv"
+CV_SENTENCES = Path.home() / ".cache/misstype/cv/validated_sentences.tsv"
 
 
 def cv_set(count: int) -> list[tuple[str, str]]:
@@ -58,7 +58,7 @@ def cv_set(count: int) -> list[tuple[str, str]]:
             break
     return out
 
-CACHE = Path.home() / ".cache/mistype/chiakey"
+CACHE = Path.home() / ".cache/misstype/chiakey"
 SOURCES = {
     "full": CACHE / "chiaki-tw-homophone-bigram.tsv",    # CC BY-NC, measurement only
     "clean": CACHE / "chiaki-tw-homophone-bigram-clean.tsv",  # ODbL
@@ -68,19 +68,19 @@ SOURCES = {
 def decode(keys: str, overlay: Path | None, weight: float,
            lexicon: Path | None = None) -> tuple[list[str], float]:
     env = dict(os.environ)
-    env.pop("MISTYPE_BIGRAM", None)
-    env.pop("MISTYPE_LEXICON", None)
-    env.pop("MISTYPE_TONELESS", None)
+    env.pop("MISSTYPE_BIGRAM", None)
+    env.pop("MISSTYPE_LEXICON", None)
+    env.pop("MISSTYPE_TONELESS", None)
     if lexicon is not None:
-        env["MISTYPE_LEXICON"] = str(lexicon)
+        env["MISSTYPE_LEXICON"] = str(lexicon)
         if (lexicon.parent / "toneless.tsv").exists():
-            env["MISTYPE_TONELESS"] = str(lexicon.parent / "toneless.tsv")
-    env.pop("MISTYPE_WORD_PENALTY", None)
+            env["MISSTYPE_TONELESS"] = str(lexicon.parent / "toneless.tsv")
+    env.pop("MISSTYPE_WORD_PENALTY", None)
     if overlay is None and lexicon is None and weight is not None:
-        env["MISTYPE_WORD_PENALTY"] = str(weight)
+        env["MISSTYPE_WORD_PENALTY"] = str(weight)
     if overlay is not None:
-        env["MISTYPE_BIGRAM"] = str(overlay)
-        env["MISTYPE_BIGRAM_WEIGHT"] = str(weight)
+        env["MISSTYPE_BIGRAM"] = str(overlay)
+        env["MISSTYPE_BIGRAM_WEIGHT"] = str(weight)
     proc = subprocess.run([str(APP_BIN), "--decode", keys], capture_output=True,
                           text=True, timeout=120, check=True, env=env)
     lines = proc.stdout.splitlines()
@@ -100,7 +100,7 @@ def config(spec: str) -> tuple[str, Path | None, Path | None, float]:
     `lex:<dir>` / `lex+full:<dir>`: see below."""
     source, _, value = spec.partition(":")
     if source == "wp":
-        # `wp:<penalty>`: shipped lexicon, per-word cost via MISTYPE_WORD_PENALTY.
+        # `wp:<penalty>`: shipped lexicon, per-word cost via MISSTYPE_WORD_PENALTY.
         return spec, None, None, float(value)
     if source in ("lex", "lex+full"):
         # `lex:<cache dir>`: a rescored copy of our lexicon (e.g. reorder-all),

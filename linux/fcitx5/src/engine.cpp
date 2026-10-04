@@ -1,6 +1,6 @@
-// fcitx5 adapter for Mistype (docs/cross-platform.md, docs/linux-port.md L3).
-// All editing rules live in MistypeCore's InputSession behind the C ABI in
-// mistype.h; this file only translates key events, applies key results and
+// fcitx5 adapter for Misstype (docs/cross-platform.md, docs/linux-port.md L3).
+// All editing rules live in MisstypeCore's InputSession behind the C ABI in
+// misstype.h; this file only translates key events, applies key results and
 // draws the session view.
 #include <fcitx-utils/key.h>
 #include <fcitx-utils/log.h>
@@ -16,7 +16,7 @@
 #include <fcitx/instance.h>
 #include <fcitx/text.h>
 
-#include <mistype.h>
+#include <misstype.h>
 
 #include <cstdlib>
 #include <memory>
@@ -28,7 +28,7 @@ namespace {
 
 constexpr int kPageSize = 8;
 
-/// Owned copy of a mistype_view; comparable so unchanged views are not redrawn.
+/// Owned copy of a misstype_view; comparable so unchanged views are not redrawn.
 struct ViewSnapshot {
     std::string preedit;
     int caretBytes = 0;
@@ -37,8 +37,8 @@ struct ViewSnapshot {
     std::vector<std::string> selectionKeys;
     bool keysActive = false;
     bool showsCandidates = false;
-    // Phrase mark (C13); markAction == MISTYPE_MARK_NONE when not marking.
-    int markAction = MISTYPE_MARK_NONE;
+    // Phrase mark (C13); markAction == MISSTYPE_MARK_NONE when not marking.
+    int markAction = MISSTYPE_MARK_NONE;
     int markStartBytes = -1;
     int markEndBytes = -1;
     std::string markText;
@@ -53,8 +53,8 @@ struct ViewSnapshot {
     }
 };
 
-bool snapshot(mistype_session *session, ViewSnapshot &out) {
-    mistype_view *view = mistype_session_view(session);
+bool snapshot(misstype_session *session, ViewSnapshot &out) {
+    misstype_view *view = misstype_session_view(session);
     if (!view) {
         return false;
     }
@@ -75,22 +75,22 @@ bool snapshot(mistype_session *session, ViewSnapshot &out) {
     out.markEndBytes = view->mark_end_bytes;
     out.markText = view->mark_text ? view->mark_text : "";
     out.markReading = view->mark_reading ? view->mark_reading : "";
-    mistype_view_free(view);
+    misstype_view_free(view);
     return true;
 }
 
-class MistypeState : public fcitx::InputContextProperty {
+class MisstypeState : public fcitx::InputContextProperty {
 public:
-    explicit MistypeState(mistype_engine *engine) : engine_(engine) {}
-    ~MistypeState() override {
+    explicit MisstypeState(misstype_engine *engine) : engine_(engine) {}
+    ~MisstypeState() override {
         if (session_) {
-            mistype_session_free(session_);
+            misstype_session_free(session_);
         }
     }
     /// Created on first use: fcitx5 may build the state before the engine exists.
-    mistype_session *session() {
+    misstype_session *session() {
         if (!session_ && engine_) {
-            session_ = mistype_session_new(engine_);
+            session_ = misstype_session_new(engine_);
         }
         return session_;
     }
@@ -99,50 +99,50 @@ public:
     bool auxShown = false;            // 中/英 indicator is up
 
 private:
-    mistype_engine *engine_;
-    mistype_session *session_ = nullptr;
+    misstype_engine *engine_;
+    misstype_session *session_ = nullptr;
 };
 
-class MistypeEngine;
+class MisstypeEngine;
 
 /// One row of the candidate list; selecting it picks that row in the session.
-class MistypeCandidate : public fcitx::CandidateWord {
+class MisstypeCandidate : public fcitx::CandidateWord {
 public:
-    MistypeCandidate(MistypeEngine *engine, int index, const std::string &text)
+    MisstypeCandidate(MisstypeEngine *engine, int index, const std::string &text)
         : fcitx::CandidateWord(fcitx::Text(text)), engine_(engine), index_(index) {}
     void select(fcitx::InputContext *ic) const override;
 
 private:
-    MistypeEngine *engine_;
+    MisstypeEngine *engine_;
     int index_;
 };
 
-class MistypeEngine : public fcitx::InputMethodEngineV2 {
+class MisstypeEngine : public fcitx::InputMethodEngineV2 {
 public:
-    explicit MistypeEngine(fcitx::Instance *instance)
-        : stateFactory_([this](fcitx::InputContext &) { return new MistypeState(engine_); }) {
+    explicit MisstypeEngine(fcitx::Instance *instance)
+        : stateFactory_([this](fcitx::InputContext &) { return new MisstypeState(engine_); }) {
         const std::string resources = resourcesDir();
-        // NULL user lexicon path: learned phrases go to $XDG_DATA_HOME/mistype.
-        engine_ = mistype_engine_new(resources.c_str(), nullptr);
+        // NULL user lexicon path: learned phrases go to $XDG_DATA_HOME/misstype.
+        engine_ = misstype_engine_new(resources.c_str(), nullptr);
         if (engine_) {
-            // My words: $XDG_DATA_HOME/mistype/user_dictionary.tsv.
-            mistype_engine_set_user_dictionary_path(engine_, nullptr);
+            // My words: $XDG_DATA_HOME/misstype/user_dictionary.tsv.
+            misstype_engine_set_user_dictionary_path(engine_, nullptr);
             // fcitx5 owns lone Shift (AltTriggerKeys), so the session must not
             // also toggle 中/英 on a Shift tap.
-            mistype_settings settings = mistype_settings_default();
+            misstype_settings settings = misstype_settings_default();
             settings.shift_toggle = 0;
-            mistype_engine_set_settings(engine_, &settings);
+            misstype_engine_set_settings(engine_, &settings);
         } else {
             // Never crash and never filter: every key passes through.
-            FCITX_ERROR() << "Mistype: cannot load lexicon.tsv from " << resources;
+            FCITX_ERROR() << "Misstype: cannot load lexicon.tsv from " << resources;
         }
         // After the engine exists: fcitx5 may build per-context state right away.
-        instance->inputContextManager().registerProperty("mistype", &stateFactory_);
+        instance->inputContextManager().registerProperty("misstype", &stateFactory_);
     }
 
-    ~MistypeEngine() override {
+    ~MisstypeEngine() override {
         if (engine_) {
-            mistype_engine_free(engine_);
+            misstype_engine_free(engine_);
         }
     }
 
@@ -152,26 +152,26 @@ public:
         if (!state) {
             return;
         }
-        mistype_key_event keyEvent = buildKeyEvent(event);
-        mistype_key_result result = mistype_session_handle(state->session(), &keyEvent);
+        misstype_key_event keyEvent = buildKeyEvent(event);
+        misstype_key_result result = misstype_session_handle(state->session(), &keyEvent);
 
         // Contract §2: commit, then render, then the mode indicator.
         if (result.commit) {
             ic->commitString(result.commit);
-            mistype_string_free(result.commit);
+            misstype_string_free(result.commit);
             state->last.reset();
         }
         render(ic, state, /*force=*/result.mode_changed || state->auxShown);
         if (result.mode_changed) {
-            const bool english = mistype_engine_is_english(engine_) != 0;
+            const bool english = misstype_engine_is_english(engine_) != 0;
             ic->inputPanel().setAuxUp(fcitx::Text(english ? "英" : "中"));
             state->auxShown = true;
             ic->updateUserInterface(fcitx::UserInterfaceComponent::InputPanel);
         }
 
         // Delivery rules: releases and bare modifiers are never filtered.
-        const bool bare = keyEvent.kind == MISTYPE_KEY_MODIFIER || keyEvent.kind == MISTYPE_KEY_SHIFT_LEFT ||
-                          keyEvent.kind == MISTYPE_KEY_SHIFT_RIGHT;
+        const bool bare = keyEvent.kind == MISSTYPE_KEY_MODIFIER || keyEvent.kind == MISSTYPE_KEY_SHIFT_LEFT ||
+                          keyEvent.kind == MISSTYPE_KEY_SHIFT_RIGHT;
         if (result.consumed && !keyEvent.is_release && !bare) {
             event.filterAndAccept();
         }
@@ -193,24 +193,24 @@ public:
 
     void activate(const fcitx::InputMethodEntry &, fcitx::InputContextEvent &event) override {
         if (auto *state = stateFor(event.inputContext())) {
-            mistype_session_reset_modifiers(state->session());
+            misstype_session_reset_modifiers(state->session());
         }
     }
 
     void pick(fcitx::InputContext *ic, int index) {
         if (auto *state = stateFor(ic)) {
-            mistype_session_pick(state->session(), index);
+            misstype_session_pick(state->session(), index);
             render(ic, state, false);
         }
     }
 
 private:
     static std::string resourcesDir() {
-        const char *env = std::getenv("MISTYPE_RESOURCES");
-        return env && *env ? env : MISTYPE_DATADIR;
+        const char *env = std::getenv("MISSTYPE_RESOURCES");
+        return env && *env ? env : MISSTYPE_DATADIR;
     }
 
-    MistypeState *stateFor(fcitx::InputContext *ic) {
+    MisstypeState *stateFor(fcitx::InputContext *ic) {
         return engine_ && ic ? ic->propertyFor(&stateFactory_) : nullptr;
     }
 
@@ -222,27 +222,27 @@ private:
             return;
         }
         // The session always drops its composition; only the insert is optional.
-        if (char *text = mistype_session_commit(state->session())) {
+        if (char *text = misstype_session_commit(state->session())) {
             if (commit) {
                 ic->commitString(text);
             }
-            mistype_string_free(text);
+            misstype_string_free(text);
             state->last.reset();
         }
         render(ic, state, state->auxShown);
     }
 
-    mistype_key_event buildKeyEvent(const fcitx::KeyEvent &event) {
+    misstype_key_event buildKeyEvent(const fcitx::KeyEvent &event) {
         const fcitx::Key &raw = event.rawKey();
-        mistype_key_event out = {};
-        out.kind = MISTYPE_KEY_OTHER;
+        misstype_key_event out = {};
+        out.kind = MISSTYPE_KEY_OTHER;
         out.native_code = raw.code();
         out.timestamp = -1;
         out.is_release = event.isRelease() ? 1 : 0;
 
         // fcitx5 keycodes are evdev + 8.
         if (raw.code() > 8) {
-            out.kind = mistype_key_from_evdev(raw.code() - 8, &out.label);
+            out.kind = misstype_key_from_evdev(raw.code() - 8, &out.label);
         }
 
         // Text the key types in the user's layout (case included).
@@ -251,11 +251,11 @@ private:
 
         uint32_t mods = 0;
         const auto states = raw.states();
-        if (states.test(fcitx::KeyState::Shift)) mods |= MISTYPE_MOD_SHIFT;
-        if (states.test(fcitx::KeyState::Ctrl)) mods |= MISTYPE_MOD_CONTROL;
-        if (states.test(fcitx::KeyState::Alt)) mods |= MISTYPE_MOD_ALT;
-        if (states.test(fcitx::KeyState::Super) || states.test(fcitx::KeyState::Super2)) mods |= MISTYPE_MOD_SUPER;
-        if (states.test(fcitx::KeyState::CapsLock)) mods |= MISTYPE_MOD_CAPS_LOCK;
+        if (states.test(fcitx::KeyState::Shift)) mods |= MISSTYPE_MOD_SHIFT;
+        if (states.test(fcitx::KeyState::Ctrl)) mods |= MISSTYPE_MOD_CONTROL;
+        if (states.test(fcitx::KeyState::Alt)) mods |= MISSTYPE_MOD_ALT;
+        if (states.test(fcitx::KeyState::Super) || states.test(fcitx::KeyState::Super2)) mods |= MISSTYPE_MOD_SUPER;
+        if (states.test(fcitx::KeyState::CapsLock)) mods |= MISSTYPE_MOD_CAPS_LOCK;
 
         // fcitx5 reports state BEFORE the event; the contract wants AFTER.
         // A modifier key's own press adds its bit and its release removes it.
@@ -264,11 +264,11 @@ private:
         }
 
         // No usable scancode: fall back to the typed character.
-        if (out.kind == MISTYPE_KEY_OTHER && out.text) {
+        if (out.kind == MISSTYPE_KEY_OTHER && out.text) {
             int32_t shifted = 0;
-            out.kind = mistype_key_from_character(out.text, &out.label, &shifted);
-            if (out.kind != MISTYPE_KEY_OTHER && shifted) {
-                mods |= MISTYPE_MOD_SHIFT;
+            out.kind = misstype_key_from_character(out.text, &out.label, &shifted);
+            if (out.kind != MISSTYPE_KEY_OTHER && shifted) {
+                mods |= MISSTYPE_MOD_SHIFT;
             }
         }
         out.modifiers = mods;
@@ -279,18 +279,18 @@ private:
         switch (sym) {
         case FcitxKey_Shift_L:
         case FcitxKey_Shift_R:
-            return MISTYPE_MOD_SHIFT;
+            return MISSTYPE_MOD_SHIFT;
         case FcitxKey_Control_L:
         case FcitxKey_Control_R:
-            return MISTYPE_MOD_CONTROL;
+            return MISSTYPE_MOD_CONTROL;
         case FcitxKey_Alt_L:
         case FcitxKey_Alt_R:
         case FcitxKey_Meta_L:
         case FcitxKey_Meta_R:
-            return MISTYPE_MOD_ALT;
+            return MISSTYPE_MOD_ALT;
         case FcitxKey_Super_L:
         case FcitxKey_Super_R:
-            return MISTYPE_MOD_SUPER;
+            return MISSTYPE_MOD_SUPER;
         default:
             return 0;
         }
@@ -299,11 +299,11 @@ private:
     /// What Enter will do with the mark (shown under the preedit).
     static std::string markHint(const ViewSnapshot &view) {
         switch (view.markAction) {
-        case MISTYPE_MARK_ADD:
+        case MISSTYPE_MARK_ADD:
             return "⏎ add \"" + view.markText + "\"  " + view.markReading;
-        case MISTYPE_MARK_REMOVE:
+        case MISSTYPE_MARK_REMOVE:
             return "⏎ remove \"" + view.markText + "\"  " + view.markReading;
-        case MISTYPE_MARK_UNAVAILABLE:
+        case MISSTYPE_MARK_UNAVAILABLE:
             return "Can't add this selection";
         default:
             return "Mark 2-8 syllables";
@@ -311,7 +311,7 @@ private:
     }
 
     /// Contract §3: draw the session view; skip when nothing changed.
-    void render(fcitx::InputContext *ic, MistypeState *state, bool force) {
+    void render(fcitx::InputContext *ic, MisstypeState *state, bool force) {
         ViewSnapshot view;
         if (!snapshot(state->session(), view)) {
             return;
@@ -326,7 +326,7 @@ private:
         panel.reset(); // also clears the 中/英 indicator
 
         fcitx::Text preedit;
-        const bool marking = view.markAction != MISTYPE_MARK_NONE && view.markStartBytes >= 0 &&
+        const bool marking = view.markAction != MISSTYPE_MARK_NONE && view.markStartBytes >= 0 &&
                              view.markEndBytes >= view.markStartBytes &&
                              view.markEndBytes <= static_cast<int>(view.preedit.size());
         if (marking) {
@@ -349,7 +349,7 @@ private:
             auto list = std::make_unique<fcitx::CommonCandidateList>();
             list->setPageSize(kPageSize);
             for (size_t i = 0; i < view.candidates.size(); ++i) {
-                list->append<MistypeCandidate>(this, static_cast<int>(i), view.candidates[i]);
+                list->append<MisstypeCandidate>(this, static_cast<int>(i), view.candidates[i]);
             }
             // Labels are selection keys only while they pick; otherwise they type Zhuyin.
             list->setLabels(view.keysActive ? view.selectionKeys : std::vector<std::string>{});
@@ -365,20 +365,20 @@ private:
         ic->updateUserInterface(fcitx::UserInterfaceComponent::InputPanel);
     }
 
-    mistype_engine *engine_ = nullptr;
-    fcitx::FactoryFor<MistypeState> stateFactory_;
-    std::string text_; // backs mistype_key_event::text during one keyEvent
+    misstype_engine *engine_ = nullptr;
+    fcitx::FactoryFor<MisstypeState> stateFactory_;
+    std::string text_; // backs misstype_key_event::text during one keyEvent
 };
 
-void MistypeCandidate::select(fcitx::InputContext *ic) const { engine_->pick(ic, index_); }
+void MisstypeCandidate::select(fcitx::InputContext *ic) const { engine_->pick(ic, index_); }
 
-class MistypeEngineFactory : public fcitx::AddonFactory {
+class MisstypeEngineFactory : public fcitx::AddonFactory {
 public:
     fcitx::AddonInstance *create(fcitx::AddonManager *manager) override {
-        return new MistypeEngine(manager->instance());
+        return new MisstypeEngine(manager->instance());
     }
 };
 
 } // namespace
 
-FCITX_ADDON_FACTORY(MistypeEngineFactory)
+FCITX_ADDON_FACTORY(MisstypeEngineFactory)
