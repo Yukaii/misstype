@@ -18,8 +18,7 @@ experimental directions: learned mixed Chinese/English input and paired fuzzy co
 > be refreshed first. Re-check every release version and download size
 > (competitors ship weekly; KeyKey changed twice in one week), re-verify the
 > `-` cells in the feature matrix and the ZingIME claims (price, AI, on-disk
-> size), measure Misstype's own macOS binary and replace the "~6 MB data"
-> placeholder, cover the projects listed under "Gaps in this research", and
+> size), cover the projects listed under "Gaps in this research", and
 > drop or soften anything we cannot source. Also confirm tone and licence
 > wording are fair to each project.
 
@@ -32,7 +31,7 @@ experimental directions: learned mixed Chinese/English input and paired fuzzy co
 | [Bopomix](https://github.com/lmanchu/bopomix) | macOS 13+, Apple Silicon | McBopomofo engine fork (Swift), Dachen only | Yes: letters that cannot form a syllable become English on the spot; Tab completes English (SCOWL list) | Local English-word learning | None; sentence-level AI reranking researched, not built | 6.6 MB `.dmg` | MIT |
 | [KeyKey (琦琦)](https://github.com/polobread/KeyKey/releases) | macOS 15+, Windows 11, Linux (fcitx5), iOS, Android | Yahoo 2012 codebase, 30 domain phrase libraries; also Cangjie | Not advertised | Smart phrase composition with learning | Says no network access | 38.2 MB macOS `.pkg.zip` | BSD; v1.3.1 released 2026-10-02 |
 | [ZingIME 晶晶](https://zingime.com/) | macOS, Apple Silicon | Zhuyin, 400k+ curated words | Yes (headline feature): same input state, no Caps Lock toggle; 220k-word English dictionary with Tab completion | Not stated | On-device "AI character selection" reading whole-sentence context (在/再); no cloud | 271.6 MiB `.dmg` | Paid, 14-day trial (press summary, unverified) |
-| **Misstype** (this repo) | macOS IMK, Linux fcitx5 | McBopomofo lexicon, Dachen, Swift `MistypeCore` | Yes, `mixedEnglish` (macOS default off) | Learning + user dictionary | None by default; optional Jev LLM assist, opt-in | ~6 MB of data, no model (see below) | not yet released |
+| **Misstype** (this repo) | macOS IMK, Linux fcitx5 | McBopomofo lexicon, Dachen, Swift `MistypeCore` | Yes, `mixedEnglish` (macOS default off) | Learning + user dictionary | None by default; optional Jev LLM assist, opt-in | `.dmg` 4.4 MB (v0.0.1, universal), no model | MIT |
 
 ### Download sizes (measured 2026-10-04)
 
@@ -48,17 +47,15 @@ after install is unknown.
 | ChiaKey v1.2.6 | `ChiaKey-1.2.6.pkg` | 50.2 MB | macOS; Windows beta Setup.exe is 27.1 MB |
 | KeyKey v1.3.1 | macOS `.pkg.zip` | 38.2 MB | Windows x64 setup 87 MB, zip 122 MB; Linux data `.deb` 27.3 MB + fcitx5 `.deb` 0.1 MB. Grew from 37.8 / 62.6 / 23.2 MB in v1.3.0 |
 | ZingIME 2026100301 | `.dmg` | 271.6 MiB | ~41x Bopomix; the bundled model is the likely cause (inference, not measured) |
-| Misstype | no release yet | ~6 MB data, binary unmeasured | `lexicon.tsv` 4.8 MB, `english.tsv` 0.9 MB, `toneless.tsv` 0.1 MB, `Resources/` 0.14 MB |
+| Misstype v0.0.1 | `Misstype-0.0.1.dmg` | 4.4 MB | macOS universal (arm64 + x86_64) installer app; the Sparkle update archive `MistypeIME-0.0.1.zip` is 3.6 MB |
 
 Bopomix is the fairest comparison: the same McBopomofo lexicon plus an
-English list ships in 6.6 MB, so our ~6 MB of data is in line with an IME
-that has no model.
+English list ships in 6.6 MB, and our 4.4 MB universal installer is in line
+with an IME that has no model.
 
-Misstype's size is the runtime data only, measured from `.cache/` and
-`Resources/` on 2026-10-04: `lexicon.tsv` 4.8 MB, `english.tsv` 0.9 MB,
-`toneless.tsv` 0.1 MB, `Resources/` 0.14 MB. The compiled macOS binary was
-not measured (this checkout builds on Linux only), so the total is a lower
-bound.
+Misstype's size is the size of the GitHub Releases asset
+(`Misstype-0.0.1.dmg`, 4,351,872 B), measured on 2026-10-04. It is a
+compressed installer, like the competitors' download sizes, not an on-disk size.
 
 ## Technical feature matrix
 

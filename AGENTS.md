@@ -38,7 +38,7 @@ This repository is an experimental input device and decoder. The current goal is
   GUI paths: a per-user installer app in a DMG, Sparkle 2 updates from GitHub
   Releases, signed and notarized by `release.yml` (dispatch run, Gatekeeper
   accepts the quarantined DMG). The sandboxed IME updates itself in place,
-  and bad signatures/keys are refused. No public release has been cut yet.
+  and bad signatures/keys are refused. First public release: v0.0.1 (2026-10-04, DMG 4.4 MB).
   Design, results and what is still unchecked: `docs/release.md`.
 
 ## Product constraints
