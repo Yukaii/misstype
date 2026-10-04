@@ -44,7 +44,7 @@ notarize() {
     --key "$NOTARY_KEY_PATH" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER_ID"
 }
 
-sign "$APP_DIR"
+sign --entitlements Resources/Mistype.entitlements "$APP_DIR"
 /usr/bin/codesign --verify --strict --verbose=2 "$APP_DIR"
 
 # Notarize and staple the app itself so it passes Gatekeeper offline once
