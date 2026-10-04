@@ -84,6 +84,14 @@ extension KeyEvent.Key {
         return label
     }
 
+    /// Label of a digit key ("0"…"9"), nil otherwise.
+    var digitLabel: String? {
+        guard case .character(let label) = self, label.count == 1,
+              let scalar = label.unicodeScalars.first,
+              ("0"..."9").contains(Character(scalar)) else { return nil }
+        return label
+    }
+
     var shiftSide: KeyEvent.ShiftSide? {
         if case .shift(let side) = self { return side }
         return nil

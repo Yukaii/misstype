@@ -456,8 +456,8 @@ window out of the critical path):
    current pick and continue (commit is Return's job); Cmd shortcuts never
    hijacked. Follow-up: … needs a conflict-free key (Option layer).
 6. Seamless mixed input (v1 landed): backtick toggles a latin run — letters   append verbatim (`L:`-marked keys, case preserved), spaces stay inside
-   multi-word runs (`` `hello world` ``), tones/punct/digits/Return end the
-   run, one commit at the end. No Shift toggle, no pause:
+   multi-word runs (`` `hello world` ``), punct/Return end the run (digits stay
+   in it since 2026-10-04; see the bug note below), one commit at the end. No Shift toggle, no pause:
    `` `hello world`su3cl3 `` → `hello world你好`. Guessing is impossible by
    construction (bare keys stay Zhuyin), so `hello`-as-keys still decodes
    Chinese — auto-detect with English scoring: measured v1 in `MistypeCore`
@@ -917,6 +917,20 @@ real-typing quality, which needs actual mixed text typed by a person.
 Run: `MISTYPE_MIXED_SWEEP=1 swift test -c release -Xswiftc -enable-testing
 --filter MixedSweepTests` after `python3 script/prepare_lexicon.py`.
 
+### Digits inside a latin run (2026-10-04, user-reported bug)
+
+After English was started with a lone Shift tap (or the backtick), the number
+row still produced Zhuyin: `abc123` became `abcㄅㄉˇ`, because a digit ended the
+run and 3/4/6/7 are tone keys. Digits are now literal text inside a latin run
+(`KeyEvent.Key.digitLabel`, `Composition.appendLatin` accepts ASCII digits);
+Shift+digit stays the full-width symbol layer. Behavior change: a tone key can
+no longer be used to drop back to Zhuyin from a latin run; the toggle that
+opened it (backtick, lone Shift tap) closes it, and punctuation still ends it.
+Global 中/英 mode was never affected in the core (digits pass through,
+`LatinDigitTests`); if the number row misbehaves there on macOS the cause is
+in the IMK adapter or the client app, not the session.
+Tests: `LatinDigitTests` (incl. the Shift-tap case), `testBacktickLatinRun`.
+
 ## Measures
 
 Track phrase-level character error rate, syllable error rate, commit latency, p50/p95 decode latency, backspaces or replays, candidate interruptions, and task completion time. Log confidence and decoder source for every result. Run a fixed synthetic fixture set plus consented user sessions kept outside the repository.
@@ -924,6 +938,8 @@ Track phrase-level character error rate, syllable error rate, commit latency, p5
 The main comparison is not raw key accuracy. It is whether users can capture thoughts with fewer interruptions at an acceptable final reconstruction quality.
 
 ## Open questions
+
+Competitor comparison and feature ideas: [`competitors.md`](competitors.md).
 
 - Does tone input improve segmentation enough to justify a dedicated gesture?
   Finding (fixture-backed, 9-phrase table): no. Tones are optional hints —

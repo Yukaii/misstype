@@ -293,10 +293,11 @@ public struct Composition {
         rawKeys.removeFirst(index)
     }
     /// Append one Latin letter into the running composition (no commit).
+    /// ASCII letters and digits (digits only reach here inside a latin run).
     /// Stored marked so bare symbol keys stay unambiguously Zhuyin.
     @discardableResult public mutating func appendLatin(_ text: String) -> Bool {
         guard rawKeys.count < 256, text.count == 1,
-              let char = text.first, char.isASCII, char.isLetter else { return false }
+              let char = text.first, char.isASCII, char.isLetter || char.isNumber else { return false }
         rawKeys.append("L:\(char)")
         return true
     }

@@ -262,11 +262,13 @@ final class InputSessionTests: XCTestCase {
         let session = makeSession()
         type("su3`hi", into: session)
         XCTAssertEqual(session.view.preedit, "你hi")
-        // Letters stay latin; a non-letter (here a tone with nothing to
-        // mark, which beeps) ends the run, so the letters are Zhuyin again.
-        XCTAssertEqual(session.handle(key(.character("3"), text: "3")), KeyResult(consumed: true, beep: true))
-        type("cl3", into: session)
-        XCTAssertEqual(session.view.preedit, "你hi好")
+        // Letters and digits stay latin (a tone key is just a digit here;
+        // the run used to end on it, which turned "mp3" into Zhuyin). The
+        // closing backtick returns to Zhuyin.
+        XCTAssertEqual(session.handle(key(.character("3"), text: "3")), KeyResult(consumed: true))
+        XCTAssertEqual(session.view.preedit, "你hi3")
+        type("`cl3", into: session)
+        XCTAssertEqual(session.view.preedit, "你hi3好")
     }
 
     func testBackspaceInsideLatinRunKeepsTheRun() {
