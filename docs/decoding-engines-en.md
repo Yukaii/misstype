@@ -18,10 +18,10 @@ Existing Zhuyin input method engines can be categorized into six major architect
   - Dijkstra or Viterbi dynamic programming finds the path with the maximum cumulative score.
 - **Strengths**:
   - Deterministic and easy to debug.
-  - Linear time complexity relative to sentence length; minimal decode latency ($<1\text{ ms}$).
+  - Linear time complexity relative to sentence length; minimal decode latency (< 1 ms).
   - Compact data footprint (a few megabytes), minimal memory usage.
 - **Limitations**:
-  - Blind to adjacent word co-occurrence ($P(w_i \mid w_{i-1})$).
+  - Blind to adjacent word co-occurrence (P(word_i | word_{i-1})).
   - Ambiguities (such as homophones or toneless collisions) rely entirely on exact tones or explicit manual candidate selection.
 
 ---
@@ -29,7 +29,7 @@ Existing Zhuyin input method engines can be categorized into six major architect
 ### Paradigm 2: Bigram Markov Language Models
 - **Representative Projects**: ChiaKey, Yahoo KeyKey
 - **Core Algorithm**:
-  - Evaluates transitions between adjacent words using transition probabilities $P(w_i \mid w_{i-1})$. During dynamic programming, path edge weights combine the word's own frequency and the preceding word's transition bonus.
+  - Evaluates transitions between adjacent words using transition probabilities P(word_i | word_{i-1}). During dynamic programming, path edge weights combine the word's own frequency and the preceding word's transition bonus.
 - **Findings & Challenges** (from our measurements in `tools/bigram_eval.py`):
   - **High information entropy in Zhuyin**: Unlike toneless Pinyin, Zhuyin carries tones inherently. Empirical tests show that character-level bigrams produce variance that steamrolls word unigram scores and tone accuracy, degrading sentences into common-character fragments.
   - **Regression on toneless input**: Word bigram tables calibrated for toned input often misclassify homophones across tones (e.g., flipping 他 to 她, or 時間 to 事件) when users omit tones.
@@ -70,7 +70,7 @@ Existing Zhuyin input method engines can be categorized into six major architect
   - Generates top candidates via traditional rules, then applies a small Transformer, SLM, or remote LLM to rescore or rerank based on sentence context.
 - **Findings & Challenges** (from `tools/lm_choose.py` evaluations):
   - **Size barrier**: On-device neural models typically require hundreds of megabytes (e.g., ZingIME's download size is 271.6 MiB).
-  - **Latency friction**: Per-keystroke interactivity demands $<10\text{ ms}$ response times, whereas neural inference often takes tens to hundreds of milliseconds.
+  - **Latency friction**: Per-keystroke interactivity demands < 10 ms response times, whereas neural inference often takes tens to hundreds of milliseconds.
   - **Calibration issues**: Small language models frequently exhibit high-confidence hallucinations or position biases, compromising deterministic output.
 
 ---
@@ -79,7 +79,7 @@ Existing Zhuyin input method engines can be categorized into six major architect
 - **Representative Project**: **Misstype**
 - **Core Algorithm**:
   - **Unified Cost Lattice**: Evaluates tone absence, keyboard edit errors (neighbor keys, transpositions, omissions), Gaussian touch coordinate distances, and unigram lexicon frequencies inside a single, unified penalty framework.
-  - **Bounded Beam Search**: Clean, repaired, and toneless paths compete in a single dynamic programming lattice with strict pruning (beam width 16), maintaining a $1\sim 5\text{ ms}$ full-sentence decode budget per keystroke.
+  - **Bounded Beam Search**: Clean, repaired, and toneless paths compete in a single dynamic programming lattice with strict pruning (beam width 16), maintaining a 1～5 ms full-sentence decode budget per keystroke.
   - **Context-Keyed Learning**: Instead of a multi-megabyte static bigram table, records user selections on demand as `previous_word | readings -> picked_text` (e.g., `下次 | ㄗㄞ -> 再`). This resolves homophone ties using local context without polluting global rankings.
 - **Strengths**:
   - Compact footprint (plain-text TSV data totaling ~6 MB), minimal runtime memory.
@@ -91,10 +91,10 @@ Existing Zhuyin input method engines can be categorized into six major architect
 
 | Dimension | Unigram DAG (vChewing) | Bigram Markov (ChiaKey) | Spelling Algebra (Rime) | Max Matching (libchewing) | Neural LM (ZingIME) | Misstype |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Primary Scoring** | Unigram + Length Bias | Unigram + Bigram Transitions | Unigram + Rule Expansion | Greedy Backward Match | Neural Context Probabilities | Lexicon Unigram $-$ Penalty Costs $+$ Local Boosts |
+| **Primary Scoring** | Unigram + Length Bias | Unigram + Bigram Transitions | Unigram + Rule Expansion | Greedy Backward Match | Neural Context Probabilities | Lexicon Unigram − Penalty Costs ＋ Local Boosts |
 | **Toneless Support** | None (Tones required) | Yes (Cross-tone drift observed) | Yes (Static rule derivation) | Weak (Biased to complete tones) | Yes (Model disambiguation) | Native (Scored as soft penalty in DP) |
 | **Typo Tolerance** | None | None | Pre-defined fuzzy sounds only | None | None | Native (Edit distance + Touch coordinates) |
-| **Decode Latency** | $<1\text{ ms}$ | $\approx 25\sim 55\text{ ms}$ | $<5\text{ ms}$ | $<1\text{ ms}$ | Tens to hundreds of ms | $1\sim 5\text{ ms}$ |
+| **Decode Latency** | < 1 ms | ≈ 25～55 ms | < 5 ms | < 1 ms | Tens to hundreds of ms | 1～5 ms |
 | **Package / Data Size** | Lightweight (few MB) | Large (30–50 MB) | Medium (10–30 MB) | Minimal (few MB) | Very Large (200 MB+) | Minimal (~6 MB) |
 | **Context Adaptation** | User Dictionary | Static Bigram + User Lexicon | Frecency Decay | Phrase Weighting | Pretrained Weights | Local Context-Keyed Learning |
 
@@ -108,3 +108,30 @@ Existing Zhuyin input method engines can be categorized into six major architect
    True ambiguities in Zhuyin (such as 在/再 or 做/作) involve a small set of residual homophones. Targeted local learning (`previous_word | reading -> selection`) resolves over 95% of individual ambiguities without bloating data structures.
 3. **A unified penalty lattice is the scalable path forward**:
    Modern typing on software keyboards produces frequent neighbor-key slips and omitted tones. Unifying acoustic hints, edit distances, and touch coordinates inside a single dynamic programming lattice achieves the best balance between low latency and forgiving text capture.
+
+---
+
+## 4. How to Choose: Practical Trade-offs and Scenarios
+
+Input method engines are shaped by engineering trade-offs rather than pure superiority. Each reflects different assumptions about user typing habits and hardware constraints:
+
+- **For absolute control, surgical precision, and rock-solid stability → [vChewing](https://github.com/vChewing/vChewing-macOS) or McBopomofo**
+  - **Best for**: Users who type exact tones on physical keyboards and want predictable, zero-guesswork output without algorithmic second-guessing.
+  - **Experience**: Complete determinism, sub-millisecond decode latency (< 1 ms), and a pure typing flow.
+
+- **For infinite customization, multi-platform parity, and esoteric schemas → [Rime](https://rime.im/) (Squirrel / Weasel)**
+  - **Best for**: Power users, alternative layout typists, and hackers who manage multi-platform dotfiles and custom spelling algebra schemas.
+  - **Experience**: Unrivaled YAML-driven extensibility and vast community lexicon ecosystems.
+
+- **For classic desktop sentence flow and Taiwan phrase collocations → ChiaKey or KeyKey**
+  - **Best for**: Typists fond of the classic Yahoo KeyKey sentence composition feel, valuing pre-calibrated Taiwan idioms and domain phrases.
+  - **Experience**: Smooth phrase-pair stitching for steady desktop writing, at the cost of a 30–50 MB footprint.
+
+- **For whole-sentence context selection regardless of resource footprint → ZingIME / Neural LM methods**
+  - **Best for**: Modern macOS users who want on-device AI to automatically resolve tricky homophones (e.g., 在 vs. 再) and have ample disk space and RAM.
+  - **Experience**: Context-aware candidate selection, traded against a ~270 MB install footprint and non-negligible inference overhead.
+
+- **For fast blind-typing, forgiving typos, seamless English mixing, and minimal footprint → Misstype (隨打注音)**
+  - **Best for**: Rapid typists who frequently omit tones, slip on adjacent keys, mix English without toggling Caps Lock, and demand real-time (< 5 ms) responsiveness in a compact (~6 MB) package.
+  - **Experience**: Silent, unified error recovery with local context learning that remembers explicit picks without global noise.
+  - **Bonus reason**: And of course, being part of Yukai's circle of friends and family.
