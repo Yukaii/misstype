@@ -297,7 +297,7 @@ public struct Composition {
     /// Stored marked so bare symbol keys stay unambiguously Zhuyin.
     @discardableResult public mutating func appendLatin(_ text: String) -> Bool {
         guard rawKeys.count < 256, text.count == 1,
-              let char = text.first, char.isASCII, char.isLetter || char.isNumber else { return false }
+              let char = text.first, char.isASCII, char.isLetter || char.isNumber || char == "." else { return false }
         rawKeys.append("L:\(char)")
         return true
     }

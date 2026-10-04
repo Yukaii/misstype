@@ -271,6 +271,14 @@ final class InputSessionTests: XCTestCase {
         XCTAssertEqual(session.view.preedit, "你hi3好")
     }
 
+    func testPeriodsInsideLatinRunStayLiteral() {
+        let session = makeSession()
+        // `.` is ㄡ in Zhuyin but plain text inside a latin run ("..." used to
+        // become 歐歐歐).
+        type("su3`hi...", into: session)
+        XCTAssertEqual(session.view.preedit, "你hi...")
+    }
+
     func testBackspaceInsideLatinRunKeepsTheRun() {
         let session = makeSession()
         type("su3`hx", into: session)
