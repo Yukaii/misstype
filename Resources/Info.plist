@@ -25,7 +25,7 @@
 <key>TISIconIsTemplate</key><true/>
 <key>tsInputMethodIconFileKey</key><string>MistypeMenuIcon.tiff</string>
 <key>tsInputMethodCharacterRepertoireKey</key><array><string>Hant</string></array>
-<key>SUFeedURL</key><string>https://github.com/Yukaii/mistype/releases/latest/download/appcast.xml</string>
+<key>SUFeedURL</key><string>https://github.com/Yukaii/misstype/releases/latest/download/appcast.xml</string>
 <key>SUEnableAutomaticChecks</key><true/>
 <key>SUAutomaticallyUpdate</key><true/>
 <key>SUEnableSystemProfiling</key><false/>

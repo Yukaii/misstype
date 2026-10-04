@@ -40,7 +40,7 @@ It warns when an older `/Library/Input Methods/MistypeIME.app` exists.
 
 ## Updates
 
-- `SUFeedURL` is `https://github.com/Yukaii/mistype/releases/latest/download/appcast.xml`;
+- `SUFeedURL` is `https://github.com/Yukaii/misstype/releases/latest/download/appcast.xml`;
   every release uploads an `appcast.xml` with only its own item, GitHub
   serves the newest non-prerelease's copy.
 - Scheduled checks download silently (`SUAutomaticallyUpdate`). The update is

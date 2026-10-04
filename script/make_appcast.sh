@@ -16,7 +16,7 @@ VERSION="${1:?usage: make_appcast.sh <version> <build> <archive.zip>}"
 BUILD="${2:?usage: make_appcast.sh <version> <build> <archive.zip>}"
 ARCHIVE="${3:?usage: make_appcast.sh <version> <build> <archive.zip>}"
 VERSION="${VERSION#v}"
-REPO="${GITHUB_REPOSITORY:-Yukaii/mistype}"
+REPO="${GITHUB_REPOSITORY:-Yukaii/misstype}"
 TAG="${TAG:-v$VERSION}"
 KEY_FILE="${SPARKLE_ED_KEY_FILE:?SPARKLE_ED_KEY_FILE is not set}"
 
