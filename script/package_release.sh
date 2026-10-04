@@ -1,15 +1,25 @@
 #!/bin/zsh
-# Build a universal MistypeIME.app and wrap it in a distributable DMG.
+# Build the release artifacts for one version:
+#
+#   dist/Misstype-<v>.dmg         DMG holding "Install Misstype.app" (per-user installer)
+#   dist/MistypeIME-<v>.zip      Sparkle update archive (the signed MistypeIME.app)
+#   dist/appcast.xml             Sparkle feed for that archive (needs SPARKLE_ED_KEY_FILE)
+#   dist/*.sha256
 #
 #   ./script/package_release.sh 0.2.0
 #
-# Environment (all optional; without them the output is ad-hoc signed and
-# Gatekeeper will block it on other machines):
-#   SIGN_IDENTITY     codesign identity, e.g. "Developer ID Application: …"
-#   BUILD_NUMBER      CFBundleVersion (default 1)
-#   NOTARY_KEY_PATH   App Store Connect API key (.p8) for notarytool
-#   NOTARY_KEY_ID     its key ID
-#   NOTARY_ISSUER_ID  its issuer ID
+# Environment (all optional; without signing the output is ad-hoc signed and
+# Gatekeeper blocks the DMG itself on other machines, though the installed
+# copy carries no quarantine flag):
+#   SIGN_IDENTITY       codesign identity, e.g. "Developer ID Application: …"
+#   BUILD_NUMBER        CFBundleVersion, must increase every release (default 1)
+#   NOTARY_KEY_PATH     App Store Connect API key (.p8) for notarytool
+#   NOTARY_KEY_ID       its key ID
+#   NOTARY_ISSUER_ID    its issuer ID
+#   SPARKLE_PUBLIC_KEY  EdDSA public key baked into the app (default: the
+#                       contents of Resources/SparklePublicKey.txt). Without
+#                       one the IME ships with updates disabled.
+#   SPARKLE_ED_KEY_FILE file with the matching private key; enables appcast.xml
 set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT_DIR"
@@ -17,22 +27,18 @@ cd "$ROOT_DIR"
 VERSION="${1:?usage: package_release.sh <version>}"
 VERSION="${VERSION#v}"
 IDENTITY="${SIGN_IDENTITY:--}"
+BUILD="${BUILD_NUMBER:-1}"
 APP_DIR="$ROOT_DIR/dist/MistypeIME.app"
-DMG="$ROOT_DIR/dist/Mistype-$VERSION.dmg"
+INSTALLER_DIR="$ROOT_DIR/dist/Install Misstype.app"
+DMG="$ROOT_DIR/dist/Misstype-$VERSION.dmg"
+ZIP="$ROOT_DIR/dist/MistypeIME-$VERSION.zip"
+ARCHS="--arch arm64 --arch x86_64"
 
-SWIFT_BUILD_FLAGS="--arch arm64 --arch x86_64" ./script/build_and_run.sh --build-only
+SPARKLE_PUBLIC_KEY="${SPARKLE_PUBLIC_KEY:-$(cat Resources/SparklePublicKey.txt 2>/dev/null || true)}"
 
-PLIST="$APP_DIR/Contents/Info.plist"
-/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$PLIST"
-/usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${BUILD_NUMBER:-1}" "$PLIST"
-
-sign() {
-  if [[ "$IDENTITY" == "-" ]]; then
-    /usr/bin/codesign --force --sign - "$@"
-  else
-    # Notarization requires the hardened runtime and a secure timestamp.
-    /usr/bin/codesign --force --sign "$IDENTITY" --options runtime --timestamp "$@"
-  fi
+set_version() {  # <Info.plist>
+  /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$1"
+  /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD" "$1"
 }
 
 notarize() {
@@ -44,30 +50,61 @@ notarize() {
     --key "$NOTARY_KEY_PATH" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER_ID"
 }
 
-sign --entitlements Resources/Mistype.entitlements "$APP_DIR"
-/usr/bin/codesign --verify --strict --verbose=2 "$APP_DIR"
+# --- The input method -------------------------------------------------------
+SWIFT_BUILD_FLAGS="$ARCHS" ./script/build_and_run.sh --build-only
+set_version "$APP_DIR/Contents/Info.plist"
+if [[ -n "$SPARKLE_PUBLIC_KEY" ]]; then
+  /usr/libexec/PlistBuddy -c "Add :SUPublicEDKey string $SPARKLE_PUBLIC_KEY" "$APP_DIR/Contents/Info.plist"
+else
+  echo "No Sparkle public key: this build will not check for updates." >&2
+fi
+./script/sign_bundle.sh "$IDENTITY" "$APP_DIR" Resources/Mistype.entitlements
 
-# Notarize and staple the app itself so it passes Gatekeeper offline once
-# copied out of the DMG; then notarize the DMG that wraps it.
+# Notarize and staple the app itself so it passes Gatekeeper offline.
 if [[ -n "${NOTARY_KEY_ID:-}" ]]; then
-  ZIP="$ROOT_DIR/dist/MistypeIME-notarize.zip"
-  /usr/bin/ditto -c -k --keepParent "$APP_DIR" "$ZIP"
-  notarize "$ZIP"
-  rm -f "$ZIP"
+  NOTARIZE_ZIP="$ROOT_DIR/dist/MistypeIME-notarize.zip"
+  /usr/bin/ditto -c -k --keepParent "$APP_DIR" "$NOTARIZE_ZIP"
+  notarize "$NOTARIZE_ZIP"
+  rm -f "$NOTARIZE_ZIP"
   xcrun stapler staple "$APP_DIR"
 fi
 
+# Sparkle update archive: made after stapling so updates carry the ticket.
+rm -f "$ZIP"
+/usr/bin/ditto -c -k --keepParent "$APP_DIR" "$ZIP"
+
+# --- The installer app ------------------------------------------------------
+swift build -c release $=ARCHS --product MistypeInstaller
+INSTALLER_BIN="$(swift build -c release $=ARCHS --show-bin-path)/MistypeInstaller"
+rm -rf "$INSTALLER_DIR"
+mkdir -p "$INSTALLER_DIR/Contents/MacOS" "$INSTALLER_DIR/Contents/Resources"
+cp "$INSTALLER_BIN" "$INSTALLER_DIR/Contents/MacOS/MistypeInstaller"
+cp Resources/Installer/Info.plist "$INSTALLER_DIR/Contents/Info.plist"
+cp Resources/MistypeIcon.png "$INSTALLER_DIR/Contents/Resources/"
+cp -R Resources/Installer/*.lproj "$INSTALLER_DIR/Contents/Resources/"
+/usr/bin/ditto "$APP_DIR" "$INSTALLER_DIR/Contents/Resources/MistypeIME.app"
+set_version "$INSTALLER_DIR/Contents/Info.plist"
+./script/sign_bundle.sh "$IDENTITY" "$INSTALLER_DIR"
+
+# --- DMG --------------------------------------------------------------------
 STAGING="$(mktemp -d)"
 trap 'rm -rf "$STAGING"' EXIT
-/usr/bin/ditto "$APP_DIR" "$STAGING/MistypeIME.app"
-ln -s "/Library/Input Methods" "$STAGING/Input Methods"
+/usr/bin/ditto "$INSTALLER_DIR" "$STAGING/Install Misstype.app"
 rm -f "$DMG"
-hdiutil create -volname "Mistype $VERSION" -srcfolder "$STAGING" -format UDZO -ov "$DMG"
-sign "$DMG"
+hdiutil create -volname "Misstype $VERSION" -srcfolder "$STAGING" -format UDZO -ov "$DMG"
+if [[ "$IDENTITY" == "-" ]]; then
+  /usr/bin/codesign --force --sign - "$DMG"
+else
+  /usr/bin/codesign --force --sign "$IDENTITY" --timestamp "$DMG"
+fi
 if [[ -n "${NOTARY_KEY_ID:-}" ]]; then
   notarize "$DMG"
   xcrun stapler staple "$DMG"
 fi
 
-(cd dist && shasum -a 256 "$(basename "$DMG")" > "$(basename "$DMG").sha256")
-echo "Packaged $DMG"
+# --- Feed and checksums -----------------------------------------------------
+if [[ -n "${SPARKLE_ED_KEY_FILE:-}" ]]; then
+  ./script/make_appcast.sh "$VERSION" "$BUILD" "$ZIP"
+fi
+(cd dist && for f in "$(basename "$DMG")" "$(basename "$ZIP")"; do shasum -a 256 "$f" > "$f.sha256"; done)
+echo "Packaged $DMG and $ZIP"

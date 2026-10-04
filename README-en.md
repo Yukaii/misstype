@@ -14,6 +14,7 @@ The first target is Bopomofo (Zhuyin), with English mixing and a local decoder. 
 - [Linux (fcitx5) port plan](docs/linux-port.md): status, toolchain, dev container, and roadmap for Linux.
 - [Competitor comparison and feature research](docs/competitors-en.md): Traditional Chinese feature matrix, baseline positioning, and tracking workflow.
 - [Decoding and composition engines technical survey](docs/decoding-engines-en.md): Algorithms, trade-offs, and architectures across DAG, Bigram, Rime, and unified penalty lattices.
+- [Packaging, installer and updates](docs/release.md): DMG installer, Sparkle auto-update, signing and release steps.
 - [Development guide](AGENTS.md): working loop, privacy rules, and definition of done.
 
 The design takes inspiration from [Qingjian](https://github.com/qingjian-team/qingjian), especially its platform-independent core and delayed whole-phrase reconstruction. Misstype is a separate experiment; compatibility with Qingjian is a milestone, not a promise.
@@ -41,6 +42,8 @@ The diagnostic path exercises the packaged dictionary without an IME client:
 ```sh
 dist/MistypeIME.app/Contents/MacOS/MistypeIME --decode su3cl3
 ```
+
+To build a release DMG (installer app) and Sparkle update archive, see [Packaging, installer and updates](docs/release.md).
 
 The installer keeps the previous bundle at `.cache/MistypeIME-previous.app` when replacing an existing installation. Disable the source with `swift run -c release MistypeSourceTool disable` if needed.
 

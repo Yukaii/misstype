@@ -7,4 +7,11 @@
 <!-- IMKServer registers this name; keep equal to InputMethodConnectionName in Info.plist. -->
 <key>com.apple.security.temporary-exception.mach-register.global-name</key>
 <string>org.mistype.inputmethod.Mistype_Connection</string>
+<!-- Sparkle (sandboxed apps): the installer launcher and status XPC services are
+     reached as <bundle id>-spki / -spks. -->
+<key>com.apple.security.temporary-exception.mach-lookup.global-name</key>
+<array>
+<string>org.mistype.inputmethod.Mistype-spks</string>
+<string>org.mistype.inputmethod.Mistype-spki</string>
+</array>
 </dict></plist>
