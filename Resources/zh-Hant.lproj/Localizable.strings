@@ -8,6 +8,8 @@
 "Typing" = "輸入";
 "Tap Shift to switch Chinese/English" = "單敲 Shift 切換中英";
 "Shift+Space always works. Turn this off if an app mishandles lone Shift presses." = "Shift+空白鍵永遠可用。若某個 App 誤處理單獨的 Shift 按鍵，可關閉此項。";
+"Show candidates automatically" = "自動顯示選字窗";
+"Off: the candidate panel appears only after you press Tab or an arrow key." = "關閉時，按下 Tab 或方向鍵後才會顯示選字窗。";
 "Selection keys" = "選字鍵";
 "Restore Default" = "恢復預設";
 "Pick a candidate after pressing ↓ or Tab (or in the syllable cursor's list). Up to 8 keys; while typing they stay Zhuyin keys." = "按 ↓ 或 Tab 後（或在音節游標的清單中）用來選字，最多 8 個鍵；打字時它們仍是注音鍵。";

@@ -108,6 +108,7 @@ private struct DescribedToggle: View {
 
 private struct GeneralPane: View {
     @AppStorage("MistypeShiftToggle") private var shiftToggle = true
+    @AppStorage("MistypeAutoShowCandidates") private var autoShowCandidates = false
     @AppStorage("MistypeCandidateKeys") private var storedKeys = SelectionKeys.defaultKeys
     @State private var draft = ""
     @FocusState private var editing: Bool
@@ -123,6 +124,10 @@ private struct GeneralPane: View {
                     title: L("Tap Shift to switch Chinese/English"),
                     detail: L("Shift+Space always works. Turn this off if an app mishandles lone Shift presses."),
                     isOn: $shiftToggle)
+                DescribedToggle(
+                    title: L("Show candidates automatically"),
+                    detail: L("Off: the candidate panel appears only after you press Tab or an arrow key."),
+                    isOn: $autoShowCandidates)
             }
             Section(L("Selection keys")) {
                 HStack {

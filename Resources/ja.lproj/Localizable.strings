@@ -8,6 +8,8 @@
 "Typing" = "入力";
 "Tap Shift to switch Chinese/English" = "Shift 単独タップで中/英を切り替え";
 "Shift+Space always works. Turn this off if an app mishandles lone Shift presses." = "Shift+スペースは常に使えます。単独の Shift を正しく扱わないアプリでは、オフにしてください。";
+"Show candidates automatically" = "候補を自動的に表示";
+"Off: the candidate panel appears only after you press Tab or an arrow key." = "オフの場合、Tab または矢印キーを押すと候補ウィンドウが表示されます。";
 "Selection keys" = "候補選択キー";
 "Restore Default" = "初期値に戻す";
 "Pick a candidate after pressing ↓ or Tab (or in the syllable cursor's list). Up to 8 keys; while typing they stay Zhuyin keys." = "↓ または Tab を押した後（または音節カーソルの一覧で）候補を選ぶキーです。最大 8 個。入力中は通常の注音キーとして働きます。";
