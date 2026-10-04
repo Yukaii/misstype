@@ -92,6 +92,19 @@ final class InputSessionTests: XCTestCase {
         XCTAssertEqual(session.engine.userLexicon.count, 1)
     }
 
+    func testPanelStaysClosedUntilSelectionWhenAutoShowIsOff() {
+        settings.autoShowCandidates = false
+        let session = makeSession()
+        type("su3", into: session)
+        XCTAssertFalse(session.view.showsCandidates)
+        XCTAssertEqual(session.handle(key(.tab, text: "\t")), KeyResult(consumed: true))
+        XCTAssertTrue(session.view.showsCandidates)
+        XCTAssertTrue(session.view.keysActive)
+        // Esc leaves selection and the panel closes again.
+        session.handle(key(.escape, text: "\u{1b}"))
+        XCTAssertFalse(session.view.showsCandidates)
+    }
+
     func testSelectionKeyPicksFromSecondPageInASentence() {
         // Homophones past the decoder's per-node cap (page 2 of the picker)
         // must still win once picked; they used to be pinned but unreachable.

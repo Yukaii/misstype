@@ -27,6 +27,7 @@ enum MistypePrefs {
             "MistypeJevModel": JevConfig.defaultModel,
             "MistypeShiftToggle": true,
             "MistypeAutoCommitSyllables": 24,
+            "MistypeAutoShowCandidates": false,
         ])
     }
 
@@ -35,6 +36,13 @@ enum MistypePrefs {
     static var shiftToggle: Bool {
         get { UserDefaults.standard.bool(forKey: "MistypeShiftToggle") }
         set { UserDefaults.standard.set(newValue, forKey: "MistypeShiftToggle") }
+    }
+
+    /// Candidate panel opens by itself while composing (default off: it
+    /// shows once Tab/Down/Up or the syllable cursor starts selecting).
+    static var autoShowCandidates: Bool {
+        get { UserDefaults.standard.bool(forKey: "MistypeAutoShowCandidates") }
+        set { UserDefaults.standard.set(newValue, forKey: "MistypeAutoShowCandidates") }
     }
 
     /// Long compositions commit their settled head in chunks once they pass
@@ -98,7 +106,8 @@ enum MistypePrefs {
         SessionSettings(fuzzyRepair: fuzzyRepair, toneTolerance: toneTolerance,
                         candidateKeys: candidateKeys, userLearning: userLearning,
                         shiftToggle: shiftToggle, jev: jevConfig,
-                        autoCommitSyllables: autoCommitSyllables)
+                        autoCommitSyllables: autoCommitSyllables,
+                        autoShowCandidates: autoShowCandidates)
     }
 
     /// Live adapter config: explicit enable + key presence gate the attempt;

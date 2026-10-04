@@ -193,7 +193,8 @@ public final class InputSession {
             selected: segmentTexts != nil ? segmentSelected : selected,
             selectionKeys: SelectionKeys.labels(keys: settings.candidateKeys),
             keysActive: inSelection,
-            showsCandidates: segmentTexts != nil ? !texts.isEmpty : texts.count > 1)
+            showsCandidates: segmentTexts != nil ? !texts.isEmpty
+                : texts.count > 1 && (selecting || settings.autoShowCandidates))
     }
 
     public func handle(_ event: KeyEvent) -> KeyResult {

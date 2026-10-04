@@ -16,11 +16,16 @@ public struct SessionSettings: Equatable, Sendable {
     /// head in chunks while typing continues (0 = never). Bounds per-key
     /// decode cost and how much text one Backspace/Escape can lose.
     public var autoCommitSyllables: Int
+    /// Candidate panel opens by itself while composing (more than one
+    /// option). Off = it appears only once selection starts (Tab/Down/Up, the
+    /// syllable cursor). The core default keeps the always-on behavior; the
+    /// macOS preference defaults to off.
+    public var autoShowCandidates: Bool
 
     public init(fuzzyRepair: Bool = true, toneTolerance: Bool = true,
                 candidateKeys: String = SelectionKeys.defaultKeys, userLearning: Bool = true,
                 shiftToggle: Bool = true, jev: JevConfig = JevConfig(),
-                autoCommitSyllables: Int = 24) {
+                autoCommitSyllables: Int = 24, autoShowCandidates: Bool = true) {
         self.fuzzyRepair = fuzzyRepair
         self.toneTolerance = toneTolerance
         self.candidateKeys = candidateKeys
@@ -28,6 +33,7 @@ public struct SessionSettings: Equatable, Sendable {
         self.shiftToggle = shiftToggle
         self.jev = jev
         self.autoCommitSyllables = autoCommitSyllables
+        self.autoShowCandidates = autoShowCandidates
     }
 }
 
