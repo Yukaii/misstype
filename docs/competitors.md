@@ -53,7 +53,7 @@
 | 測試與驗證 | sanitizer、fuzz、coverage | - | - | - | - | C1–C13、一致性與掃描 |
 | 授權 | GPL-3.0 | BSD-3 | MIT | BSD | 專有 | 見儲存庫 |
 
-詳細的專案分析、下載大小與「值得評估的功能」保留在[英文研究頁](competitors-en.md)。
+詳細的專案分析、下載大小與「值得評估的功能」保留在[英文研究頁](competitors-en.md)；組詞演算法與各家解碼引擎之深度比較見[組詞與解碼引擎技術研究](decoding-engines.md)。
 
 ## 長期定位
 
