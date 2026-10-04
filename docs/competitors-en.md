@@ -8,6 +8,11 @@ tagline). Claims below are what the projects say about themselves; none were
 installed or benchmarked. Overlap between rows is expected: several projects
 share ancestry (Yahoo KeyKey/OpenVanilla, McBopomofo, libchewing).
 
+This is not an IME leaderboard or a color-coded attempt to declare victory.
+Think of it as a travel map: vChewing is the well-equipped senior guide;
+Mistype is the slightly unusual traveler testing learned mixed typing and
+pairing fuzzy input back to candidate readings.
+
 
 > **TODO before going public:** this page is a 2026-10-04 snapshot and must
 > be refreshed first. Re-check every release version and download size
@@ -139,7 +144,7 @@ size and price are the contrast with our small offline lexicon.
 
 ## Where Mistype stands
 
-[vChewing](https://github.com/vChewing/vChewing-macOS) should be the long-term recommendation and comparison baseline: it is a mature, usable Zhuyin IME for checking compatibility, candidate flow, and day-to-day stability. Mistype should not try to match its entire feature surface. Its focused differentiators are **learned mixed Chinese/English typing** (adoption, false switches, latency, and improvement after learning) and **paired fuzzy correction** (matching keyboard edits and touch-coordinate evidence to candidate readings while preserving replayable raw traces). Both claims need fixed-phrase, de-identified input fixtures and cross-platform conformance checks.
+[vChewing](https://github.com/vChewing/vChewing-macOS) should be the long-term recommendation and comparison baseline: it is a mature, usable Zhuyin IME for checking compatibility, candidate flow, and day-to-day stability. Treating it as a senior guide is more useful than treating it as a boss to defeat. Mistype should not try to match its entire feature surface. Its focused differentiators are **learned mixed Chinese/English typing** (adoption, false switches, latency, and improvement after learning) and **paired fuzzy correction** (matching keyboard edits and touch-coordinate evidence to candidate readings while preserving replayable raw traces). Both claims need fixed-phrase, de-identified input fixtures and cross-platform conformance checks.
 
 - **Mixed input.** Ari, Bopomix and ZingIME all treat this as the main
   selling point, so it is table stakes for the Zhuyin audience, not a
