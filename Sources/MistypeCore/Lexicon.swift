@@ -134,7 +134,7 @@ public final class LexiconDecoder {
         String(text.filter { !"ˊˇˋ˙".contains($0) })
     }
 
-    private func alternatives(_ syllable: Syllable, fuzzy: Bool, toneTolerance: Bool = true) -> [(String, Double, Int)] {
+    func alternatives(_ syllable: Syllable, fuzzy: Bool, toneTolerance: Bool = true) -> [(String, Double, Int)] {
         let reading = syllable.reading
         // Clean readings first; repair classes join the same list when fuzzy
         // is on (never gated: a valid-base typo like 更-for-功 or 業-for-越
@@ -523,8 +523,17 @@ public final class LexiconDecoder {
         return Array(out.prefix(16))
     }
 
-    public func decode(_ syllables: [Syllable], fuzzy: Bool = true, toneTolerance: Bool = true, userLexicon: UserLexicon? = nil, locked: UserLexicon? = nil) -> [SentenceCandidate] {        guard !syllables.isEmpty else { return [] }
+    public func decode(_ syllables: [Syllable], fuzzy: Bool = true, toneTolerance: Bool = true, userLexicon: UserLexicon? = nil, locked: UserLexicon? = nil) -> [SentenceCandidate] {
+        guard !syllables.isEmpty else { return [] }
         let options = syllables.map { alternatives($0, fuzzy: fuzzy, toneTolerance: toneTolerance) }
+        return decode(syllables, options: options, userLexicon: userLexicon, locked: locked)
+    }
+
+    /// Decode with caller-supplied reading options per syllable
+    /// (reading, cost, correction), cheapest first. The touch lattice uses it
+    /// to price spatial key hypotheses inside the same beam.
+    func decode(_ syllables: [Syllable], options: [[(String, Double, Int)]], userLexicon: UserLexicon? = nil, locked: UserLexicon? = nil) -> [SentenceCandidate] {
+        guard !syllables.isEmpty, options.count == syllables.count else { return [] }
         // Context-keyed learning (previous word -> readings -> text), nil
         // unless the user lexicon holds any (see UserLexicon.contextKey).
         let contextRules = userLexicon?.contextRules()

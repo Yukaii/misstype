@@ -646,21 +646,32 @@ should be taken:
    linux-port.md). The headless suite cannot see client-side problems such as
    marked-text styling (the macOS caret bug was exactly that). Done when the
    L6 checklist passes on one X11/Wayland desktop.
-2. **Port touch/spatial fuzzy decoding to `MistypeCore`.** Coordinate-aware
-   neighbor hypotheses from raw `(x, y)`, the versioned `full-split-1` layout
-   and the `tools/noise.py` jitter measurements exist only in `src/mistype`
-   (M2/M3). Hypothesis: the Swift decoder, fed the same weighted hypotheses,
-   matches the Python rescue rates at radius 0.08–0.15 without hurting exact
-   input. Smallest experiment: a Swift touch mapper + replay of
-   `tests/fixtures/touch-*.jsonl`, then the noise sweep driven against the
-   Swift binary. Only after this does the touchscreen prototype have a
-   measurable claim against a conventional keyboard.
-3. **Measure against a conventional keyboard.** The gate in AGENTS.md for any
+2. **Port touch/spatial fuzzy decoding to `MistypeCore`.** *(v1 and
+   the lattice version landed 2026-10-04, see "Touch fuzzy port" below; open:
+   wiring into `InputSession`/a touch surface, fixed-cost floor.)* Coordinate-aware neighbor hypotheses from raw `(x, y)`, the
+   versioned `full-split-1` layout and the `tools/noise.py` jitter measurements
+   started in `src/mistype` (M2/M3); the layout, mapper and a beam-based
+   `decodeTouch` now live in `Sources/MistypeCore/Touch.swift`.
+3. **Measure against a conventional keyboard.** *(Break-even target computed
+   2026-10-04, see "Keyboard comparison" above: taps must spread within
+   ~0.07-0.10; the human tap-spread measurement is what is missing.)* The gate in AGENTS.md for any
    hardware work: task completion time, backspaces, interruptions (see
    Measures), on the Swift decoder.
 4. **Linux user-dictionary editor.** The file is plain text; a `mistype-dict`
    command (list / add / remove) or an fcitx5 config page. Low risk.
-5. **Hide gesture for the user dictionary** (only if wanted): a key on the
+5. **Personalization from use (direction, not started).** Per-key tap
+   distributions learned from confirmed taps (a 2-D Gaussian per key replaces
+   the fixed `1 - 1.5d` weight), then per-user repair costs from Backspace
+   re-types. Labels come only from explicit signals (Backspace re-type, an
+   explicit pick), with decay and a cap like `UserLexicon`'s +10; falsify on a
+   synthetic user with a fixed tap offset, replayed offline. Parameters stay
+   local, exportable and clearable. Needs the touch baseline below first.
+6. **Pairing / calibration onboarding (idea, deferred by the user
+   2026-10-04).** A first-run flow that has the user tap a few known targets
+   to fit their key offsets and hand position before typing. Do it when custom
+   hardware pairing is actually being built; it is the natural seed for the
+   per-key distributions in item 5.
+7. **Hide gesture for the user dictionary** (only if wanted): a key on the
    highlighted candidate that writes a `!` exclusion line. The file format and
    decoder already support exclusions; only the gesture is missing.
 
@@ -693,6 +704,121 @@ toolchain, fast builds, native C ABI) but pre-1.0. Notes for whoever does it:
 Done and recorded: user dictionary and its Linux parity (architecture.md,
 decode policy 9), styled marked text for IMK (the candidate window shows rows
 only; AGENTS.md).
+
+### Touch fuzzy port (2026-10-04)
+
+`TouchLayout` (`full-split-1`, same table as `touch.py`), `TouchMapper`
+(distance-ranked neighbors, weight `max(0.1, 1 - 1.5d)`) and
+`LexiconDecoder.decodeTouch` landed in `MistypeCore`. Mapper parity with Python
+is locked by golden values from `nearest_key` (`TouchTests`); the recorded
+`touch-*.jsonl` fixtures replay to the same keys and decode to 你好 / 早上好.
+Design: a beam of at most 16 key sequences per phrase, each charged
+`spatialScale x (d - d_nearest)` per non-nearest tap, each decoded through the
+shipping `decodeSegments`; a tone tap stays exact and tone keys are never
+substitutes for Zhuyin taps (Python parity, an open lever).
+
+Measurement (`TouchNoiseSweepTests`, real McBopomofo lexicon, seeded
+uniform-disk jitter, top-1 exact match). Arms: A nearest key; B nearest key +
+today's keyboard edit repair; D spatial hypotheses + repair. 30-50 seeds/cell,
+spatialScale 10:
+
+| probe (taps) | r | A | B (today) | D (spatial) |
+|---|---|---|---|---|
+| ni-hao (6) | 0.08 | 70% | 77% | 93% |
+| ni-hao | 0.10 | 33% | 47% | 82% |
+| zao-shang-hao (9) | 0.10 | 20% | 37% | 80% |
+| wo-shi-xue-sheng (11) | 0.08 | 57% | 67% | 97% |
+| wo-shi-xue-sheng | 0.10 | 10% | 20% | 57% (80% at beam 64) |
+| dada (29) | 0.08 | 33% | 50% | 77% |
+| dada | 0.10 | 0% | 3% | 20% |
+
+Findings. (1) Hypothesis holds in the 0.08-0.12 band: spatial hypotheses beat
+the keyboard repair that ships today by +15 to +45 pp and exact input is
+untouched (r = 0: D equals B on 120/120 and 200/200 traces). Python's absolute
+rates are not comparable: its decoder is a 9-phrase fixture table, the Swift
+decoder is open-vocabulary over 112k entries, so the right reference is B.
+(2) `spatialScale` wants to be small (5 = 10 > 20 > 40 > 80): distance should
+only break near-ties, the language score carries the rest. (3) The beam is the
+limit on long phrases and does not scale: beam 64 lifts wo-shi-xue-sheng r=0.10
+57% -> 80% at ~4x latency, beam 256 83% at ~17x. Release-build latency at beam
+16 is 4-23 ms for 6-11 taps at r <= 0.10 but 99 ms for the 29-tap sentence, so
+the next step is not a wider beam but putting the per-tap costs inside the
+decoder's per-syllable alternatives (lattice) instead of enumerating key
+sequences. r >= 0.15 stays out of reach, as in the Python sweep.
+#### Lattice integration (same day)
+
+`decodeTouch` now prices spatial hypotheses inside each syllable's reading
+options (a slice of n taps offers the readings of its 24 cheapest key
+combinations; edit repair also runs on the 4 cheapest, in a second pass that
+fires only when the first leaves repairs or unresolved text) and lets the
+decoder's own beam weigh them. The beam version stays as `decodeTouchBeam` for
+comparison. Top-1, 30 seeds/cell, release build, scale 10, real lexicon
+(`Lat+R` is the default; its first version did not repair spatial combos and
+lost short phrases whose tone tap landed on a Zhuyin key, which needs one
+swap AND one deletion in the same slice):
+
+| probe (taps) | r | B (today) | Beam | Lattice | Beam ms | Lattice ms |
+|---|---|---|---|---|---|---|
+| ni-hao (6) | 0.10 | 47% | 83% | 80% | 7 | 6 |
+| ni-hao | 0.15 | 20% | 67% | 53% | 47 | 9 |
+| zao-shang-hao (9) | 0.12 | 13% | 47% | 53% | 32 | 14 |
+| zao-shang-hao | 0.15 | 7% | 20% | 33% | 35 | 16 |
+| wo-shi-xue-sheng (11) | 0.10 | 23% | 57% | 87% | 48 | 32 |
+| wo-shi-xue-sheng | 0.12 | 7% | 33% | 73% | 80 | 37 |
+| wo-shi-xue-sheng | 0.15 | 0% | 10% | 47% | 115 | 40 |
+| dada (29) | 0.10 | 3% | 20% | 37% | 100 | 86 |
+| dada | 0.12 | 0% | 0% | 13% | 132 | 90 |
+
+Findings. (1) The lattice wins from ~10 taps up (+30 to +40 pp over the beam,
++50 to +65 over today's keyboard repair) at lower latency, and exact input is
+still untouched (r = 0: identical to B on 120/120 traces). (2) On 6-tap
+phrases the beam is up to 14 pp better at r = 0.15 (small cells: 30 seeds, so
+4 traces); repair on 8 combos recovers 7 of them but costs latency and hurts
+the 29-tap probe, so the default stays 4. (3) Cost has a fixed floor: the
+29-tap sentence takes 35 ms at r = 0 (beam: 20 ms) because every slice prices
+24 combinations even when the taps are exact. Cheap next lever: skip spatial
+combos when the nearest-key reading is clean and the tap is well inside its
+key. (4) 29 taps at r >= 0.12 is still out of reach; that is a limit of the
+evidence (each tap is 1 of ~5 keys, errors compound), not of the search.
+Run: `MISTYPE_TOUCH_SWEEP=1 swift test -c release -Xswiftc -enable-testing
+--filter TouchNoiseSweepTests` (needs `python3 script/prepare_lexicon.py`
+first; knobs in the test's header comment).
+
+#### Keyboard comparison: break-even target (2026-10-04, no human data)
+
+The AGENTS.md gate needs human measurements (completion time, backspaces,
+interruptions) that do not exist yet. What can be computed now is the target a
+real measurement has to hit: `TouchNoiseSweepTests.testBreakEven` compares a
+physical-keyboard typist (each Zhuyin key slips to its nearest neighbor with
+probability p, decoded as today with edit repair) against a touch typist (tap
+spread r, lattice decoder). Mean sentence top-1 over the four probes, 40 seeds:
+
+| touch + lattice, tap spread r | 0.04 | 0.06 | 0.08 | 0.10 | 0.12 | 0.14 |
+|---|---|---|---|---|---|---|
+| sentence top-1 | 100% | 99% | 84% | 68% | 53% | 38% |
+
+| keyboard + repair, slip rate p | 1% | 2% | 4% | 8% |
+|---|---|---|---|---|
+| sentence top-1 | 94% | 89% | 82% | 71% |
+
+Reading: touch matches a 4%-slip keyboard at r ~ 0.08, an 8%-slip one at
+r ~ 0.10, and a careful 1%-slip typist (94%) at r ~ 0.07. So the touch surface
+is competitive on decoded accuracy only if real taps spread within roughly
+0.07-0.10 of the key centre (normalized units, uniform-disk model); at 0.12
+and above it loses to a mediocre keyboard even with the lattice. Caveats: the
+keyboard model has only neighbor slips (no transposition or omission, which
+the keyboard repair also handles, so it flatters neither side), taps are
+isotropic in normalized units while a real surface is not square (on a
+10 x 7 cm pad, r = 0.08 is ~6 mm vertically), and accuracy is only one of the
+three gate measures: speed and interruptions are untouched by this.
+
+Real measurement protocol (needs no personal text, ~2 minutes per person):
+show a known target key, record the tap `(x, y)` with the target key id,
+repeat each of the 41 keys a few times on each surface, then report per
+person the RMS and 95th-percentile distance from the key centre in normalized
+units and in millimetres. Compare with the 0.07-0.10 band above. The same
+trace is the seed for per-key tap distributions and for a pairing /
+calibration onboarding (next-steps items 5 and 6).
 
 ## Measures
 

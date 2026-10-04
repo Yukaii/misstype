@@ -15,11 +15,16 @@ This repository is an experimental input device and decoder. The current goal is
   neighbor/phonetic substitution, insert/delete, tone tolerance), costed
   against exact input. The coordinate-aware **touch** fuzzy layer — distance-
   weighted neighbor hypotheses from raw `(x, y)`, the `full-split-1` layout,
-  `tools/noise.py` measurements (project outline, M3) — still lives only in the
-  Python prototype. Porting it to `MistypeCore` is the open work that decides
-  whether the touchscreen idea is validated; until then Python remains the
-  reference for it, and the "do not port" rule below applies to everything
-  else.
+  `tools/noise.py` measurements (project outline, M3) — has a v1 in
+  `MistypeCore` (`Touch.swift`, 2026-10-04): on the real lexicon it beats
+  today's keyboard repair by +15 to +45 pp at jitter 0.08–0.12 without
+  touching exact input; the lattice version (spatial costs inside each
+  syllable's reading options) adds +30 to +40 pp over the first beam version
+  on 11+ tap phrases. Break-even vs a keyboard is computed (touch must spread
+  within ~0.07–0.10 of key centre); the human tap-spread measurement is
+  missing. Open: that measurement, then wiring a touch surface to
+  `InputSession`. Python remains the reference for the touch semantics only; the
+  "do not port" rule below applies to everything else.
 
 ## Product constraints
 
