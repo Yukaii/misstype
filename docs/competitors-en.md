@@ -29,8 +29,11 @@ experimental directions: learned mixed Chinese/English input and paired fuzzy co
 | [Ari IME](https://github.com/kaiyasi/Ari-IME) | Linux (fcitx5), WASM core | libchewing phrase model, 11 layouts | Yes: keys show as themselves until they form a complete, toned syllable | Weighted personal dictionary | None, offline | 0.2 MB `.deb` (engine only) | GPL-3.0 |
 | [ChiaKey](https://github.com/chiakich/ChiaKey) | macOS (stable), Windows (preview), iOS (experimental core) | Yahoo KeyKey lineage, bigram model; also Cangjie, Sucheng, `.cin` | Only what Zhuyin allows inherently | Tracks user choices; imports KeyKey user dictionary | None stated | 50.2 MB macOS `.pkg` | BSD-3-Clause |
 | [Bopomix](https://github.com/lmanchu/bopomix) | macOS 13+, Apple Silicon | McBopomofo engine fork (Swift), Dachen only | Yes: letters that cannot form a syllable become English on the spot; Tab completes English (SCOWL list) | Local English-word learning | None; sentence-level AI reranking researched, not built | 6.6 MB `.dmg` | MIT |
-| [KeyKey (琦琦)](https://github.com/polobread/KeyKey/releases) | macOS 15+, Windows 11, Linux (fcitx5), iOS, Android | Yahoo 2012 codebase, 30 domain phrase libraries; also Cangjie | Not advertised | Smart phrase composition with learning | Says no network access | 38.2 MB macOS `.pkg.zip` | BSD; v1.3.1 released 2026-10-02 |
+| [KeyKey (琦琦)](https://github.com/polobread/KeyKey/releases) | macOS 15+, Windows 11, Linux (fcitx5), iOS, Android | Yahoo 2012 codebase, 30 domain phrase libraries; also Cangjie | Not advertised | Smart phrase composition with learning | Says no network access | 38.2 MB macOS `.pkg.zip` | Mixed: Yahoo source BSD-3-Clause, platform frontends MIT; v1.3.1 released 2026-10-02 |
 | [ZingIME 晶晶](https://zingime.com/) | macOS, Apple Silicon | Zhuyin, 400k+ curated words | Yes (headline feature): same input state, no Caps Lock toggle; 220k-word English dictionary with Tab completion | Not stated | On-device "AI character selection" reading whole-sentence context (在/再); no cloud | 271.6 MiB `.dmg` | Paid, 14-day trial (press summary, unverified) |
+| [vChewing](https://github.com/vChewing/vChewing-macOS) | macOS 12+ (Aqua memorial build from 10.9) | Tiehen (鐵恨) chord engine; most Zhuyin layouts and pinyin schemes of any Zhuyin IME (its claim); separate Simplified/Traditional corpora | Not advertised | Decaying-memory model (POM) observes selections and feeds composition; user phrases, custom associated phrases | Not stated; sandboxed | 12.6 MB `.pkg` (v4.8.6, 2026-09-29) | MulanPSL-2.0 (core modules LGPLv3); modified builds may not keep the product name |
+| [McBopomofo 小麥注音](https://github.com/openvanilla/McBopomofo) | macOS 13+; Windows (win-mcbopomofo), Linux (fcitx5-mcbopomofo) and web/ChromeOS are separate repos in the same org | Gramambular 2 composer, unigram-only language model, Dachen | Not advertised | Records user selection overrides; user and excluded phrases | Not stated | 5.3 MB `.zip` (v3.1.1, 2026-09-02) | MIT |
+| [Rime](https://rime.im) (Squirrel / Weasel / ibus-fcitx-rime) | macOS (Squirrel), Windows (Weasel), Linux (ibus/fcitx-rime) | librime schema-driven engine; Zhuyin is the rime-bopomofo schema (Dachen and "dynamic ability" layouts, dictionary depends on terra_pinyin); Cangjie, Quick and others are separate schemas | Needs an ASCII/Chinese mode switch (the Zhuyin schema ships an `ascii_mode` switch) | librime ships a user dictionary (`user_dictionary`) | None, offline | Squirrel 25.5 MB `.pkg` (1.1.2); Weasel 12.4 MB `.exe` (0.17.4) | GPL-3.0 (Squirrel, Weasel); librime BSD-3-Clause |
 | **Misstype** (this repo) | macOS IMK, Linux fcitx5 | McBopomofo lexicon, Dachen, Swift `MisstypeCore` | Yes, `mixedEnglish` (macOS default off) | Learning + user dictionary | None by default; optional Jev LLM assist, opt-in | `.dmg` 4.4 MB (v0.0.1, universal), no model | MIT |
 
 ### Download sizes (measured 2026-10-04)
@@ -63,35 +66,48 @@ compressed installer, like the competitors' download sizes, not an on-disk size.
 absence), `n/a` = not applicable. Unverified cells come from README/website
 text only.
 
-| Capability | Ari | ChiaKey | Bopomix | KeyKey | ZingIME | Misstype |
-| --- | --- | --- | --- | --- | --- | --- |
-| Zhuyin | Y | Y | Y (Dachen) | Y | Y | Y (Dachen) |
-| Other layouts (Eten, Hsu, Dvorak…) | Y (11) | - | - | - | - | - |
-| Cangjie / Sucheng / `.cin` tables | - | Y | - | Cangjie | - | - |
-| Sentence-level phrase model | libchewing | bigram | McBopomofo | Y | "AI" | lexicon DP + learning |
-| Tone optional (toneless typing) | - | - | - | - | - | Y |
-| Edit repair (transpose, neighbor, insert/delete) | - | - | - | - | - | Y |
-| Touch / coordinate-aware fuzzy | - | - | - | - | - | v1 in core, not wired to a surface |
-| Mixed zh/en, no mode switch | Y | - | Y | - | Y | Y (v1) |
-| English typo recovery | - | - | - | - | - | Y |
-| English completion (Tab) | - | - | Y | - | Y | - |
-| English word learning | - | - | Y | - | - | - |
-| Personal learning | Y | Y | Y | Y | - | Y |
-| User dictionary editor | - | Y (import) | - | Y (custom vocab) | - | Y (Shift+←/→, Settings) |
-| Syllable cursor / re-pick inside preedit | Y | - | - | - | - | Y |
-| Reconversion of committed text | Y | - | - | - | - | - |
-| Chunked auto-commit while composing | - | - | - | - | - | Y |
-| Raw trace kept / replayable | - | - | - | - | - | Y (capture side) |
-| Simplified/Traditional switch | - | - | - | Y | - | - |
-| Offline by default | Y | Y | Y | Y | Y | Y |
-| LLM / model assist | - | - | researched | - | on-device | optional, opt-in (Jev) |
-| macOS | - | Y | Y | Y | Y | Y |
-| Windows | - | preview | - | Y | - | - |
-| Linux | Y (fcitx5) | - | - | Y (fcitx5) | - | Y (fcitx5) |
-| iOS / Android | - | iOS (experimental) | - | Y / Y | - | - |
-| Portable core | WASM | - | - | - | - | C ABI + Swift core |
-| Test discipline stated | sanitizers, fuzzing, coverage | - | - | - | - | conformance C1–C13, sweeps |
-| Licence | GPL-3.0 | BSD-3 | MIT | BSD | proprietary | see repo |
+| Capability | Ari | ChiaKey | Bopomix | KeyKey | ZingIME | vChewing | McBopomofo | Rime | Misstype |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Zhuyin | Y | Y | Y (Dachen) | Y | Y | Y | Y (Dachen) | Y (schema) | Y (Dachen) |
+| Other layouts (Eten, Hsu, Dvorak…) | Y (11) | - | - | - | - | Y (most) | - | - | - |
+| Cangjie / Sucheng / `.cin` tables | - | Y | - | Cangjie | - | - | - | Y (Cangjie, Quick schemas) | - |
+| Sentence-level phrase model | libchewing | bigram | McBopomofo | Y | "AI" | Y (Megrez/Homa) | Y (unigram) | varies by schema | lexicon DP + learning |
+| Tone optional (toneless typing) | - | - | - | - | - | - | - | Y (schema text: tone and final may be omitted) | Y |
+| Edit repair (transpose, neighbor, insert/delete) | partial (key order, repeated/invalid keys) | - | - | - | - | - | - | partial (schema: `free_order` order within a syllable, `abbrev` initial only; the engine also has an off-by-default `enable_correction`, see below) | Y |
+| Touch / coordinate-aware fuzzy | - | - | - | - | - | - | - | - | v1 in core, not wired to a surface |
+| Mixed zh/en, no mode switch | Y | - | Y | - | Y | - | - | - (needs switch; rime-ice/frost pinyin schemas can mount an English word list, see below) | Y (v1) |
+| English typo recovery | - | - | - | - | - | - | - | - | Y |
+| English completion (Tab) | - | - | Y | - | Y | - | - | - | - |
+| English word learning | - | - | Y | - | - | - | - | - | - |
+| Personal learning | Y | Y | Y | Y | - | Y (POM) | Y (selection override) | Y (user dictionary) | Y |
+| User dictionary editor | - | Y (import) | - | Y (custom vocab) | - | Y (phrase tidying) | Y (user phrases) | - | Y (Shift+←/→, Settings) |
+| Syllable cursor / re-pick inside preedit | Y | - | - | - | - | - | - | - | Y |
+| Reconversion of committed text | Y (Control+Alt+R) | - | - | - | - | - | - | - | - |
+| Chunked auto-commit while composing | - | - | - | - | - | - | - | - | Y |
+| Raw trace kept / replayable | - | - | - | - | - | - | - | - | Y (capture side) |
+| Simplified/Traditional switch | - | - | - | - | - | Y (separate corpora) | - | Y (OpenCC filters: simplified, HK, TW glyphs) | - |
+| Offline by default | Y | Y | Y | Y | Y | Y | Y | Y | Y |
+| LLM / model assist | - | - | researched | - | on-device | - | - | - | optional, opt-in (Jev) |
+| macOS | - | Y | Y | Y | Y | Y | Y | Y (Squirrel) | Y |
+| Windows | - | preview | - | Y | - | - | Y (separate project) | Y (Weasel) | - |
+| Linux | Y (fcitx5) | - | - | Y (fcitx5) | - | - | Y (fcitx5, separate project) | Y | Y (fcitx5) |
+| iOS / Android | - | iOS (experimental) | - | Y / Y | - | - | - | - | - |
+| Portable core | WASM | - | - | - | - | LibVanguard (separate engine repo) | - | librime | C ABI + Swift core |
+| Test discipline stated | sanitizers, fuzzing, coverage | - | - | - | - | - | - | - | conformance C1–C13, sweeps |
+| Licence | GPL-3.0 | BSD-3 | MIT | BSD-3 + MIT | proprietary (no source found; no matching GitHub repo) | MulanPSL-2.0 / LGPLv3 | MIT | GPL-3.0 / BSD-3 | see repo |
+
+## Rime: the other schemas (2026-10-04)
+
+Sources: `rime/librime` source, the `rime/*` schema repos, rime-ice (GPL-3.0) and rime-frost (GPL-3.0). Everything below comes from reading files; nothing was installed or run.
+
+- **The engine has a typo corrector, off by default.** `src/rime/dict/corrector.cc` implements the per-schema `translator/enable_correction`: edit distance (delete and insert cost 2, adjacent transposition costs 2), neighbor-key substitution (QWERTY-adjacent keys cost 1, others 4), a fixed correction credibility of log(0.01), at most 4 corrections per query. I checked `rime-bopomofo`, `rime-luna-pinyin`, `rime-terra-pinyin`, `rime-double-pinyin`, `rime-prelude`, `rime-cangjie`, `rime-quick`, `rime-combo-pinyin`, `rime-pinyin-simp`, `rime-jyutping`, `rime-cantonese`, and every schema in rime-ice and rime-frost: none sets it to `true`. librime issues #1195 and #1120 ("suspected auto-correction", "auto-correction weight too high") suggest users or third-party configs turn it on (I read only the titles, not the threads). So Rime technically has neighbor/transpose/insert/delete repair, but the official Zhuyin schema does not use it.
+- **The neighbor table is only left/right neighbors on the QWERTY letter and digit rows.** No vertical neighbors, no touch coordinates; whether it suits Dachen-mapped spellings was not verified.
+- **Pinyin fuzzy sounds are fixed rules, not evidence-weighted.** `terra_pinyin` has `derive` rules (e.g. `ao`→`oa`, `ng`→`gn`, tone dropping, initial-only); rime-ice's zh/z, l/n, f/h fuzzy sounds are commented-out templates the user enables.
+- **Mixed Chinese/English is a secondary translator, not free interleaving.** rime-ice and rime-frost mount `melt_eng` (an English word list; frost describes it as "a small set of common words") as a second `table_translator` on the pinyin schemas, so English words show up as candidates. Lua helpers (`cn_en_spacer`, `autocap_filter`) add spaces and capitalisation. This exists only in the pinyin schemas; rime-frost's `bopomofo*.schema.yaml` do not mount it.
+- **rime-frost also ships Zhuyin schemas** (`bopomofo`, `bopomofo_express`, `bopomofo_tw`), same lineage as the official ones, with no extra tolerance that I could see.
+- **The sentence language model is a plugin.** `rime-essay` is the shared vocabulary and frequencies; `librime-octagram` (BSD-3-Clause) is the grammar (n-gram) plugin. In the third-party benchmark `gaboolic/rime-schema-compare` (code and corpora open, report 2026-08-30, 3,466 Simplified-Chinese sentences from a Zhihu hot list), rime-frost scores 61.19% whole-sentence accuracy, 65.87% with grammar; rime-ice 53.29% / 59.09%; luna pinyin 47.49% (40.33% with grammar). These are Simplified pinyin numbers: **not comparable to Zhuyin and not our measurement.**
+- **Mobile ports exist**: Trime (GPL-3.0), fcitx5-android (LGPL-2.1), Hamster (iOS, MIT, last push 2025-05). I only read their repo descriptions and did not check whether they pass touch coordinates to the engine, so touch-coordinate fuzzy stays `-`.
+- **User dictionary**: librime's `user_dictionary` / `user_db` does the learning; the Zhuyin schema's `custom_phrase` is a fixed table and does not learn.
 
 ## Per project
 
@@ -101,8 +117,8 @@ Fcitx5 on Linux, C++20 over libchewing. Idea: every key shows as itself
 until it forms a complete, toned syllable, so `acer螢幕` types straight
 through. Strong on layouts (11), reconversion, whole-preedit re-selection,
 and engineering hygiene (sanitizers, fuzzing). Weak spots relative to us:
-needs a tone to commit a syllable (no toneless typing), no typo repair, Linux
-only. Closest rival on Linux; the best source of ideas for the mixed-input
+needs a tone to commit a syllable (no toneless typing), typo tolerance is
+limited to key order and repeated/invalid keys, Linux only. Closest rival on Linux; the best source of ideas for the mixed-input
 rule and reconversion.
 
 ### ChiaKey
@@ -143,6 +159,8 @@ For an algorithmic and architectural breakdown across composition and decoding e
 
 ## Where Misstype stands
 
+**Starting point:** this project began from "input with no fixed key position": continuous typing loose enough that you would not even open your eyes, with the decoder recovering roughly what you meant. It is also an LLM-era homebrew experiment: even an IME, a mature field, can be maintained by yourself. The comparison is a design reference, not a feature-count contest.
+
 [vChewing](https://github.com/vChewing/vChewing-macOS) serves as our long-term baseline for compatibility, candidate flow, and day-to-day stability. Rather than attempting to match vChewing's full feature set, Misstype focuses on two specific differentiators: **learned mixed Chinese/English typing** (adoption, false switches, latency, and improvement after learning) and **paired fuzzy correction** (matching keyboard edits and touch-coordinate evidence to candidate readings while preserving replayable raw traces). Both claims need fixed-phrase, de-identified input fixtures and cross-platform conformance checks.
 
 - **Mixed input.** Ari, Bopomix and ZingIME all treat this as the main
@@ -155,10 +173,15 @@ For an algorithmic and architectural breakdown across composition and decoding e
 - **Whole-sentence decode.** ZingIME's sentence-context homophone fix and
   Bopomix's unbuilt "整句 AI 選字" match what the lexicon decoder plus
   optional Jev assist already do; ours is offline-first and observable.
-- **Fuzzy input.** No project lists keyboard edit repair (transpose,
-  neighbor, tone tolerance) or any coordinate-aware touch decoding. That
-  stays our open ground, but the touch benefit is unproven until the human
-  tap-spread measurement exists.
+- **Fuzzy input.** Two projects do part of this, both from their own
+  source: Ari accepts out-of-order keys (`su3` and `s3u` both give 你) and
+  drops a repeated or invalid leading key once the rest forms a syllable;
+  Rime's Zhuyin schema omits tones and finals and reorders keys within a
+  syllable (`free_order`, `abbrev`). Neighbor-key substitution, insert/delete
+  repair, costed edits against exact input and coordinate-aware touch
+  decoding are not in any project we read. That stays our open ground, but
+  the touch benefit is unproven until the human tap-spread measurement
+  exists.
 - **Platforms.** KeyKey and ChiaKey cover mobile today; we have macOS plus
   Linux fcitx5 under shared conformance scenarios. Ari's WASM core is a
   precedent for the portable-core route.
@@ -199,5 +222,10 @@ working loop).
 - No head-to-head typing measurements exist. Comparing latency or accuracy
   needs the same phrase set run through each IME, which is out of scope until
   real-typing data exists.
-- Not covered: Rime/Squirrel, vChewing, McBopomofo itself, Gboard, system
-  Zhuyin. Add them if the comparison is used for positioning.
+- Rime, vChewing and McBopomofo were added 2026-10-04 from their READMEs,
+  the GitHub Releases API, LICENSE files, `algorithm.md`, the orgs' repo
+  lists and the `rime-bopomofo` schema file. `-` still means "not found in
+  those sources". The other official schemas and rime-ice/rime-frost were covered in
+  "Rime: the other schemas"; other community schemas were not read; the Windows/Linux
+  McBopomofo ports and vChewing's other engines were only confirmed to
+  exist, not compared feature by feature. Still not covered: Gboard, system Zhuyin.
