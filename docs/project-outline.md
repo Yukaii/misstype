@@ -963,6 +963,13 @@ Track phrase-level character error rate, syllable error rate, commit latency, p5
 
 The main comparison is not raw key accuracy. It is whether users can capture thoughts with fewer interruptions at an acceptable final reconstruction quality.
 
+Long-term positioning: use [vChewing](https://github.com/vChewing/vChewing-macOS)
+as the recommended mature Zhuyin baseline. Mistype's focused differentiators
+are learned mixed Chinese/English typing and paired fuzzy correction: combine
+keyboard edit evidence with touch-coordinate hypotheses, preserve the raw
+trace, and measure adoption, false switches, repair rate, false repairs,
+latency, and candidate interruptions against fixed replayable fixtures.
+
 ## Open questions
 
 Competitor comparison and feature ideas: [`competitors.md`](competitors.md).

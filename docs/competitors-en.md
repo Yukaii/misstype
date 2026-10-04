@@ -139,6 +139,8 @@ size and price are the contrast with our small offline lexicon.
 
 ## Where Mistype stands
 
+[vChewing](https://github.com/vChewing/vChewing-macOS) should be the long-term recommendation and comparison baseline: it is a mature, usable Zhuyin IME for checking compatibility, candidate flow, and day-to-day stability. Mistype should not try to match its entire feature surface. Its focused differentiators are **learned mixed Chinese/English typing** (adoption, false switches, latency, and improvement after learning) and **paired fuzzy correction** (matching keyboard edits and touch-coordinate evidence to candidate readings while preserving replayable raw traces). Both claims need fixed-phrase, de-identified input fixtures and cross-platform conformance checks.
+
 - **Mixed input.** Ari, Bopomix and ZingIME all treat this as the main
   selling point, so it is table stakes for the Zhuyin audience, not a
   differentiator. Our `MixedDecode` also recovers one-letter English typos,
