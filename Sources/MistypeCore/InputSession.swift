@@ -372,11 +372,16 @@ public final class InputSession {
         }
         if key == .space && shift { return toggleEnglish() }
         if engine.english || mods.contains(.capsLock) { return pass() }
-        // Latin mode ends on anything but letters, space (multi-word runs
-        // stay latin: `hello world`), and the backtick toggle: tones,
-        // punctuation, digits and commit keys resume Zhuyin. Backspace keeps
-        // the run so a typo can be fixed without re-toggling; see below.
-        let latinLetter = latinMode && !chord && key.letterLabel != nil
+        // Latin mode ends on anything but letters, digits, space (multi-word
+        // runs stay latin: `hello world`) and the backtick toggle:
+        // punctuation and commit keys resume Zhuyin. Tone keys are digits
+        // here; the toggle that opened the run (backtick, lone Shift) closes
+        // it. Backspace keeps the run so a typo can be fixed without
+        // re-toggling; see below.
+        // Digits stay in the run too (`abc123`): they are text here, not
+        // tone keys or Zhuyin ㄅㄉ…; Shift+digit is still the symbol layer.
+        let latinLetter = latinMode && !chord
+            && (key.letterLabel != nil || (!shift && key.digitLabel != nil))
         if !latinLetter && key != .character("`") && key != .space && key != .backspace {
             latinMode = false
         }
@@ -626,7 +631,7 @@ public final class InputSession {
         // Shift brush leaves a stray capital in marked text instead of
         // chopping the sentence. No commit, no mode toggle either way.
         if (latinLetter || (shift && key.letterLabel != nil)),
-           text.count == 1, let char = text.first, char.isASCII, char.isLetter {
+           text.count == 1, let char = text.first, char.isASCII, char.isLetter || (latinLetter && char.isNumber) {
             guard composition.appendLatin(String(char)) else { return .beeped }
             refresh()
             return .handled
