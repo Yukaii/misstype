@@ -16,7 +16,7 @@
 
 以下依各專案公開說明整理（2026-10-04 快照，未實測）；`-` 表示沒找到公開說明，不代表一定沒有。
 
-| | 隨打注音 | Ari IME | ChiaKey | Bopomix | KeyKey（琦琦） | ZingIME（晶晶） | vChewing（唯音） | 小麥注音 | Rime（鼠鬚管等） |
+| | 隨打注音 | Ari IME | ChiaKey | Bopomix | KeyKey（琦琦） | ZingIME（晶晶） | 唯音（vChewing） | 小麥注音 | Rime（鼠鬚管等） |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 可省略聲調 | ✓ | - | - | - | - | - | - | - | ✓ |
 | 自動修正打錯（鄰鍵、顛倒、多／少打） | ✓ | 部分（順序、重複／無效鍵） | - | - | - | - | - | - | 部分（音節內順序；引擎另有預設關閉的打字修正） |
@@ -46,7 +46,7 @@
 * **遞交輸入與注音文**：按下 `Enter` 鍵會直接遞交當前畫面上顯示的文字（包含尚未拼完的注音符號，支援注音文）；按下 `Shift + Enter` 則會將原始鍵入的注音符號直接輸出。
 * **候選字選字模式**：按下 `向下鍵` 或 `Tab`（亦可按 `向左鍵` 倒退至前方的詞彙）即可進入選字選單。選字時可使用鍵盤中間一排的 `asdfghjk` 快速鍵選取候選字（可在偏好設定調整；平常打字時這些鍵仍是正常的注音按鍵）。按 `Esc` 退出選字模式；在一般打字狀態下按 `Esc` 則清空整個組字區。
 * **全形符號與中英切換**：`Shift + 數字鍵` 與 `Shift + = [ ] \`` 可直接鍵入全形符號（`！＠＃＄％︿＆＊（）＋｛｝～`）。`Backspace` 可倒退修改原始組字內容。輕按單次 `Shift` 或按下 `Shift + Space` 即可直接遞交並切換中／英文模式。
-* **我的詞庫**：打字時用 Shift+←/→ 標記已轉換文字中的音節，按 Return 即可把詞（人名、專有名詞）加入自己的詞庫；對同一段標記再按 Return 則移除。macOS 的「設定 → 我的詞庫」是同一份 `user_dictionary.tsv` 的純文字編輯器，格式與 vChewing 的 userdata 相同（`詞語 注音`，每行一筆），可直接貼上或用「匯入…」讀入 vChewing 詞庫；只有一般詞彙清單時，可用 Will 保哥的第三方[線上產生器](https://vu.gh.miniasp.com/)（[原始碼](https://github.com/doggy8088/vChewing-userdata-generator)，MIT；與本專案無關）轉成此格式；Linux 請直接編輯 `~/.local/share/misstype/user_dictionary.tsv`。
+* **我的詞庫**：打字時用 Shift+←/→ 標記已轉換文字中的音節，按 Return 即可把詞（人名、專有名詞）加入自己的詞庫；對同一段標記再按 Return 則移除。macOS 的「設定 → 我的詞庫」是同一份 `user_dictionary.tsv` 的純文字編輯器，格式與 唯音的 userdata 相同（`詞語 注音`，每行一筆），可直接貼上或用「匯入…」讀入唯音詞庫；只有一般詞彙清單時，可用 Will 保哥的第三方[線上產生器](https://vu.gh.miniasp.com/)（[原始碼](https://github.com/doggy8088/vChewing-userdata-generator)，MIT；與本專案無關）轉成此格式；Linux 請直接編輯 `~/.local/share/misstype/user_dictionary.tsv`。
 * **在地化學習**：系統會在本地記憶各詞彙的選字偏好，單個漢字則會結合其前置上下文詞彙共同學習與加權。
 
 ## 授權條款
