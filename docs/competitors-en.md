@@ -8,17 +8,17 @@ tagline). Claims below are what the projects say about themselves; none were
 installed or benchmarked. Overlap between rows is expected: several projects
 share ancestry (Yahoo KeyKey/OpenVanilla, McBopomofo, libchewing).
 
-This is not an IME leaderboard or a color-coded attempt to declare victory.
-Think of it as a travel map: vChewing is the well-equipped senior guide;
-Mistype is the slightly unusual traveler testing learned mixed typing and
-pairing fuzzy input back to candidate readings.
+This document is not an IME scorecard or feature-matrix contest. It serves as a
+design baseline: [vChewing](https://github.com/vChewing/vChewing-macOS) provides a mature,
+stable reference for daily usability and candidate flow, while Misstype focuses on testing two specific
+experimental directions: learned mixed Chinese/English input and paired fuzzy correction.
 
 
 > **TODO before going public:** this page is a 2026-10-04 snapshot and must
 > be refreshed first. Re-check every release version and download size
 > (competitors ship weekly; KeyKey changed twice in one week), re-verify the
 > `-` cells in the feature matrix and the ZingIME claims (price, AI, on-disk
-> size), measure Mistype's own macOS binary and replace the "~6 MB data"
+> size), measure Misstype's own macOS binary and replace the "~6 MB data"
 > placeholder, cover the projects listed under "Gaps in this research", and
 > drop or soften anything we cannot source. Also confirm tone and licence
 > wording are fair to each project.
@@ -32,7 +32,7 @@ pairing fuzzy input back to candidate readings.
 | [Bopomix](https://github.com/lmanchu/bopomix) | macOS 13+, Apple Silicon | McBopomofo engine fork (Swift), Dachen only | Yes: letters that cannot form a syllable become English on the spot; Tab completes English (SCOWL list) | Local English-word learning | None; sentence-level AI reranking researched, not built | 6.6 MB `.dmg` | MIT |
 | [KeyKey (琦琦)](https://github.com/polobread/KeyKey/releases) | macOS 15+, Windows 11, Linux (fcitx5), iOS, Android | Yahoo 2012 codebase, 30 domain phrase libraries; also Cangjie | Not advertised | Smart phrase composition with learning | Says no network access | 38.2 MB macOS `.pkg.zip` | BSD; v1.3.1 released 2026-10-02 |
 | [ZingIME 晶晶](https://zingime.com/) | macOS, Apple Silicon | Zhuyin, 400k+ curated words | Yes (headline feature): same input state, no Caps Lock toggle; 220k-word English dictionary with Tab completion | Not stated | On-device "AI character selection" reading whole-sentence context (在/再); no cloud | 271.6 MiB `.dmg` | Paid, 14-day trial (press summary, unverified) |
-| **Mistype** (this repo) | macOS IMK, Linux fcitx5 | McBopomofo lexicon, Dachen, Swift `MistypeCore` | Yes, `mixedEnglish` (macOS default off) | Learning + user dictionary | None by default; optional Jev LLM assist, opt-in | ~6 MB of data, no model (see below) | not yet released |
+| **Misstype** (this repo) | macOS IMK, Linux fcitx5 | McBopomofo lexicon, Dachen, Swift `MistypeCore` | Yes, `mixedEnglish` (macOS default off) | Learning + user dictionary | None by default; optional Jev LLM assist, opt-in | ~6 MB of data, no model (see below) | not yet released |
 
 ### Download sizes (measured 2026-10-04)
 
@@ -48,13 +48,13 @@ after install is unknown.
 | ChiaKey v1.2.6 | `ChiaKey-1.2.6.pkg` | 50.2 MB | macOS; Windows beta Setup.exe is 27.1 MB |
 | KeyKey v1.3.1 | macOS `.pkg.zip` | 38.2 MB | Windows x64 setup 87 MB, zip 122 MB; Linux data `.deb` 27.3 MB + fcitx5 `.deb` 0.1 MB. Grew from 37.8 / 62.6 / 23.2 MB in v1.3.0 |
 | ZingIME 2026100301 | `.dmg` | 271.6 MiB | ~41x Bopomix; the bundled model is the likely cause (inference, not measured) |
-| Mistype | no release yet | ~6 MB data, binary unmeasured | `lexicon.tsv` 4.8 MB, `english.tsv` 0.9 MB, `toneless.tsv` 0.1 MB, `Resources/` 0.14 MB |
+| Misstype | no release yet | ~6 MB data, binary unmeasured | `lexicon.tsv` 4.8 MB, `english.tsv` 0.9 MB, `toneless.tsv` 0.1 MB, `Resources/` 0.14 MB |
 
 Bopomix is the fairest comparison: the same McBopomofo lexicon plus an
 English list ships in 6.6 MB, so our ~6 MB of data is in line with an IME
 that has no model.
 
-Mistype's size is the runtime data only, measured from `.cache/` and
+Misstype's size is the runtime data only, measured from `.cache/` and
 `Resources/` on 2026-10-04: `lexicon.tsv` 4.8 MB, `english.tsv` 0.9 MB,
 `toneless.tsv` 0.1 MB, `Resources/` 0.14 MB. The compiled macOS binary was
 not measured (this checkout builds on Linux only), so the total is a lower
@@ -66,7 +66,7 @@ bound.
 absence), `n/a` = not applicable. Unverified cells come from README/website
 text only.
 
-| Capability | Ari | ChiaKey | Bopomix | KeyKey | ZingIME | Mistype |
+| Capability | Ari | ChiaKey | Bopomix | KeyKey | ZingIME | Misstype |
 | --- | --- | --- | --- | --- | --- | --- |
 | Zhuyin | Y | Y | Y (Dachen) | Y | Y | Y (Dachen) |
 | Other layouts (Eten, Hsu, Dvorak…) | Y (11) | - | - | - | - | - |
@@ -142,9 +142,9 @@ dictionaries are bundled (inference, not measured). Mixed input and context
 selection are the same ground our `MixedDecode` and Jev assist cover; the
 size and price are the contrast with our small offline lexicon.
 
-## Where Mistype stands
+## Where Misstype stands
 
-[vChewing](https://github.com/vChewing/vChewing-macOS) should be the long-term recommendation and comparison baseline: it is a mature, usable Zhuyin IME for checking compatibility, candidate flow, and day-to-day stability. Treating it as a senior guide is more useful than treating it as a boss to defeat. Mistype should not try to match its entire feature surface. Its focused differentiators are **learned mixed Chinese/English typing** (adoption, false switches, latency, and improvement after learning) and **paired fuzzy correction** (matching keyboard edits and touch-coordinate evidence to candidate readings while preserving replayable raw traces). Both claims need fixed-phrase, de-identified input fixtures and cross-platform conformance checks.
+[vChewing](https://github.com/vChewing/vChewing-macOS) serves as our long-term baseline for compatibility, candidate flow, and day-to-day stability. Rather than attempting to match vChewing's full feature set, Misstype focuses on two specific differentiators: **learned mixed Chinese/English typing** (adoption, false switches, latency, and improvement after learning) and **paired fuzzy correction** (matching keyboard edits and touch-coordinate evidence to candidate readings while preserving replayable raw traces). Both claims need fixed-phrase, de-identified input fixtures and cross-platform conformance checks.
 
 - **Mixed input.** Ari, Bopomix and ZingIME all treat this as the main
   selling point, so it is table stakes for the Zhuyin audience, not a
