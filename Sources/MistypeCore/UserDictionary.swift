@@ -212,7 +212,7 @@ public struct UserDictionary: Equatable, Sendable {
     /// Canonical file text: header comment, additions, then exclusions, each
     /// in insertion order so hand-edits stay where the user put them.
     public func serialized() -> String {
-        var lines = ["# Mistype user dictionary (vChewing format): text reading [weight]; \"!\" hides a built-in word."]
+        var lines = ["# Misstype user dictionary (vChewing format): text reading [weight]; \"!\" hides a built-in word."]
         for entry in added {
             lines.append(entry.weight == Self.defaultWeight
                 ? "\(entry.text) \(entry.reading)"
