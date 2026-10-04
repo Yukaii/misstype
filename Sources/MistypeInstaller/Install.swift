@@ -49,7 +49,7 @@ enum Install {
 
     static func run() throws -> Outcome {
         guard let payload, FileManager.default.fileExists(atPath: payload.path) else {
-            throw Failure("The installer is missing its payload (\(appName)). Download Mistype again.")
+            throw Failure("The installer is missing its payload (\(appName)). Download Misstype again.")
         }
         let fresh = !FileManager.default.fileExists(atPath: destination.path)
         let parent = destination.deletingLastPathComponent()

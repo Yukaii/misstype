@@ -1,7 +1,7 @@
 #!/bin/zsh
 # Build the release artifacts for one version:
 #
-#   dist/Mistype-<v>.dmg         DMG holding "Install Mistype.app" (per-user installer)
+#   dist/Misstype-<v>.dmg         DMG holding "Install Misstype.app" (per-user installer)
 #   dist/MistypeIME-<v>.zip      Sparkle update archive (the signed MistypeIME.app)
 #   dist/appcast.xml             Sparkle feed for that archive (needs SPARKLE_ED_KEY_FILE)
 #   dist/*.sha256
@@ -29,8 +29,8 @@ VERSION="${VERSION#v}"
 IDENTITY="${SIGN_IDENTITY:--}"
 BUILD="${BUILD_NUMBER:-1}"
 APP_DIR="$ROOT_DIR/dist/MistypeIME.app"
-INSTALLER_DIR="$ROOT_DIR/dist/Install Mistype.app"
-DMG="$ROOT_DIR/dist/Mistype-$VERSION.dmg"
+INSTALLER_DIR="$ROOT_DIR/dist/Install Misstype.app"
+DMG="$ROOT_DIR/dist/Misstype-$VERSION.dmg"
 ZIP="$ROOT_DIR/dist/MistypeIME-$VERSION.zip"
 ARCHS="--arch arm64 --arch x86_64"
 
@@ -89,9 +89,9 @@ set_version "$INSTALLER_DIR/Contents/Info.plist"
 # --- DMG --------------------------------------------------------------------
 STAGING="$(mktemp -d)"
 trap 'rm -rf "$STAGING"' EXIT
-/usr/bin/ditto "$INSTALLER_DIR" "$STAGING/Install Mistype.app"
+/usr/bin/ditto "$INSTALLER_DIR" "$STAGING/Install Misstype.app"
 rm -f "$DMG"
-hdiutil create -volname "Mistype $VERSION" -srcfolder "$STAGING" -format UDZO -ov "$DMG"
+hdiutil create -volname "Misstype $VERSION" -srcfolder "$STAGING" -format UDZO -ov "$DMG"
 if [[ "$IDENTITY" == "-" ]]; then
   /usr/bin/codesign --force --sign - "$DMG"
 else

@@ -18,7 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         defer { NSApp.terminate(nil) }
 
         guard let payload = Install.payload, let new = Install.version(of: payload) else {
-            return fail(Install.Failure("The installer is missing its payload. Download Mistype again."))
+            return fail(Install.Failure("The installer is missing its payload. Download Misstype again."))
         }
         if !quiet, !confirm(new: new) { return }
         do {
@@ -31,12 +31,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func confirm(new: Install.Version) -> Bool {
         let alert = makeAlert()
         if let old = Install.version(of: Install.destination) {
-            alert.messageText = L("Update Mistype to %@?", new.short)
+            alert.messageText = L("Update Misstype to %@?", new.short)
             alert.informativeText = L("Version %@ is installed. Your settings and learned phrases are kept.", old.short)
             alert.addButton(withTitle: L("Update"))
         } else {
-            alert.messageText = L("Install Mistype %@", new.short)
-            alert.informativeText = L("This installs the Mistype input method for your account. No administrator password is needed.")
+            alert.messageText = L("Install Misstype %@", new.short)
+            alert.informativeText = L("This installs the Misstype input method for your account. No administrator password is needed.")
             alert.addButton(withTitle: L("Install"))
         }
         alert.addButton(withTitle: L("Cancel"))
@@ -46,18 +46,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func report(_ outcome: Install.Outcome) {
         var warning = ""
         if let copy = Install.systemCopy {
-            warning = "\n\n" + L("An older system-wide copy exists at %@. Remove it, or two Mistype entries will appear.", copy.path)
+            warning = "\n\n" + L("An older system-wide copy exists at %@. Remove it, or two Misstype entries will appear.", copy.path)
         }
         let title: String, detail: String
         switch outcome {
         case .needsLogout:
-            title = L("Mistype is installed")
-            detail = L("macOS lists a new input method only after you log in again. Log out and back in once, then add Mistype in System Settings › Keyboard › Input Sources.")
+            title = L("Misstype is installed")
+            detail = L("macOS lists a new input method only after you log in again. Log out and back in once, then add Misstype in System Settings › Keyboard › Input Sources.")
         case .ready:
-            title = L("Mistype is installed")
-            detail = L("Open System Settings › Keyboard › Input Sources, press +, and add Mistype.")
+            title = L("Misstype is installed")
+            detail = L("Open System Settings › Keyboard › Input Sources, press +, and add Misstype.")
         case .updated(let version):
-            title = L("Mistype was updated")
+            title = L("Misstype was updated")
             detail = L("Now version %@. The new version starts the next time you type.", version.short)
         }
         if quiet {

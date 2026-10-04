@@ -8,7 +8,7 @@ on a Mac yet**; the "Unverified" list below is the first-run checklist.
 | Question | Choice | Why |
 |---|---|---|
 | Install location | `~/Library/Input Methods/MistypeIME.app`, per user | No admin password at install, and the bundle stays user-writable so Sparkle updates in place without an authorization prompt on every release. McBopomofo and vChewing install this way; Squirrel, ChiaKey and KeyKey use a system `.pkg` and `/Library/Input Methods`. |
-| Installer | `Install Mistype.app` inside a DMG (`MistypeInstaller` target) | Same steps as `script/install_ime.sh`, double-clickable, localized (en/zh-Hant/zh-Hans/ja). The IME is copied by our own process, so the installed copy carries no quarantine flag. |
+| Installer | `Install Misstype.app` inside a DMG (`MistypeInstaller` target) | Same steps as `script/install_ime.sh`, double-clickable, localized (en/zh-Hant/zh-Hans/ja). The IME is copied by our own process, so the installed copy carries no quarantine flag. |
 | Updates | Sparkle 2 in the IME, feed on GitHub Releases | Industry standard, EdDSA-signed archives independent of Apple signing. |
 
 ## Sandbox interaction
@@ -35,7 +35,7 @@ an uninstaller would have to clear
    method after the next login. Otherwise it offers to open Keyboard
    settings. It never launches the IME by hand (see `install_ime.sh`).
 
-`Install Mistype.app --yes` skips the dialogs and prints the outcome.
+`Install Misstype.app --yes` skips the dialogs and prints the outcome.
 It warns when an older `/Library/Input Methods/MistypeIME.app` exists.
 
 ## Updates
@@ -77,7 +77,7 @@ git tag v0.2.0 && git push origin v0.2.0      # CI: test, package, publish
 ./script/package_release.sh 0.2.0             # same thing locally, into dist/
 ```
 
-Artifacts: `Mistype-<v>.dmg`, `MistypeIME-<v>.zip` (the Sparkle archive),
+Artifacts: `Misstype-<v>.dmg`, `MistypeIME-<v>.zip` (the Sparkle archive),
 `appcast.xml`, `.sha256` files. Tags containing `-` are prereleases and are
 skipped by `latest`, so they never reach existing installs.
 

@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-<key>CFBundleDisplayName</key><string>Install Mistype</string>
-<key>CFBundleName</key><string>Install Mistype</string>
+<key>CFBundleDisplayName</key><string>Install Misstype</string>
+<key>CFBundleName</key><string>Install Misstype</string>
 <key>CFBundleDevelopmentRegion</key><string>en</string>
 <key>CFBundleLocalizations</key><array><string>en</string><string>zh-Hant</string><string>zh-Hans</string><string>ja</string></array>
 <key>CFBundleExecutable</key><string>MistypeInstaller</string>
@@ -14,5 +14,5 @@
 <key>LSMinimumSystemVersion</key><string>13.0</string>
 <key>NSPrincipalClass</key><string>NSApplication</string>
 <key>LSHasLocalizedDisplayName</key><true/>
-<key>NSAppleEventsUsageDescription</key><string>Mistype asks macOS to log you out so the new input method becomes available.</string>
+<key>NSAppleEventsUsageDescription</key><string>Misstype asks macOS to log you out so the new input method becomes available.</string>
 </dict></plist>

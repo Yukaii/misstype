@@ -85,9 +85,9 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Mistype-${{ env.VERSION }}
+          name: Misstype-${{ env.VERSION }}
           path: |
-            dist/Mistype-*.dmg*
+            dist/Misstype-*.dmg*
             dist/MistypeIME-*.zip*
             dist/appcast.xml
 
@@ -98,10 +98,10 @@ jobs:
         run: |
           PRERELEASE=""
           [[ "$VERSION" == *-* ]] && PRERELEASE="--prerelease"
-          ASSETS=(dist/Mistype-*.dmg dist/Mistype-*.dmg.sha256 dist/MistypeIME-*.zip dist/MistypeIME-*.zip.sha256)
+          ASSETS=(dist/Misstype-*.dmg dist/Misstype-*.dmg.sha256 dist/MistypeIME-*.zip dist/MistypeIME-*.zip.sha256)
           [[ -f dist/appcast.xml ]] && ASSETS+=(dist/appcast.xml)
           gh release create "$VERSION" "${ASSETS[@]}" \
-            --title "Mistype ${VERSION#v}" --generate-notes $PRERELEASE
+            --title "Misstype ${VERSION#v}" --generate-notes $PRERELEASE
 
       - name: Clean up signing material
         if: always()
