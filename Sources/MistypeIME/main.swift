@@ -535,6 +535,9 @@ extension NSApplication {
 }
 
 MistypePrefs.register()
+if let resources = Bundle.main.resourceURL {
+    Runtime.engine.loadEnglishLexicon(resourceDirectory: resources)
+}
 // Retained: DistributedNotificationCenter returns an opaque token that must
 // stay alive, otherwise the observer is released immediately and the
 // cross-process preferences trigger silently never fires.

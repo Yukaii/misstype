@@ -12,6 +12,8 @@
 "Off: the candidate panel appears only after you press Tab or an arrow key." = "オフの場合、Tab または矢印キーを押すと候補ウィンドウが表示されます。";
 "Return confirms the selected candidate" = "Return で選択した候補を確定";
 "On: while choosing a candidate, Return only confirms it and a second Return sends the text. Off: Return sends the text immediately." = "オン：候補の選択中は Return で候補を確定するだけで、もう一度 Return を押すと入力が確定します。オフ：Return ですぐに入力を確定します。";
+"Recognize English words while typing" = "英語の単語を入力中に認識";
+"Experimental. Keys that spell an English word (typos included) are offered as English without switching modes. Slower on long mixed sentences." = "試験的機能。英単語（タイプミスを含む）のキー入力は、モードを切り替えなくても英語として候補に表示されます。長い混在文では動作が遅くなります。";
 "Selection keys" = "候補選択キー";
 "Restore Default" = "初期値に戻す";
 "Pick a candidate after pressing ↓ or Tab (or in the syllable cursor's list). Up to 8 keys; while typing they stay Zhuyin keys." = "↓ または Tab を押した後（または音節カーソルの一覧で）候補を選ぶキーです。最大 8 個。入力中は通常の注音キーとして働きます。";

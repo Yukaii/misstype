@@ -29,6 +29,7 @@ enum MistypePrefs {
             "MistypeAutoCommitSyllables": 24,
             "MistypeAutoShowCandidates": false,
             "MistypeReturnConfirmsSelection": true,
+            "MistypeMixedEnglish": false,
         ])
     }
 
@@ -51,6 +52,15 @@ enum MistypePrefs {
     static var returnConfirmsSelection: Bool {
         get { UserDefaults.standard.bool(forKey: "MistypeReturnConfirmsSelection") }
         set { UserDefaults.standard.set(newValue, forKey: "MistypeReturnConfirmsSelection") }
+    }
+
+    /// Bare keys that spell an English word (or a one-letter typo of one) are
+    /// offered as English and adopted when clearly better than the Chinese
+    /// reading. Default off until it has been checked on real typing; needs
+    /// `english.tsv` in the app bundle.
+    static var mixedEnglish: Bool {
+        get { UserDefaults.standard.bool(forKey: "MistypeMixedEnglish") }
+        set { UserDefaults.standard.set(newValue, forKey: "MistypeMixedEnglish") }
     }
 
     /// Long compositions commit their settled head in chunks once they pass
@@ -116,7 +126,8 @@ enum MistypePrefs {
                         shiftToggle: shiftToggle, jev: jevConfig,
                         autoCommitSyllables: autoCommitSyllables,
                         autoShowCandidates: autoShowCandidates,
-                        returnConfirmsSelection: returnConfirmsSelection)
+                        returnConfirmsSelection: returnConfirmsSelection,
+                        mixedEnglish: mixedEnglish)
     }
 
     /// Live adapter config: explicit enable + key presence gate the attempt;

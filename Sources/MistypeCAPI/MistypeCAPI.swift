@@ -227,6 +227,7 @@ public func mistype_engine_new(
     guard let decoder = LexiconLoader.load(resourceDirectory: URL(fileURLWithPath: resourceDir)) else { return nil }
     let settings = SettingsBox()
     let engine = InputEngine(decoder: decoder, settings: { settings.value })
+    engine.loadEnglishLexicon(resourceDirectory: URL(fileURLWithPath: resourceDir))
     
     let userLexiconURL: URL?
     if let pathPtr = user_lexicon_path {

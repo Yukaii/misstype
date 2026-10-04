@@ -95,6 +95,26 @@ public enum MixedDecoding {
     public static let maxSpanLength = 14
     public static let maxSpans = 8
     public static let maxSpansPerHypothesis = 3
+    /// Session wiring. The English reading becomes the top candidate only
+    /// when it beats the Chinese reading by this much ON TOP of the switch
+    /// penalty; within `suggestWindow` below it, it is listed second.
+    public static let autoMargin = 3.0
+    public static let suggestWindow = 8.0
+    /// Compositions longer than this (keys) skip the mixed pass: bounds the
+    /// per-keystroke cost; chunked auto-commit keeps compositions near it.
+    public static let maxKeys = 48
+}
+
+/// The live candidate list after the English pass.
+public struct MixedApplication {
+    public var candidates: [SentenceCandidate]
+    /// Texts of the inserted English readings. They cover every typed key, so
+    /// the session shows no raw tail with them and keeps them out of
+    /// positional pins, the syllable cursor and learning (their run indexes
+    /// do not match the composition's own).
+    public var completeTexts: Set<String>
+    /// The English reading took the top slot (otherwise it is a suggestion).
+    public var adopted: Bool
 }
 
 extension LexiconDecoder {
@@ -108,11 +128,25 @@ extension LexiconDecoder {
     public func decodeMixed(keys: [String], english: EnglishLexicon,
                             switchPenalty: Double = MixedDecoding.defaultSwitchPenalty,
                             minWordLength: Int = MixedDecoding.defaultMinWordLength,
+                            includePlain: Bool = true,
+                            pruneWindow: Double = MixedDecoding.suggestWindow,
                             fuzzyEnglish: Bool = true,
                             englishEditCost: Double = MixedDecoding.defaultEnglishEditCost,
                             fuzzy: Bool = true, toneTolerance: Bool = true,
                             userLexicon: UserLexicon? = nil) -> [MixedCandidate] {
-        guard !keys.isEmpty else { return [] }
+        mixedPass(keys: keys, english: english, switchPenalty: switchPenalty, minWordLength: minWordLength,
+                  includePlain: includePlain, pruneWindow: pruneWindow, fuzzyEnglish: fuzzyEnglish,
+                  englishEditCost: englishEditCost, fuzzy: fuzzy, toneTolerance: toneTolerance,
+                  userLexicon: userLexicon).candidates
+    }
+
+    /// `decodeMixed` plus the score of the all-Chinese reading of the same
+    /// keys (nil when no span was found, so it was never decoded).
+    func mixedPass(keys: [String], english: EnglishLexicon, switchPenalty: Double,
+                   minWordLength: Int, includePlain: Bool, pruneWindow: Double, fuzzyEnglish: Bool,
+                   englishEditCost: Double, fuzzy: Bool, toneTolerance: Bool,
+                   userLexicon: UserLexicon?) -> (candidates: [MixedCandidate], plainScore: Double?) {
+        guard !keys.isEmpty else { return ([], nil) }
         func isLetter(_ key: String) -> Bool {
             key.count == 1 && key.first.map { $0.isASCII && $0.isLetter && $0.isLowercase } == true
         }
@@ -135,22 +169,19 @@ extension LexiconDecoder {
         spans.sort { $0.score == $1.score ? $0.range.lowerBound < $1.range.lowerBound : $0.score > $1.score }
         spans = Array(spans.prefix(MixedDecoding.maxSpans))
 
-        var subsets: [[Int]] = [[]]
-        func extend(_ chosen: [Int], from index: Int) {
-            for next in index..<spans.count where chosen.count < MixedDecoding.maxSpansPerHypothesis {
-                if chosen.contains(where: { spans[$0].range.overlaps(spans[next].range) }) { continue }
-                subsets.append(chosen + [next])
-                extend(chosen + [next], from: next + 1)
-            }
-        }
-        extend([], from: 0)
-
-        var best: [String: MixedCandidate] = [:]
-        for subset in subsets {
+        // Each hypothesis is decoded once. Pruning: a span is scored alone
+        // first and kept only when that reading is within `pruneWindow` of
+        // the all-Chinese one; the subsets worth combining are then few.
+        var memo: [[Int]: [MixedCandidate]] = [:]
+        func hypothesis(_ subset: [Int]) -> [MixedCandidate] {
+            if let hit = memo[subset] { return hit }
             let chosen = subset.map { spans[$0] }.sorted { $0.range.lowerBound < $1.range.lowerBound }
             var composition = Composition()
             for (index, key) in keys.enumerated() {
-                if let span = chosen.first(where: { $0.range.contains(index) }) {
+                if key == " " {
+                    // Literal separator after English, first tone after Zhuyin.
+                    composition.appendSpace()
+                } else if let span = chosen.first(where: { $0.range.contains(index) }) {
                     // A typo'd span renders the corrected word, once, at its start.
                     if index == span.range.lowerBound {
                         for letter in span.word { composition.appendLatin(String(letter)) }
@@ -162,14 +193,82 @@ extension LexiconDecoder {
             let decoded = decodeSegments(composition.segments, pendingKeys: composition.parsed.pending,
                                          fuzzy: fuzzy, toneTolerance: toneTolerance, userLexicon: userLexicon)
             let extra = chosen.reduce(0.0) { $0 + $1.score - switchPenalty }
-            for sentence in decoded.prefix(2) {
-                let candidate = MixedCandidate(sentence: sentence, englishSpans: chosen.map(\.range), englishWords: chosen.map(\.word),
-                                               score: sentence.score + extra)
-                if let existing = best[sentence.text], existing.score >= candidate.score { continue }
-                best[sentence.text] = candidate
+            let result = decoded.prefix(2).map {
+                MixedCandidate(sentence: $0, englishSpans: chosen.map(\.range), englishWords: chosen.map(\.word),
+                               score: $0.score + extra)
+            }
+            memo[subset] = result
+            return result
+        }
+        guard !spans.isEmpty else { return (includePlain ? hypothesis([]) : [], nil) }
+        let plainScore = hypothesis([]).first?.score ?? -.infinity
+        let survivors = spans.indices.filter { (hypothesis([$0]).first?.score ?? -.infinity) > plainScore - pruneWindow }
+        var subsets: [[Int]] = includePlain ? [[]] : []
+        func extend(_ chosen: [Int], from index: Int) {
+            for next in index..<survivors.count where chosen.count < MixedDecoding.maxSpansPerHypothesis {
+                let candidate = survivors[next]
+                if chosen.contains(where: { spans[$0].range.overlaps(spans[candidate].range) }) { continue }
+                subsets.append(chosen + [candidate])
+                extend(chosen + [candidate], from: next + 1)
             }
         }
-        return best.values.sorted { $0.score == $1.score ? $0.text < $1.text : $0.score > $1.score }
-            .prefix(16).map { $0 }
+        extend([], from: 0)
+
+        var best: [String: MixedCandidate] = [:]
+        for subset in subsets {
+            for candidate in hypothesis(subset) {
+                if let existing = best[candidate.text], existing.score >= candidate.score { continue }
+                best[candidate.text] = candidate
+            }
+        }
+        return (best.values.sorted { $0.score == $1.score ? $0.text < $1.text : $0.score > $1.score }
+            .prefix(16).map { $0 }, plainScore)
+    }
+}
+
+extension LexiconDecoder {
+    /// Add the English reading to a live preview when the typed keys support
+    /// it. Nil = leave `live` alone. The pass is pruned to where it can pay:
+    /// bare Zhuyin/tone/space keys only (no latin run or punctuation yet), a
+    /// run of >= `minWordLength` letter keys, and at least one candidate span
+    /// that survives scoring alone against the Chinese reading. (A gate on
+    /// "the Chinese reading shows trouble" was tried and dropped: you / for
+    /// spell valid Chinese syllable pairs, so clean Chinese readings of
+    /// English words are common and the gate cost 18 points of recall.)
+    public func applyEnglish(to live: LivePreview, composition: Composition, english: EnglishLexicon,
+                             fuzzy: Bool = true, toneTolerance: Bool = true,
+                             userLexicon: UserLexicon? = nil,
+                             minWordLength: Int = MixedDecoding.defaultMinWordLength,
+                             autoMargin: Double = MixedDecoding.autoMargin,
+                             suggestWindow: Double = MixedDecoding.suggestWindow) -> MixedApplication? {
+        let keys = composition.rawKeys
+        guard !english.isEmpty, keys.count >= minWordLength, keys.count <= MixedDecoding.maxKeys,
+              keys.allSatisfy({ ZhuyinKeyboard.symbols[$0] != nil || ZhuyinKeyboard.tones[$0] != nil }),
+              !live.candidates.isEmpty else { return nil }
+        var run = 0, longest = 0
+        for key in keys {
+            let letter = key.count == 1 && key.first.map { $0.isASCII && $0.isLetter } == true
+            run = letter ? run + 1 : 0
+            longest = max(longest, run)
+        }
+        guard longest >= minWordLength else { return nil }
+        // Margin against the pin-free Chinese reading (the pass's own plain
+        // decode): live scores carry pin bonuses.
+        let pass = mixedPass(keys: keys, english: english, switchPenalty: MixedDecoding.defaultSwitchPenalty,
+                             minWordLength: minWordLength, includePlain: false, pruneWindow: suggestWindow,
+                             fuzzyEnglish: true, englishEditCost: MixedDecoding.defaultEnglishEditCost,
+                             fuzzy: fuzzy, toneTolerance: toneTolerance, userLexicon: userLexicon)
+        let mixed = pass.candidates
+        guard let best = mixed.first, let plain = pass.plainScore else { return nil }
+        let margin = best.score - plain
+        guard margin >= -suggestWindow else { return nil }
+        let adopted = margin >= autoMargin
+        var inserted = [best.sentence]
+        if let second = mixed.dropFirst().first, best.score - second.score < suggestWindow {
+            inserted.append(second.sentence)
+        }
+        let rest = live.candidates.filter { candidate in !inserted.contains { $0.text == candidate.text } }
+        let ordered = adopted ? inserted + rest : Array(rest.prefix(1)) + inserted + Array(rest.dropFirst())
+        return MixedApplication(candidates: ordered, completeTexts: Set(inserted.map(\.text)), adopted: adopted)
     }
 }

@@ -870,9 +870,50 @@ typos are one slip in words of 6+ letters; the 20% typo misses and the 4%
 toneless misses are not yet classified; no uppercase, digits, or hyphenated
 words. Treat it as a validated mechanism, not a quality claim.
 
-Next: wire into `InputSession` as a suggestion (English reading offered as a
-candidate, adopted automatically only above a confidence margin), with the
-latency pruning; then re-measure on real typed text.
+#### Wired into `InputSession` (same day)
+
+`InputSession.refresh` now runs `applyEnglish` after the live preview: the
+English reading is inserted as the top candidate when it beats the Chinese one
+by 3 points on top of the switch penalty (`MixedDecoding.autoMargin`), listed
+second when within 8 below it (`suggestWindow`), and absent otherwise. The
+word list loads off-thread (`InputEngine.loadEnglishLexicon`, ~330 ms index)
+from `english.tsv` beside the lexicon; no file, no change. Setting:
+`SessionSettings.mixedEnglish` (core/Linux default on when the file exists,
+macOS `MistypeMixedEnglish` default **off**, Settings toggle "Recognize English
+words while typing"). Bare Zhuyin/tone/space keys only: once a latin run or
+punctuation is in the composition the pass stays out. English readings are
+"complete" candidates (`completeTexts`): they show no raw tail and are kept
+out of settled/positional pins, the syllable cursor, chunked auto-commit and
+learning, because their run indexes do not match the composition's own.
+
+Measured on the shipping path (`testSessionPath`: live preview +
+`applyEnglish`, real lexicons, 200 mixed / 200 typo'd / 600 pure-Chinese
+inputs, toned / toneless):
+
+| | top-1 | in top 4 | adopted automatically |
+|---|---|---|---|
+| clean English | 92% / 90% | 100% / 99% | 92% / 92% |
+| one-letter typo | 80% / 77% | 86% / 82% | 95% / 97% |
+| pure Chinese | - | - | **0% / 0%** (English *suggested* in 0.7% / 4.7%) |
+
+Two things this run corrected. A first gate that only ran the pass when the
+Chinese reading showed trouble (repairs, unresolved text, raw tail) lost 18
+points of recall (clean English 82% / 80%) because words like you / for spell
+valid Chinese syllable pairs, so it was dropped. Span-level pruning replaced
+it: each span is scored alone against the Chinese reading and only survivors
+are combined, and the plain Chinese score is computed once.
+
+Cost, release build, per live refresh: toned inputs 7-10 ms vs 1 ms without the
+pass; toneless mixed inputs 111-134 ms vs 34-44 ms, i.e. a visible hiccup per
+keystroke while an English span is in the composition. That is why the macOS
+default is off. Pure Chinese costs 2-11 ms (a span scan). Worth doing before
+turning it on by default: reuse hypotheses across keystrokes (the composition
+grows by one key), and run the pass off the main thread.
+
+Not done: a Linux conformance scenario (the C1-C13 harness has no word list
+installed, so the fcitx5 suite is unaffected; coverage is `MixedSessionTests`);
+real-typing quality, which needs actual mixed text typed by a person.
+
 Run: `MISTYPE_MIXED_SWEEP=1 swift test -c release -Xswiftc -enable-testing
 --filter MixedSweepTests` after `python3 script/prepare_lexicon.py`.
 

@@ -51,6 +51,10 @@ install(FILES
     "${MISTYPE_LEXICON_DIR}/toneless.tsv"
     "${MISTYPE_ROOT}/Resources/local_phrases.tsv"
     DESTINATION "${CMAKE_INSTALL_DATADIR}/mistype")
+# Optional English word list (mixed typing); absent = feature off. CC BY-SA, see THIRD_PARTY_NOTICES.md.
+if(EXISTS "${MISTYPE_ROOT}/.cache/frequencywords/english.tsv")
+    install(FILES "${MISTYPE_ROOT}/.cache/frequencywords/english.tsv" DESTINATION "${CMAKE_INSTALL_DATADIR}/mistype")
+endif()
 install(FILES "${MISTYPE_ROOT}/LICENSE" "${MISTYPE_ROOT}/THIRD_PARTY_NOTICES.md" DESTINATION "${CMAKE_INSTALL_DOCDIR}")
 install(DIRECTORY "${MISTYPE_ROOT}/third_party/" DESTINATION "${CMAKE_INSTALL_DOCDIR}/third_party")
 
