@@ -307,7 +307,7 @@ void runAll(Instance &instance) {
     {
         std::ifstream file(std::string(TESTING_BINARY_DIR) + "/xdg-data/mistype/user_dictionary.tsv");
         std::string saved((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-        FCITX_ASSERT(saved.find("ㄋㄧˇ-ㄏㄠˇ\t你好") != std::string::npos) << "dictionary not persisted: " << saved;
+        FCITX_ASSERT(saved.find("你好 ㄋㄧˇ-ㄏㄠˇ") != std::string::npos) << "dictionary not persisted: " << saved;
     }
     s.clear();
     pass("C13");

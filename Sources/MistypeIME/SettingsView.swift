@@ -281,6 +281,7 @@ private struct DictionaryPane: View {
     @State private var text = ""
     @State private var saved = ""
     @State private var loaded = false
+    @State private var importNote: String?
 
     private var parsed: (dictionary: UserDictionary, problems: [UserDictionary.Problem]) {
         UserDictionary.parse(text)
@@ -293,15 +294,25 @@ private struct DictionaryPane: View {
                 Text(L("Mark text while typing with Shift+← / → and press Return to add it here. Press Return on the same mark again to remove it."))
                     .font(.callout).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+                Text(L("Import reads vChewing user data (.txt, UTF-8). To turn a plain word list into that format, use the online generator; it runs in your browser and uploads nothing."))
+                    .font(.callout).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Link(L("vChewing user data generator"), destination: URL(string: "https://vu.gh.miniasp.com/")!)
             }
             Section(L("Words")) {
                 TextEditor(text: $text)
                     .font(.system(.body, design: .monospaced))
-                    .frame(minHeight: 240)
+                    // Fixed height: with only a minimum the editor sizes to its
+                    // text (a 1,600-line import made the pane thousands of pt tall);
+                    // a bounded editor scrolls inside itself instead.
+                    .frame(height: 280)
                     .overlay(RoundedRectangle(cornerRadius: 6).stroke(.quaternary))
-                Text(L("One word per line: Zhuyin readings joined by hyphens, a tab, then the word. Start a line with ! to hide a built-in word. # starts a comment."))
+                Text(L("One word per line: the word, a space, then its Zhuyin readings joined by hyphens (vChewing user data format). Start a line with ! to hide a built-in word. # starts a comment."))
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+                if let importNote {
+                    Text(importNote).font(.caption).foregroundStyle(.secondary)
+                }
                 if !result.problems.isEmpty {
                     VStack(alignment: .leading, spacing: 2) {
                         ForEach(Array(result.problems.prefix(5).enumerated()), id: \.offset) { _, problem in
@@ -318,6 +329,7 @@ private struct DictionaryPane: View {
                     Text(L("%d words, %d hidden", result.dictionary.added.count, result.dictionary.excluded.count))
                         .font(.caption).foregroundStyle(.secondary)
                     Spacer()
+                    Button(L("Import…")) { importFile() }
                     Button(L("Show in Finder")) {
                         if !FileManager.default.fileExists(atPath: UserDictionary.defaultURL.path) { save() }
                         NSWorkspace.shared.activateFileViewerSelecting([UserDictionary.defaultURL])
@@ -339,10 +351,27 @@ private struct DictionaryPane: View {
         loaded = true
     }
 
+    /// Merges a picked file into the editor; the user reviews and presses Save.
+    private func importFile() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.plainText, .text]
+        panel.allowsMultipleSelection = false
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard let source = try? String(contentsOf: url, encoding: .utf8) else {
+            importNote = L("Could not read %@ as UTF-8 text.", url.lastPathComponent)
+            return
+        }
+        let result = UserDictionary.importing(source, into: text)
+        text = result.text
+        importNote = L("Imported %d words (%d already there, %d lines skipped). Press Save to apply.",
+                       result.added, result.duplicates, result.problems.count)
+    }
+
     private func save() {
         guard UserDictionary.write(text: text, to: UserDictionary.defaultURL) else { NSSound.beep(); return }
         Runtime.engine.setUserDictionary(UserDictionary.parse(text).dictionary, persist: false)
         saved = text
+        importNote = nil
     }
 }
 

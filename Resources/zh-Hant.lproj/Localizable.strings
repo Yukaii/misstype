@@ -75,7 +75,12 @@
 "My Dictionary" = "我的詞庫";
 "Mark text while typing with Shift+← / → and press Return to add it here. Press Return on the same mark again to remove it." = "打字時用 Shift+← / → 標記文字，按 Return 即可加入此處；對同一段標記再按一次 Return 則移除。";
 "Words" = "詞語";
-"One word per line: Zhuyin readings joined by hyphens, a tab, then the word. Start a line with ! to hide a built-in word. # starts a comment." = "每行一個詞：以連字號相連的注音、一個 Tab，再接詞語。行首加 ! 可隱藏內建詞；# 開頭為註解。";
+"One word per line: the word, a space, then its Zhuyin readings joined by hyphens (vChewing user data format). Start a line with ! to hide a built-in word. # starts a comment." = "每行一個詞：詞語、一個空白，再接以連字號相連的注音（vChewing 使用者語彙格式）。行首加 ! 可隱藏內建詞；# 開頭為註解。";
+"Import reads vChewing user data (.txt, UTF-8). To turn a plain word list into that format, use the online generator; it runs in your browser and uploads nothing." = "可匯入 vChewing 使用者語彙（.txt、UTF-8）。若只有一般詞彙清單，可用線上產生器轉成此格式；它在瀏覽器內執行，不會上傳任何資料。";
+"vChewing user data generator" = "vChewing 語彙檔產生器";
+"Import…" = "匯入…";
+"Could not read %@ as UTF-8 text." = "無法將 %@ 當作 UTF-8 文字讀取。";
+"Imported %d words (%d already there, %d lines skipped). Press Save to apply." = "已匯入 %d 個詞（%d 個已存在、略過 %d 行）。按「儲存」套用。";
 "Line %d: %@" = "第 %d 行：%@";
 "…and %d more" = "…還有 %d 項";
 "%d words, %d hidden" = "%d 個詞、%d 個已隱藏";

@@ -62,10 +62,10 @@ final class UserDictionaryTests: XCTestCase {
     func testParseSerializeRoundTripKeepsAdditionsWeightsAndExclusions() {
         let source = """
         # comment
-        ㄏㄨㄤˊ-ㄩˋ-ㄎㄞˇ\t黃昱愷
-        ㄋㄧˇ-ㄏㄠˇ\t你好\t-1.5
+        黃昱愷 ㄏㄨㄤˊ-ㄩˋ-ㄎㄞˇ
+        你好 ㄋㄧˇ-ㄏㄠˇ -1.5
 
-        !ㄉㄚˇ-ㄉㄨㄟˋ\t打對
+        !打對 ㄉㄚˇ-ㄉㄨㄟˋ
         """
         let (dictionary, problems) = UserDictionary.parse(source)
         XCTAssertEqual(problems, [])
@@ -73,6 +73,59 @@ final class UserDictionaryTests: XCTestCase {
         XCTAssertEqual(dictionary.added[1].weight, -1.5)
         XCTAssertTrue(dictionary.isExcluded(reading: "ㄉㄚˇ-ㄉㄨㄟˋ", text: "打對"))
         XCTAssertEqual(UserDictionary.parse(dictionary.serialized()).dictionary, dictionary)
+        XCTAssertTrue(dictionary.serialized().contains("\n黃昱愷 ㄏㄨㄤˊ-ㄩˋ-ㄎㄞˇ\n"), "vChewing order, space separated")
+    }
+
+    /// Output of vChewing-userdata-generator: used to be rejected line by line.
+    func testReadsVChewingUserdataAsIs() {
+        let (dictionary, problems) = UserDictionary.parse("""
+        # 我的語彙
+        免費試聽 ㄇㄧㄢˇ-ㄈㄟˋ-ㄕˋ-ㄊㄧㄥ
+        談什麼原則\tㄊㄢˊ-ㄕㄜˊ-ㄇㄛ˙-ㄩㄢˊ-ㄗㄜˊ\t-3.5
+        斷訊  ㄉㄨㄢˋ-ㄒㄩㄣˋ
+        """)
+        XCTAssertEqual(problems, [])
+        XCTAssertEqual(dictionary.added.map(\.text), ["免費試聽", "談什麼原則", "斷訊"])
+        XCTAssertEqual(dictionary.added[1].weight, -3.5)
+        XCTAssertTrue(dictionary.contains(reading: "ㄉㄨㄢˋ-ㄒㄩㄣˋ", text: "斷訊"))
+    }
+
+    /// First 20 lines of vChewing-userdata-generator's idiom output (MOE 成語典
+    /// headwords, no personal text): a real file, not a hand-written one.
+    func testReadsRealGeneratorOutputFixture() throws {
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("fixtures/vchewing-userdata-idioms.txt")
+        let (dictionary, problems) = UserDictionary.parse(try String(contentsOf: url, encoding: .utf8))
+        XCTAssertEqual(problems, [])
+        XCTAssertEqual(dictionary.added.count, 20)
+        XCTAssertTrue(dictionary.contains(reading: "ㄧˋ-ㄇㄠˊ-ㄅㄨˋ-ㄅㄚˊ", text: "一毛不拔"))
+        XCTAssertTrue(dictionary.contains(reading: "ㄏㄨˊ-ㄌㄨㄣˊ-ㄊㄨㄣ-ㄗㄠˇ", text: "囫圇吞棗"))
+    }
+
+    func testImportAppendsOnlyNewEntriesAndKeepsExistingText() {
+        let existing = "# mine\n你好 ㄋㄧˇ-ㄏㄠˇ"
+        let result = UserDictionary.importing("""
+        你好 ㄋㄧˇ-ㄏㄠˇ
+        斷訊 ㄉㄨㄢˋ-ㄒㄩㄣˋ
+        壞掉
+        !打對 ㄉㄚˇ-ㄉㄨㄟˋ
+        """, into: existing)
+        XCTAssertEqual(result.added, 2)
+        XCTAssertEqual(result.duplicates, 1)
+        XCTAssertEqual(result.problems.map(\.line), [3])
+        XCTAssertEqual(result.text, "# mine\n你好 ㄋㄧˇ-ㄏㄠˇ\n斷訊 ㄉㄨㄢˋ-ㄒㄩㄣˋ\n!打對 ㄉㄚˇ-ㄉㄨㄟˋ\n")
+        XCTAssertEqual(UserDictionary.importing("斷訊 ㄉㄨㄢˋ-ㄒㄩㄣˋ", into: result.text).added, 0, "idempotent")
+    }
+
+    /// Files written before the format switched (reading<TAB>text) still load
+    /// and come back out in the new order.
+    func testLegacyReadingFirstLinesStillLoadAndRewriteInNewOrder() {
+        let (dictionary, problems) = UserDictionary.parse("ㄋㄧˇ-ㄏㄠˇ\t你好\t-2\n!ㄉㄚˇ-ㄉㄨㄟˋ\t打對\n")
+        XCTAssertEqual(problems, [])
+        XCTAssertTrue(dictionary.contains(reading: "ㄋㄧˇ-ㄏㄠˇ", text: "你好"))
+        XCTAssertTrue(dictionary.isExcluded(reading: "ㄉㄚˇ-ㄉㄨㄟˋ", text: "打對"))
+        XCTAssertTrue(dictionary.serialized().contains("你好 ㄋㄧˇ-ㄏㄠˇ -2.0"))
+        XCTAssertTrue(dictionary.serialized().contains("!打對 ㄉㄚˇ-ㄉㄨㄟˋ"))
     }
 
     func testBadLinesAreReportedAndSkippedNeverFatal() {
@@ -81,7 +134,7 @@ final class UserDictionaryTests: XCTestCase {
         ㄋㄧˇ-ㄏㄠˇ\t你
         hello\tworld
         ㄋㄧˇ\t你\t3
-        no tab here
+        lonely
         ㄇㄚ˙\t嗎
         """)
         XCTAssertEqual(dictionary.added.map(\.text), ["你好", "嗎"])
@@ -171,7 +224,7 @@ final class UserDictionaryTests: XCTestCase {
         XCTAssertEqual(session.view.preedit, "你好嗎", "still composing, nothing committed")
         XCTAssertTrue(session.engine.userDictionary.contains(reading: "ㄋㄧˇ-ㄏㄠˇ-ㄇㄚ˙", text: "你好嗎"))
         let saved = try String(contentsOf: tempURL, encoding: .utf8)
-        XCTAssertTrue(saved.contains("ㄋㄧˇ-ㄏㄠˇ-ㄇㄚ˙\t你好嗎"))
+        XCTAssertTrue(saved.contains("你好嗎 ㄋㄧˇ-ㄏㄠˇ-ㄇㄚ˙"))
         // Marking the same span again offers removal, and Return undoes it.
         shift(.left, session, times: 3)
         XCTAssertEqual(session.view.mark?.action, .remove)
