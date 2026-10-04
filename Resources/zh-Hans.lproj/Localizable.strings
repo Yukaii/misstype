@@ -10,6 +10,8 @@
 "Shift+Space always works. Turn this off if an app mishandles lone Shift presses." = "Shift+空格键始终可用。若某个 App 误处理单独的 Shift 按键，可关闭此项。";
 "Show candidates automatically" = "自动显示候选窗";
 "Off: the candidate panel appears only after you press Tab or an arrow key." = "关闭时，按下 Tab 或方向键后才会显示候选窗。";
+"Return confirms the selected candidate" = "回车确认所选候选字";
+"On: while choosing a candidate, Return only confirms it and a second Return sends the text. Off: Return sends the text immediately." = "开启：选字时回车只确认候选，再按一次回车才送出文字。关闭：回车直接送出文字。";
 "Selection keys" = "选字键";
 "Restore Default" = "恢复默认";
 "Pick a candidate after pressing ↓ or Tab (or in the syllable cursor's list). Up to 8 keys; while typing they stay Zhuyin keys." = "按 ↓ 或 Tab 后（或在音节光标的列表中）用来选字，最多 8 个键；打字时它们仍是注音键。";
