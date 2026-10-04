@@ -125,6 +125,48 @@ final class InputSessionTests: XCTestCase {
         XCTAssertTrue(session.view.keysActive)
     }
 
+    func testArrowsStillOpenListAfterSpaceThenBackspace() {
+        let session = makeSession()
+        type("su3", into: session)
+        let before = session.view.candidates
+        session.handle(key(.space, text: " "))
+        session.handle(key(.backspace, text: "\u{7f}"))
+        XCTAssertEqual(session.view.candidates, before)
+        XCTAssertEqual(session.handle(key(.down, text: "\u{F701}")), KeyResult(consumed: true))
+        XCTAssertTrue(session.view.keysActive)
+    }
+
+    func testReturnConfirmsSelectionBeforeCommittingWhenEnabled() {
+        settings.returnConfirmsSelection = true
+        let session = makeSession()
+        type("su3", into: session)
+        session.handle(key(.tab, text: "\t"))
+        XCTAssertEqual(session.view.preedit, "妳")
+        XCTAssertEqual(session.handle(key(.enter, text: "\r")), KeyResult(consumed: true))
+        XCTAssertFalse(session.view.keysActive)
+        XCTAssertEqual(session.view.preedit, "妳")
+        XCTAssertEqual(session.handle(key(.enter, text: "\r")).commit, "妳")
+        // Without a selection Return still commits at once (fresh session:
+        // the pick above was learned).
+        let plain = makeSession()
+        type("su3", into: plain)
+        XCTAssertEqual(plain.handle(key(.enter, text: "\r")).commit, "你")
+        // Symbol menu: Return accepts the stepped mark, the next one commits.
+        let menu = makeSession()
+        type("su3", into: menu)
+        menu.handle(key(.character(","), [.shift], text: "<"))
+        menu.handle(key(.tab, text: "\t"))
+        XCTAssertEqual(menu.handle(key(.enter, text: "\r")), KeyResult(consumed: true))
+        XCTAssertEqual(menu.handle(key(.enter, text: "\r")).commit, "你、")
+    }
+
+    func testReturnCommitsAtOnceWhenConfirmIsOff() {
+        let session = makeSession()
+        type("su3", into: session)
+        session.handle(key(.tab, text: "\t"))
+        XCTAssertEqual(session.handle(key(.enter, text: "\r")).commit, "妳")
+    }
+
     func testSelectionKeyPicksFromSecondPageInASentence() {
         // Homophones past the decoder's per-node cap (page 2 of the picker)
         // must still win once picked; they used to be pinned but unreachable.

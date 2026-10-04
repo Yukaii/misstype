@@ -28,6 +28,7 @@ enum MistypePrefs {
             "MistypeShiftToggle": true,
             "MistypeAutoCommitSyllables": 24,
             "MistypeAutoShowCandidates": false,
+            "MistypeReturnConfirmsSelection": true,
         ])
     }
 
@@ -43,6 +44,13 @@ enum MistypePrefs {
     static var autoShowCandidates: Bool {
         get { UserDefaults.standard.bool(forKey: "MistypeAutoShowCandidates") }
         set { UserDefaults.standard.set(newValue, forKey: "MistypeAutoShowCandidates") }
+    }
+
+    /// Return during candidate selection confirms the pick without
+    /// committing (default on); off = Return commits the whole composition.
+    static var returnConfirmsSelection: Bool {
+        get { UserDefaults.standard.bool(forKey: "MistypeReturnConfirmsSelection") }
+        set { UserDefaults.standard.set(newValue, forKey: "MistypeReturnConfirmsSelection") }
     }
 
     /// Long compositions commit their settled head in chunks once they pass
@@ -107,7 +115,8 @@ enum MistypePrefs {
                         candidateKeys: candidateKeys, userLearning: userLearning,
                         shiftToggle: shiftToggle, jev: jevConfig,
                         autoCommitSyllables: autoCommitSyllables,
-                        autoShowCandidates: autoShowCandidates)
+                        autoShowCandidates: autoShowCandidates,
+                        returnConfirmsSelection: returnConfirmsSelection)
     }
 
     /// Live adapter config: explicit enable + key presence gate the attempt;

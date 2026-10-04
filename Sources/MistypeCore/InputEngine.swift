@@ -21,11 +21,17 @@ public struct SessionSettings: Equatable, Sendable {
     /// syllable cursor). The core default keeps the always-on behavior; the
     /// macOS preference defaults to off.
     public var autoShowCandidates: Bool
+    /// Return while a candidate is being chosen (selection mode, focused
+    /// word, symbol menu) only confirms it and leaves selection; the next
+    /// Return commits. Off = Return commits everything at once. The core
+    /// default is the commit-at-once behavior; the macOS preference defaults on.
+    public var returnConfirmsSelection: Bool
 
     public init(fuzzyRepair: Bool = true, toneTolerance: Bool = true,
                 candidateKeys: String = SelectionKeys.defaultKeys, userLearning: Bool = true,
                 shiftToggle: Bool = true, jev: JevConfig = JevConfig(),
-                autoCommitSyllables: Int = 24, autoShowCandidates: Bool = true) {
+                autoCommitSyllables: Int = 24, autoShowCandidates: Bool = true,
+                returnConfirmsSelection: Bool = false) {
         self.fuzzyRepair = fuzzyRepair
         self.toneTolerance = toneTolerance
         self.candidateKeys = candidateKeys
@@ -34,6 +40,7 @@ public struct SessionSettings: Equatable, Sendable {
         self.jev = jev
         self.autoCommitSyllables = autoCommitSyllables
         self.autoShowCandidates = autoShowCandidates
+        self.returnConfirmsSelection = returnConfirmsSelection
     }
 }
 

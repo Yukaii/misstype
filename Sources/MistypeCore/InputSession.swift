@@ -387,6 +387,9 @@ public final class InputSession {
                 case .escape:
                     symbolMenu = nil // keep the mark that shows
                     return .handled
+                case .enter where menu.selecting && !shift && settings.returnConfirmsSelection:
+                    symbolMenu = nil // confirm the stepped mark; the next Return commits
+                    return .handled
                 default:
                     break
                 }
@@ -416,6 +419,12 @@ public final class InputSession {
                 return pass(committing: false)
             }
             selected = 0
+            // Separator/punctuation pinning (and the settled pins derived
+            // from it) must not outlive the key that created it: erasing a
+            // space would otherwise re-decode under the old pin, leaving a
+            // one-item list that Up/Down cannot open.
+            settledPins = UserLexicon()
+            if !explicitPick { pinnedPick = nil }
             if mods.contains(.command) {
                 clear()
             } else if mods.contains(.option) {
@@ -510,6 +519,16 @@ public final class InputSession {
                 // Shift+Return sends the keys as typed: 注音文 even when every
                 // syllable is valid (a lone ㄗ is 資 to the decoder).
                 return KeyResult(consumed: true, commit: commitText(raw: true))
+            }
+            if settings.returnConfirmsSelection, inSelection {
+                // Confirm only: the highlighted candidate is already the
+                // pick (stepping pins it); a focused word pins and advances.
+                if let texts = segmentTexts, texts.indices.contains(segmentSelected) {
+                    pinAdvance(at: segmentSelected)
+                } else {
+                    selecting = false
+                }
+                return .handled
             }
             if let texts = segmentTexts, texts.indices.contains(segmentSelected) {
                 // Focused Return pins the highlighted segment, re-decodes so

@@ -109,6 +109,7 @@ private struct DescribedToggle: View {
 private struct GeneralPane: View {
     @AppStorage("MistypeShiftToggle") private var shiftToggle = true
     @AppStorage("MistypeAutoShowCandidates") private var autoShowCandidates = false
+    @AppStorage("MistypeReturnConfirmsSelection") private var returnConfirms = true
     @AppStorage("MistypeCandidateKeys") private var storedKeys = SelectionKeys.defaultKeys
     @State private var draft = ""
     @FocusState private var editing: Bool
@@ -128,6 +129,10 @@ private struct GeneralPane: View {
                     title: L("Show candidates automatically"),
                     detail: L("Off: the candidate panel appears only after you press Tab or an arrow key."),
                     isOn: $autoShowCandidates)
+                DescribedToggle(
+                    title: L("Return confirms the selected candidate"),
+                    detail: L("On: while choosing a candidate, Return only confirms it and a second Return sends the text. Off: Return sends the text immediately."),
+                    isOn: $returnConfirms)
             }
             Section(L("Selection keys")) {
                 HStack {
