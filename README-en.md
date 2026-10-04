@@ -16,15 +16,15 @@ Everything runs locally; no network is needed. The project is still experimental
 
 Based on each project's public description (snapshot 2026-10-04, not hands-on tested). `-` means no public mention was found, not that the feature is absent.
 
-| | Misstype | Ari IME | ChiaKey | Bopomix | KeyKey | ZingIME |
-| --- | --- | --- | --- | --- | --- | --- |
-| Tones optional | ✓ | - | - | - | - | - |
-| Typo repair (neighbor keys, swaps, extra/missing) | ✓ | - | - | - | - | - |
-| Chinese/English mixing, no mode switch | ✓ (off by default on macOS) | ✓ | - | ✓ | - | ✓ |
-| English typo repair | ✓ | - | - | - | - | - |
-| User dictionary and learning | ✓ | ✓ | ✓ | ✓ | ✓ | - |
-| Offline by default | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Platforms | macOS, Linux | Linux | macOS, Windows (preview) | macOS | macOS, Windows, Linux, mobile | macOS |
+| | Misstype | Ari IME | ChiaKey | Bopomix | KeyKey | ZingIME | vChewing | McBopomofo | Rime (Squirrel etc.) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Tones optional | ✓ | - | - | - | - | - | - | - | ✓ |
+| Typo repair (neighbor keys, swaps, extra/missing) | ✓ | partial (key order, repeated/invalid keys) | - | - | - | - | - | - | partial (order within a syllable; the engine also has an off-by-default typo corrector) |
+| Chinese/English mixing, no mode switch | ✓ (off by default on macOS) | ✓ | - | ✓ | - | ✓ | - | - | - (needs a switch) |
+| English typo repair | ✓ | - | - | - | - | - | - | - | - |
+| User dictionary and learning | ✓ | ✓ | ✓ | ✓ | ✓ | - | ✓ | ✓ | ✓ |
+| Offline by default | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Platforms | macOS, Linux | Linux | macOS, Windows (preview) | macOS | macOS, Windows, Linux, mobile | macOS | macOS | macOS, Windows, Linux, web (separate projects) | macOS, Windows, Linux |
 
 For the full comparison (platforms, licenses, download sizes) see [Competitor comparison](docs/competitors-en.md).
 
