@@ -11,7 +11,7 @@ This document analyzes the algorithms and architecture paradigms used in Chinese
 Existing Zhuyin input method engines can be categorized into six major architectural paradigms:
 
 ### Paradigm 1: DAG with Word Frequencies (Unigram DAG / Gramambular)
-- **Representative Projects**: [vChewing](https://github.com/vChewing/vChewing-macOS), McBopomofo
+- **Representative Projects**: [vChewing](https://github.com/vChewing/vChewing-macOS) (唯音, formerly 威注音), McBopomofo
 - **Core Algorithm**:
   - Valid syllable segmentations form a Directed Acyclic Graph (DAG) of dictionary words.
   - Words are scored based on unigram lexicon frequencies, often augmented with a length bias to prevent over-segmentation.
@@ -115,7 +115,7 @@ Existing Zhuyin input method engines can be categorized into six major architect
 
 Input method engines are shaped by engineering trade-offs rather than pure superiority. Each reflects different assumptions about user typing habits and hardware constraints:
 
-- **For absolute control, surgical precision, and rock-solid stability → [vChewing](https://github.com/vChewing/vChewing-macOS) or McBopomofo**
+- **For absolute control, surgical precision, and rock-solid stability → [vChewing](https://github.com/vChewing/vChewing-macOS) (唯音, formerly 威注音) or McBopomofo**
   - **Best for**: Users who type exact tones on physical keyboards and want predictable, zero-guesswork output without algorithmic second-guessing.
   - **Experience**: Complete determinism, sub-millisecond decode latency (< 1 ms), and a pure typing flow.
 
