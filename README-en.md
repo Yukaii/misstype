@@ -27,82 +27,36 @@ For the full comparison (platforms, licenses, download sizes) see [Competitor co
 
 ## Documents
 
-- [Project outline](docs/project-outline.md): product intent, milestones, experiments, and success criteria.
-- [Technical architecture](docs/architecture.md): layers, event contracts, decoding pipeline, and deployment choices.
-- [Cross-platform adapter contract](docs/cross-platform.md): platform adapter specifications, delivery rules, and conformance scenarios.
-- [Linux (fcitx5) port plan](docs/linux-port.md): status, toolchain, dev container, and roadmap for Linux.
-- [Competitor comparison and feature research](docs/competitors-en.md): Traditional Chinese feature matrix, baseline positioning, and tracking workflow.
-- [Decoding and composition engines technical survey](docs/decoding-engines-en.md): Algorithms, trade-offs, and architectures across DAG, Bigram, Rime, and unified penalty lattices.
-- [Packaging, installer and updates](docs/release.md): DMG installer, Sparkle auto-update, signing and release steps.
-- [Development guide](AGENTS.md): working loop, privacy rules, and definition of done.
+- [Project outline](docs/project-outline.md): product intent, milestones and experiments.
+- [Competitor comparison](docs/competitors-en.md): feature matrix and baseline positioning.
+- [Decoding engines survey](docs/decoding-engines-en.md): algorithms and trade-offs.
+- [Technical architecture](docs/architecture.md): layers, event contracts and the decoding pipeline.
+- [Development, build and release](docs/development-en.md): building from source, tests, signing and releasing.
+- [Cross-platform contract](docs/cross-platform.md), [Linux port](docs/linux-port.md), [Packaging and updates](docs/release.md), [Agent guide](AGENTS.md).
 
 The design takes inspiration from [Qingjian](https://github.com/qingjian-team/qingjian), especially its platform-independent core and delayed whole-phrase reconstruction. Misstype is a separate experiment; compatibility with Qingjian is a milestone, not a promise.
 
-## macOS IME prototype
+## Install
 
-The native macOS prototype is available as a SwiftPM InputMethodKit bundle. It uses a pinned, checksum-verified McBopomofo-derived dictionary at build time, then performs local phrase segmentation and conservative fuzzy rescue without network access or per-syllable candidate selection.
+### macOS
 
-```sh
-swift test
-./script/build_and_run.sh --build-only
-./script/install_ime.sh
-```
+Download `Misstype-<version>.dmg` from [GitHub Releases](https://github.com/Yukaii/misstype/releases/latest), open it and run **Install Misstype**. The input method installs into your user folder (no admin password) and updates itself through Sparkle. After the first install, log out and back in, then pick **隨打注音** (`Misstype Bopomofo`) from the input-source menu or System Settings → Keyboard → Input Sources.
 
-After installation, select **隨打注音** (`Misstype Bopomofo`) from the macOS input-source menu. Type with the normal Zhuyin keyboard:
+### Linux
+
+Supported as an fcitx5 addon sharing the same core as macOS. See the [Linux port](docs/linux-port.md) for install and status.
+
+To build from source see [Development, build and release](docs/development-en.md).
+
+## Usage
+
+Type with the normal Zhuyin keyboard:
 - **Continuous typing & optional tones**: tones are optional, and continuous typing converts as you go (only the syllable still being typed stays in Bopomofo). Tone keys finish syllables and Space represents the first tone.
 - **Commit**: Return commits exactly what is shown, unfinished Bopomofo included (注音文 works); Shift+Return sends raw typed Bopomofo.
 - **Candidate selection**: Down/Tab (or Left arrow to walk back to an earlier word) enters candidate selection mode, where home-row keys `asdfghjk` pick from the candidate panel (configurable in Preferences; they type Zhuyin outside this mode). Escape leaves the selection mode; outside selection mode, Escape cancels the composition.
 - **Symbols & English toggle**: Shift+digit and Shift+= [ ] ` type full-width symbols (`！＠＃＄％︿＆＊（）＋｛｝～`). Backspace edits the raw composition; tapping Shift or pressing Shift-Space commits and toggles Chinese / English mode.
 - **My dictionary**: while typing, Shift+←/→ marks syllables of the converted text and Return adds the phrase (a name, jargon) to your own dictionary; Return on the same mark removes it. Settings → My Dictionary (macOS) is a plain-text editor over `user_dictionary.tsv`, which uses the vChewing user-data format (`word reading`, one per line) and has an Import… button for vChewing files. To turn a plain word list into that format, use the third-party [online generator](https://vu.gh.miniasp.com/) by Will 保哥 ([source](https://github.com/doggy8088/vChewing-userdata-generator), MIT; not affiliated with this project). On Linux edit `~/.local/share/misstype/user_dictionary.tsv` directly.
 - **Learning**: Candidate selections are learned locally per word, and single characters are learned in context with the preceding word.
-
-The diagnostic path exercises the packaged dictionary without an IME client:
-
-```sh
-dist/MisstypeIME.app/Contents/MacOS/MisstypeIME --decode su3cl3
-```
-
-To build a release DMG (installer app) and Sparkle update archive, see [Packaging, installer and updates](docs/release.md).
-
-The installer keeps the previous bundle at `.cache/MisstypeIME-previous.app` when replacing an existing installation. Disable the source with `swift run -c release MisstypeSourceTool disable` if needed.
-
-### Releases
-
-Pushing a `v*` tag runs `.github/workflows/release.yml`, which tests, builds a universal (`arm64` + `x86_64`) bundle via `script/package_release.sh`, and publishes `Misstype-<version>.dmg` to GitHub Releases. The same script runs locally (`./script/package_release.sh 0.2.0`). Users drag `MisstypeIME.app` onto the `Input Methods` link in the DMG (`/Library/Input Methods`, admin password required), then log out/in or add it under System Settings → Keyboard → Input Sources.
-
-Signing is optional and driven by repository secrets:
-
-| Secret | Purpose |
-| --- | --- |
-| `MACOS_CERT_P12_BASE64`, `MACOS_CERT_PASSWORD` | Developer ID Application certificate (`.p12`, base64) |
-| `NOTARY_KEY_P8_BASE64`, `NOTARY_KEY_ID`, `NOTARY_ISSUER_ID` | App Store Connect API key for `notarytool` |
-
-Without them the DMG is ad-hoc signed and Gatekeeper blocks it on other machines; run `xattr -dr com.apple.quarantine "/Library/Input Methods/MisstypeIME.app"` after installing. A self-signed certificate does not avoid this; only a Developer ID signature plus notarization does.
-
-## Linux (fcitx5) port
-
-Misstype supports Linux via an fcitx5 addon built on top of the platform-neutral `MisstypeCore` and C ABI (`MisstypeCAPI`):
-
-```sh
-# Build and run headless test suite in the Docker dev container
-script/linux/dev.sh 'script/linux/build.sh && script/linux/test_fcitx5.sh'
-```
-
-See [Linux port documentation](docs/linux-port.md) and [Cross-platform specification](docs/cross-platform.md) for details.
-
-## Run the M0 replay
-
-The initial slice uses Python 3.11+ and has no runtime dependencies. It is the capture/touch prototype used to explore coordinate-based input; decoding behavior lives in the Swift `MisstypeCore` package, the single source of truth:
-
-```sh
-PYTHONPATH=src python -m unittest discover -s tests -v
-PYTHONPATH=src python -m misstype.cli examples/hello.jsonl
-PYTHONPATH=src python -m misstype.cli examples/keyboard-ni.jsonl
-PYTHONPATH=src python -m misstype.cli examples/touch-ni-hao.jsonl
-PYTHONPATH=src python tools/bench.py
-```
-
-The fixture format is JSONL so traces can be recorded, redacted, diffed, and replayed independently of the eventual UI or hardware. Replayable phrase fixtures (touch + keyboard, with expected text in `manifest.json`) live under `tests/fixtures/`.
 
 ## License
 
