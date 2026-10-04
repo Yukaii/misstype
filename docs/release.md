@@ -100,6 +100,9 @@ Verified 2026-10-04 on macOS 27 (arm64 host, ad-hoc signed, local feed on
   **without logging out** on this macOS. The logout path is kept as the
   fallback; it is untested here.
 - Upgrading over a copy installed by `install_ime.sh` (headless).
+- Updates are refused when they should be: a zip with one flipped byte under a
+  valid appcast signature, and an intact zip signed with a different key, both
+  abort with `SUSparkleErrorDomain 4005` and leave the installed version alone.
 - A process TIS launched while the installer was swapping the bundle never
   started its updater (`.MistypeIME.installing` path); restarting it fixed
   it. Not reproduced on purpose; watch for it.
@@ -109,7 +112,6 @@ Verified 2026-10-04 on macOS 27 (arm64 host, ad-hoc signed, local feed on
 - Notarization: the inside-out signing in `script/sign_bundle.sh` with
   Sparkle's `Autoupdate`, `Updater.app` and `Installer.xpc` re-signed, the
   entitlements applied to the app only; Gatekeeper on a downloaded DMG.
-- Update rejection: a corrupted archive and a wrong public key must be refused.
 - `System Events` log-out request (Automation prompt wording).
 - The `/Library/Input Methods` duplicate warning in the GUI.
 - Installing an older version over a newer one (the installer does not warn).
