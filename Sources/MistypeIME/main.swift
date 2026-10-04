@@ -154,6 +154,7 @@ final class MistypeInputController: IMKInputController, InputSessionHost {
         }
         lastClient = client
         activeController = self
+        UpdateController.noteKey(composing: !rendered.preedit.isEmpty)
         let keyCode = Int(event.keyCode)
         let result = session.handle(KeyEvent(MacKeyCode.key(keyCode), phase: phase,
                                              modifiers: Self.modifiers(event.modifierFlags),
@@ -231,6 +232,7 @@ final class MistypeInputController: IMKInputController, InputSessionHost {
                                  replacementRange: missingRange)
         }
         rendered = view
+        UpdateController.setComposing(!view.preedit.isEmpty)
     }
 
     /// Caret rect in screen coordinates for panel placement (McBopomofo-style:
@@ -535,6 +537,7 @@ extension NSApplication {
 }
 
 MistypePrefs.register()
+UpdateController.shared.start()
 if let resources = Bundle.main.resourceURL {
     Runtime.engine.loadEnglishLexicon(resourceDirectory: resources)
 }

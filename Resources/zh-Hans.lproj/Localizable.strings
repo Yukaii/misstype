@@ -85,3 +85,8 @@
 "⏎ remove “%@”  %@" = "⏎ 移除“%@” %@";
 "Mark %d–%d syllables" = "请标记 %d–%d 个音节";
 "Can't add this selection" = "无法加入此选区";
+"Updates" = "更新";
+"Check for updates automatically" = "自动检查更新";
+"Check for Updates…" = "检查更新…";
+"Updates are fetched from GitHub. Only the app and macOS versions are sent, never what you type." = "更新从 GitHub 获取，只会发送本软件与 macOS 的版本，不会发送你输入的内容。";
+"This build was not set up for automatic updates." = "此版本未设置自动更新。";

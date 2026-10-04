@@ -34,6 +34,11 @@ This repository is an experimental input device and decoder. The current goal is
   keystroke); real-typing quality is unmeasured. Python remains the reference for the touch semantics only; the
   "do not port" rule below applies to everything else.
 
+- macOS packaging is written but **unverified on a Mac** (2026-10-04): a
+  per-user installer app in a DMG, Sparkle 2 updates from GitHub Releases,
+  signing/notarization wired into `release.yml`. Design, setup and the
+  first-run checklist: `docs/release.md`.
+
 ## Product constraints
 
 - Capture first, decode later. The input path must not force candidate selection or correction while the user is composing.

@@ -23,8 +23,21 @@ cp Resources/local_phrases.tsv "$APP_DIR/Contents/Resources/local_phrases.tsv"
 cp .cache/frequencywords/english.tsv "$APP_DIR/Contents/Resources/english.tsv"
 cp -R third_party "$APP_DIR/Contents/Resources/third_party"
 cp LICENSE THIRD_PARTY_NOTICES.md "$APP_DIR/Contents/Resources/"
-/usr/bin/codesign --force --sign - --entitlements Resources/Mistype.entitlements "$APP_DIR"
-/usr/bin/codesign --verify --strict "$APP_DIR"
+
+# Sparkle.framework: SwiftPM drops it next to the products; the artifact
+# bundle is the fallback. The app is sandboxed (Resources/Mistype.entitlements),
+# so Installer.xpc stays; Downloader.xpc is dropped because the app already
+# holds the network.client entitlement.
+SPARKLE_FW="$BIN_DIR/Sparkle.framework"
+if [[ ! -d "$SPARKLE_FW" ]]; then
+  SPARKLE_FW="$(find .build/artifacts -type d -name Sparkle.framework -path '*macos*' | head -1)"
+fi
+[[ -d "$SPARKLE_FW" ]] || { echo "Sparkle.framework not found; did swift build resolve packages?" >&2; exit 1; }
+mkdir -p "$APP_DIR/Contents/Frameworks"
+/usr/bin/ditto "$SPARKLE_FW" "$APP_DIR/Contents/Frameworks/Sparkle.framework"
+rm -rf "$APP_DIR"/Contents/Frameworks/Sparkle.framework/Versions/*/XPCServices/Downloader.xpc
+
+./script/sign_bundle.sh - "$APP_DIR" Resources/Mistype.entitlements
 if [[ "${1:-}" == "--build-only" ]]; then exit 0; fi
 if [[ "${1:-}" == "--verify" ]]; then
   /usr/bin/open -n "$APP_DIR"
