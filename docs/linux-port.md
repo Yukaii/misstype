@@ -514,7 +514,7 @@ scripts).
 ## L7: Backlog (not scheduled)
 
 - User dictionary: no Linux editor yet (macOS has a Settings pane). The file
-  is plain text — edit `$XDG_DATA_HOME/mistype/user_dictionary.tsv` with any
+  is plain text in vChewing userdata format (`詞語 注音 [權重]`, so vChewing-userdata-generator output pastes in) — edit `$XDG_DATA_HOME/mistype/user_dictionary.tsv` with any
   editor; changes load when the next composition starts. A fcitx5 config
   page or `mistype-dict` CLI (list / add / remove) would be the next step.
 - IBus adapter over the same C ABI (GNOME's default IM framework).

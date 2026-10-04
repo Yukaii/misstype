@@ -4,6 +4,8 @@
 <key>com.apple.security.app-sandbox</key><true/>
 <!-- Jev Assist only (opt-in, off by default); the offline path never opens a socket. -->
 <key>com.apple.security.network.client</key><true/>
+<!-- Settings → My Dictionary → Import…: read the one file the user picks in the open panel. -->
+<key>com.apple.security.files.user-selected.read-only</key><true/>
 <!-- IMKServer registers this name; keep equal to InputMethodConnectionName in Info.plist. -->
 <key>com.apple.security.temporary-exception.mach-register.global-name</key>
 <string>org.mistype.inputmethod.Mistype_Connection</string>

@@ -7,13 +7,18 @@ import Foundation
 /// built-in lexicon never had (a name, jargon, a rare character).
 ///
 /// File format (`user_dictionary.tsv`, plain UTF-8, hand-editable; the
-/// Settings editor edits exactly this text):
+/// Settings editor edits exactly this text). Lines are vChewing's userdata
+/// format, so its files (and `vChewing-userdata-generator` output) load as is:
 ///
 /// ```text
-/// # reading<TAB>text[<TAB>weight]        weight ≤ 0, default 0 (strongest)
-/// ㄏㄨㄤˊ-ㄩˋ-ㄎㄞˇ<TAB>黃昱愷
-/// !ㄉㄚˇ-ㄉㄨㄟˋ<TAB>打對                 "!" hides a built-in word
+/// # text reading [weight]                weight ≤ 0, default 0 (strongest)
+/// 黃昱愷 ㄏㄨㄤˊ-ㄩˋ-ㄎㄞˇ
+/// !打對 ㄉㄚˇ-ㄉㄨㄟˋ                      "!" hides a built-in word (ours)
 /// ```
+///
+/// Fields are separated by any run of spaces or tabs (text and reading never
+/// contain whitespace). The earlier `reading<TAB>text` order is still read —
+/// the Zhuyin field gives the order away — and rewritten on the next save.
 ///
 /// Readings are hyphen-separated syllables WITH tones, exactly the trie path
 /// of `lexicon.tsv` (first tone has no mark: `ㄇㄚ`). Scores share the
@@ -127,6 +132,10 @@ public struct UserDictionary: Equatable, Sendable {
         return nil
     }
 
+    private static func isReadingLike(_ field: String) -> Bool {
+        field.allSatisfy { $0 == "-" || toneMarks.contains($0) || symbols.contains($0) }
+    }
+
     /// Parses the file text. Bad lines are reported and skipped, never fatal:
     /// a typo must not take the whole dictionary down with it.
     public static func parse(_ source: String) -> (dictionary: UserDictionary, problems: [Problem]) {
@@ -136,13 +145,17 @@ public struct UserDictionary: Equatable, Sendable {
             let line = raw.trimmingCharacters(in: CharacterSet(charactersIn: "\r"))
             guard !line.trimmingCharacters(in: .whitespaces).isEmpty, !line.hasPrefix("#") else { continue }
             let isExclusion = line.hasPrefix("!")
-            let fields = (isExclusion ? String(line.dropFirst()) : line).split(separator: "\t", omittingEmptySubsequences: false)
-                .map { $0.trimmingCharacters(in: .whitespaces) }
+            var fields = (isExclusion ? String(line.dropFirst()) : line)
+                .split(whereSeparator: { $0 == " " || $0 == "\t" }).map(String.init)
             guard fields.count >= 2, fields.count <= 3 else {
-                problems.append(Problem(line: offset + 1, message: "expected reading<TAB>text[<TAB>weight]"))
+                problems.append(Problem(line: offset + 1, message: "expected text reading [weight]"))
                 continue
             }
-            if let message = validate(reading: fields[0], text: fields[1]) {
+            // Legacy order: reading first. Only a Zhuyin-looking first field
+            // flips it, so a bad vChewing line still reports against text/reading.
+            if isReadingLike(fields[0]), !isReadingLike(fields[1]) { fields.swapAt(0, 1) }
+            let (text, reading) = (fields[0], fields[1])
+            if let message = validate(reading: reading, text: text) {
                 problems.append(Problem(line: offset + 1, message: message))
                 continue
             }
@@ -155,24 +168,57 @@ public struct UserDictionary: Equatable, Sendable {
                 weight = value
             }
             if isExclusion {
-                dictionary.exclude(reading: fields[0], text: fields[1])
+                dictionary.exclude(reading: reading, text: text)
             } else {
-                dictionary.add(reading: fields[0], text: fields[1], weight: weight)
+                dictionary.add(reading: reading, text: text, weight: weight)
             }
         }
         return (dictionary, problems)
     }
 
+    public struct ImportResult: Equatable, Sendable {
+        public var text: String
+        public var added = 0
+        /// Valid lines already present (same reading and text).
+        public var duplicates = 0
+        public var problems: [Problem] = []
+    }
+
+    /// Appends the new entries of `source` (vChewing userdata or our own file)
+    /// to the editor `text`, in canonical lines, leaving existing text, comments
+    /// and order untouched. Nothing is written to disk.
+    public static func importing(_ source: String, into text: String) -> ImportResult {
+        let existing = parse(text).dictionary
+        let incoming = parse(source)
+        var result = ImportResult(text: text, problems: incoming.problems)
+        var lines: [String] = []
+        for entry in incoming.dictionary.added {
+            if existing.contains(reading: entry.reading, text: entry.text) { result.duplicates += 1; continue }
+            lines.append(entry.weight == defaultWeight
+                ? "\(entry.text) \(entry.reading)" : "\(entry.text) \(entry.reading) \(entry.weight)")
+        }
+        for entry in incoming.dictionary.excluded {
+            if existing.isExcluded(reading: entry.reading, text: entry.text) { result.duplicates += 1; continue }
+            lines.append("!\(entry.text) \(entry.reading)")
+        }
+        result.added = lines.count
+        if !lines.isEmpty {
+            if !result.text.isEmpty, !result.text.hasSuffix("\n") { result.text += "\n" }
+            result.text += lines.joined(separator: "\n") + "\n"
+        }
+        return result
+    }
+
     /// Canonical file text: header comment, additions, then exclusions, each
     /// in insertion order so hand-edits stay where the user put them.
     public func serialized() -> String {
-        var lines = ["# Misstype user dictionary: reading<TAB>text[<TAB>weight]; \"!\" hides a built-in word."]
+        var lines = ["# Mistype user dictionary (vChewing format): text reading [weight]; \"!\" hides a built-in word."]
         for entry in added {
             lines.append(entry.weight == Self.defaultWeight
-                ? "\(entry.reading)\t\(entry.text)"
-                : "\(entry.reading)\t\(entry.text)\t\(entry.weight)")
+                ? "\(entry.text) \(entry.reading)"
+                : "\(entry.text) \(entry.reading) \(entry.weight)")
         }
-        for entry in excluded { lines.append("!\(entry.reading)\t\(entry.text)") }
+        for entry in excluded { lines.append("!\(entry.text) \(entry.reading)") }
         return lines.joined(separator: "\n") + "\n"
     }
 

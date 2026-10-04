@@ -63,7 +63,7 @@ swift test
 * **遞交輸入與注音文**：按下 `Enter` 鍵會直接遞交當前畫面上顯示的文字（包含尚未拼完的注音符號，支援注音文）；按下 `Shift + Enter` 則會將原始鍵入的注音符號直接輸出。
 * **候選字選字模式**：按下 `向下鍵` 或 `Tab`（亦可按 `向左鍵` 倒退至前方的詞彙）即可進入選字選單。選字時可使用鍵盤中間一排的 `asdfghjk` 快速鍵選取候選字（可在偏好設定調整；平常打字時這些鍵仍是正常的注音按鍵）。按 `Esc` 退出選字模式；在一般打字狀態下按 `Esc` 則清空整個組字區。
 * **全形符號與中英切換**：`Shift + 數字鍵` 與 `Shift + = [ ] \`` 可直接鍵入全形符號（`！＠＃＄％︿＆＊（）＋｛｝～`）。`Backspace` 可倒退修改原始組字內容。輕按單次 `Shift` 或按下 `Shift + Space` 即可直接遞交並切換中／英文模式。
-* **我的詞庫**：打字時用 Shift+←/→ 標記已轉換文字中的音節，按 Return 即可把詞（人名、專有名詞）加入自己的詞庫；對同一段標記再按 Return 則移除。macOS 的「設定 → 我的詞庫」是同一份 `user_dictionary.tsv` 的純文字編輯器；Linux 請直接編輯 `~/.local/share/mistype/user_dictionary.tsv`。
+* **我的詞庫**：打字時用 Shift+←/→ 標記已轉換文字中的音節，按 Return 即可把詞（人名、專有名詞）加入自己的詞庫；對同一段標記再按 Return 則移除。macOS 的「設定 → 我的詞庫」是同一份 `user_dictionary.tsv` 的純文字編輯器，格式與 vChewing 的 userdata 相同（`詞語 注音`，每行一筆），可直接貼上或用「匯入…」讀入 vChewing 詞庫；只有一般詞彙清單時，可用保哥的[線上產生器](https://vu.gh.miniasp.com/)（[原始碼](https://github.com/doggy8088/vChewing-userdata-generator)）轉成此格式；Linux 請直接編輯 `~/.local/share/mistype/user_dictionary.tsv`。
 * **在地化學習**：系統會在本地記憶各詞彙的選字偏好，單個漢字則會結合其前置上下文詞彙共同學習與加權。
 
 若要在沒有 IME 客戶端環境下進行解碼診斷測試，可直接執行：

@@ -114,7 +114,7 @@ app master lives in `MistypeIcon.svg`/`MistypeIcon.png`; the menu version has
 its own pixel-grid source in `MistypeMenuIcon.svg` and is exported as a hard
 edged 16×16 TIFF.
 
-**App Sandbox (macOS, decision 2026-10-04, from vChewing's design).** The IME is signed with `Resources/Mistype.entitlements`: `app-sandbox`, `network.client` (Jev only; the offline path opens no socket) and the `mach-register.global-name` exception for the IMK connection name (must equal `InputMethodConnectionName`). A sandboxed process cannot obtain a global keyboard tap, which backs the privacy stance. Consequences: `homeDirectoryForCurrentUser` resolves into `~/Library/Containers/org.mistype.inputmethod.Mistype/Data`, so the user files and the debug log live there (the paths in `cross-platform.md` §6 are container-relative); pre-sandbox files in the real home are not migrated (closed beta, never published). Anything outside the container needs a user-granted bookmark (not used yet). Verified on a real Mac (2026-10-04, ad-hoc signed build): IMK connection, typing and marked text, candidate panel, Jev requests, Settings Reveal in Finder, user dictionary save. Not yet verified: Developer ID signed/notarized build from `package_release.sh`.
+**App Sandbox (macOS, decision 2026-10-04, from vChewing's design).** The IME is signed with `Resources/Mistype.entitlements`: `app-sandbox`, `network.client` (Jev only; the offline path opens no socket) `files.user-selected.read-only` (Settings → My Dictionary → Import… reads the one file the user picks; the merge goes into the editor and applies only on Save) and the `mach-register.global-name` exception for the IMK connection name (must equal `InputMethodConnectionName`). A sandboxed process cannot obtain a global keyboard tap, which backs the privacy stance. Consequences: `homeDirectoryForCurrentUser` resolves into `~/Library/Containers/org.mistype.inputmethod.Mistype/Data`, so the user files and the debug log live there (the paths in `cross-platform.md` §6 are container-relative); pre-sandbox files in the real home are not migrated (closed beta, never published). Anything outside the container needs a user-granted bookmark (not used yet). Verified on a real Mac (2026-10-04, ad-hoc signed build): IMK connection, typing and marked text, candidate panel, Jev requests, Settings Reveal in Finder, user dictionary save. Not yet verified: Developer ID signed/notarized build from `package_release.sh`.
 
 ## Core data contracts
 
@@ -173,7 +173,7 @@ Use monotonic timestamps for ordering and a separate wall-clock field only for d
    cursor, else the end); `SessionView.mark` carries the UTF-16 range, the
    text, the toned reading and what Return will do. Return files the 2–8
    syllable span in `UserDictionary` (`user_dictionary.tsv`, sibling of
-   `user_phrases.json`: `reading<TAB>text[<TAB>weight]`, `!` lines hide a
+   `user_phrases.json`: `text reading [weight]` (vChewing userdata format; the legacy `reading<TAB>text` order is still read, decision 2026-10-04), `!` lines hide a
    built-in word) or, when the pair is already there, removes it; it never
    commits. `InputEngine.setUserDictionary` persists and calls
    `LexiconDecoder.applyUserDictionary`, which writes the words into the trie
