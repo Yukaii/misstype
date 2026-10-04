@@ -142,6 +142,8 @@ dictionaries are bundled (inference, not measured). Mixed input and context
 selection are the same ground our `MixedDecode` and Jev assist cover; the
 size and price are the contrast with our small offline lexicon.
 
+For an algorithmic and architectural breakdown across composition and decoding engines (DAG, Bigram, Rime, and unified lattices), see [Decoding and composition engines technical survey](decoding-engines-en.md).
+
 ## Where Misstype stands
 
 [vChewing](https://github.com/vChewing/vChewing-macOS) serves as our long-term baseline for compatibility, candidate flow, and day-to-day stability. Rather than attempting to match vChewing's full feature set, Misstype focuses on two specific differentiators: **learned mixed Chinese/English typing** (adoption, false switches, latency, and improvement after learning) and **paired fuzzy correction** (matching keyboard edits and touch-coordinate evidence to candidate readings while preserving replayable raw traces). Both claims need fixed-phrase, de-identified input fixtures and cross-platform conformance checks.

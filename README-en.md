@@ -13,6 +13,7 @@ The first target is Bopomofo (Zhuyin), with English mixing and a local decoder. 
 - [Cross-platform adapter contract](docs/cross-platform.md): platform adapter specifications, delivery rules, and conformance scenarios.
 - [Linux (fcitx5) port plan](docs/linux-port.md): status, toolchain, dev container, and roadmap for Linux.
 - [Competitor comparison and feature research](docs/competitors-en.md): Traditional Chinese feature matrix, baseline positioning, and tracking workflow.
+- [Decoding and composition engines technical survey](docs/decoding-engines-en.md): Algorithms, trade-offs, and architectures across DAG, Bigram, Rime, and unified penalty lattices.
 - [Development guide](AGENTS.md): working loop, privacy rules, and definition of done.
 
 The design takes inspiration from [Qingjian](https://github.com/qingjian-team/qingjian), especially its platform-independent core and delayed whole-phrase reconstruction. Misstype is a separate experiment; compatibility with Qingjian is a milestone, not a promise.
