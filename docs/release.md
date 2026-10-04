@@ -103,18 +103,27 @@ Verified 2026-10-04 on macOS 27 (arm64 host, ad-hoc signed, local feed on
 - Updates are refused when they should be: a zip with one flipped byte under a
   valid appcast signature, and an intact zip signed with a different key, both
   abort with `SUSparkleErrorDomain 4005` and leave the installed version alone.
+- Signing and notarization through `release.yml` (`workflow_dispatch`,
+  `0.0.1-rc1`, no release published): the DMG, the installer and the embedded
+  IME are signed with the Developer ID Application certificate, hardened
+  runtime on, notarized (`spctl`: `Notarized Developer ID`), DMG and IME
+  stapled; universal; sandbox entitlements and `Installer.xpc` present; the
+  production Sparkle public key and the GitHub feed URL are embedded; a
+  quarantined copy of the DMG is accepted by Gatekeeper.
 - A process TIS launched while the installer was swapping the bundle never
   started its updater (`.MistypeIME.installing` path); restarting it fixed
   it. Not reproduced on purpose; watch for it.
 
 ## Unverified (check before the first public release)
 
-- Notarization: the inside-out signing in `script/sign_bundle.sh` with
-  Sparkle's `Autoupdate`, `Updater.app` and `Installer.xpc` re-signed, the
-  entitlements applied to the app only; Gatekeeper on a downloaded DMG.
-- `System Events` log-out request (Automation prompt wording).
+- Notarization on a **different** Mac with a real browser download (the DMG
+  was only checked here with a simulated quarantine flag).
+- `System Events` log-out request (Automation prompt wording); the first
+  install needed no logout on macOS 27, so this path may be hard to reach.
 - The `/Library/Input Methods` duplicate warning in the GUI.
 - Installing an older version over a newer one (the installer does not warn).
+- `CFBundleVersion` comes from the workflow run number; make sure it stays
+  above any build already shipped.
 
 ## Not done
 

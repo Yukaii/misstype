@@ -34,10 +34,12 @@ This repository is an experimental input device and decoder. The current goal is
   keystroke); real-typing quality is unmeasured. Python remains the reference for the touch semantics only; the
   "do not port" rule below applies to everything else.
 
-- macOS packaging is written but **unverified on a Mac** (2026-10-04): a
-  per-user installer app in a DMG, Sparkle 2 updates from GitHub Releases,
-  signing/notarization wired into `release.yml`. Design, setup and the
-  first-run checklist: `docs/release.md`.
+- macOS packaging is verified on a Mac (2026-10-04, macOS 27) except a few
+  GUI paths: a per-user installer app in a DMG, Sparkle 2 updates from GitHub
+  Releases, signed and notarized by `release.yml` (dispatch run, Gatekeeper
+  accepts the quarantined DMG). The sandboxed IME updates itself in place,
+  and bad signatures/keys are refused. No public release has been cut yet.
+  Design, results and what is still unchecked: `docs/release.md`.
 
 ## Product constraints
 
