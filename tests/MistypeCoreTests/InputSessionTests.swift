@@ -105,6 +105,26 @@ final class InputSessionTests: XCTestCase {
         XCTAssertFalse(session.view.showsCandidates)
     }
 
+    func testArrowsAndSymbolMenuOpenThePanelWhenAutoShowIsOff() {
+        settings.autoShowCandidates = false
+        let session = makeSession()
+        type("su3", into: session)
+        XCTAssertEqual(session.handle(key(.down, text: "\u{F701}")), KeyResult(consumed: true))
+        XCTAssertTrue(session.view.showsCandidates)
+        XCTAssertEqual(session.view.selected, 1)
+        session.handle(key(.escape, text: "\u{1b}"))
+        XCTAssertEqual(session.handle(key(.up, text: "\u{F700}")), KeyResult(consumed: true))
+        XCTAssertTrue(session.view.showsCandidates)
+        session.handle(key(.escape, text: "\u{1b}"))
+        session.handle(key(.escape, text: "\u{1b}"))
+        type("su3", into: session)
+        session.handle(key(.character(","), [.shift], text: "<"))
+        XCTAssertFalse(session.view.showsCandidates)
+        session.handle(key(.tab, text: "\t"))
+        XCTAssertTrue(session.view.showsCandidates)
+        XCTAssertTrue(session.view.keysActive)
+    }
+
     func testSelectionKeyPicksFromSecondPageInASentence() {
         // Homophones past the decoder's per-node cap (page 2 of the picker)
         // must still win once picked; they used to be pinned but unreachable.

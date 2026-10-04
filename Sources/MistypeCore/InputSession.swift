@@ -178,7 +178,8 @@ public final class InputSession {
             return SessionView(
                 preedit: previewText, caret: caretOffset, candidates: menu.choices, selected: menu.selected,
                 selectionKeys: SelectionKeys.labels(keys: settings.candidateKeys),
-                keysActive: menu.selecting, showsCandidates: true)
+                keysActive: menu.selecting,
+                showsCandidates: menu.selecting || settings.autoShowCandidates)
         }
         if let marked = markView() {
             return SessionView(
