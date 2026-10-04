@@ -18,9 +18,9 @@ Based on each project's public description (snapshot 2026-10-04, not hands-on te
 
 | | Misstype | Ari IME | ChiaKey | Bopomix | KeyKey | ZingIME | vChewing | McBopomofo | Rime (Squirrel etc.) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Tones optional | ✓ | - | - | - | - | - | - | - | ✓ |
+| Tones optional | ✓ | - | - | - | - | - | partial (Zhuyin Furious Typing, off by default) | - | ✓ |
 | Typo repair (neighbor keys, swaps, extra/missing) | ✓ | partial (key order, repeated/invalid keys) | - | - | - | - | - | - | partial (order within a syllable; the engine also has an off-by-default typo corrector) |
-| Chinese/English mixing, no mode switch | ✓ (off by default on macOS) | ✓ | - | ✓ | - | ✓ | - | - | - (needs a switch) |
+| Chinese/English mixing, no mode switch | ✓ (off by default on macOS) | ✓ | - | ✓ | - | ✓ | ✓ | - | - (needs a switch) |
 | English typo repair | ✓ | - | - | - | - | - | - | - | - |
 | User dictionary and learning | ✓ | ✓ | ✓ | ✓ | ✓ | - | ✓ | ✓ | ✓ |
 | Offline by default | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
