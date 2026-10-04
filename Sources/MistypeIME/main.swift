@@ -182,10 +182,11 @@ final class MistypeInputController: IMKInputController, InputSessionHost {
     private func apply(_ result: KeyResult, client: IMKTextInput) {
         // Anchor BEFORE inserting: afterwards the marked text (and its caret
         // rect) is gone and the pill would fall back to the mouse.
-        let anchor = result.modeChanged ? caretAnchor(client, length: rendered.preedit.utf16.count) : nil
+        let anchor = result.modeChanged || result.latinToggled ? caretAnchor(client, length: rendered.preedit.utf16.count) : nil
         if let text = result.commit { insert(text, client) }
         render(client)
         if result.beep { NSSound.beep() }
+        if result.latinToggled { ModeIndicator.shared.flash(english: session.latinActive, anchor: anchor) }
         if result.modeChanged { ModeIndicator.shared.flash(english: Runtime.engine.english, anchor: anchor) }
     }
 

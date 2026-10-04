@@ -26,8 +26,14 @@ public struct KeyResult: Equatable, Sendable {
     /// 中/英 mode flipped (`InputEngine.english`): the host shows its
     /// indicator, anchored at the preedit it drew before `commit`.
     public var modeChanged: Bool
+    /// A latin run opened/closed mid-composition (Shift tap or backtick):
+    /// the host flashes its indicator with `InputSession.latinActive`
+    /// (英 while the run is open, 中 once closed). No commit, no global flip.
+    public var latinToggled: Bool
 
-    public init(consumed: Bool, commit: String? = nil, beep: Bool = false, modeChanged: Bool = false) {
+    public init(consumed: Bool, commit: String? = nil, beep: Bool = false, modeChanged: Bool = false,
+                latinToggled: Bool = false) {
+        self.latinToggled = latinToggled
         self.consumed = consumed
         self.commit = commit
         self.beep = beep
@@ -173,6 +179,9 @@ public final class InputSession {
     /// string" query.
     public var rawPhonetic: String { composition.rawPhonetic }
 
+    /// A latin run is open (backtick / Shift tap): letters append verbatim.
+    public var latinActive: Bool { latinMode }
+
     public var view: SessionView {
         if let menu = symbolMenu {
             return SessionView(
@@ -217,7 +226,7 @@ public final class InputSession {
             if !engine.english && !composition.isEmpty {
                 latinMode.toggle()
                 engine.log("latin=\(latinMode ? 1 : 0) via=shift")
-                return .handled
+                return KeyResult(consumed: true, latinToggled: true)
             }
             return toggleEnglish()
         case .press:
@@ -560,7 +569,7 @@ public final class InputSession {
         if key == .character("`") && !shift && !engine.english {
             latinMode.toggle()
             engine.log("latin=\(latinMode ? 1 : 0)")
-            return .handled
+            return KeyResult(consumed: true, latinToggled: true)
         }
         // `-` / `=` turn pages in selection mode (the Rime/Pinyin convention);
         // they are ㄦ / unmapped elsewhere, so outside it they still type.

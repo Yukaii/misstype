@@ -63,6 +63,8 @@ In this order, for every press:
 4. If `beep`: signal it where the platform has a convention (macOS beeps;
    fcitx5 has none — ignore).
 5. If `modeChanged`: show the 中/英 indicator.
+   If `latinToggled` (a latin run opened/closed mid-composition; macOS shows it,
+   fcitx5 may ignore it): flash the same indicator, 英 while `latinActive`, 中 once closed.
 6. Report the key as handled iff `consumed`, subject to the platform delivery
    rules below.
 
