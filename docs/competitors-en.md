@@ -31,7 +31,7 @@ experimental directions: learned mixed Chinese/English input and paired fuzzy co
 | [Bopomix](https://github.com/lmanchu/bopomix) | macOS 13+, Apple Silicon | McBopomofo engine fork (Swift), Dachen only | Yes: letters that cannot form a syllable become English on the spot; Tab completes English (SCOWL list) | Local English-word learning | None; sentence-level AI reranking researched, not built | 6.6 MB `.dmg` | MIT |
 | [KeyKey (琦琦)](https://github.com/polobread/KeyKey/releases) | macOS 15+, Windows 11, Linux (fcitx5), iOS, Android | Yahoo 2012 codebase, 30 domain phrase libraries; also Cangjie | Not advertised | Smart phrase composition with learning | Says no network access | 38.2 MB macOS `.pkg.zip` | Mixed: Yahoo source BSD-3-Clause, platform frontends MIT; v1.3.1 released 2026-10-02 |
 | [ZingIME 晶晶](https://zingime.com/) | macOS, Apple Silicon | Zhuyin, 400k+ curated words | Yes (headline feature): same input state, no Caps Lock toggle; 220k-word English dictionary with Tab completion | Not stated | On-device "AI character selection" reading whole-sentence context (在/再); no cloud | 271.6 MiB `.dmg` | Paid, 14-day trial (press summary, unverified) |
-| [vChewing](https://github.com/vChewing/vChewing-macOS) | macOS 12+ (Aqua memorial build from 10.9) | Tiehen (鐵恨) chord engine; most Zhuyin layouts and pinyin schemes of any Zhuyin IME (its claim); separate Simplified/Traditional corpora | Not advertised | Decaying-memory model (POM) observes selections and feeds composition; user phrases, custom associated phrases | Not stated; sandboxed | 12.6 MB `.pkg` (v4.8.6, 2026-09-29) | MulanPSL-2.0 (core modules LGPLv3); modified builds may not keep the product name |
+| [vChewing](https://github.com/vChewing/vChewing-macOS) | macOS 12+ (Aqua memorial build from 10.9) | Tiehen (鐵恨) chord engine; most Zhuyin layouts and pinyin schemes of any Zhuyin IME (its claim); separate Simplified/Traditional corpora | Yes: mixed-input fallback mode (Zhuyin keys first tried as readings, else fall back to English); since v4.8.6 ASCII shows in the preedit | Decaying-memory model (POM) observes selections and feeds composition; user phrases, custom associated phrases | Not stated; sandboxed | 12.6 MB `.pkg` (v4.8.6, 2026-09-29) | MulanPSL-2.0 (core modules LGPLv3); modified builds may not keep the product name |
 | [McBopomofo 小麥注音](https://github.com/openvanilla/McBopomofo) | macOS 13+; Windows (win-mcbopomofo), Linux (fcitx5-mcbopomofo) and web/ChromeOS are separate repos in the same org | Gramambular 2 composer, unigram-only language model, Dachen | Not advertised | Records user selection overrides; user and excluded phrases | Not stated | 5.3 MB `.zip` (v3.1.1, 2026-09-02) | MIT |
 | [Rime](https://rime.im) (Squirrel / Weasel / ibus-fcitx-rime) | macOS (Squirrel), Windows (Weasel), Linux (ibus/fcitx-rime) | librime schema-driven engine; Zhuyin is the rime-bopomofo schema (Dachen and "dynamic ability" layouts, dictionary depends on terra_pinyin); Cangjie, Quick and others are separate schemas | Needs an ASCII/Chinese mode switch (the Zhuyin schema ships an `ascii_mode` switch) | librime ships a user dictionary (`user_dictionary`) | None, offline | Squirrel 25.5 MB `.pkg` (1.1.2); Weasel 12.4 MB `.exe` (0.17.4) | GPL-3.0 (Squirrel, Weasel); librime BSD-3-Clause |
 | **Misstype** (this repo) | macOS IMK, Linux fcitx5 | McBopomofo lexicon, Dachen, Swift `MisstypeCore` | Yes, `mixedEnglish` (macOS default off) | Learning + user dictionary | None by default; optional Jev LLM assist, opt-in | `.dmg` 4.4 MB (v0.0.1, universal), no model | MIT |
@@ -72,15 +72,16 @@ text only.
 | Other layouts (Eten, Hsu, Dvorak…) | Y (11) | - | - | - | - | Y (most) | - | - | - |
 | Cangjie / Sucheng / `.cin` tables | - | Y | - | Cangjie | - | - | - | Y (Cangjie, Quick schemas) | - |
 | Sentence-level phrase model | libchewing | bigram | McBopomofo | Y | "AI" | Y (Megrez/Homa) | Y (unigram) | varies by schema | lexicon DP + learning |
-| Tone optional (toneless typing) | - | - | - | - | - | - | - | Y (schema text: tone and final may be omitted) | Y |
+| Tone optional (toneless typing) | - | - | - | - | - | partial (Zhuyin Furious Typing: auto syllable split, initials-only; off by default) | - | Y (schema text: tone and final may be omitted) | Y |
 | Edit repair (transpose, neighbor, insert/delete) | partial (key order, repeated/invalid keys) | - | - | - | - | - | - | partial (schema: `free_order` order within a syllable, `abbrev` initial only; the engine also has an off-by-default `enable_correction`, see below) | Y |
 | Touch / coordinate-aware fuzzy | - | - | - | - | - | - | - | - | v1 in core, not wired to a surface |
-| Mixed zh/en, no mode switch | Y | - | Y | - | Y | - | - | - (needs switch; rime-ice/frost pinyin schemas can mount an English word list, see below) | Y (v1) |
+| Mixed zh/en, no mode switch | Y | - | Y | - | Y | Y (mixed-input fallback mode; ASCII shown in the preedit) | - | - (needs switch; rime-ice/frost pinyin schemas can mount an English word list, see below) | Y (v1) |
 | English typo recovery | - | - | - | - | - | - | - | - | Y |
 | English completion (Tab) | - | - | Y | - | Y | - | - | - | - |
 | English word learning | - | - | Y | - | - | - | - | - | - |
-| Personal learning | Y | Y | Y | Y | - | Y (POM) | Y (selection override) | Y (user dictionary) | Y |
-| User dictionary editor | - | Y (import) | - | Y (custom vocab) | - | Y (phrase tidying) | Y (user phrases) | - | Y (Shift+←/→, Settings) |
+| Personal learning | Y | Y | Y | Y (selection override + bigram; resettable) | - | Y (POM) | Y (selection override) | Y (user dictionary) | Y |
+| User dictionary editor | - | Y (import) | - | Y (phrase editor; menu entry "Edit custom phrases…") | - | Y (phrase tidying) | Y (user phrases) | - | Y (Shift+←/→, Settings) |
+| In-place add/remove-word gesture while composing | - | - | - | Shift+arrows select, Enter adds (the audit doc says the source retains it; not verified in the shipped build) | - | Y (Shift+←/→ marks; Enter boosts; Shift+Cmd+Enter nerfs; Backspace/Delete filters) | - | delete candidate only (Shift+Delete, Ctrl+K by default); no add gesture found | Y (Shift+←/→ marks, Return adds / removes on the same mark) |
 | Syllable cursor / re-pick inside preedit | Y | - | - | - | - | - | - | - | Y |
 | Reconversion of committed text | Y (Control+Alt+R) | - | - | - | - | - | - | - | - |
 | Chunked auto-commit while composing | - | - | - | - | - | - | - | - | Y |
@@ -164,12 +165,17 @@ For an algorithmic and architectural breakdown across composition and decoding e
 [vChewing](https://github.com/vChewing/vChewing-macOS) serves as our long-term baseline for compatibility, candidate flow, and day-to-day stability. Rather than attempting to match vChewing's full feature set, Misstype focuses on two specific differentiators: **learned mixed Chinese/English typing** (adoption, false switches, latency, and improvement after learning) and **paired fuzzy correction** (matching keyboard edits and touch-coordinate evidence to candidate readings while preserving replayable raw traces). Both claims need fixed-phrase, de-identified input fixtures and cross-platform conformance checks.
 
 - **Mixed input.** Ari, Bopomix and ZingIME all treat this as the main
-  selling point, so it is table stakes for the Zhuyin audience, not a
+  selling point, and vChewing 4.8.6 ships a mixed-input fallback mode too, so it is table stakes for the Zhuyin audience, not a
   differentiator. Our `MixedDecode` also recovers one-letter English typos,
-  which none of the three advertise. Ari's rule (a complete toned syllable is
+  which none of them advertise. Ari's rule (a complete toned syllable is
   the only trigger) is simpler and deterministic; ours is a scored decision
   and costs ~110–130 ms per keystroke on toneless mixed input. Ari is the
   reference for whether a simpler rule loses much quality.
+- **Adding words in place.** vChewing already has the gesture we copied
+  (Shift+← / → marks, Enter adds with a boost, Shift+Cmd+Enter nerfs,
+  Backspace/Delete filters; read from its `InputHandler_HandleStates.swift`),
+  so this is parity with vChewing and an advantage over Rime, where only
+  deleting a candidate has a default key (Shift+Delete). It is not a new idea.
 - **Whole-sentence decode.** ZingIME's sentence-context homophone fix and
   Bopomix's unbuilt "整句 AI 選字" match what the lexicon decoder plus
   optional Jev assist already do; ours is offline-first and observable.

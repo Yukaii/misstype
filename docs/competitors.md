@@ -17,7 +17,7 @@
 | [Bopomix](https://github.com/lmanchu/bopomix) | macOS 13+、Apple Silicon | 小麥注音引擎分支（Swift）、僅大千 | 有：無法構成音節之字母直接視為英文；支援 Tab 補完英文 | 本機學習英文詞 | 無；句級 AI 重排研究中，尚未實裝 | `.dmg` 6.6 MB | MIT |
 | [KeyKey（琦琦）](https://github.com/polobread/KeyKey/releases) | macOS、Windows、Linux（fcitx5）、iOS、Android | Yahoo 2012 程式碼、30 組領域詞庫；另有倉頡 | 未宣稱 | 智慧詞組組字與學習 | 標明不存取網路 | macOS `.pkg.zip` 38.2 MB | 混合授權：Yahoo 原始碼 BSD-3-Clause、各平台前端 MIT；v1.3.1（2026-10-02） |
 | [ZingIME（晶晶）](https://zingime.com/) | macOS、Apple Silicon | 注音、40 萬以上詞彙 | 有（主打功能）：同一模式可直接輸入中英，支援 Tab 補完英文 | 未說明 | 裝置端模型選字，不依賴雲端（待核實） | `.dmg` 271.6 MiB | 商用付費、提供 14 天試用（待核實） |
-| [唯音（vChewing）](https://github.com/vChewing/vChewing-macOS) | macOS 12+（Aqua 紀念版支援 10.9 起） | 鐵恨注音並擊引擎；注音排列與拼音種類數量眾多；簡繁語料庫分離 | 未宣稱 | 漸退記憶（POM）觀察選字並參與組句；使用者片語、自訂關聯詞語 | 未說明；啟用 Sandbox | 12.6 MB `.pkg`（v4.8.6，2026-09-29） | MulanPSL-2.0（核心模組 LGPLv3）；修改後不得沿用產品名稱 |
+| [唯音（vChewing）](https://github.com/vChewing/vChewing-macOS) | macOS 12+（Aqua 紀念版支援 10.9 起） | 鐵恨注音並擊引擎；注音排列與拼音種類數量眾多；簡繁語料庫分離 | 有：中英文混合輸入回退模式（注音鍵先試成讀音，不成則回退英文）；v4.8.6 起 ASCII 顯示於組字區 | 漸退記憶（POM）觀察選字並參與組句；使用者片語、自訂關聯詞語 | 未說明；啟用 Sandbox | 12.6 MB `.pkg`（v4.8.6，2026-09-29） | MulanPSL-2.0（核心模組 LGPLv3）；修改後不得沿用產品名稱 |
 | [小麥注音（McBopomofo）](https://github.com/openvanilla/McBopomofo) | macOS 13+；Windows（win-mcbopomofo）、Linux（fcitx5-mcbopomofo）、網頁／ChromeOS 為同組織獨立儲存庫 | Gramambular 2 組句、僅 Unigram 語言模型、大千 | 未宣稱 | 記錄使用者選字覆寫；使用者詞彙與排除詞彙 | 未說明 | 5.3 MB `.zip`（v3.1.1，2026-09-02） | MIT |
 | [Rime（鼠鬚管／小狼毫／中州韻）](https://rime.im) | macOS（鼠鬚管）、Windows（小狼毫）、Linux（ibus／fcitx-rime） | librime 方案制引擎；注音為 rime-bopomofo 方案（大千、動態能力佈局，詞庫依賴 terra_pinyin），另有倉頡、速成等方案 | 需切換中英模式（注音方案內建 `ascii_mode` 開關） | librime 內建使用者詞典（`user_dictionary`） | 無，離線 | 鼠鬚管 25.5 MB `.pkg`（1.1.2）；小狼毫 12.4 MB `.exe`（0.17.4） | GPL-3.0（鼠鬚管、小狼毫）；librime BSD-3-Clause |
 | **Misstype（本專案）** | macOS IMK、Linux fcitx5 | 小麥注音詞庫、大千、Swift `MisstypeCore` | 有，`mixedEnglish`（macOS 預設關閉） | 學習＋使用者詞庫 | 預設無；可選 Jev LLM 輔助（需明確啟用） | `.dmg` 4.4 MB（v0.0.1，通用版本） | MIT |
@@ -32,15 +32,16 @@
 | 其他排列（Eten、許氏、Dvorak…） | Y（11） | - | - | - | - | Y（最多） | - | - | - |
 | 倉頡／速成／`.cin` | - | Y | - | 倉頡 | - | - | - | Y（倉頡、速成方案） | - |
 | 句級詞組模型 | libchewing | bigram | 小麥注音 | Y | 「AI」 | Y（Megrez／Homa） | Y（Unigram） | 方案而異 | 詞庫 DP＋學習 |
-| 可省略聲調 | - | - | - | - | - | - | - | Y（方案說明：可省略聲調、韻母） | Y |
+| 可省略聲調 | - | - | - | - | - | 部分（注音狂打：自動切音節、只打聲母；預設停用） | - | Y（方案說明：可省略聲調、韻母） | Y |
 | 編輯容錯（顛倒、鄰鍵、插入／刪除） | 部分（順序、重複／無效鍵） | - | - | - | - | - | - | 部分（方案：`free_order` 音節內順序、`abbrev` 只打聲母；引擎另有預設關閉的 `enable_correction`，見下節） | Y |
 | 觸控／座標模糊比對 | - | - | - | - | - | - | - | - | 核心 v1，尚未接觸控面 |
-| 中英混輸、免切換 | Y | - | Y | - | Y | - | - | -（需切換；雾凇／白霜的拼音方案可掛英文詞庫，見下節） | Y（v1） |
+| 中英混輸、免切換 | Y | - | Y | - | Y | Y（中英混合輸入回退模式；ASCII 顯示於組字區） | - | -（需切換；雾凇／白霜的拼音方案可掛英文詞庫，見下節） | Y（v1） |
 | 英文拼字修復 | - | - | - | - | - | - | - | - | Y |
 | 英文完成（Tab） | - | - | Y | - | Y | - | - | - | - |
 | 英文詞學習 | - | - | Y | - | - | - | - | - | - |
-| 個人學習 | Y | Y | Y | Y | - | Y（POM） | Y（選字覆寫） | Y（使用者詞典） | Y |
-| 使用者詞庫編輯器 | - | Y（匯入） | - | Y（自訂詞彙） | - | Y（片語整理） | Y（使用者詞彙） | - | Y（Shift+←/→、設定） |
+| 個人學習 | Y | Y | Y | Y（選字覆寫＋相鄰詞；可重設） | - | Y（POM） | Y（選字覆寫） | Y（使用者詞典） | Y |
+| 使用者詞庫編輯器 | - | Y（匯入） | - | Y（詞彙編輯器；選單直達「編輯自訂詞…」） | - | Y（片語整理） | Y（使用者詞彙） | - | Y（Shift+←/→、設定） |
+| 就地加詞／刪詞手勢（組字中） | - | - | - | Shift+方向鍵選取，Enter 加入（審查文件稱原始碼保留，現行版本未驗證） | - | Y（Shift+←/→ 標記；Enter 加權；Shift+Cmd+Enter 降權；Backspace/Delete 濾除） | - | 僅刪候選（Shift+Delete，預設 Ctrl+K）；未找到加詞手勢 | Y（Shift+←/→ 標記，Return 加入／再按移除） |
 | 音節游標／組字區內重選 | Y | - | - | - | - | - | - | - | Y |
 | 已送出文字重新轉換 | Y（Control+Alt+R） | - | - | - | - | - | - | - | - |
 | 組字時分段自動送出 | - | - | - | - | - | - | - | - | Y |
