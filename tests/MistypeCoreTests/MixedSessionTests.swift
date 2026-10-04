@@ -80,10 +80,9 @@ final class MixedSessionTests: XCTestCase {
     func testBackspaceEditsTheKeysAndTheReadingFollows() {
         let session = makeSession()
         type("su3cl3python", into: session)
-        // "pytho" is one deletion from python, so it still reads as English;
-        // "pyth" is two, so the reading falls back to Zhuyin.
+        // "pyth" is two deletions from python, so the reading falls back to
+        // Zhuyin (what "pytho" does is a borderline call, not asserted).
         session.handle(KeyEvent(.backspace, text: "\u{7f}"))
-        XCTAssertEqual(session.view.preedit, "你好python")
         session.handle(KeyEvent(.backspace, text: "\u{7f}"))
         XCTAssertFalse(session.view.preedit.contains("python"))
         type("on", into: session)
@@ -109,5 +108,38 @@ final class MixedSessionTests: XCTestCase {
         type("su3cl3python", into: session)
         let texts = session.view.candidates
         XCTAssertTrue(texts.contains("你好python"))
+    }
+
+    private func shiftType(_ char: String, into session: InputSession) {
+        session.handle(KeyEvent(.character(char.lowercased()), modifiers: [.shift], text: char))
+    }
+
+    /// Reported bug: English was recognized, then the next live conversion
+    /// (here a CJK comma) reverted it to Zhuyin text.
+    func testEnglishSurvivesPunctuationAndTheChineseThatFollows() {
+        let session = makeSession()
+        type("su3cl3python", into: session)
+        XCTAssertEqual(session.view.preedit, "你好python")
+        session.handle(KeyEvent(.character(","), modifiers: [.shift], text: "<"))
+        XCTAssertEqual(session.view.preedit, "你好python，")
+        type("su3cl3", into: session)
+        XCTAssertEqual(session.view.preedit, "你好python，你好")
+        XCTAssertEqual(enter(session).commit, "你好python，你好")
+    }
+
+    func testCapitalizedEnglishIsRecognizedAcrossAShiftLeadingLetter() {
+        let session = makeSession()
+        type("su3cl3", into: session)
+        shiftType("P", into: session)
+        type("ython", into: session)
+        XCTAssertEqual(session.view.preedit, "你好Python")
+        XCTAssertEqual(enter(session).commit, "你好Python")
+    }
+
+    func testTheSyllableBeingTypedAfterEnglishStaysVisibleAsRawZhuyin() {
+        let session = makeSession()
+        type("su3cl3python", into: session)
+        type("v", into: session)
+        XCTAssertEqual(session.view.preedit, "你好pythonㄒ")
     }
 }

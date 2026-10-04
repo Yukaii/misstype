@@ -103,6 +103,8 @@ public enum MixedDecoding {
     /// Compositions longer than this (keys) skip the mixed pass: bounds the
     /// per-keystroke cost; chunked auto-commit keeps compositions near it.
     public static let maxKeys = 48
+    /// Cost of one key left as raw Zhuyin in a live preview (see `mixedPass`).
+    public static let rawKeyCost = 5.0
 }
 
 /// The live candidate list after the English pass.
@@ -132,35 +134,57 @@ extension LexiconDecoder {
                             pruneWindow: Double = MixedDecoding.suggestWindow,
                             fuzzyEnglish: Bool = true,
                             englishEditCost: Double = MixedDecoding.defaultEnglishEditCost,
+                            liveTail: Bool = false,
                             fuzzy: Bool = true, toneTolerance: Bool = true,
                             userLexicon: UserLexicon? = nil) -> [MixedCandidate] {
         mixedPass(keys: keys, english: english, switchPenalty: switchPenalty, minWordLength: minWordLength,
                   includePlain: includePlain, pruneWindow: pruneWindow, fuzzyEnglish: fuzzyEnglish,
-                  englishEditCost: englishEditCost, fuzzy: fuzzy, toneTolerance: toneTolerance,
-                  userLexicon: userLexicon).candidates
+                  englishEditCost: englishEditCost, liveTail: liveTail, fuzzy: fuzzy,
+                  toneTolerance: toneTolerance, userLexicon: userLexicon).candidates
     }
 
     /// `decodeMixed` plus the score of the all-Chinese reading of the same
     /// keys (nil when no span was found, so it was never decoded).
     func mixedPass(keys: [String], english: EnglishLexicon, switchPenalty: Double,
                    minWordLength: Int, includePlain: Bool, pruneWindow: Double, fuzzyEnglish: Bool,
-                   englishEditCost: Double, fuzzy: Bool, toneTolerance: Bool,
+                   englishEditCost: Double, liveTail: Bool, fuzzy: Bool, toneTolerance: Bool,
                    userLexicon: UserLexicon?) -> (candidates: [MixedCandidate], plainScore: Double?) {
         guard !keys.isEmpty else { return ([], nil) }
-        func isLetter(_ key: String) -> Bool {
-            key.count == 1 && key.first.map { $0.isASCII && $0.isLetter && $0.isLowercase } == true
+        // A letter-like key is a bare Zhuyin-position letter, or a letter already
+        // typed as latin (Shift-hold capital): "Python" is L:P + bare y t h o n.
+        func letter(_ key: String) -> (char: Character, latin: Bool)? {
+            if key.count == 1, let c = key.first, c.isASCII, c.isLetter, c.isLowercase { return (c, false) }
+            if Composition.isLatinKey(key), let c = Composition.latinChar(key).first,
+               Composition.latinChar(key).count == 1, c.isASCII, c.isLetter { return (Character(c.lowercased()), true) }
+            return nil
         }
         var spans: [(range: Range<Int>, word: String, score: Double)] = []
         var start = 0
         while start < keys.count {
-            guard isLetter(keys[start]) else { start += 1; continue }
+            guard letter(keys[start]) != nil else { start += 1; continue }
             var end = start
-            while end < keys.count, isLetter(keys[end]) { end += 1 }
+            while end < keys.count, letter(keys[end]) != nil { end += 1 }
             for from in start..<end where from + minWordLength <= end {
                 for to in (from + minWordLength)...min(end, from + MixedDecoding.maxSpanLength) {
-                    for match in english.matches(of: keys[from..<to].joined(), fuzzy: fuzzyEnglish)
+                    // Latin keys only lead a span (a capital), and at least one key is bare.
+                    var seenBare = false, valid = true
+                    for index in from..<to {
+                        if letter(keys[index])!.latin { if seenBare { valid = false; break } } else { seenBare = true }
+                    }
+                    guard valid, seenBare else { continue }
+                    let typed = String((from..<to).map { letter(keys[$0])!.char })
+                    let capital = Composition.isLatinKey(keys[from])
+                        && Composition.latinChar(keys[from]).first?.isUppercase == true
+                    for match in english.matches(of: typed, fuzzy: fuzzyEnglish)
                     where match.word.count >= minWordLength {
-                        spans.append((from..<to, match.word, match.score - englishEditCost * Double(match.edits)))
+                        // A different extra letter right after a whole word is
+                        // most likely the next Chinese syllable starting, not a
+                        // typo; swallowing it would drop that key from the text.
+                        // A doubled letter (pythonn) still counts as a slip.
+                        if match.edits == 1, typed.count == match.word.count + 1, typed.hasPrefix(match.word),
+                           typed.last != typed.dropLast().last { continue }
+                        let word = capital ? match.word.prefix(1).uppercased() + match.word.dropFirst() : match.word
+                        spans.append((from..<to, word, match.score - englishEditCost * Double(match.edits)))
                     }
                 }
             }
@@ -178,24 +202,41 @@ extension LexiconDecoder {
             let chosen = subset.map { spans[$0] }.sorted { $0.range.lowerBound < $1.range.lowerBound }
             var composition = Composition()
             for (index, key) in keys.enumerated() {
-                if key == " " {
-                    // Literal separator after English, first tone after Zhuyin.
-                    composition.appendSpace()
-                } else if let span = chosen.first(where: { $0.range.contains(index) }) {
+                if let span = chosen.first(where: { $0.range.contains(index) }) {
                     // A typo'd span renders the corrected word, once, at its start.
                     if index == span.range.lowerBound {
-                        for letter in span.word { composition.appendLatin(String(letter)) }
+                        for char in span.word { composition.appendLatin(String(char)) }
                     }
+                } else if key == " " {
+                    // Literal separator after English, first tone after Zhuyin.
+                    composition.appendSpace()
+                } else if Composition.isLatinKey(key) {
+                    composition.appendLatin(Composition.latinChar(key))
+                } else if Punctuation.literals.contains(key) {
+                    composition.appendLiteral(key)
                 } else {
                     composition.append(key)
                 }
             }
-            let decoded = decodeSegments(composition.segments, pendingKeys: composition.parsed.pending,
+            // Live (the IME preview): the syllable still being typed stays raw
+            // and is part of the text, so what shows is what commits. Raw keys
+            // are not free, or "everything left as raw Zhuyin" would beat any
+            // reading: each costs `rawKeyCost`, the same order as an edit
+            // repair. Finished phrases (`liveTail` off) decode every key.
+            let pending = composition.parsed.pending
+            let cut = liveTail ? livePendingCut(pending, toneTolerance: toneTolerance) : pending.count
+            let tail = pending.dropFirst(cut).compactMap { ZhuyinKeyboard.symbols[$0] }.joined()
+            let decoded = decodeSegments(composition.segments, pendingKeys: Array(pending.prefix(cut)),
                                          fuzzy: fuzzy, toneTolerance: toneTolerance, userLexicon: userLexicon)
             let extra = chosen.reduce(0.0) { $0 + $1.score - switchPenalty }
-            let result = decoded.prefix(2).map {
-                MixedCandidate(sentence: $0, englishSpans: chosen.map(\.range), englishWords: chosen.map(\.word),
-                               score: $0.score + extra)
+                - MixedDecoding.rawKeyCost * Double(tail.count)
+            let result = decoded.prefix(2).map { sentence -> MixedCandidate in
+                let shown = tail.isEmpty ? sentence : SentenceCandidate(
+                    text: sentence.text + tail, score: sentence.score, repairs: sentence.repairs,
+                    unresolved: sentence.unresolved, alignment: sentence.alignment,
+                    syllables: sentence.syllables, runs: sentence.runs)
+                return MixedCandidate(sentence: shown, englishSpans: chosen.map(\.range),
+                                      englishWords: chosen.map(\.word), score: sentence.score + extra)
             }
             memo[subset] = result
             return result
@@ -229,8 +270,8 @@ extension LexiconDecoder {
 extension LexiconDecoder {
     /// Add the English reading to a live preview when the typed keys support
     /// it. Nil = leave `live` alone. The pass is pruned to where it can pay:
-    /// bare Zhuyin/tone/space keys only (no latin run or punctuation yet), a
-    /// run of >= `minWordLength` letter keys, and at least one candidate span
+    /// a run of >= `minWordLength` letter keys (bare, or a leading Shift
+    /// capital) with at least one bare, and at least one candidate span
     /// that survives scoring alone against the Chinese reading. (A gate on
     /// "the Chinese reading shows trouble" was tried and dropped: you / for
     /// spell valid Chinese syllable pairs, so clean Chinese readings of
@@ -243,21 +284,28 @@ extension LexiconDecoder {
                              suggestWindow: Double = MixedDecoding.suggestWindow) -> MixedApplication? {
         let keys = composition.rawKeys
         guard !english.isEmpty, keys.count >= minWordLength, keys.count <= MixedDecoding.maxKeys,
-              keys.allSatisfy({ ZhuyinKeyboard.symbols[$0] != nil || ZhuyinKeyboard.tones[$0] != nil }),
               !live.candidates.isEmpty else { return nil }
-        var run = 0, longest = 0
+        // Letters typed bare, or as a leading Shift capital (latin key); the
+        // rest of the composition (punctuation, earlier latin, tones, spaces)
+        // is carried through unchanged.
+        var run = 0, longest = 0, bareInRun = 0
+        var bestHasBare = false
         for key in keys {
-            let letter = key.count == 1 && key.first.map { $0.isASCII && $0.isLetter } == true
-            run = letter ? run + 1 : 0
-            longest = max(longest, run)
+            let bare = key.count == 1 && key.first.map { $0.isASCII && $0.isLetter } == true
+            let latin = Composition.isLatinKey(key) && Composition.latinChar(key).count == 1
+            if bare || latin {
+                run += 1
+                if bare { bareInRun += 1 }
+                if run > longest { longest = run; bestHasBare = bareInRun > 0 }
+            } else { run = 0; bareInRun = 0 }
         }
-        guard longest >= minWordLength else { return nil }
+        guard longest >= minWordLength, bestHasBare else { return nil }
         // Margin against the pin-free Chinese reading (the pass's own plain
         // decode): live scores carry pin bonuses.
         let pass = mixedPass(keys: keys, english: english, switchPenalty: MixedDecoding.defaultSwitchPenalty,
                              minWordLength: minWordLength, includePlain: false, pruneWindow: suggestWindow,
                              fuzzyEnglish: true, englishEditCost: MixedDecoding.defaultEnglishEditCost,
-                             fuzzy: fuzzy, toneTolerance: toneTolerance, userLexicon: userLexicon)
+                             liveTail: true, fuzzy: fuzzy, toneTolerance: toneTolerance, userLexicon: userLexicon)
         let mixed = pass.candidates
         guard let best = mixed.first, let plain = pass.plainScore else { return nil }
         let margin = best.score - plain
