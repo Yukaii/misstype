@@ -298,6 +298,8 @@ private struct DictionaryPane: View {
                     .font(.callout).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 Link(L("vChewing user data generator"), destination: URL(string: "https://vu.gh.miniasp.com/")!)
+                Text(L("Third-party tool by Will 保哥 (MIT license), not affiliated with Mistype."))
+                    .font(.caption).foregroundStyle(.secondary)
             }
             Section(L("Words")) {
                 TextEditor(text: $text)
