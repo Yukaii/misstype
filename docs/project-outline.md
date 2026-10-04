@@ -931,6 +931,32 @@ Global 中/英 mode was never affected in the core (digits pass through,
 in the IMK adapter or the client app, not the session.
 Tests: `LatinDigitTests` (incl. the Shift-tap case), `testBacktickLatinRun`.
 
+### English reverted to Zhuyin text after the next key (2026-10-04, user-reported)
+
+Reproduced with a per-key preedit trace on the real lexicons. Three causes,
+all in the first wiring of the mixed pass:
+
+1. **Punctuation.** `applyEnglish` required the composition to be bare
+   Zhuyin/tone/space keys, so the moment a punctuation literal (Shift+`,` ->
+   ，) joined it the whole English reading vanished and the letters went back
+   to being Zhuyin: `你好python` -> `你好嗯支持次欸四，`. The pass now carries
+   punctuation, earlier latin keys and spaces through unchanged.
+2. **Capitalized words.** `Python` typed as Shift+p then `ython` is one latin
+   key plus bare keys, never matched (`你好P字垂死`). A span may now start with
+   leading latin keys, provided at least one key is bare; the capital is kept.
+3. **The key just typed disappeared.** The live preview left the
+   syllable being typed raw, the mixed text did not, and fuzzy matching read
+   `pythonv` as a typo of `python`, swallowing the `v` of the next Chinese
+   syllable. Mixed readings now show the raw tail (and commit it), and a
+   different extra letter after a whole word is no longer a typo (a doubled
+   one, `pythonn`, still is). Scoring moved to the live-preview basis too: each key left
+   raw costs `MixedDecoding.rawKeyCost` (5), otherwise an unresolved tail was
+   charged to both readings and cancelled the English advantage.
+
+Shipping-path numbers did not change (clean English 92% / 90% adopted, pure
+Chinese 0% adopted), refresh cost fell slightly (95 vs 111 ms toneless).
+Tests: `MixedSessionTests` (punctuation then more Chinese, capital, raw tail).
+
 ## Measures
 
 Track phrase-level character error rate, syllable error rate, commit latency, p50/p95 decode latency, backspaces or replays, candidate interruptions, and task completion time. Log confidence and decoder source for every result. Run a fixed synthetic fixture set plus consented user sessions kept outside the repository.
