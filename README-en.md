@@ -31,7 +31,7 @@ For the full comparison (platforms, licenses, download sizes) see [Competitor co
 - [Competitor comparison](docs/competitors-en.md): feature matrix and baseline positioning.
 - [Decoding engines survey](docs/decoding-engines-en.md): algorithms and trade-offs.
 - [Technical architecture](docs/architecture.md): layers, event contracts and the decoding pipeline.
-- [Development, build and release](docs/development-en.md): building from source, tests, signing and releasing.
+- [Development, build and release](docs/development.md): building from source, tests, signing and releasing.
 - [Cross-platform contract](docs/cross-platform.md), [Linux port](docs/linux-port.md), [Packaging and updates](docs/release.md), [Agent guide](AGENTS.md).
 
 The design takes inspiration from [Qingjian](https://github.com/qingjian-team/qingjian), especially its platform-independent core and delayed whole-phrase reconstruction. Misstype is a separate experiment; compatibility with Qingjian is a milestone, not a promise.
@@ -46,7 +46,7 @@ Download `Misstype-<version>.dmg` from [GitHub Releases](https://github.com/Yuka
 
 Supported as an fcitx5 addon sharing the same core as macOS. See the [Linux port](docs/linux-port.md) for install and status.
 
-To build from source see [Development, build and release](docs/development-en.md).
+To build from source see [Development, build and release](docs/development.md).
 
 ## Usage
 
