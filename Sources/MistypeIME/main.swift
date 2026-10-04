@@ -7,7 +7,7 @@ enum Runtime {
     static let decoder: LexiconDecoder = {
         guard let resources = Bundle.main.resourceURL,
               let decoder = LexiconLoader.load(resourceDirectory: resources, log: { NSLog("%@", $0) }) else {
-            NSLog("Mistype: missing lexicon; refusing to start with a fixture decoder")
+            NSLog("Misstype: missing lexicon; refusing to start with a fixture decoder")
             exit(1)
         }
         return decoder
@@ -279,7 +279,7 @@ final class MistypeInputController: IMKInputController, InputSessionHost {
 
     override func menu() -> NSMenu! {
         Runtime.debugLog("[ime] menu() requested")
-        let menu = NSMenu(title: "Mistype")
+        let menu = NSMenu(title: "Misstype")
         menu.autoenablesItems = false
         // Persistent mode readout (the flash pill is transient): which
         // language bare keys will produce right now.
@@ -517,7 +517,7 @@ let connectionName = Bundle.main.infoDictionary?["InputMethodConnectionName"] as
 guard NSClassFromString("MistypeInputController") != nil,
       let bundleID = Bundle.main.bundleIdentifier,
       let server = IMKServer(name: connectionName, bundleIdentifier: bundleID) else {
-    NSLog("Mistype: InputMethodKit initialization failed for \(connectionName)")
+    NSLog("Misstype: InputMethodKit initialization failed for \(connectionName)")
     exit(1)
 }
 /// Active controller for panel click routing (controllers are per-client).

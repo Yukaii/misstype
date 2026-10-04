@@ -166,7 +166,7 @@ public struct UserDictionary: Equatable, Sendable {
     /// Canonical file text: header comment, additions, then exclusions, each
     /// in insertion order so hand-edits stay where the user put them.
     public func serialized() -> String {
-        var lines = ["# Mistype user dictionary: reading<TAB>text[<TAB>weight]; \"!\" hides a built-in word."]
+        var lines = ["# Misstype user dictionary: reading<TAB>text[<TAB>weight]; \"!\" hides a built-in word."]
         for entry in added {
             lines.append(entry.weight == Self.defaultWeight
                 ? "\(entry.reading)\t\(entry.text)"

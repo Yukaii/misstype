@@ -1,8 +1,8 @@
-# Mistype (隨打注音)
+# Misstype (隨打注音)
 
 [繁體中文](README.md) | **English**
 
-Mistype is an experiment in low-interference text capture: two split touch surfaces (initially simulated in software) let a user type from muscle memory without stopping to aim at precise keys or choose Chinese candidates. A phonetic trace is captured first, then reconstructed into Chinese, English, or mixed text after a pause or explicit commit.
+Misstype is an experiment in low-interference text capture: two split touch surfaces (initially simulated in software) let a user type from muscle memory without stopping to aim at precise keys or choose Chinese candidates. A phonetic trace is captured first, then reconstructed into Chinese, English, or mixed text after a pause or explicit commit.
 
 The first target is Bopomofo (Zhuyin), with English mixing and a local decoder. The project begins as a software prototype so that interaction, decoding quality, and latency can be measured before designing hardware.
 
@@ -14,7 +14,7 @@ The first target is Bopomofo (Zhuyin), with English mixing and a local decoder. 
 - [Linux (fcitx5) port plan](docs/linux-port.md): status, toolchain, dev container, and roadmap for Linux.
 - [Development guide](AGENTS.md): working loop, privacy rules, and definition of done.
 
-The design takes inspiration from [Qingjian](https://github.com/qingjian-team/qingjian), especially its platform-independent core and delayed whole-phrase reconstruction. Mistype is a separate experiment; compatibility with Qingjian is a milestone, not a promise.
+The design takes inspiration from [Qingjian](https://github.com/qingjian-team/qingjian), especially its platform-independent core and delayed whole-phrase reconstruction. Misstype is a separate experiment; compatibility with Qingjian is a milestone, not a promise.
 
 ## macOS IME prototype
 
@@ -26,7 +26,7 @@ swift test
 ./script/install_ime.sh
 ```
 
-After installation, select **隨打注音** (`Mistype Bopomofo`) from the macOS input-source menu. Type with the normal Zhuyin keyboard:
+After installation, select **隨打注音** (`Misstype Bopomofo`) from the macOS input-source menu. Type with the normal Zhuyin keyboard:
 - **Continuous typing & optional tones**: tones are optional, and continuous typing converts as you go (only the syllable still being typed stays in Bopomofo). Tone keys finish syllables and Space represents the first tone.
 - **Commit**: Return commits exactly what is shown, unfinished Bopomofo included (注音文 works); Shift+Return sends raw typed Bopomofo.
 - **Candidate selection**: Down/Tab (or Left arrow to walk back to an earlier word) enters candidate selection mode, where home-row keys `asdfghjk` pick from the candidate panel (configurable in Preferences; they type Zhuyin outside this mode). Escape leaves the selection mode; outside selection mode, Escape cancels the composition.
@@ -57,7 +57,7 @@ Without them the DMG is ad-hoc signed and Gatekeeper blocks it on other machines
 
 ## Linux (fcitx5) port
 
-Mistype supports Linux via an fcitx5 addon built on top of the platform-neutral `MistypeCore` and C ABI (`MistypeCAPI`):
+Misstype supports Linux via an fcitx5 addon built on top of the platform-neutral `MistypeCore` and C ABI (`MistypeCAPI`):
 
 ```sh
 # Build and run headless test suite in the Docker dev container
