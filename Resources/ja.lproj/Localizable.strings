@@ -78,7 +78,7 @@
 "One word per line: the word, a space, then its Zhuyin readings joined by hyphens (vChewing user data format). Start a line with ! to hide a built-in word. # starts a comment." = "1 行に 1 語：語句、スペース、ハイフンでつないだ注音の順（vChewing ユーザーデータ形式）。行頭に ! を付けると内蔵語を非表示にします。# はコメントです。";
 "Import reads vChewing user data (.txt, UTF-8). To turn a plain word list into that format, use the online generator; it runs in your browser and uploads nothing." = "vChewing ユーザーデータ（.txt、UTF-8）を読み込めます。通常の語句リストはオンラインジェネレーターで変換できます（ブラウザ内で動作し、何も送信しません）。";
 "vChewing user data generator" = "vChewing ユーザーデータジェネレーター";
-"Third-party tool by Will 保哥 (MIT license), not affiliated with Mistype." = "Will 保哥 氏によるサードパーティ製ツール（MIT ライセンス）で、Mistype とは無関係です。";
+"Third-party tool by Will 保哥 (MIT license), not affiliated with Misstype." = "Will 保哥 氏によるサードパーティ製ツール（MIT ライセンス）で、随打注音とは無関係です。";
 "Import…" = "読み込み…";
 "Could not read %@ as UTF-8 text." = "%@ を UTF-8 テキストとして読み込めません。";
 "Imported %d words (%d already there, %d lines skipped). Press Save to apply." = "%d 語を読み込みました（既存 %d 語、スキップ %d 行）。「保存」で適用します。";
