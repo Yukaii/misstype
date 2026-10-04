@@ -69,6 +69,10 @@ final class UpdateController: NSObject, SPUUpdaterDelegate {
         Runtime.debugLog("[update] applying downloaded update while idle")
         self.installNow = nil
         installNow()
+        // Autoupdate swaps the bundle once this process is gone. Measured on
+        // macOS 27: the block alone does not quit an LSUIElement input method,
+        // so the install would wait forever. TIS restarts us on demand.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { NSApp.terminate(nil) }
     }
 
     // MARK: SPUUpdaterDelegate

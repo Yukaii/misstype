@@ -1,7 +1,8 @@
 # Packaging, installer and updates (macOS)
 
-Status 2026-10-04: written and reviewed on Linux only. **Nothing here has run
-on a Mac yet**; the "Unverified" list below is the first-run checklist.
+Status 2026-10-04: written on Linux, first run on a Mac the same day; see
+"Verification status" and "Unverified" below for what has and has not been
+checked.
 
 ## Decisions
 
@@ -81,24 +82,37 @@ Artifacts: `Misstype-<v>.dmg`, `MistypeIME-<v>.zip` (the Sparkle archive),
 `appcast.xml`, `.sha256` files. Tags containing `-` are prereleases and are
 skipped by `latest`, so they never reach existing installs.
 
-## Unverified (check on a Mac before the first public release)
+## Verification status
 
-- `swift build` resolves Sparkle and `MistypeIME` runs from the bundle
-  (rpath `@executable_path/../Frameworks`), also with `--arch arm64 --arch x86_64`
-  (location of `Sparkle.framework` and `sign_update` in `.build`).
-- The inside-out signing in `script/sign_bundle.sh` passes notarization with
+Verified 2026-10-04 on macOS 27 (arm64 host, ad-hoc signed, local feed on
+`http://localhost:8000` with a throwaway EdDSA key):
+
+- `swift build` resolves Sparkle; the bundle runs; IME, installer and Sparkle
+  are universal (`x86_64 arm64`).
+- A sandboxed IME updates itself in place: `Installer.xpc` launches and the
+  `-spki`/`-spks` mach-lookup exceptions are enough. Silent download, idle
+  apply after 120 s, TIS restart, 0.0.4 → 0.0.5, signature valid afterwards.
+  `immediateInstallationBlock` alone did **not** quit the `LSUIElement` app
+  (Autoupdate waited forever), so `UpdateController` terminates the process
+  itself 3 s after calling it. Scheduled checks respect `SULastCheckTime`
+  (24 h), so repeating a test needs that key removed from the container prefs.
+- First install on a clean account (`--yes` and GUI): the source was usable
+  **without logging out** on this macOS. The logout path is kept as the
+  fallback; it is untested here.
+- Upgrading over a copy installed by `install_ime.sh` (headless).
+- A process TIS launched while the installer was swapping the bundle never
+  started its updater (`.MistypeIME.installing` path); restarting it fixed
+  it. Not reproduced on purpose; watch for it.
+
+## Unverified (check before the first public release)
+
+- Notarization: the inside-out signing in `script/sign_bundle.sh` with
   Sparkle's `Autoupdate`, `Updater.app` and `Installer.xpc` re-signed, the
-  entitlements applied to the app only.
-- A sandboxed IME actually updates itself in place: `Installer.xpc` launches
-  and the `-spki`/`-spks` mach-lookup exceptions are enough (Sparkle's
-  sandboxing guide is the reference if not).
-- First install on a clean account: source absent → logout prompt → after
-  login the source is listed. Whether `TISRegisterInputSource` makes it
-  visible without logout on current macOS.
+  entitlements applied to the app only; Gatekeeper on a downloaded DMG.
+- Update rejection: a corrupted archive and a wrong public key must be refused.
 - `System Events` log-out request (Automation prompt wording).
-- Full update loop with two real builds: silent download, idle apply,
-  TIS restart, clients reconnecting.
-- Upgrading over a copy installed by `install_ime.sh`.
+- The `/Library/Input Methods` duplicate warning in the GUI.
+- Installing an older version over a newer one (the installer does not warn).
 
 ## Not done
 
