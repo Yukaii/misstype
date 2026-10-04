@@ -5,9 +5,9 @@
 <key>CFBundleName</key><string>Install Misstype</string>
 <key>CFBundleDevelopmentRegion</key><string>en</string>
 <key>CFBundleLocalizations</key><array><string>en</string><string>zh-Hant</string><string>zh-Hans</string><string>ja</string></array>
-<key>CFBundleExecutable</key><string>MistypeInstaller</string>
-<key>CFBundleIconFile</key><string>MistypeIcon.png</string>
-<key>CFBundleIdentifier</key><string>org.mistype.inputmethod.Installer</string>
+<key>CFBundleExecutable</key><string>MisstypeInstaller</string>
+<key>CFBundleIconFile</key><string>MisstypeIcon.png</string>
+<key>CFBundleIdentifier</key><string>org.misstype.inputmethod.Installer</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleShortVersionString</key><string>0.1</string>
 <key>CFBundleVersion</key><string>1</string>

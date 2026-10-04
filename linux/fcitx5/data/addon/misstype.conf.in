@@ -1,0 +1,8 @@
+[Addon]
+Name=Misstype
+Category=InputMethod
+Version=@PROJECT_VERSION@
+Library=libmisstype-fcitx5
+Type=SharedLibrary
+OnDemand=True
+Configurable=False

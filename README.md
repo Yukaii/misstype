@@ -63,25 +63,25 @@ swift test
 * **遞交輸入與注音文**：按下 `Enter` 鍵會直接遞交當前畫面上顯示的文字（包含尚未拼完的注音符號，支援注音文）；按下 `Shift + Enter` 則會將原始鍵入的注音符號直接輸出。
 * **候選字選字模式**：按下 `向下鍵` 或 `Tab`（亦可按 `向左鍵` 倒退至前方的詞彙）即可進入選字選單。選字時可使用鍵盤中間一排的 `asdfghjk` 快速鍵選取候選字（可在偏好設定調整；平常打字時這些鍵仍是正常的注音按鍵）。按 `Esc` 退出選字模式；在一般打字狀態下按 `Esc` 則清空整個組字區。
 * **全形符號與中英切換**：`Shift + 數字鍵` 與 `Shift + = [ ] \`` 可直接鍵入全形符號（`！＠＃＄％︿＆＊（）＋｛｝～`）。`Backspace` 可倒退修改原始組字內容。輕按單次 `Shift` 或按下 `Shift + Space` 即可直接遞交並切換中／英文模式。
-* **我的詞庫**：打字時用 Shift+←/→ 標記已轉換文字中的音節，按 Return 即可把詞（人名、專有名詞）加入自己的詞庫；對同一段標記再按 Return 則移除。macOS 的「設定 → 我的詞庫」是同一份 `user_dictionary.tsv` 的純文字編輯器，格式與 vChewing 的 userdata 相同（`詞語 注音`，每行一筆），可直接貼上或用「匯入…」讀入 vChewing 詞庫；只有一般詞彙清單時，可用 Will 保哥的第三方[線上產生器](https://vu.gh.miniasp.com/)（[原始碼](https://github.com/doggy8088/vChewing-userdata-generator)，MIT；與本專案無關）轉成此格式；Linux 請直接編輯 `~/.local/share/mistype/user_dictionary.tsv`。
+* **我的詞庫**：打字時用 Shift+←/→ 標記已轉換文字中的音節，按 Return 即可把詞（人名、專有名詞）加入自己的詞庫；對同一段標記再按 Return 則移除。macOS 的「設定 → 我的詞庫」是同一份 `user_dictionary.tsv` 的純文字編輯器，格式與 vChewing 的 userdata 相同（`詞語 注音`，每行一筆），可直接貼上或用「匯入…」讀入 vChewing 詞庫；只有一般詞彙清單時，可用 Will 保哥的第三方[線上產生器](https://vu.gh.miniasp.com/)（[原始碼](https://github.com/doggy8088/vChewing-userdata-generator)，MIT；與本專案無關）轉成此格式；Linux 請直接編輯 `~/.local/share/misstype/user_dictionary.tsv`。
 * **在地化學習**：系統會在本地記憶各詞彙的選字偏好，單個漢字則會結合其前置上下文詞彙共同學習與加權。
 
 若要在沒有 IME 客戶端環境下進行解碼診斷測試，可直接執行：
 
 ```sh
-dist/MistypeIME.app/Contents/MacOS/MistypeIME --decode su3cl3
+dist/MisstypeIME.app/Contents/MacOS/MisstypeIME --decode su3cl3
 ```
 
-當替換舊版輸入法時，安裝程式會將上一版備份於 `.cache/MistypeIME-previous.app`。如有需要，可透過指令停用該輸入法來源：
+當替換舊版輸入法時，安裝程式會將上一版備份於 `.cache/MisstypeIME-previous.app`。如有需要，可透過指令停用該輸入法來源：
 ```sh
-swift run -c release MistypeSourceTool disable
+swift run -c release MisstypeSourceTool disable
 ```
 
 ### 版本發布
 
-推送 `v*` 開頭的版本標籤將觸發 `.github/workflows/release.yml`，自動執行跨平台測試、透過 `script/package_release.sh` 建置同時支援 Apple 晶片與 Intel 的通用版本，並在 GitHub Releases 發布 `Mistype-<version>.dmg`。
+推送 `v*` 開頭的版本標籤將觸發 `.github/workflows/release.yml`，自動執行跨平台測試、透過 `script/package_release.sh` 建置同時支援 Apple 晶片與 Intel 的通用版本，並在 GitHub Releases 發布 `Misstype-<version>.dmg`。
 
-本地端亦可直接執行 `./script/package_release.sh 0.2.0`。使用者只需將 DMG 內的 `MistypeIME.app` 拖曳至 `Input Methods` 替換連結（`/Library/Input Methods`，需管理者密碼授權），登出後重新登入或於系統設定中加入即可。
+本地端亦可直接執行 `./script/package_release.sh 0.2.0`。使用者只需將 DMG 內的 `MisstypeIME.app` 拖曳至 `Input Methods` 替換連結（`/Library/Input Methods`，需管理者密碼授權），登出後重新登入或於系統設定中加入即可。
 
 專案支援 Apple 開發者簽署與公證（透過 GitHub Secrets 配置）：
 * `MACOS_CERT_P12_BASE64`、`MACOS_CERT_PASSWORD`：Developer ID 應用程式憑證
@@ -89,7 +89,7 @@ swift run -c release MistypeSourceTool disable
 
 若未配置上述金鑰，產出的 DMG 將採用 臨時簽署；於其他機器安裝後需手動解除隔離屬性：
 ```sh
-xattr -dr com.apple.quarantine "/Library/Input Methods/MistypeIME.app"
+xattr -dr com.apple.quarantine "/Library/Input Methods/MisstypeIME.app"
 ```
 
 ## Linux 支援
@@ -109,9 +109,9 @@ script/linux/dev.sh 'script/linux/build.sh && script/linux/test_fcitx5.sh'
 
 ```sh
 PYTHONPATH=src python -m unittest discover -s tests -v
-PYTHONPATH=src python -m mistype.cli examples/hello.jsonl
-PYTHONPATH=src python -m mistype.cli examples/keyboard-ni.jsonl
-PYTHONPATH=src python -m mistype.cli examples/touch-ni-hao.jsonl
+PYTHONPATH=src python -m misstype.cli examples/hello.jsonl
+PYTHONPATH=src python -m misstype.cli examples/keyboard-ni.jsonl
+PYTHONPATH=src python -m misstype.cli examples/touch-ni-hao.jsonl
 PYTHONPATH=src python tools/bench.py
 ```
 

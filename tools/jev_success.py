@@ -5,7 +5,7 @@ Acceptance proxy, not correctness: the gate fires only on untouched states
 truth for that evaluation. A user override after the fact grades 0 — that is
 still a non-accept, which is what this measures.
 
-Reads ~/Library/Logs/MistypeIME-debug.log (or a path argument) and prints:
+Reads ~/Library/Logs/MisstypeIME-debug.log (or a path argument) and prints:
   requests (starts), ok / stale / err, flip rate,
   grades, accept rate overall, accept rate on flips,
   mean confidence of accepts vs rejects, skip-code breakdown.
@@ -25,7 +25,7 @@ import re
 import sys
 from pathlib import Path
 
-DEFAULT_LOG = Path.home() / "Library/Logs/MistypeIME-debug.log"
+DEFAULT_LOG = Path.home() / "Library/Logs/MisstypeIME-debug.log"
 
 START = re.compile(r"\[jev-api\] start ")
 OK = re.compile(r"\[jev-api\] ok ms=\d+ms pick=\d+:.* conf=([0-9.]+) flip=([01])")

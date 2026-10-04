@@ -11,7 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 STRING = r'"((?:[^"\\]|\\.)*)"'
 
-def used_keys(source="MistypeIME"):
+def used_keys(source="MisstypeIME"):
     keys = set()
     for path in (ROOT / "Sources" / source).glob("*.swift"):
         for match in re.finditer(r'\bL\(\s*' + STRING, path.read_text()):
@@ -26,8 +26,8 @@ def strings_keys(path):
 def main():
     failed = False
     # The IME and the DMG installer each ship their own string tables.
-    tables = [(used_keys("MistypeIME"), (ROOT / "Resources").glob("*.lproj/Localizable.strings")),
-              (used_keys("MistypeInstaller"), (ROOT / "Resources" / "Installer").glob("*.lproj/Localizable.strings"))]
+    tables = [(used_keys("MisstypeIME"), (ROOT / "Resources").glob("*.lproj/Localizable.strings")),
+              (used_keys("MisstypeInstaller"), (ROOT / "Resources" / "Installer").glob("*.lproj/Localizable.strings"))]
     for used, paths in tables:
         failed |= check(used, paths)
     print("localizations OK" if not failed else "localizations FAILED")

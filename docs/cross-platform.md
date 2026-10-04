@@ -1,22 +1,22 @@
 # Cross-platform IME contract
 
-How Mistype runs on more than one OS without forking behavior. This is the
+How Misstype runs on more than one OS without forking behavior. This is the
 normative contract every platform adapter follows; `docs/linux-port.md` is the
 task plan that applies it to Linux (fcitx5).
 
 ## Layers
 
 ```text
-┌───────────────────────── MistypeCore (Swift, all platforms) ─────────────────────────┐
+┌───────────────────────── MisstypeCore (Swift, all platforms) ─────────────────────────┐
 │ LexiconDecoder · Composition · LivePreview · UserLexicon · Punctuation · Jev          │
 │ InputEngine (per process) · InputSession (per client) · KeyEvent · key tables         │
 └───────────────┬───────────────────────────────────────────────┬───────────────────────┘
-                │ Swift API                                     │ C ABI: CMistype/include/mistype.h
-                │                                               │ implemented by MistypeCAPI (@_cdecl)
+                │ Swift API                                     │ C ABI: CMisstype/include/misstype.h
+                │                                               │ implemented by MisstypeCAPI (@_cdecl)
 ┌───────────────▼──────────────┐              ┌─────────────────▼───────────────────────┐
-│ macOS: MistypeIME (IMK)      │              │ Linux: linux/fcitx5 (C++ addon)         │
-│ NSEvent → KeyEvent           │              │ fcitx::KeyEvent → mistype_key_event     │
-│ SessionView → marked text,   │              │ mistype_view → client preedit,          │
+│ macOS: MisstypeIME (IMK)      │              │ Linux: linux/fcitx5 (C++ addon)         │
+│ NSEvent → KeyEvent           │              │ fcitx::KeyEvent → misstype_key_event     │
+│ SessionView → marked text,   │              │ misstype_view → client preedit,          │
 │ CandidatesPanel              │              │ CommonCandidateList                     │
 └──────────────────────────────┘              └─────────────────────────────────────────┘
                                    future: IBus, Windows TSF — same C ABI
@@ -29,7 +29,7 @@ adapter change would alter what a key sequence produces, the change belongs in
 `InputSession` (with an `InputSessionTests` case) instead.
 
 The Swift adapter (macOS) calls the Swift API directly. Every non-Swift
-adapter goes through the C ABI; `mistype.h` is its only interface to the core.
+adapter goes through the C ABI; `misstype.h` is its only interface to the core.
 
 ## The contract
 
@@ -84,7 +84,7 @@ shortcut runs.
   it 8 per page with the page containing `selected` visible and `selected`
   highlighted. Label visible rows with `selectionKeys`; dim or hide labels
   when `keysActive` is false (selection keys type Zhuyin then).
-- Page keys: translate PageUp/PageDown to `MISTYPE_KEY_PAGE_UP/DOWN` (ABI
+- Page keys: translate PageUp/PageDown to `MISSTYPE_KEY_PAGE_UP/DOWN` (ABI
   values 15/16, appended); the core pages the highlight, the host just
   redraws the page holding `selected`.
 - A click/tap on row `i` of the full list calls `pick(at: i)`, then render.
@@ -114,13 +114,13 @@ shortcut runs.
 
 | | macOS | Linux (fcitx5) |
 |---|---|---|
-| Lexicon dir (`LexiconLoader`) | `MistypeIME.app/Contents/Resources` | `/usr/share/mistype` (compiled-in), `MISTYPE_RESOURCES` overrides |
-| My words (`UserDictionary.defaultURL`) | `~/Library/Application Support/Mistype/user_dictionary.tsv` (inside the app sandbox container, see architecture.md) | `$XDG_DATA_HOME/mistype/user_dictionary.tsv`; the host calls `mistype_engine_set_user_dictionary_path(engine, NULL)` (default after `_new` is memory only) |
-| Learned phrases (`UserLexicon.defaultURL`) | `~/Library/Application Support/Mistype/user_phrases.json` | `$XDG_DATA_HOME/mistype/user_phrases.json` (default `~/.local/share`) |
+| Lexicon dir (`LexiconLoader`) | `MisstypeIME.app/Contents/Resources` | `/usr/share/misstype` (compiled-in), `MISSTYPE_RESOURCES` overrides |
+| My words (`UserDictionary.defaultURL`) | `~/Library/Application Support/Misstype/user_dictionary.tsv` (inside the app sandbox container, see architecture.md) | `$XDG_DATA_HOME/misstype/user_dictionary.tsv`; the host calls `misstype_engine_set_user_dictionary_path(engine, NULL)` (default after `_new` is memory only) |
+| Learned phrases (`UserLexicon.defaultURL`) | `~/Library/Application Support/Misstype/user_phrases.json` | `$XDG_DATA_HOME/misstype/user_phrases.json` (default `~/.local/share`) |
 | My-words editor | Settings → My Dictionary (text editor over the file) | none yet: edit the TSV in any editor, reloaded at the next composition |
-| Settings store | UserDefaults (`MistypePrefs`) | defaults in v1 (`mistype_settings_default()`), fcitx5 config later |
+| Settings store | UserDefaults (`MisstypePrefs`) | defaults in v1 (`misstype_settings_default()`), fcitx5 config later |
 | Lone-Shift 中/英 | session (`shiftToggle` pref, default on) | fcitx5 `AltTriggerKeys` (default `Shift_L`) → session `shift_toggle = 0` |
-| Diagnostic log | `~/Library/Logs/MistypeIME-debug.log` | none in v1 (codes only, never text, if added) |
+| Diagnostic log | `~/Library/Logs/MisstypeIME-debug.log` | none in v1 (codes only, never text, if added) |
 
 Resource files are identical on every platform: `lexicon.tsv` (required),
 `local_phrases.tsv`, `toneless.tsv`, all produced by
@@ -184,7 +184,7 @@ core bug or an intentional contract change — never an adapter special case.
 
 1. Key table in the core (`<Platform>KeyCode`, same label set as
    `MacKeyCode`, unit-tested).
-2. Adapter over the Swift API (Swift platforms) or `mistype.h` (everything
+2. Adapter over the Swift API (Swift platforms) or `misstype.h` (everything
    else), following §1–§6 and the delivery rules.
 3. Headless integration tests for C1–C13.
 4. Resource/data locations added to the §6 table.
@@ -193,7 +193,7 @@ core bug or an intentional contract change — never an adapter special case.
 ## Known costs
 
 - The Linux C ABI library links the Swift runtime and Foundation statically:
-  `libMistypeCAPI.so` is ~71 MB (~56 MB stripped; measured 2026-09-28,
+  `libMisstypeCAPI.so` is ~71 MB (~56 MB stripped; measured 2026-09-28,
   aarch64), mostly Foundation's ICU data. It has no Swift runtime dependency
   at install time; it does need `libcurl.so.4` (FoundationNetworking, used by
   `JevClient`), which every mainstream distro ships.

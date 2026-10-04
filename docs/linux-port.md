@@ -11,8 +11,8 @@ scenarios; L4 `build.sh` + staged install matches the spec file-for-file,
 RUNPATH/ldd resolve, smoke types `你好` on the real lexicon. L6 (desktop
 acceptance) still needs a human or a VM with a display.
 
-**Goal:** Mistype runs as an fcitx5 input method on Linux with the same
-behavior as macOS, built from the same `MistypeCore`, and verified headlessly
+**Goal:** Misstype runs as an fcitx5 input method on Linux with the same
+behavior as macOS, built from the same `MisstypeCore`, and verified headlessly
 in CI against the conformance scenarios in `docs/cross-platform.md`.
 
 **Non-goals for this plan:** IBus, Jev (remote assistance) on Linux, a
@@ -24,8 +24,8 @@ settings UI, distro packages. See the backlog (L7).
 2. `docs/cross-platform.md`: the adapter contract (§1–§6), delivery rules,
    and conformance scenarios C1–C13. **It is normative; this plan applies it.**
 3. `docs/architecture.md`, section "Platform boundary: InputSession".
-4. `Sources/MistypeCore/InputSession.swift`, `KeyEvent.swift`, and
-   `tests/MistypeCoreTests/InputSessionTests.swift`: the reference behavior.
+4. `Sources/MisstypeCore/InputSession.swift`, `KeyEvent.swift`, and
+   `tests/MisstypeCoreTests/InputSessionTests.swift`: the reference behavior.
 
 ## Ground rules (every task)
 
@@ -80,11 +80,11 @@ Each was run end to end in the dev container, so tasks can rely on them:
 
 | Fact | Consequence |
 |---|---|
-| `swift build -c release --product <lib> -Xswiftc -static-stdlib` makes a `.so` with **no** Swift runtime dependencies; ~71 MB, ~56 MB stripped (aarch64). Beyond libc/libm/libstdc++/libgcc_s its only dynamic dependency is `libcurl.so.4` (FoundationNetworking, pulled in by `JevClient`) | Ship one self-contained `libMistypeCAPI.so`; `libcurl4` is a runtime dependency |
-| SwiftPM sets no SONAME on the `.so`; CMake still records the bare `libMistypeCAPI.so` in the addon's `NEEDED` | Add `-Xlinker -soname=libMistypeCAPI.so` anyway (deterministic) |
-| A C target `CMistype` (header in `include/`) imported by a Swift target lets `@_cdecl` functions take and **return C structs by value**; a C program calls them; builds on macOS too | The header is the single source of truth for the ABI (L2) |
+| `swift build -c release --product <lib> -Xswiftc -static-stdlib` makes a `.so` with **no** Swift runtime dependencies; ~71 MB, ~56 MB stripped (aarch64). Beyond libc/libm/libstdc++/libgcc_s its only dynamic dependency is `libcurl.so.4` (FoundationNetworking, pulled in by `JevClient`) | Ship one self-contained `libMisstypeCAPI.so`; `libcurl4` is a runtime dependency |
+| SwiftPM sets no SONAME on the `.so`; CMake still records the bare `libMisstypeCAPI.so` in the addon's `NEEDED` | Add `-Xlinker -soname=libMisstypeCAPI.so` anyway (deterministic) |
+| A C target `CMisstype` (header in `include/`) imported by a Swift target lets `@_cdecl` functions take and **return C structs by value**; a C program calls them; builds on macOS too | The header is the single source of truth for the ABI (L2) |
 | A C++ fcitx5 addon (`InputMethodEngineV2`, `FCITX_ADDON_FACTORY`) linking that `.so` loads in fcitx5 5.1.7 | L3 architecture |
-| fcitx5's in-process harness works headlessly: `setupTestingEnvironment` + `--disable=all --enable=testim,testfrontend,mistype,testui`; typing `s u 3 c l 3` produced client preedit `你好` | L3 tests need no display or D-Bus |
+| fcitx5's in-process harness works headlessly: `setupTestingEnvironment` + `--disable=all --enable=testim,testfrontend,misstype,testui`; typing `s u 3 c l 3` produced client preedit `你好` | L3 tests need no display or D-Bus |
 | `ITestFrontend::pushCommitExpectation` **aborts the test (exit 134)** on a wrong commit | A green `ctest` is meaningful |
 | `ITestFrontend::sendKeyEvent` returns whether the key was filtered (empty-composition Enter → `false`, `s` → `true`) | Pass-through (C2, C9, C10) is assertable |
 | Test keys need real codes: `Key(sym, states, evdev + 8)`; `rawKey().code() - 8` is the evdev code | Keymap by scancode (L1, L3) |
@@ -96,19 +96,19 @@ Each was run end to end in the dev container, so tasks can rely on them:
 ## Target layout
 
 ```text
-Package.swift                         + CMistype (C, header-only) + MistypeCAPI (Swift, dynamic product)
-Sources/CMistype/include/mistype.h    the C ABI (Appendix A, verbatim)
-Sources/CMistype/module.c             comment-only translation unit (SwiftPM needs one source)
-Sources/MistypeCAPI/*.swift           @_cdecl implementation over MistypeCore
-Sources/MistypeCore/KeyEvent.swift    + EvdevKeyCode, USLayout (L1)
-tests/MistypeCoreTests/KeyMapTests.swift
+Package.swift                         + CMisstype (C, header-only) + MisstypeCAPI (Swift, dynamic product)
+Sources/CMisstype/include/misstype.h    the C ABI (Appendix A, verbatim)
+Sources/CMisstype/module.c             comment-only translation unit (SwiftPM needs one source)
+Sources/MisstypeCAPI/*.swift           @_cdecl implementation over MisstypeCore
+Sources/MisstypeCore/KeyEvent.swift    + EvdevKeyCode, USLayout (L1)
+tests/MisstypeCoreTests/KeyMapTests.swift
 tests/fixtures/lexicon/lexicon.tsv    the 7-line conformance fixture
 tests/capi/smoke.c, tests/capi/expected.txt
 linux/Dockerfile                      dev/CI image (exists)
 linux/fcitx5/CMakeLists.txt
 linux/fcitx5/src/                     engine + per-IC state + candidate word
-linux/fcitx5/data/addon/mistype.conf.in, data/inputmethod/mistype.conf
-linux/fcitx5/test/testmistype.cpp     C1–C13 + Linux delivery rules, headless
+linux/fcitx5/data/addon/misstype.conf.in, data/inputmethod/misstype.conf
+linux/fcitx5/test/testmisstype.cpp     C1–C13 + Linux delivery rules, headless
 script/linux/dev.sh                   run a command in the container (exists)
 script/linux/bootstrap.sh           provision a bare-metal Ubuntu 24.04 host (no Docker)
 script/linux/test_all.sh            bare-metal: swift test + C ABI + fcitx5 checks
@@ -131,8 +131,8 @@ parallel with L4.
 
 ## L1: Evdev and US-character key tables (core)
 
-**Depends on:** nothing. **Touches:** `Sources/MistypeCore/KeyEvent.swift`,
-new `tests/MistypeCoreTests/KeyMapTests.swift`.
+**Depends on:** nothing. **Touches:** `Sources/MisstypeCore/KeyEvent.swift`,
+new `tests/MisstypeCoreTests/KeyMapTests.swift`.
 
 **Spec**
 
@@ -187,45 +187,45 @@ minus space) is in `EvdevKeyCode.labels.values`;
 
 ---
 
-## L2: C ABI (`CMistype` + `MistypeCAPI`)
+## L2: C ABI (`CMisstype` + `MisstypeCAPI`)
 
-**Depends on:** L1. **Touches:** `Package.swift`, new `Sources/CMistype/`,
-`Sources/MistypeCAPI/`, `tests/fixtures/lexicon/lexicon.tsv`, `tests/capi/`,
+**Depends on:** L1. **Touches:** `Package.swift`, new `Sources/CMisstype/`,
+`Sources/MisstypeCAPI/`, `tests/fixtures/lexicon/lexicon.tsv`, `tests/capi/`,
 `script/linux/test_capi.sh`.
 
 **Spec**
 
-- `Package.swift`: add `.target(name: "CMistype")` and
-  `.target(name: "MistypeCAPI", dependencies: ["MistypeCore", "CMistype"])`
+- `Package.swift`: add `.target(name: "CMisstype")` and
+  `.target(name: "MisstypeCAPI", dependencies: ["MisstypeCore", "CMisstype"])`
   to the **always-built** targets, and the product
-  `.library(name: "MistypeCAPI", type: .dynamic, targets: ["MistypeCAPI"])`.
+  `.library(name: "MisstypeCAPI", type: .dynamic, targets: ["MisstypeCAPI"])`.
   Keep the macOS-only gating as is.
-- `Sources/CMistype/include/mistype.h`: exactly the header in Appendix A
+- `Sources/CMisstype/include/misstype.h`: exactly the header in Appendix A
   (it compiles cleanly as C11 and C++17 with `-Wall -Wextra -Werror -pedantic`).
   Additive comment edits are fine; any signature change needs the user's
   approval because L3 and future adapters build on it.
-- `Sources/CMistype/module.c`: a single comment line.
-- `Sources/MistypeCAPI/`: `@_cdecl` implementations. Required behavior:
+- `Sources/CMisstype/module.c`: a single comment line.
+- `Sources/MisstypeCAPI/`: `@_cdecl` implementations. Required behavior:
   - Handles are `Unmanaged` retained Swift objects passed as
     `OpaquePointer`. Every function tolerates `NULL` handles and returns
     zero values/`NULL`.
   - The engine handle owns an `InputEngine` plus a stored `SessionSettings`;
     `engine.settings` returns the stored value, and
-    `mistype_engine_set_settings` replaces it (candidate keys go through
+    `misstype_engine_set_settings` replaces it (candidate keys go through
     `SelectionKeys.sanitize`). Jev stays at `JevConfig()` (off); no host is
     set, so remote calls are impossible from C.
   - `user_lexicon_path`: `NULL` → `UserLexicon.load()` with
     `userLexiconURL = UserLexicon.defaultURL`; `""` → empty lexicon, no URL
     (never touches disk); otherwise load/save at that path.
-  - `mistype_session_handle` maps `mistype_key_event` → `KeyEvent` (kind →
-    `KeyEvent.Key`, `MISTYPE_MOD_*` bits → `KeyEvent.Modifiers` of the same
+  - `misstype_session_handle` maps `misstype_key_event` → `KeyEvent` (kind →
+    `KeyEvent.Key`, `MISSTYPE_MOD_*` bits → `KeyEvent.Modifiers` of the same
     raw value, `timestamp < 0` → `nil`, `native_code < 0` → `nil`) and
-    `KeyResult` → `mistype_key_result` (`commit` via `strdup`).
-  - `mistype_session_view` converts `SessionView`; `caret_bytes` is the
+    `KeyResult` → `misstype_key_result` (`commit` via `strdup`).
+  - `misstype_session_view` converts `SessionView`; `caret_bytes` is the
     UTF-8 length of the preedit's first `caret_utf16` UTF-16 units.
   - Keymap functions return labels from static storage created once (for
     example a table of `strdup`ed C strings built on first use).
-  - Strings and arrays are `malloc`ed; `mistype_view_free` frees the view
+  - Strings and arrays are `malloc`ed; `misstype_view_free` frees the view
     and everything in it; both free functions accept `NULL`.
 - `tests/fixtures/lexicon/lexicon.tsv`: the 7 lines from
   `docs/cross-platform.md` (tab-separated, trailing newline).
@@ -233,7 +233,7 @@ minus space) is in `EvdevKeyCode.labels.values`;
   scenario script below against a fresh engine (`user_lexicon_path = ""`)
   and prints exactly `tests/capi/expected.txt`. Usage
   `smoke <resource_dir> <keys>` types each character of `<keys>` as a
-  physical key (via `mistype_key_from_character`; space → `MISTYPE_KEY_SPACE`),
+  physical key (via `misstype_key_from_character`; space → `MISSTYPE_KEY_SPACE`),
   presses Enter, and prints `commit=<text>` (used by L4 with the real
   lexicon). Free everything it receives.
 - `tests/capi/expected.txt`, exactly:
@@ -266,14 +266,14 @@ minus space) is in `EvdevKeyCode.labels.values`;
   fixture (the 10 C1 rows include raw-Bopomofo fallbacks like `ㄋㄧˇ好`); if
   your output differs, the ABI conversion is wrong, not the expectation.
 - `script/linux/test_capi.sh` (runs inside the container, from `/w`):
-  1. `swift build -c release --product MistypeCAPI -Xswiftc -static-stdlib -Xlinker -soname=libMistypeCAPI.so`
+  1. `swift build -c release --product MisstypeCAPI -Xswiftc -static-stdlib -Xlinker -soname=libMisstypeCAPI.so`
      (the same flags everywhere the `.so` is built: L3, L4)
-  2. `cc -std=c11 -Wall -Wextra -Werror -ISources/CMistype/include tests/capi/smoke.c -L<bin> -lMistypeCAPI -Wl,-rpath,<bin> -o build/capi/smoke`
+  2. `cc -std=c11 -Wall -Wextra -Werror -ISources/CMisstype/include tests/capi/smoke.c -L<bin> -lMisstypeCAPI -Wl,-rpath,<bin> -o build/capi/smoke`
   3. `build/capi/smoke tests/fixtures/lexicon | diff -u tests/capi/expected.txt -`
-  4. Symbol parity: the sorted `mistype_*` names declared in the header
-     (`grep -oE '\bmistype_[a-z_]+\(' | tr -d '('`) equal the sorted
-     `nm -D --defined-only` `T mistype_*` symbols of the `.so`.
-  5. `g++ -std=c++17 -fsyntax-only -x c++ Sources/CMistype/include/mistype.h`
+  4. Symbol parity: the sorted `misstype_*` names declared in the header
+     (`grep -oE '\bmisstype_[a-z_]+\(' | tr -d '('`) equal the sorted
+     `nm -D --defined-only` `T misstype_*` symbols of the `.so`.
+  5. `g++ -std=c++17 -fsyntax-only -x c++ Sources/CMisstype/include/misstype.h`
   6. Print `CAPI OK`; `set -euo pipefail` so any failure exits non-zero.
 
 **Done when**
@@ -295,74 +295,74 @@ Negative check (do it, then revert): change `C1 commit=你好` in
 
 **Spec (apply `docs/cross-platform.md` §1–§6 and the delivery rules)**
 
-- CMake project `linux/fcitx5`, `project(mistype VERSION 0.1 LANGUAGES CXX)`
+- CMake project `linux/fcitx5`, `project(misstype VERSION 0.1 LANGUAGES CXX)`
   (the name sets `CMAKE_INSTALL_DOCDIR` in L4), C++17. `find_package(Fcitx5Core)`,
   `Fcitx5Utils`, and (tests) `Fcitx5ModuleTestFrontend`. Cache variable
-  `MISTYPE_CAPI_DIR` (directory holding `libMistypeCAPI.so`); include path
-  `../../Sources/CMistype/include`. Addon target `mistype-fcitx5`
-  (`MODULE`, output `libmistype-fcitx5.so` in `${CMAKE_BINARY_DIR}/src`),
-  linked to the `.so` with a build RPATH to `MISTYPE_CAPI_DIR`.
-- Compile definition `MISTYPE_DATADIR` =
-  `${CMAKE_INSTALL_FULL_DATADIR}/mistype`; the environment variable
-  `MISTYPE_RESOURCES` overrides it (tests use the fixture).
-- `data/addon/mistype.conf.in` → configured to
-  `${CMAKE_BINARY_DIR}/data/addon/mistype.conf`:
-  `[Addon] Name=Mistype, Category=InputMethod, Version=<project version>,
-  Library=libmistype-fcitx5, Type=SharedLibrary, OnDemand=True,
-  Configurable=False`. `data/inputmethod/mistype.conf`:
-  `[InputMethod] Name=Mistype, Label=注, LangCode=zh_TW, Addon=mistype,
-  Configurable=False`. The addon's name is the file's basename (`mistype`).
+  `MISSTYPE_CAPI_DIR` (directory holding `libMisstypeCAPI.so`); include path
+  `../../Sources/CMisstype/include`. Addon target `misstype-fcitx5`
+  (`MODULE`, output `libmisstype-fcitx5.so` in `${CMAKE_BINARY_DIR}/src`),
+  linked to the `.so` with a build RPATH to `MISSTYPE_CAPI_DIR`.
+- Compile definition `MISSTYPE_DATADIR` =
+  `${CMAKE_INSTALL_FULL_DATADIR}/misstype`; the environment variable
+  `MISSTYPE_RESOURCES` overrides it (tests use the fixture).
+- `data/addon/misstype.conf.in` → configured to
+  `${CMAKE_BINARY_DIR}/data/addon/misstype.conf`:
+  `[Addon] Name=Misstype, Category=InputMethod, Version=<project version>,
+  Library=libmisstype-fcitx5, Type=SharedLibrary, OnDemand=True,
+  Configurable=False`. `data/inputmethod/misstype.conf`:
+  `[InputMethod] Name=Misstype, Label=注, LangCode=zh_TW, Addon=misstype,
+  Configurable=False`. The addon's name is the file's basename (`misstype`).
 - Engine (`fcitx::InputMethodEngineV2`, registered with
   `FCITX_ADDON_FACTORY`):
-  - Constructor: `mistype_engine_new(resources, NULL)`; apply
-    `mistype_settings_default()` with `shift_toggle = 0`. If the engine is
+  - Constructor: `misstype_engine_new(resources, NULL)`; apply
+    `misstype_settings_default()` with `shift_toggle = 0`. If the engine is
     `NULL`, log with `FCITX_ERROR()` and pass every key through (never crash,
     never filter).
-  - Per-input-context state via `fcitx::FactoryFor<MistypeState>`
-    registered on `instance->inputContextManager()`; `MistypeState` owns one
-    `mistype_session*` (freed in its destructor) and the last rendered view.
-  - `keyEvent`: build a `mistype_key_event` from `event.rawKey()`:
-    `evdev = code() - 8` when `code() > 8` → `mistype_key_from_evdev`; when
-    that yields `MISTYPE_KEY_OTHER` (or there is no code) and the key's text
-    is one character, fall back to `mistype_key_from_character` (add
-    `MISTYPE_MOD_SHIFT` when `shifted`). `text` =
+  - Per-input-context state via `fcitx::FactoryFor<MisstypeState>`
+    registered on `instance->inputContextManager()`; `MisstypeState` owns one
+    `misstype_session*` (freed in its destructor) and the last rendered view.
+  - `keyEvent`: build a `misstype_key_event` from `event.rawKey()`:
+    `evdev = code() - 8` when `code() > 8` → `misstype_key_from_evdev`; when
+    that yields `MISSTYPE_KEY_OTHER` (or there is no code) and the key's text
+    is one character, fall back to `misstype_key_from_character` (add
+    `MISSTYPE_MOD_SHIFT` when `shifted`). `text` =
     `Key::keySymToUTF8(rawKey().sym())`, `NULL` when empty. Modifiers from
     `rawKey().states()`: `Shift`, `Ctrl`, `Alt`, `Super`/`Super2` → SUPER,
     `CapsLock`; then correct Shift keys: a Shift press adds
-    `MISTYPE_MOD_SHIFT`, a Shift release removes it. `is_release` =
+    `MISSTYPE_MOD_SHIFT`, a Shift release removes it. `is_release` =
     `event.isRelease()`, `native_code` = `code()`, `timestamp` = -1.
   - Apply the result per contract §2. Filtering follows the delivery rules:
-    never filter releases or `MISTYPE_KEY_MODIFIER`/`SHIFT_*` presses;
+    never filter releases or `MISSTYPE_KEY_MODIFIER`/`SHIFT_*` presses;
     otherwise `filterAndAccept()` iff `consumed`. `beep` is ignored.
     `mode_changed`: after rendering, set the panel's aux-up text to `英` or
-    `中` (`mistype_engine_is_english`); the next render clears it.
+    `中` (`misstype_engine_is_english`); the next render clears it.
   - Render per contract §3: if the IC has `CapabilityFlag::Preedit`, set the
     client preedit, else the panel preedit (`inputPanel().setPreedit`), as a
     `fcitx::Text` with `TextFormatFlag::Underline` and
     `setCursor(caret_bytes)`. Candidates: when `shows_candidates`, a
     `CommonCandidateList` with page size 8, one `CandidateWord` per entry
-    whose `select()` calls `mistype_session_pick(index)` and re-renders, the
+    whose `select()` calls `misstype_session_pick(index)` and re-renders, the
     global cursor on `selected` (its page current), labels =
     `selection_keys` when `keys_active` else empty labels. Otherwise clear
     the candidate list. Then `updatePreedit()` and
     `updateUserInterface(UserInterfaceComponent::InputPanel)`. Skip when the
     view equals the last rendered one.
-  - `activate` → `mistype_session_reset_modifiers`. `deactivate` and `reset`
-    always call `mistype_session_commit` (the session drops its composition)
+  - `activate` → `misstype_session_reset_modifiers`. `deactivate` and `reset`
+    always call `misstype_session_commit` (the session drops its composition)
     and render, but insert the text only when nobody else will: fcitx5
     already commits client-side preedit itself on focus out (verified in the
     harness: a second insert duplicates it), so `deactivate` inserts only for
     a switch of input method or when the context has no client preedit;
     `reset` never inserts.
-- `test/testmistype.cpp`: the fcitx5 harness pattern (verified in the
+- `test/testmisstype.cpp`: the fcitx5 harness pattern (verified in the
   spike): `setupTestingEnvironment(TESTING_BINARY_DIR, {"src"},
   {TESTING_BINARY_DIR "/data", TESTING_SOURCE_DIR "/data"})`, `Instance` with
-  `--disable=all --enable=testim,testfrontend,mistype,testui`,
+  `--disable=all --enable=testim,testfrontend,misstype,testui`,
   `registerDefaultLoader(nullptr)`, an `EventDispatcher` scheduling the test
-  body; set the group to `keyboard-us` + `mistype`, create an IC via
+  body; set the group to `keyboard-us` + `misstype`, create an IC via
   `ITestFrontend::createInputContext`, `focusIn()`,
   `setCapabilityFlags(CapabilityFlag::Preedit)`,
-  `instance.setCurrentInputMethod(ic, "mistype", false)`. Keys are
+  `instance.setCurrentInputMethod(ic, "misstype", false)`. Keys are
   `Key(sym, states, evdev + 8)` with **pre-event** states (X11 semantics).
   The user lexicon is redirected to `build/fcitx5/xdg-data` (wiped per run);
   C4 runs last because committing 尼 teaches it and reorders every later
@@ -377,13 +377,13 @@ Negative check (do it, then revert): change `C1 commit=你好` in
   - **LR3** Without `CapabilityFlag::Preedit`, `s u 3` puts `你` in
     `inputPanel().preedit()` and the client preedit stays empty.
   - **LR4** A lone `Shift_L` tap switches the IC to `keyboard-us` (fcitx5
-    `AltTriggerKeys`) and `mistype_engine_is_english` stays 0.
+    `AltTriggerKeys`) and `misstype_engine_is_english` stays 0.
   Log `PASS <id>` with `FCITX_INFO()` after each; failures use
   `FCITX_ASSERT` (aborts, non-zero exit). Register with CTest.
 - `script/linux/test_fcitx5.sh` (inside the container, from `/w`): build the
   `.so` as in L2, configure `linux/fcitx5` into `build/fcitx5` with
-  `MISTYPE_CAPI_DIR`, build, run
-  `MISTYPE_RESOURCES=$PWD/tests/fixtures/lexicon ctest --test-dir build/fcitx5 --output-on-failure`,
+  `MISSTYPE_CAPI_DIR`, build, run
+  `MISSTYPE_RESOURCES=$PWD/tests/fixtures/lexicon ctest --test-dir build/fcitx5 --output-on-failure`,
   print the `PASS` lines, then `FCITX5 OK`.
 
 **Done when**
@@ -416,12 +416,12 @@ rules), new `script/linux/build.sh`.
   `build/capi/smoke`.
 - Install rules (`GNUInstallDirs`; fcitx5 dirs from `FCITX_INSTALL_ADDONDIR`
   and `FCITX_INSTALL_PKGDATADIR`, which `Fcitx5Utils` exports):
-  addon `.so` → `FCITX_INSTALL_ADDONDIR`; `libMistypeCAPI.so` →
-  `${CMAKE_INSTALL_LIBDIR}/mistype`; the addon's install RPATH is that
+  addon `.so` → `FCITX_INSTALL_ADDONDIR`; `libMisstypeCAPI.so` →
+  `${CMAKE_INSTALL_LIBDIR}/misstype`; the addon's install RPATH is that
   absolute directory; the configured addon conf → `…/fcitx5/addon/`;
   the IM conf → `…/fcitx5/inputmethod/`; `.cache/mcbopomofo/lexicon.tsv`,
   `.cache/mcbopomofo/toneless.tsv`, `Resources/local_phrases.tsv` →
-  `${CMAKE_INSTALL_DATADIR}/mistype/`; `LICENSE`,
+  `${CMAKE_INSTALL_DATADIR}/misstype/`; `LICENSE`,
   `THIRD_PARTY_NOTICES.md` and `third_party/` → `${CMAKE_INSTALL_DOCDIR}`
   (the same license payload as the macOS bundle).
 
@@ -434,31 +434,31 @@ script/linux/dev.sh 'script/linux/build.sh >/dev/null && DESTDIR=/tmp/stage cmak
 prints exactly:
 
 ```text
-./usr/lib/<multiarch>/fcitx5/libmistype-fcitx5.so
-./usr/lib/<multiarch>/mistype/libMistypeCAPI.so
-./usr/share/doc/mistype/LICENSE
-./usr/share/doc/mistype/THIRD_PARTY_NOTICES.md
-./usr/share/doc/mistype/third_party/McBopomofo/LICENSE.txt
-./usr/share/doc/mistype/third_party/McBopomofo/README.md
-./usr/share/doc/mistype/third_party/McBopomofo/sources.json
-./usr/share/doc/mistype/third_party/NAER/LICENSE.md
-./usr/share/doc/mistype/third_party/NAER/sources.json
-./usr/share/doc/mistype/third_party/libtabe/COPYING
-./usr/share/fcitx5/addon/mistype.conf
-./usr/share/fcitx5/inputmethod/mistype.conf
-./usr/share/mistype/lexicon.tsv
-./usr/share/mistype/local_phrases.tsv
-./usr/share/mistype/toneless.tsv
+./usr/lib/<multiarch>/fcitx5/libmisstype-fcitx5.so
+./usr/lib/<multiarch>/misstype/libMisstypeCAPI.so
+./usr/share/doc/misstype/LICENSE
+./usr/share/doc/misstype/THIRD_PARTY_NOTICES.md
+./usr/share/doc/misstype/third_party/McBopomofo/LICENSE.txt
+./usr/share/doc/misstype/third_party/McBopomofo/README.md
+./usr/share/doc/misstype/third_party/McBopomofo/sources.json
+./usr/share/doc/misstype/third_party/NAER/LICENSE.md
+./usr/share/doc/misstype/third_party/NAER/sources.json
+./usr/share/doc/misstype/third_party/libtabe/COPYING
+./usr/share/fcitx5/addon/misstype.conf
+./usr/share/fcitx5/inputmethod/misstype.conf
+./usr/share/misstype/lexicon.tsv
+./usr/share/misstype/local_phrases.tsv
+./usr/share/misstype/toneless.tsv
 ```
 
 and
 
 ```sh
-script/linux/dev.sh 'script/linux/build.sh >/dev/null && cmake --install build/fcitx5 >/dev/null && readelf -d /usr/lib/*/fcitx5/libmistype-fcitx5.so | grep -E "RUNPATH|RPATH" && ldd /usr/lib/*/fcitx5/libmistype-fcitx5.so | grep MistypeCAPI && build/capi/smoke /usr/share/mistype su3cl3'
+script/linux/dev.sh 'script/linux/build.sh >/dev/null && cmake --install build/fcitx5 >/dev/null && readelf -d /usr/lib/*/fcitx5/libmisstype-fcitx5.so | grep -E "RUNPATH|RPATH" && ldd /usr/lib/*/fcitx5/libmisstype-fcitx5.so | grep MisstypeCAPI && build/capi/smoke /usr/share/misstype su3cl3'
 ```
 
-prints the install `RUNPATH` (`/usr/lib/<multiarch>/mistype`), an `ldd` line
-resolving `libMistypeCAPI.so` under it, and `commit=你好` (real lexicon).
+prints the install `RUNPATH` (`/usr/lib/<multiarch>/misstype`), an `ldd` line
+resolving `libMisstypeCAPI.so` under it, and `commit=你好` (real lexicon).
 Document the runtime packages (`fcitx5`, `libcurl4`, `libstdc++6`) in the
 install section of `README`/this file.
 
@@ -491,7 +491,7 @@ scripts).
    the container, with the packages from `linux/Dockerfile` plus a Swift 6.0
    toolchain), or copy the staged tree from L4.
 2. `sudo apt install fcitx5 fcitx5-frontend-gtk3 fcitx5-frontend-gtk4 fcitx5-frontend-qt5 fcitx5-config-qt`,
-   `im-config -n fcitx5`, log out and back in, add **Mistype** in
+   `im-config -n fcitx5`, log out and back in, add **Misstype** in
    `fcitx5-configtool`.
 3. Run C1–C13 from `docs/cross-platform.md` with the **real** lexicon
    (expected text can differ from the fixture; check behavior: what commits
@@ -514,15 +514,15 @@ scripts).
 ## L7: Backlog (not scheduled)
 
 - User dictionary: no Linux editor yet (macOS has a Settings pane). The file
-  is plain text in vChewing userdata format (`詞語 注音 [權重]`, so vChewing-userdata-generator output pastes in) — edit `$XDG_DATA_HOME/mistype/user_dictionary.tsv` with any
+  is plain text in vChewing userdata format (`詞語 注音 [權重]`, so vChewing-userdata-generator output pastes in) — edit `$XDG_DATA_HOME/misstype/user_dictionary.tsv` with any
   editor; changes load when the next composition starts. A fcitx5 config
-  page or `mistype-dict` CLI (list / add / remove) would be the next step.
+  page or `misstype-dict` CLI (list / add / remove) would be the next step.
 - IBus adapter over the same C ABI (GNOME's default IM framework).
 - Jev on Linux: host callbacks in the C ABI (`surrounding_text`,
   `perform`, `session_did_change`), settings, and the consent flow; privacy
   rules from `AGENTS.md` apply.
 - fcitx5 configuration (candidate keys, fuzzy repair, tone tolerance,
-  learning) mapped onto `mistype_settings`.
+  learning) mapped onto `misstype_settings`.
 - Library size (~56–71 MB): `-Xlinker --gc-sections`, strip at install, or a
   Foundation-free core.
 - Packaging: `.deb`, AUR, Flatpak (fcitx5 addon in a Flatpak runtime needs
@@ -542,21 +542,21 @@ scripts).
 - **D3 Distribution channel** (L7) and whether ~56 MB is acceptable for a
   prototype.
 
-## Appendix A: `mistype.h` (ABI v1)
+## Appendix A: `misstype.h` (ABI v1)
 
 Checked on 2026-09-28 with `cc -std=c11 -Wall -Wextra -Werror -pedantic`
 and `g++ -std=c++17 -Wall -Wextra -Werror` in the dev container.
 
 ```c
-/* mistype.h: C ABI over MistypeCore's InputSession (docs/cross-platform.md).
+/* misstype.h: C ABI over MisstypeCore's InputSession (docs/cross-platform.md).
  *
  * Threading: all calls for one engine and its sessions on one thread.
- * Memory: every char* and mistype_view* returned is owned by the caller and
- * must be released with mistype_string_free / mistype_view_free. Labels
+ * Memory: every char* and misstype_view* returned is owned by the caller and
+ * must be released with misstype_string_free / misstype_view_free. Labels
  * returned by the keymap functions are static (never free them).
  */
-#ifndef MISTYPE_H
-#define MISTYPE_H
+#ifndef MISSTYPE_H
+#define MISSTYPE_H
 
 #include <stdint.h>
 
@@ -564,57 +564,57 @@ and `g++ -std=c++17 -Wall -Wextra -Werror` in the dev container.
 extern "C" {
 #endif
 
-#define MISTYPE_ABI_VERSION 1
-int32_t mistype_abi_version(void);
+#define MISSTYPE_ABI_VERSION 1
+int32_t misstype_abi_version(void);
 
-typedef struct mistype_engine mistype_engine;
-typedef struct mistype_session mistype_session;
+typedef struct misstype_engine misstype_engine;
+typedef struct misstype_session misstype_session;
 
-typedef enum mistype_key_kind {
-    MISTYPE_KEY_CHARACTER = 0, /* label = US-ANSI unshifted label: "a", "1", ";", "`" */
-    MISTYPE_KEY_SPACE = 1,
-    MISTYPE_KEY_ENTER = 2,
-    MISTYPE_KEY_TAB = 3,
-    MISTYPE_KEY_BACKSPACE = 4,
-    MISTYPE_KEY_FORWARD_DELETE = 5,
-    MISTYPE_KEY_ESCAPE = 6,
-    MISTYPE_KEY_LEFT = 7,
-    MISTYPE_KEY_RIGHT = 8,
-    MISTYPE_KEY_UP = 9,
-    MISTYPE_KEY_DOWN = 10,
-    MISTYPE_KEY_SHIFT_LEFT = 11,
-    MISTYPE_KEY_SHIFT_RIGHT = 12,
-    MISTYPE_KEY_MODIFIER = 13, /* Ctrl, Alt, Super, Caps Lock, Fn alone */
-    MISTYPE_KEY_OTHER = 14
-} mistype_key_kind;
+typedef enum misstype_key_kind {
+    MISSTYPE_KEY_CHARACTER = 0, /* label = US-ANSI unshifted label: "a", "1", ";", "`" */
+    MISSTYPE_KEY_SPACE = 1,
+    MISSTYPE_KEY_ENTER = 2,
+    MISSTYPE_KEY_TAB = 3,
+    MISSTYPE_KEY_BACKSPACE = 4,
+    MISSTYPE_KEY_FORWARD_DELETE = 5,
+    MISSTYPE_KEY_ESCAPE = 6,
+    MISSTYPE_KEY_LEFT = 7,
+    MISSTYPE_KEY_RIGHT = 8,
+    MISSTYPE_KEY_UP = 9,
+    MISSTYPE_KEY_DOWN = 10,
+    MISSTYPE_KEY_SHIFT_LEFT = 11,
+    MISSTYPE_KEY_SHIFT_RIGHT = 12,
+    MISSTYPE_KEY_MODIFIER = 13, /* Ctrl, Alt, Super, Caps Lock, Fn alone */
+    MISSTYPE_KEY_OTHER = 14
+} misstype_key_kind;
 
 /* Bit values equal KeyEvent.Modifiers raw values. */
 enum {
-    MISTYPE_MOD_SHIFT = 1 << 0,
-    MISTYPE_MOD_CONTROL = 1 << 1,
-    MISTYPE_MOD_ALT = 1 << 2,       /* KeyEvent.Modifiers.option */
-    MISTYPE_MOD_SUPER = 1 << 3,     /* KeyEvent.Modifiers.command */
-    MISTYPE_MOD_CAPS_LOCK = 1 << 4
+    MISSTYPE_MOD_SHIFT = 1 << 0,
+    MISSTYPE_MOD_CONTROL = 1 << 1,
+    MISSTYPE_MOD_ALT = 1 << 2,       /* KeyEvent.Modifiers.option */
+    MISSTYPE_MOD_SUPER = 1 << 3,     /* KeyEvent.Modifiers.command */
+    MISSTYPE_MOD_CAPS_LOCK = 1 << 4
 };
 
-typedef struct mistype_key_event {
-    mistype_key_kind kind;
-    const char *label;    /* MISTYPE_KEY_CHARACTER only, else NULL */
+typedef struct misstype_key_event {
+    misstype_key_kind kind;
+    const char *label;    /* MISSTYPE_KEY_CHARACTER only, else NULL */
     const char *text;     /* UTF-8 the key types in the user's layout, or NULL */
-    uint32_t modifiers;   /* MISTYPE_MOD_* state AFTER this event */
+    uint32_t modifiers;   /* MISSTYPE_MOD_* state AFTER this event */
     int32_t is_release;   /* 1 = key-up or modifier-only transition */
     int32_t native_code;  /* diagnostics only; -1 = unknown */
     double timestamp;     /* seconds, monotonic; < 0 = now */
-} mistype_key_event;
+} misstype_key_event;
 
-typedef struct mistype_key_result {
+typedef struct misstype_key_result {
     int32_t consumed;     /* 0 = the application gets the key, after commit */
-    char *commit;         /* UTF-8 to insert now, or NULL (mistype_string_free) */
+    char *commit;         /* UTF-8 to insert now, or NULL (misstype_string_free) */
     int32_t beep;
-    int32_t mode_changed; /* 中/英 flipped: see mistype_engine_is_english */
-} mistype_key_result;
+    int32_t mode_changed; /* 中/英 flipped: see misstype_engine_is_english */
+} misstype_key_result;
 
-typedef struct mistype_view {
+typedef struct misstype_view {
     char *preedit;              /* UTF-8, "" when idle */
     int32_t caret_bytes;        /* caret as a UTF-8 byte offset into preedit */
     int32_t caret_utf16;        /* same caret in UTF-16 units (SessionView.caret) */
@@ -625,57 +625,57 @@ typedef struct mistype_view {
     int32_t selection_key_count;
     int32_t keys_active;        /* selection keys pick (else they type Zhuyin) */
     int32_t shows_candidates;
-    /* Phrase mark (C13), appended fields: see mistype.h. */
-    int32_t mark_action;        /* MISTYPE_MARK_NONE/ADD/REMOVE/TOO_SHORT/TOO_LONG/UNAVAILABLE */
+    /* Phrase mark (C13), appended fields: see misstype.h. */
+    int32_t mark_action;        /* MISSTYPE_MARK_NONE/ADD/REMOVE/TOO_SHORT/TOO_LONG/UNAVAILABLE */
     int32_t mark_start_bytes, mark_end_bytes;   /* range in preedit, -1 when none */
     int32_t mark_start_utf16, mark_end_utf16;
     char *mark_text, *mark_reading;
-} mistype_view;
+} misstype_view;
 
-typedef struct mistype_settings {
+typedef struct misstype_settings {
     int32_t fuzzy_repair;       /* default 1 */
     int32_t tone_tolerance;     /* default 1 */
     int32_t user_learning;      /* default 1 */
     int32_t shift_toggle;       /* default 1; fcitx5 sets 0 (AltTriggerKeys owns Shift_L) */
     const char *candidate_keys; /* NULL = "asdfghjkl;"; sanitized like SelectionKeys.sanitize */
-} mistype_settings;
+} misstype_settings;
 
-mistype_settings mistype_settings_default(void);
+misstype_settings misstype_settings_default(void);
 
 /* resource_dir holds lexicon.tsv (required), local_phrases.tsv, toneless.tsv.
  * user_lexicon_path: NULL = UserLexicon.defaultURL, "" = memory only.
  * Returns NULL when lexicon.tsv is missing or unreadable. */
-mistype_engine *mistype_engine_new(const char *resource_dir, const char *user_lexicon_path);
-/* user_dictionary.tsv: NULL = $XDG_DATA_HOME/mistype/user_dictionary.tsv,
+misstype_engine *misstype_engine_new(const char *resource_dir, const char *user_lexicon_path);
+/* user_dictionary.tsv: NULL = $XDG_DATA_HOME/misstype/user_dictionary.tsv,
  * "" = memory only (the default after _new). */
-void mistype_engine_set_user_dictionary_path(mistype_engine *engine, const char *path);
+void misstype_engine_set_user_dictionary_path(misstype_engine *engine, const char *path);
 /* Releases the caller's handle; live sessions keep the engine alive. */
-void mistype_engine_free(mistype_engine *engine);
-void mistype_engine_set_settings(mistype_engine *engine, const mistype_settings *settings);
-int32_t mistype_engine_is_english(const mistype_engine *engine);
+void misstype_engine_free(misstype_engine *engine);
+void misstype_engine_set_settings(misstype_engine *engine, const misstype_settings *settings);
+int32_t misstype_engine_is_english(const misstype_engine *engine);
 
-mistype_session *mistype_session_new(mistype_engine *engine);
-void mistype_session_free(mistype_session *session);
-mistype_key_result mistype_session_handle(mistype_session *session, const mistype_key_event *event);
-char *mistype_session_commit(mistype_session *session); /* NULL = nothing to insert */
-void mistype_session_pick(mistype_session *session, int32_t index);
-void mistype_session_reset_modifiers(mistype_session *session);
-char *mistype_session_raw_phonetic(mistype_session *session);
-mistype_view *mistype_session_view(mistype_session *session);
+misstype_session *misstype_session_new(misstype_engine *engine);
+void misstype_session_free(misstype_session *session);
+misstype_key_result misstype_session_handle(misstype_session *session, const misstype_key_event *event);
+char *misstype_session_commit(misstype_session *session); /* NULL = nothing to insert */
+void misstype_session_pick(misstype_session *session, int32_t index);
+void misstype_session_reset_modifiers(misstype_session *session);
+char *misstype_session_raw_phonetic(misstype_session *session);
+misstype_view *misstype_session_view(misstype_session *session);
 
-/* Keymap (tables live in MistypeCore). label receives a static string for
- * MISTYPE_KEY_CHARACTER, else NULL. */
-mistype_key_kind mistype_key_from_evdev(int32_t evdev_code, const char **label);
+/* Keymap (tables live in MisstypeCore). label receives a static string for
+ * MISSTYPE_KEY_CHARACTER, else NULL. */
+misstype_key_kind misstype_key_from_evdev(int32_t evdev_code, const char **label);
 /* Fallback without a scancode: one UTF-8 character typed on a US layout.
- * *shifted = 1 when the glyph needs Shift ("A", "!"). Unknown: MISTYPE_KEY_OTHER. */
-mistype_key_kind mistype_key_from_character(const char *utf8, const char **label, int32_t *shifted);
+ * *shifted = 1 when the glyph needs Shift ("A", "!"). Unknown: MISSTYPE_KEY_OTHER. */
+misstype_key_kind misstype_key_from_character(const char *utf8, const char **label, int32_t *shifted);
 
-void mistype_view_free(mistype_view *view);
-void mistype_string_free(char *string);
+void misstype_view_free(misstype_view *view);
+void misstype_string_free(char *string);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* MISTYPE_H */
+#endif /* MISSTYPE_H */
 ```

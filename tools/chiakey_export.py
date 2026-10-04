@@ -1,4 +1,4 @@
-"""Export a ChiaKey Lexicon release DB into Mistype's measurement formats.
+"""Export a ChiaKey Lexicon release DB into Misstype's measurement formats.
 
 Writes (local cache only, never committed — the release DB bundles
 CC BY-NC data):
@@ -13,8 +13,8 @@ decoder mirrors ChiaKey-Lexicon src/phonetics.rs bpmf_for_qstring.
 
 Usage:
   gh release download <tag> -R chiakich/ChiaKey-Lexicon \\
-      -p 'ChiaKeySource-*.db' -O ~/.cache/mistype/chiakey/ChiaKeySource.db
-  python tools/chiakey_export.py [--scale 1] [--out ~/.cache/mistype/chiakey/x1]
+      -p 'ChiaKeySource-*.db' -O ~/.cache/misstype/chiakey/ChiaKeySource.db
+  python tools/chiakey_export.py [--scale 1] [--out ~/.cache/misstype/chiakey/x1]
   python tools/chiakey_export.py --reorder all|single
 
 --reorder keeps OUR lexicon and scores, and only permutes them within one
@@ -30,8 +30,8 @@ from collections import defaultdict
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-CACHE = Path.home() / ".cache/mistype/chiakey"
-BUNDLE = ROOT / "dist/MistypeIME.app/Contents/Resources"
+CACHE = Path.home() / ".cache/misstype/chiakey"
+BUNDLE = ROOT / "dist/MisstypeIME.app/Contents/Resources"
 CONSONANTS = "ㄅㄆㄇㄈㄉㄊㄋㄌㄍㄎㄏㄐㄑㄒㄓㄔㄕㄖㄗㄘㄙ"
 MEDIALS = "ㄧㄨㄩ"
 VOWELS = "ㄚㄛㄜㄝㄞㄟㄠㄡㄢㄣㄤㄥㄦ"

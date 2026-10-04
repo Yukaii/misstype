@@ -1,18 +1,18 @@
 // swift-tools-version: 6.0
 import PackageDescription
 
-// MistypeCore (decoder + InputSession) builds everywhere Swift does; the
+// MisstypeCore (decoder + InputSession) builds everywhere Swift does; the
 // InputMethodKit adapter and the Carbon source tool are macOS-only.
-// MistypeCAPI (C ABI over MistypeCore) and CMistype (C header) build on all platforms.
+// MisstypeCAPI (C ABI over MisstypeCore) and CMisstype (C header) build on all platforms.
 var products: [Product] = [
-    .library(name: "MistypeCAPI", type: .dynamic, targets: ["MistypeCAPI"]),
+    .library(name: "MisstypeCAPI", type: .dynamic, targets: ["MisstypeCAPI"]),
 ]
 var targets: [Target] = [
-    .target(name: "MistypeCore"),
-    .target(name: "CMistype"),
-    .target(name: "MistypeCAPI", dependencies: ["MistypeCore", "CMistype"]),
-    .testTarget(name: "MistypeCoreTests", dependencies: ["MistypeCore"],
-                path: "tests/MistypeCoreTests"),
+    .target(name: "MisstypeCore"),
+    .target(name: "CMisstype"),
+    .target(name: "MisstypeCAPI", dependencies: ["MisstypeCore", "CMisstype"]),
+    .testTarget(name: "MisstypeCoreTests", dependencies: ["MisstypeCore"],
+                path: "tests/MisstypeCoreTests"),
 ]
 var dependencies: [Package.Dependency] = []
 #if os(macOS)
@@ -21,24 +21,24 @@ dependencies += [
     .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.6.0"),
 ]
 products += [
-    .executable(name: "MistypeIME", targets: ["MistypeIME"]),
-    .executable(name: "MistypeSourceTool", targets: ["MistypeSourceTool"]),
-    .executable(name: "MistypeInstaller", targets: ["MistypeInstaller"]),
+    .executable(name: "MisstypeIME", targets: ["MisstypeIME"]),
+    .executable(name: "MisstypeSourceTool", targets: ["MisstypeSourceTool"]),
+    .executable(name: "MisstypeInstaller", targets: ["MisstypeInstaller"]),
 ]
 targets += [
     .executableTarget(
-        name: "MistypeIME",
-        dependencies: ["MistypeCore", .product(name: "Sparkle", package: "Sparkle")],
+        name: "MisstypeIME",
+        dependencies: ["MisstypeCore", .product(name: "Sparkle", package: "Sparkle")],
         // The packaged bundle carries Sparkle.framework in Contents/Frameworks.
         linkerSettings: [.unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"])]),
-    .executableTarget(name: "MistypeSourceTool"),
+    .executableTarget(name: "MisstypeSourceTool"),
     // Double-clickable installer shipped in the DMG (see docs/release.md).
-    .executableTarget(name: "MistypeInstaller"),
+    .executableTarget(name: "MisstypeInstaller"),
 ]
 #endif
 
 let package = Package(
-    name: "MistypeIME",
+    name: "MisstypeIME",
     platforms: [.macOS(.v13)],
     products: products,
     dependencies: dependencies,

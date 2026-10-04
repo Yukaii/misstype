@@ -28,7 +28,7 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-APP_BIN = ROOT / "dist/MistypeIME.app/Contents/MacOS/MistypeIME"
+APP_BIN = ROOT / "dist/MisstypeIME.app/Contents/MacOS/MisstypeIME"
 CACHE = ROOT / ".cache/mcbopomofo"
 OLLAMA_URL = "http://localhost:11434/api/chat"
 

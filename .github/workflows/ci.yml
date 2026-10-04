@@ -1,6 +1,6 @@
 name: CI
 
-# Keeps MistypeCore (decoder + InputSession) portable: the core and its
+# Keeps MisstypeCore (decoder + InputSession) portable: the core and its
 # tests must build and pass on Linux, where only the core target exists
 # (Package.swift gates the macOS adapter). macOS is exercised by release.yml.
 on:
@@ -14,7 +14,7 @@ jobs:
     container: swift:6.0
     steps:
       - uses: actions/checkout@v4
-      - name: Test MistypeCore
+      - name: Test MisstypeCore
         run: swift test
 
   fcitx5-linux:

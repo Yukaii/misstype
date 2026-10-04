@@ -1,4 +1,4 @@
-# Linux dev/verification image for the Mistype port (docs/linux-port.md).
+# Linux dev/verification image for the Misstype port (docs/linux-port.md).
 # Swift 6.0 on Ubuntu 24.04 plus fcitx5 5.1.7 dev headers and its in-process
 # test harness (testfrontend/testim/testui under /usr/share/fcitx5/testing).
 # Verified 2026-09-28 on arm64; CI runs it on x86_64.

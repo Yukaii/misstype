@@ -4,7 +4,7 @@
 # .../releases/latest/download/appcast.xml, so GitHub serves the newest
 # non-prerelease's copy and older versions never need to stay in the file.
 #
-#   SPARKLE_ED_KEY_FILE=key.txt ./script/make_appcast.sh 0.2.0 7 dist/MistypeIME-0.2.0.zip
+#   SPARKLE_ED_KEY_FILE=key.txt ./script/make_appcast.sh 0.2.0 7 dist/MisstypeIME-0.2.0.zip
 #
 # SPARKLE_ED_KEY_FILE holds the private key printed by Sparkle's
 # `generate_keys -x`. It never enters the repo; CI writes it from a secret.

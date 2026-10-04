@@ -4,9 +4,9 @@
 <key>CFBundleDisplayName</key><string>Misstype</string>
 <key>CFBundleDevelopmentRegion</key><string>en</string>
 <key>CFBundleLocalizations</key><array><string>en</string><string>zh-Hant</string><string>zh-Hans</string><string>ja</string></array>
-<key>CFBundleExecutable</key><string>MistypeIME</string>
-<key>CFBundleIconFile</key><string>MistypeIcon.png</string>
-<key>CFBundleIdentifier</key><string>org.mistype.inputmethod.Mistype</string>
+<key>CFBundleExecutable</key><string>MisstypeIME</string>
+<key>CFBundleIconFile</key><string>MisstypeIcon.png</string>
+<key>CFBundleIdentifier</key><string>org.misstype.inputmethod.Misstype</string>
 <key>CFBundleName</key><string>Misstype</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleSignature</key><string>BMST</string>
@@ -14,16 +14,16 @@
 <key>CFBundleVersion</key><string>1</string>
 <key>LSMinimumSystemVersion</key><string>13.0</string>
 <key>NSPrincipalClass</key><string>NSApplication</string>
-<key>InputMethodConnectionName</key><string>org.mistype.inputmethod.Mistype_Connection</string>
-<key>InputMethodServerControllerClass</key><string>MistypeInputController</string>
+<key>InputMethodConnectionName</key><string>org.misstype.inputmethod.Misstype_Connection</string>
+<key>InputMethodServerControllerClass</key><string>MisstypeInputController</string>
 <key>LSHasLocalizedDisplayName</key><true/>
 <key>LSUIElement</key><true/>
 <key>NSSupportsSuddenTermination</key><false/>
 <key>TICapsLockLanguageSwitchCapable</key><true/>
-<key>TISInputSourceID</key><string>org.mistype.inputmethod.Mistype</string>
+<key>TISInputSourceID</key><string>org.misstype.inputmethod.Misstype</string>
 <key>TISIntendedLanguage</key><string>zh-Hant</string>
 <key>TISIconIsTemplate</key><true/>
-<key>tsInputMethodIconFileKey</key><string>MistypeMenuIcon.tiff</string>
+<key>tsInputMethodIconFileKey</key><string>MisstypeMenuIcon.tiff</string>
 <key>tsInputMethodCharacterRepertoireKey</key><array><string>Hant</string></array>
 <key>SUFeedURL</key><string>https://github.com/Yukaii/misstype/releases/latest/download/appcast.xml</string>
 <key>SUEnableAutomaticChecks</key><true/>
@@ -32,18 +32,18 @@
 <key>SUEnableInstallerLauncherService</key><true/>
 <key>ComponentInputModeDict</key><dict>
   <key>tsInputModeListKey</key><dict>
-    <key>org.mistype.inputmethod.Mistype.Zhuyin</key><dict>
-      <key>TISInputSourceID</key><string>org.mistype.inputmethod.Mistype.Zhuyin</string>
+    <key>org.misstype.inputmethod.Misstype.Zhuyin</key><dict>
+      <key>TISInputSourceID</key><string>org.misstype.inputmethod.Misstype.Zhuyin</string>
       <key>TISIntendedLanguage</key><string>zh-Hant</string>
-      <key>tsInputModeMenuIconFileKey</key><string>MistypeMenuIcon.tiff</string>
+      <key>tsInputModeMenuIconFileKey</key><string>MisstypeMenuIcon.tiff</string>
       <key>tsInputModeCharacterRepertoireKey</key><array><string>Hant</string><string>Han</string></array>
       <key>tsInputModeDefaultStateKey</key><true/>
       <key>tsInputModeIsVisibleKey</key><true/>
-      <key>tsInputModePaletteIconFileKey</key><string>MistypeMenuIcon.tiff</string>
+      <key>tsInputModePaletteIconFileKey</key><string>MisstypeMenuIcon.tiff</string>
       <key>tsInputModePrimaryInScriptKey</key><true/>
       <key>tsInputModeScriptKey</key><string>smUnicode</string>
     </dict>
   </dict>
-  <key>tsVisibleInputModeOrderedArrayKey</key><array><string>org.mistype.inputmethod.Mistype.Zhuyin</string></array>
+  <key>tsVisibleInputModeOrderedArrayKey</key><array><string>org.misstype.inputmethod.Misstype.Zhuyin</string></array>
 </dict>
 </dict></plist>

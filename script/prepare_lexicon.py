@@ -4,7 +4,7 @@ Sources: McBopomofo (third_party/McBopomofo/sources.json) for readings and
 scores; NAER 通用詞頻表 (third_party/NAER/sources.json) only to order single
 chars for toneless input (toneless.tsv). Only build-time public dictionary
 downloads; never uploads user input.
-This is a Mistype frequency baseline, not McBopomofo's full LM compiler.
+This is a Misstype frequency baseline, not McBopomofo's full LM compiler.
 """
 import argparse
 import hashlib

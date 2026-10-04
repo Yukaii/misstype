@@ -53,22 +53,22 @@ After installation, select **隨打注音** (`Misstype Bopomofo`) from the macOS
 - **Commit**: Return commits exactly what is shown, unfinished Bopomofo included (注音文 works); Shift+Return sends raw typed Bopomofo.
 - **Candidate selection**: Down/Tab (or Left arrow to walk back to an earlier word) enters candidate selection mode, where home-row keys `asdfghjk` pick from the candidate panel (configurable in Preferences; they type Zhuyin outside this mode). Escape leaves the selection mode; outside selection mode, Escape cancels the composition.
 - **Symbols & English toggle**: Shift+digit and Shift+= [ ] ` type full-width symbols (`！＠＃＄％︿＆＊（）＋｛｝～`). Backspace edits the raw composition; tapping Shift or pressing Shift-Space commits and toggles Chinese / English mode.
-- **My dictionary**: while typing, Shift+←/→ marks syllables of the converted text and Return adds the phrase (a name, jargon) to your own dictionary; Return on the same mark removes it. Settings → My Dictionary (macOS) is a plain-text editor over `user_dictionary.tsv`, which uses the vChewing user-data format (`word reading`, one per line) and has an Import… button for vChewing files. To turn a plain word list into that format, use the third-party [online generator](https://vu.gh.miniasp.com/) by Will 保哥 ([source](https://github.com/doggy8088/vChewing-userdata-generator), MIT; not affiliated with this project). On Linux edit `~/.local/share/mistype/user_dictionary.tsv` directly.
+- **My dictionary**: while typing, Shift+←/→ marks syllables of the converted text and Return adds the phrase (a name, jargon) to your own dictionary; Return on the same mark removes it. Settings → My Dictionary (macOS) is a plain-text editor over `user_dictionary.tsv`, which uses the vChewing user-data format (`word reading`, one per line) and has an Import… button for vChewing files. To turn a plain word list into that format, use the third-party [online generator](https://vu.gh.miniasp.com/) by Will 保哥 ([source](https://github.com/doggy8088/vChewing-userdata-generator), MIT; not affiliated with this project). On Linux edit `~/.local/share/misstype/user_dictionary.tsv` directly.
 - **Learning**: Candidate selections are learned locally per word, and single characters are learned in context with the preceding word.
 
 The diagnostic path exercises the packaged dictionary without an IME client:
 
 ```sh
-dist/MistypeIME.app/Contents/MacOS/MistypeIME --decode su3cl3
+dist/MisstypeIME.app/Contents/MacOS/MisstypeIME --decode su3cl3
 ```
 
 To build a release DMG (installer app) and Sparkle update archive, see [Packaging, installer and updates](docs/release.md).
 
-The installer keeps the previous bundle at `.cache/MistypeIME-previous.app` when replacing an existing installation. Disable the source with `swift run -c release MistypeSourceTool disable` if needed.
+The installer keeps the previous bundle at `.cache/MisstypeIME-previous.app` when replacing an existing installation. Disable the source with `swift run -c release MisstypeSourceTool disable` if needed.
 
 ### Releases
 
-Pushing a `v*` tag runs `.github/workflows/release.yml`, which tests, builds a universal (`arm64` + `x86_64`) bundle via `script/package_release.sh`, and publishes `Mistype-<version>.dmg` to GitHub Releases. The same script runs locally (`./script/package_release.sh 0.2.0`). Users drag `MistypeIME.app` onto the `Input Methods` link in the DMG (`/Library/Input Methods`, admin password required), then log out/in or add it under System Settings → Keyboard → Input Sources.
+Pushing a `v*` tag runs `.github/workflows/release.yml`, which tests, builds a universal (`arm64` + `x86_64`) bundle via `script/package_release.sh`, and publishes `Misstype-<version>.dmg` to GitHub Releases. The same script runs locally (`./script/package_release.sh 0.2.0`). Users drag `MisstypeIME.app` onto the `Input Methods` link in the DMG (`/Library/Input Methods`, admin password required), then log out/in or add it under System Settings → Keyboard → Input Sources.
 
 Signing is optional and driven by repository secrets:
 
@@ -77,11 +77,11 @@ Signing is optional and driven by repository secrets:
 | `MACOS_CERT_P12_BASE64`, `MACOS_CERT_PASSWORD` | Developer ID Application certificate (`.p12`, base64) |
 | `NOTARY_KEY_P8_BASE64`, `NOTARY_KEY_ID`, `NOTARY_ISSUER_ID` | App Store Connect API key for `notarytool` |
 
-Without them the DMG is ad-hoc signed and Gatekeeper blocks it on other machines; run `xattr -dr com.apple.quarantine "/Library/Input Methods/MistypeIME.app"` after installing. A self-signed certificate does not avoid this; only a Developer ID signature plus notarization does.
+Without them the DMG is ad-hoc signed and Gatekeeper blocks it on other machines; run `xattr -dr com.apple.quarantine "/Library/Input Methods/MisstypeIME.app"` after installing. A self-signed certificate does not avoid this; only a Developer ID signature plus notarization does.
 
 ## Linux (fcitx5) port
 
-Misstype supports Linux via an fcitx5 addon built on top of the platform-neutral `MistypeCore` and C ABI (`MistypeCAPI`):
+Misstype supports Linux via an fcitx5 addon built on top of the platform-neutral `MisstypeCore` and C ABI (`MisstypeCAPI`):
 
 ```sh
 # Build and run headless test suite in the Docker dev container
@@ -92,13 +92,13 @@ See [Linux port documentation](docs/linux-port.md) and [Cross-platform specifica
 
 ## Run the M0 replay
 
-The initial slice uses Python 3.11+ and has no runtime dependencies. It is the capture/touch prototype used to explore coordinate-based input; decoding behavior lives in the Swift `MistypeCore` package, the single source of truth:
+The initial slice uses Python 3.11+ and has no runtime dependencies. It is the capture/touch prototype used to explore coordinate-based input; decoding behavior lives in the Swift `MisstypeCore` package, the single source of truth:
 
 ```sh
 PYTHONPATH=src python -m unittest discover -s tests -v
-PYTHONPATH=src python -m mistype.cli examples/hello.jsonl
-PYTHONPATH=src python -m mistype.cli examples/keyboard-ni.jsonl
-PYTHONPATH=src python -m mistype.cli examples/touch-ni-hao.jsonl
+PYTHONPATH=src python -m misstype.cli examples/hello.jsonl
+PYTHONPATH=src python -m misstype.cli examples/keyboard-ni.jsonl
+PYTHONPATH=src python -m misstype.cli examples/touch-ni-hao.jsonl
 PYTHONPATH=src python tools/bench.py
 ```
 

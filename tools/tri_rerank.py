@@ -21,9 +21,9 @@ import sys
 import tempfile
 from pathlib import Path
 
-CACHE = Path.home() / ".cache/mistype/corpus"
+CACHE = Path.home() / ".cache/misstype/corpus"
 ROOT = Path(__file__).resolve().parent.parent
-APP_BIN = ROOT / "dist/MistypeIME.app/Contents/MacOS/MistypeIME"
+APP_BIN = ROOT / "dist/MisstypeIME.app/Contents/MacOS/MisstypeIME"
 FLOOR = -12.0
 
 CASES = [

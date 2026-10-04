@@ -4,7 +4,7 @@ This repository is an experimental input device and decoder. The current goal is
 
 ## Current state (2026-10-02)
 
-- The macOS Zhuyin IME (Swift `MistypeCore` + IMK adapter) is approaching
+- The macOS Zhuyin IME (Swift `MisstypeCore` + IMK adapter) is approaching
   daily-usable: live conversion, syllable cursor, candidate window, learning,
   a user dictionary (Shift+←/→ marks a phrase, Return files it;
   `user_dictionary.tsv`, Settings editor on macOS), chunked auto-commit. The
@@ -16,7 +16,7 @@ This repository is an experimental input device and decoder. The current goal is
   against exact input. The coordinate-aware **touch** fuzzy layer — distance-
   weighted neighbor hypotheses from raw `(x, y)`, the `full-split-1` layout,
   `tools/noise.py` measurements (project outline, M3) — has a v1 in
-  `MistypeCore` (`Touch.swift`, 2026-10-04): on the real lexicon it beats
+  `MisstypeCore` (`Touch.swift`, 2026-10-04): on the real lexicon it beats
   today's keyboard repair by +15 to +45 pp at jitter 0.08–0.12 without
   touching exact input; the lattice version (spatial costs inside each
   syllable's reading options) adds +30 to +40 pp over the first beam version
@@ -24,7 +24,7 @@ This repository is an experimental input device and decoder. The current goal is
   within ~0.07–0.10 of key centre); the human tap-spread measurement is
   missing. Open: that measurement, then wiring a touch surface to
   `InputSession`.
-- Mixed Chinese/English with no mode switch has a measured v1 in `MistypeCore`
+- Mixed Chinese/English with no mode switch has a measured v1 in `MisstypeCore`
   (`MixedDecode.swift`, 2026-10-04): English words and one-letter typos are
   recognized from bare keys with no false switches on 600 pure-Chinese inputs
   (English list: pinned FrequencyWords, CC BY-SA, see
@@ -72,8 +72,8 @@ A change is ready when its behavior is covered by a replayable test or documente
 
 ## Canonical commands
 
-The Swift `MistypeCore` package is the single source of truth for decoding
-behavior. The Python package (`src/mistype`, Python 3.11+, no runtime
+The Swift `MisstypeCore` package is the single source of truth for decoding
+behavior. The Python package (`src/misstype`, Python 3.11+, no runtime
 dependencies) is the capture/touch prototype slated for replacement; do not
 port decoder changes to it. The one exception in the other direction is the
 touch/spatial fuzzy layer (see Current state), which has to move from Python
@@ -81,7 +81,7 @@ into Swift. Its checks still run:
 
 ```sh
 PYTHONPATH=src python -m unittest discover -s tests -v
-PYTHONPATH=src python -m mistype.cli examples/hello.jsonl
+PYTHONPATH=src python -m misstype.cli examples/hello.jsonl
 ```
 
 The macOS IME target is package-first SwiftPM:
@@ -100,7 +100,7 @@ script/linux/dev.sh 'bash script/linux/test_all.sh'
 bash script/linux/test_all.sh   # on a provisioned Linux box
 ```
 
-Editing rules live in `MistypeCore`'s `InputSession`; platform adapters
+Editing rules live in `MisstypeCore`'s `InputSession`; platform adapters
 only translate key events and draw `SessionView` (see
 `docs/architecture.md`, Platform boundary). `swift test` also runs on Linux,
 where `Package.swift` declares only the core and its tests (CI `core-linux`).

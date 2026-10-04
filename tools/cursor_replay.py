@@ -40,9 +40,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
-from mistype.phonetic import KEY_TO_ZHUYIN  # noqa: E402
+from misstype.phonetic import KEY_TO_ZHUYIN  # noqa: E402
 
-APP_BIN = ROOT / "dist/MistypeIME.app/Contents/MacOS/MistypeIME"
+APP_BIN = ROOT / "dist/MisstypeIME.app/Contents/MacOS/MisstypeIME"
 LEXICON = ROOT / ".cache/mcbopomofo/lexicon.tsv"
 ZHUYIN_TO_KEY = {symbol: key for key, symbol in KEY_TO_ZHUYIN.items()}
 TONE_TO_KEY = {"": " ", "ˊ": "6", "ˇ": "3", "ˋ": "4", "˙": "7"}

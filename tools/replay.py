@@ -11,9 +11,9 @@ import json
 import sys
 from pathlib import Path
 
-from mistype.decoder import OfflineDecoder
-from mistype.models import DecodeContext, DecodeResult, PhoneticToken, RawEvent
-from mistype.normalize import normalize_events
+from misstype.decoder import OfflineDecoder
+from misstype.models import DecodeContext, DecodeResult, PhoneticToken, RawEvent
+from misstype.normalize import normalize_events
 
 
 def load_events(path: str | Path) -> list[RawEvent]:

@@ -21,9 +21,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from mistype.normalize import normalize_events  # noqa: E402
-from mistype.decoder import OfflineDecoder  # noqa: E402
-from mistype.touch import key_position, touch_event  # noqa: E402
+from misstype.normalize import normalize_events  # noqa: E402
+from misstype.decoder import OfflineDecoder  # noqa: E402
+from misstype.touch import key_position, touch_event  # noqa: E402
 
 STEP_NS = 90_000_000
 

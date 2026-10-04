@@ -15,7 +15,7 @@ import json
 import sys
 from pathlib import Path
 
-DEFAULT = Path.home() / "Library/Application Support/Mistype/user_phrases.json"
+DEFAULT = Path.home() / "Library/Application Support/Misstype/user_phrases.json"
 
 
 def bonus(count: int) -> float:

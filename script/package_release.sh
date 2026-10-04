@@ -2,7 +2,7 @@
 # Build the release artifacts for one version:
 #
 #   dist/Misstype-<v>.dmg         DMG holding "Install Misstype.app" (per-user installer)
-#   dist/MistypeIME-<v>.zip      Sparkle update archive (the signed MistypeIME.app)
+#   dist/MisstypeIME-<v>.zip      Sparkle update archive (the signed MisstypeIME.app)
 #   dist/appcast.xml             Sparkle feed for that archive (needs SPARKLE_ED_KEY_FILE)
 #   dist/*.sha256
 #
@@ -28,10 +28,10 @@ VERSION="${1:?usage: package_release.sh <version>}"
 VERSION="${VERSION#v}"
 IDENTITY="${SIGN_IDENTITY:--}"
 BUILD="${BUILD_NUMBER:-1}"
-APP_DIR="$ROOT_DIR/dist/MistypeIME.app"
+APP_DIR="$ROOT_DIR/dist/MisstypeIME.app"
 INSTALLER_DIR="$ROOT_DIR/dist/Install Misstype.app"
 DMG="$ROOT_DIR/dist/Misstype-$VERSION.dmg"
-ZIP="$ROOT_DIR/dist/MistypeIME-$VERSION.zip"
+ZIP="$ROOT_DIR/dist/MisstypeIME-$VERSION.zip"
 ARCHS="--arch arm64 --arch x86_64"
 
 SPARKLE_PUBLIC_KEY="${SPARKLE_PUBLIC_KEY:-$(cat Resources/SparklePublicKey.txt 2>/dev/null || true)}"
@@ -58,11 +58,11 @@ if [[ -n "$SPARKLE_PUBLIC_KEY" ]]; then
 else
   echo "No Sparkle public key: this build will not check for updates." >&2
 fi
-./script/sign_bundle.sh "$IDENTITY" "$APP_DIR" Resources/Mistype.entitlements
+./script/sign_bundle.sh "$IDENTITY" "$APP_DIR" Resources/Misstype.entitlements
 
 # Notarize and staple the app itself so it passes Gatekeeper offline.
 if [[ -n "${NOTARY_KEY_ID:-}" ]]; then
-  NOTARIZE_ZIP="$ROOT_DIR/dist/MistypeIME-notarize.zip"
+  NOTARIZE_ZIP="$ROOT_DIR/dist/MisstypeIME-notarize.zip"
   /usr/bin/ditto -c -k --keepParent "$APP_DIR" "$NOTARIZE_ZIP"
   notarize "$NOTARIZE_ZIP"
   rm -f "$NOTARIZE_ZIP"
@@ -74,15 +74,15 @@ rm -f "$ZIP"
 /usr/bin/ditto -c -k --keepParent "$APP_DIR" "$ZIP"
 
 # --- The installer app ------------------------------------------------------
-swift build -c release $=ARCHS --product MistypeInstaller
-INSTALLER_BIN="$(swift build -c release $=ARCHS --show-bin-path)/MistypeInstaller"
+swift build -c release $=ARCHS --product MisstypeInstaller
+INSTALLER_BIN="$(swift build -c release $=ARCHS --show-bin-path)/MisstypeInstaller"
 rm -rf "$INSTALLER_DIR"
 mkdir -p "$INSTALLER_DIR/Contents/MacOS" "$INSTALLER_DIR/Contents/Resources"
-cp "$INSTALLER_BIN" "$INSTALLER_DIR/Contents/MacOS/MistypeInstaller"
+cp "$INSTALLER_BIN" "$INSTALLER_DIR/Contents/MacOS/MisstypeInstaller"
 cp Resources/Installer/Info.plist "$INSTALLER_DIR/Contents/Info.plist"
-cp Resources/MistypeIcon.png "$INSTALLER_DIR/Contents/Resources/"
+cp Resources/MisstypeIcon.png "$INSTALLER_DIR/Contents/Resources/"
 cp -R Resources/Installer/*.lproj "$INSTALLER_DIR/Contents/Resources/"
-/usr/bin/ditto "$APP_DIR" "$INSTALLER_DIR/Contents/Resources/MistypeIME.app"
+/usr/bin/ditto "$APP_DIR" "$INSTALLER_DIR/Contents/Resources/MisstypeIME.app"
 set_version "$INSTALLER_DIR/Contents/Info.plist"
 ./script/sign_bundle.sh "$IDENTITY" "$INSTALLER_DIR"
 

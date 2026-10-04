@@ -10,7 +10,7 @@ same uniform-weight mechanism, corpus counts instead of wordlist pairs.
 
 Usage:
     python tools/corpus_bigram.py [--limit N] [--probes]
-Writes $HOME/.cache/mistype/corpus/bigrams-corpus.tsv (+ .stats.json).
+Writes $HOME/.cache/misstype/corpus/bigrams-corpus.tsv (+ .stats.json).
 Exits 0 (report, not gate).
 """
 
@@ -27,7 +27,7 @@ def is_han(char: str) -> bool:
     return "\u4e00" <= char <= "\u9fff"
 
 
-SRC = (Path(os.path.expanduser("~")) / ".cache/mistype/corpus"
+SRC = (Path(os.path.expanduser("~")) / ".cache/misstype/corpus"
        / "lccc_base_train.jsonl.gz")
 OUT = SRC.parent / "bigrams-corpus.tsv"
 

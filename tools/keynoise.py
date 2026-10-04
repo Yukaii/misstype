@@ -28,7 +28,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from bench import cer  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
-APP_BIN = ROOT / "dist/MistypeIME.app/Contents/MacOS/MistypeIME"
+APP_BIN = ROOT / "dist/MisstypeIME.app/Contents/MacOS/MisstypeIME"
 
 TONE_KEYS = set("3467 ")
 SYMBOL_ROWS = ["1234567890-", "qwertyuiop", "asdfghjkl;", "zxcvbnm,./"]
