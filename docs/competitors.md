@@ -6,6 +6,16 @@ tagline). Claims below are what the projects say about themselves; none were
 installed or benchmarked. Overlap between rows is expected: several projects
 share ancestry (Yahoo KeyKey/OpenVanilla, McBopomofo, libchewing).
 
+
+> **TODO before going public:** this page is a 2026-10-04 snapshot and must
+> be refreshed first. Re-check every release version and download size
+> (competitors ship weekly; KeyKey changed twice in one week), re-verify the
+> `-` cells in the feature matrix and the ZingIME claims (price, AI, on-disk
+> size), measure Mistype's own macOS binary and replace the "~6 MB data"
+> placeholder, cover the projects listed under "Gaps in this research", and
+> drop or soften anything we cannot source. Also confirm tone and licence
+> wording are fair to each project.
+
 ## Projects
 
 | | Platforms | Zhuyin engine | Mixed zh/en without switch | Learning | AI / network | Download | License / price |
