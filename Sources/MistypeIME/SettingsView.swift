@@ -449,6 +449,27 @@ private struct JevPane: View {
 
 // MARK: - About
 
+private struct UpdatesSection: View {
+    @State private var automatic = UpdateController.shared.updater?.automaticallyChecksForUpdates ?? false
+
+    var body: some View {
+        Section(L("Updates")) {
+            if let updater = UpdateController.shared.updater {
+                Toggle(L("Check for updates automatically"), isOn: Binding(
+                    get: { automatic },
+                    set: { automatic = $0; updater.automaticallyChecksForUpdates = $0 }))
+                Button(L("Check for Updates…")) { UpdateController.shared.checkForUpdates() }
+                Text(L("Updates are fetched from GitHub. Only the app and macOS versions are sent, never what you type."))
+                    .font(.callout).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Text(L("This build was not set up for automatic updates."))
+                    .font(.callout).foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
 private struct AboutPane: View {
     private var version: String {
         let info = Bundle.main.infoDictionary
@@ -471,6 +492,7 @@ private struct AboutPane: View {
                 }
                 .padding(.vertical, 4)
             }
+            UpdatesSection()
             Section(L("Privacy")) {
                 Text(L("What you type stays on this Mac. The decoder runs offline; nothing is sent anywhere unless you turn on Jev Assist."))
                     .font(.callout).foregroundStyle(.secondary)

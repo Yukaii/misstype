@@ -14,14 +14,26 @@ var targets: [Target] = [
     .testTarget(name: "MistypeCoreTests", dependencies: ["MistypeCore"],
                 path: "tests/MistypeCoreTests"),
 ]
+var dependencies: [Package.Dependency] = []
 #if os(macOS)
+// Sparkle is macOS-only and declared here so Linux never resolves it.
+dependencies += [
+    .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.6.0"),
+]
 products += [
     .executable(name: "MistypeIME", targets: ["MistypeIME"]),
     .executable(name: "MistypeSourceTool", targets: ["MistypeSourceTool"]),
+    .executable(name: "MistypeInstaller", targets: ["MistypeInstaller"]),
 ]
 targets += [
-    .executableTarget(name: "MistypeIME", dependencies: ["MistypeCore"]),
+    .executableTarget(
+        name: "MistypeIME",
+        dependencies: ["MistypeCore", .product(name: "Sparkle", package: "Sparkle")],
+        // The packaged bundle carries Sparkle.framework in Contents/Frameworks.
+        linkerSettings: [.unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"])]),
     .executableTarget(name: "MistypeSourceTool"),
+    // Double-clickable installer shipped in the DMG (see docs/release.md).
+    .executableTarget(name: "MistypeInstaller"),
 ]
 #endif
 
@@ -29,6 +41,7 @@ let package = Package(
     name: "MistypeIME",
     platforms: [.macOS(.v13)],
     products: products,
+    dependencies: dependencies,
     targets: targets,
     swiftLanguageModes: [.v5]
 )

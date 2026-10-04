@@ -85,3 +85,8 @@
 "⏎ remove “%@”  %@" = "⏎ 「%@」を削除 %@";
 "Mark %d–%d syllables" = "%d〜%d 音節を選択してください";
 "Can't add this selection" = "この選択は追加できません";
+"Updates" = "アップデート";
+"Check for updates automatically" = "アップデートを自動的に確認";
+"Check for Updates…" = "アップデートを確認…";
+"Updates are fetched from GitHub. Only the app and macOS versions are sent, never what you type." = "アップデートは GitHub から取得します。送信されるのはアプリと macOS のバージョンのみで、入力内容は送信されません。";
+"This build was not set up for automatic updates." = "このビルドは自動アップデートに対応していません。";
