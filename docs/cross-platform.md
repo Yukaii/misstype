@@ -121,8 +121,8 @@ shortcut runs.
 | My words (`UserDictionary.defaultURL`) | `~/Library/Application Support/Misstype/user_dictionary.tsv` (inside the app sandbox container, see architecture.md) | `$XDG_DATA_HOME/misstype/user_dictionary.tsv`; the host calls `misstype_engine_set_user_dictionary_path(engine, NULL)` (default after `_new` is memory only) |
 | Learned phrases (`UserLexicon.defaultURL`) | `~/Library/Application Support/Misstype/user_phrases.json` | `$XDG_DATA_HOME/misstype/user_phrases.json` (default `~/.local/share`) |
 | Learned typing slips (`ChannelLearner.defaultURL`, experimental, off by default) | `~/Library/Application Support/Misstype/channel_model.json`; Settings → Learning toggle, list and Clear | `$XDG_DATA_HOME/misstype/channel_model.json`; the host calls `misstype_engine_set_channel_path(engine, NULL)` (default after `_new` is memory only); fcitx5 enables it with `MISSTYPE_CHANNEL_LEARNING=1` |
-| My-words editor | Settings → My Dictionary (text editor over the file) | none yet: edit the TSV in any editor, reloaded at the next composition |
-| Settings store | UserDefaults (`MisstypePrefs`; Settings panes incl. Appearance, Shortcuts) | defaults in v1 (`misstype_settings_default()`), fcitx5 config later; page size, toggle keys and page keys not in the ABI yet |
+| My-words editor | Settings → My Dictionary (text editor over the file) | `misstype-dictionary-editor` (GTK4) or `misstypectl dict …`; the file is reloaded at the next composition |
+| Settings store | UserDefaults (`MisstypePrefs`; Settings panes incl. Appearance, Shortcuts) | fcitx5 config `conf/misstype.conf` (settings page or `misstypectl config`) → `misstype_settings`; Jev not wired; page size, toggle keys and page keys not in the ABI yet |
 | Lone-Shift 中/英 | session (`shiftToggle` pref, default on) | fcitx5 `AltTriggerKeys` (default `Shift_L`) → session `shift_toggle = 0` |
 | Diagnostic log | `~/Library/Logs/MisstypeIME-debug.log` | none in v1 (codes only, never text, if added) |
 

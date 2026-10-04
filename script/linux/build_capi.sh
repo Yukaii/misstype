@@ -10,6 +10,10 @@ swift build -c release --product MisstypeCAPI -Xswiftc -static-stdlib \
 test "${PIPESTATUS[0]}" -eq 0
 BIN_DIR=$(swift build -c release --show-bin-path)
 test -f "$BIN_DIR/libMisstypeCAPI.so"
+# The settings/dictionary CLI ships next to the library (cmake installs it).
+swift build -c release --product misstypectl -Xswiftc -static-stdlib 2>&1 | grep -v "warning: the use of .mktemp." || true
+test "${PIPESTATUS[0]}" -eq 0
+test -f "$BIN_DIR/misstypectl"
 mkdir -p build/capi
 echo "$BIN_DIR" > build/capi/libdir
 echo "libMisstypeCAPI.so: $BIN_DIR"

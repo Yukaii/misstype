@@ -318,6 +318,29 @@ void runAll(Instance &instance) {
     s.clear();
     pass("C13");
 
+    // LR5: the settings page (setConfig) reaches live sessions.
+    // Showing candidates automatically off: the panel stays empty until Tab.
+    {
+        auto *addon = instance.addonManager().addon("misstype");
+        FCITX_ASSERT(addon && addon->getConfig()) << "addon exposes a config";
+        RawConfig raw;
+        raw.setValueByPath("AutoShowCandidates", "False");
+        addon->setConfig(raw);
+        ic.focusIn();
+        s.type("su3");
+        FCITX_ASSERT(!s.candidates()) << "AutoShowCandidates=False hides the list";
+        FCITX_ASSERT(s.key(FcitxKey_Tab, kTab));
+        FCITX_ASSERT(s.candidates()) << "Tab opens it";
+        s.clear();
+        RawConfig current;
+        addon->getConfig()->save(current);
+        const auto *value = current.valueByPath("AutoShowCandidates");
+        FCITX_ASSERT(value && *value == "False") << "getConfig reflects the page";
+        raw.setValueByPath("AutoShowCandidates", "True");
+        addon->setConfig(raw);
+        pass("LR5");
+    }
+
     // C4 runs last: committing 尼 teaches the user lexicon, which would
     // reorder the candidates every other scenario expects.
     // C4: Tab (one page: enters selection, highlight stays), a selection key
@@ -364,7 +387,7 @@ int main() {
     dispatcher.attach(&instance.eventLoop());
     dispatcher.schedule([&instance]() {
         runAll(instance);
-        FCITX_INFO() << "All 17 scenarios passed";
+        FCITX_INFO() << "All 18 scenarios passed";
         instance.exit();
     });
     instance.exec();

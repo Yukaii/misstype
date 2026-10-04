@@ -5,5 +5,5 @@
 FROM swift:6.0
 RUN apt-get update && apt-get install -y --no-install-recommends \
       cmake make g++ pkg-config extra-cmake-modules gettext python3 \
-      fcitx5 libfcitx5core-dev libfcitx5config-dev libfcitx5utils-dev fcitx5-modules-dev \
+      fcitx5 libfcitx5core-dev libfcitx5config-dev libfcitx5utils-dev fcitx5-modules-dev libgtk-4-dev \
     && rm -rf /var/lib/apt/lists/*
