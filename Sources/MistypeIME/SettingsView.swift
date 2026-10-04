@@ -13,7 +13,7 @@ final class SettingsWindow: NSWindow {
         super.init(contentRect: NSRect(x: 0, y: 0, width: 720, height: 640),
                    styleMask: [.titled, .closable, .miniaturizable, .resizable],
                    backing: .buffered, defer: false)
-        title = L("Mistype Settings")
+        title = L("Misstype Settings")
         isReleasedWhenClosed = false
         contentMinSize = NSSize(width: 640, height: 440)
         contentViewController = NSHostingController(rootView: SettingsView())
@@ -366,7 +366,7 @@ private struct JevPane: View {
     var body: some View {
         Form {
             Section {
-                Text(L("Optional. When candidates are too close to call, a remote model can help decide. Off by default: Mistype decodes fully offline unless you enable this and provide a key."))
+                Text(L("Optional. When candidates are too close to call, a remote model can help decide. Off by default: Misstype decodes fully offline unless you enable this and provide a key."))
                     .font(.callout).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 Toggle(L("Enable Jev assistance"), isOn: Binding(
@@ -464,7 +464,7 @@ private struct AboutPane: View {
                         Image(nsImage: icon).resizable().frame(width: 64, height: 64)
                     }
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(L("Mistype")).font(.title2.weight(.semibold))
+                        Text(L("Misstype")).font(.title2.weight(.semibold))
                         Text(L("Capture first, decode later.")).foregroundStyle(.secondary)
                         Text(version).font(.caption).foregroundStyle(.tertiary)
                     }

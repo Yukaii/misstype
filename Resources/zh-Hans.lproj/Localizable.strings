@@ -1,5 +1,5 @@
-/* Mistype UI strings; keys are the English source text. */
-"Mistype Settings" = "随打注音 设置";
+/* Misstype UI strings; keys are the English source text. */
+"Misstype Settings" = "随打注音 设置";
 "General" = "通用";
 "Decoding" = "解码";
 "Learning" = "学习";
@@ -42,7 +42,7 @@
 "Clear" = "清除";
 "Cancel" = "取消";
 "This can't be undone." = "此操作无法撤销。";
-"Optional. When candidates are too close to call, a remote model can help decide. Off by default: Mistype decodes fully offline unless you enable this and provide a key." = "可选功能。候选难分高下时，可由远程模型协助判断。默认关闭：除非你启用并提供密钥，随打注音完全离线解码。";
+"Optional. When candidates are too close to call, a remote model can help decide. Off by default: Misstype decodes fully offline unless you enable this and provide a key." = "可选功能。候选难分高下时，可由远程模型协助判断。默认关闭：除非你启用并提供密钥，随打注音完全离线解码。";
 "Enable Jev assistance" = "启用 Jev 辅助";
 "Allow richer context" = "允许更丰富的上下文";
 "Also sends alignment and diff metadata." = "额外发送对齐与差异信息。";
@@ -62,7 +62,7 @@
 "Once enabled and a gateway key is present, candidate ties are sent to a remote model." = "启用并提供密钥后，候选难分高下时会发送给远程模型。";
 "Enable" = "启用";
 "Turning it off returns to offline decoding immediately." = "关闭后立即回到离线解码。";
-"Mistype" = "随打注音";
+"Misstype" = "随打注音";
 "Capture first, decode later." = "先打，再解码。";
 "Version %@ (%@)" = "版本 %@（%@）";
 "Privacy" = "隐私";

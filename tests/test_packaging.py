@@ -12,7 +12,7 @@ class PackagingMetadataTests(unittest.TestCase):
         with (ROOT / "Resources" / "Info.plist").open("rb") as handle:
             info = plistlib.load(handle)
 
-        self.assertEqual(info["CFBundleDisplayName"], "Mistype")
+        self.assertEqual(info["CFBundleDisplayName"], "Misstype")
         self.assertEqual(info["tsInputMethodIconFileKey"], "MistypeMenuIcon.tiff")
         self.assertTrue(info["LSHasLocalizedDisplayName"])
 

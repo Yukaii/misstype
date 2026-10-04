@@ -8,7 +8,7 @@ from .normalize import normalize_events
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Replay a Mistype JSONL trace")
+    parser = argparse.ArgumentParser(description="Replay a Misstype JSONL trace")
     parser.add_argument("trace", nargs="?", help="JSONL trace file, or stdin")
     args = parser.parse_args(argv)
     source = open(args.trace, encoding="utf-8") if args.trace else sys.stdin

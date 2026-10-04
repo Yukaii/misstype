@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-<key>CFBundleDisplayName</key><string>Mistype</string>
+<key>CFBundleDisplayName</key><string>Misstype</string>
 <key>CFBundleDevelopmentRegion</key><string>en</string>
 <key>CFBundleLocalizations</key><array><string>en</string><string>zh-Hant</string><string>zh-Hans</string><string>ja</string></array>
 <key>CFBundleExecutable</key><string>MistypeIME</string>
 <key>CFBundleIconFile</key><string>MistypeIcon.png</string>
 <key>CFBundleIdentifier</key><string>org.mistype.inputmethod.Mistype</string>
-<key>CFBundleName</key><string>Mistype</string>
+<key>CFBundleName</key><string>Misstype</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleSignature</key><string>BMST</string>
 <key>CFBundleShortVersionString</key><string>0.1</string>

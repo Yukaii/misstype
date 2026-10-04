@@ -1,5 +1,5 @@
-/* Mistype UI strings; keys are the English source text. */
-"Mistype Settings" = "随打注音 設定";
+/* Misstype UI strings; keys are the English source text. */
+"Misstype Settings" = "随打注音 設定";
 "General" = "一般";
 "Decoding" = "変換";
 "Learning" = "学習";
@@ -42,7 +42,7 @@
 "Clear" = "消去";
 "Cancel" = "キャンセル";
 "This can't be undone." = "この操作は取り消せません。";
-"Optional. When candidates are too close to call, a remote model can help decide. Off by default: Mistype decodes fully offline unless you enable this and provide a key." = "任意の機能です。候補の優劣が付けにくいとき、リモートのモデルが判断を手伝います。既定はオフ。有効にしてキーを設定しない限り、完全にオフラインで変換します。";
+"Optional. When candidates are too close to call, a remote model can help decide. Off by default: Misstype decodes fully offline unless you enable this and provide a key." = "任意の機能です。候補の優劣が付けにくいとき、リモートのモデルが判断を手伝います。既定はオフ。有効にしてキーを設定しない限り、完全にオフラインで変換します。";
 "Enable Jev assistance" = "Jev アシストを有効にする";
 "Allow richer context" = "より詳しい文脈を許可";
 "Also sends alignment and diff metadata." = "対応関係と差分のメタデータも送信します。";
@@ -62,7 +62,7 @@
 "Once enabled and a gateway key is present, candidate ties are sent to a remote model." = "有効にして Gateway キーを設定すると、候補が拮抗したときにリモートのモデルへ送信されます。";
 "Enable" = "有効にする";
 "Turning it off returns to offline decoding immediately." = "オフにすると、すぐにオフライン変換へ戻ります。";
-"Mistype" = "随打注音";
+"Misstype" = "随打注音";
 "Capture first, decode later." = "まず打つ。変換はあとで。";
 "Version %@ (%@)" = "バージョン %@（%@）";
 "Privacy" = "プライバシー";
