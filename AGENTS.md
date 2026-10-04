@@ -23,7 +23,13 @@ This repository is an experimental input device and decoder. The current goal is
   on 11+ tap phrases. Break-even vs a keyboard is computed (touch must spread
   within ~0.07–0.10 of key centre); the human tap-spread measurement is
   missing. Open: that measurement, then wiring a touch surface to
-  `InputSession`. Python remains the reference for the touch semantics only; the
+  `InputSession`.
+- Mixed Chinese/English with no mode switch has a measured v1 in `MistypeCore`
+  (`MixedDecode.swift`, 2026-10-04): English words and one-letter typos are
+  recognized from bare keys with no false switches on 600 pure-Chinese inputs
+  (English list: pinned FrequencyWords, CC BY-SA, see
+  `third_party/FrequencyWords/LICENSE.md`). Not yet wired to `InputSession`
+  (48 ms vs 18 ms per input; needs pruning before per-keystroke use). Python remains the reference for the touch semantics only; the
   "do not port" rule below applies to everything else.
 
 ## Product constraints

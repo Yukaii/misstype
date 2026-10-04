@@ -112,6 +112,23 @@ def toneless_order(entries, general, ranked):
     return changed
 
 
+def prepare_english(root):
+    """`word<TAB>ln p` for lowercase a-z words of the pinned English list.
+    Used only to recognize English typed without a mode switch."""
+    source = fetch_pinned(root / 'third_party/FrequencyWords/sources.json',
+                          root / '.cache/frequencywords')
+    rows = []
+    for line in source.read_text(encoding='utf-8').splitlines():
+        fields = line.split()
+        if (len(fields) == 2 and fields[0].isascii() and fields[0].isalpha()
+                and fields[0].islower() and fields[1].isdigit()):
+            rows.append((fields[0], int(fields[1])))
+    total = sum(count for _, count in rows)
+    target = source.with_name('english.tsv')
+    target.write_text(''.join(f'{word}\t{math.log(count / total):.6f}\n' for word, count in rows))
+    print(f'Prepared {len(rows):,} English words: {target}')
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--word-frequency', type=Path,
@@ -173,6 +190,7 @@ def main():
     output.write_text(''.join(f'{reading}\t{text}\t{score:.6f}\n'
                              for (reading, text), score in sorted(entries.items())))
     print(f'Prepared {len(entries):,} lexicon entries: {output}')
+    prepare_english(ROOT)
 
 
 if __name__ == '__main__':
