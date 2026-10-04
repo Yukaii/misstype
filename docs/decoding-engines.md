@@ -9,7 +9,7 @@
 現有繁體中文注音輸入法的組詞與解碼核心大致可歸納為六種架構思維：
 
 ### 流派一：基於 DAG 與詞頻之最大權重路徑（Unigram DAG / Gramambular）
-- **代表專案**：[vChewing](https://github.com/vChewing/vChewing-macOS)、McBopomofo（小麥注音）
+- **代表專案**：[vChewing（唯音輸入法，原威注音）](https://github.com/vChewing/vChewing-macOS)、McBopomofo（小麥注音）
 - **核心演算法**：
   - 將輸入的注音音節序列切分為節點，節點間的合法詞彙組合構建為有向無環圖（DAG）。
   - 各詞彙依詞庫中的單詞頻率（Unigram）賦予權重，常輔以長詞獎勵（Length Bias）以避免語句被過度切碎。
@@ -113,7 +113,7 @@
 
 各家引擎並無絕對優劣，本質上都是在其目標受眾、輸入習慣假設與硬體限制下所做出的工程取捨：
 
-- **追求完全掌控、精準定位與極致穩定 → 推薦 [vChewing（威注音）](https://github.com/vChewing/vChewing-macOS) 或小麥注音**
+- **追求完全掌控、精準定位與極致穩定 → 推薦 [vChewing（唯音／原威注音）](https://github.com/vChewing/vChewing-macOS) 或小麥注音**
   - **適用對象**：聲調輸入精確、習慣傳統實體鍵盤盲打、排斥輸入法自作聰明或猜測意圖的使用者。
   - **核心體驗**：演算法確定性最高，解碼延遲極低（< 1 ms），打什麼就是什麼，毫無突發驚喜或驚嚇。
 
