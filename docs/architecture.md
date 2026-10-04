@@ -211,3 +211,7 @@ The language and UI toolkit remain open until M0/M1 experiments establish the la
 ## Failure and observability
 
 Capture failures must be visible and recoverable without losing already-recorded events. Decoder failures fall back to the last offline result. Record structured metrics for event drops, queue depth, decode latency, timeout, confidence, and decoder source; never log raw text by default.
+
+### Mixed-language decode (v1, not wired)
+
+`LexiconDecoder.decodeMixed(keys:english:)` (`MixedDecode.swift`) reads bare keys as English when that wins on score: candidate English spans (exact words of an `EnglishLexicon` or one edit away for words of 5+ letters) are decoded as latin segments through `decodeSegments` and priced `word ln p - 6 x edits - switchPenalty` (default 4) against the all-Chinese reading. The English list is built by `script/prepare_lexicon.py` from the pinned FrequencyWords source into `.cache/frequencywords/english.tsv` and is optional: without it nothing changes. Measurements and limits are in the project outline ("Mixed Chinese/English without a switch").

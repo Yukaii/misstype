@@ -460,8 +460,9 @@ window out of the critical path):
    run, one commit at the end. No Shift toggle, no pause:
    `` `hello world`su3cl3 `` → `hello world你好`. Guessing is impossible by
    construction (bare keys stay Zhuyin), so `hello`-as-keys still decodes
-   Chinese — auto-detect with English scoring stays future work, as do
-   digits-inside-latin.
+   Chinese — auto-detect with English scoring: measured v1 in `MistypeCore`
+   (`decodeMixed`, see "Mixed Chinese/English without a switch" below), not
+   yet wired to `InputSession`; digits-inside-latin stays future work.
 7. Preferences (v1 landed): UserDefaults-backed `MistypePrefs`
    (fuzzyRepair / toneTolerance / candidateKeys-reserved), read live per
    keystroke, editable from the input-menu Preferences panel or
@@ -819,6 +820,61 @@ person the RMS and 95th-percentile distance from the key centre in normalized
 units and in millimetres. Compare with the 0.07-0.10 band above. The same
 trace is the seed for per-key tap distributions and for a pairing /
 calibration onboarding (next-steps items 5 and 6).
+
+### Mixed Chinese/English without a switch (2026-10-04)
+
+Question: can bare keys be read as English when that is clearly what was
+typed, with typo repair, without hurting Chinese? Source of English words:
+hermitdave/FrequencyWords `en_50k` (2018, pinned, checksum-verified; CC BY-SA
+4.0 content, licence note in `third_party/FrequencyWords/LICENSE.md`; picked
+over the Google 10k list because that one carries LDC research-only terms,
+and over SCOWL because SCOWL has no counts and needs a build). 46,717
+lowercase a-z words after filtering; `script/prepare_lexicon.py` writes
+`.cache/frequencywords/english.tsv` (never committed).
+
+Design (`Sources/MistypeCore/MixedDecode.swift`): candidate English spans are
+substrings (>= 3 letters) of consecutive letter keys that spell a word, or
+sit one edit (substitution, insertion, deletion, adjacent swap) from a word
+of >= 5 letters (symmetric-delete index). Every non-overlapping subset of up
+to 3 spans, including none, is decoded through the shipping `decodeSegments`
+(latin runs already split Zhuyin runs there) and priced
+`word ln p - 6 x edits - switchPenalty`; the best total wins, so the English
+reading must beat the Chinese reading of the same keys on score. Bare keys
+stay Zhuyin by default.
+
+Measurement (`MixedSweepTests`, real lexicons; 200 mixed inputs = Chinese
+piece + English word + Chinese piece, 600 pure-Chinese inputs of 3-6 lexicon
+words, 150 typo'd words; toned / toneless typing):
+
+| switch penalty | mixed top-1 | pure Chinese falsely switched | typo'd English top-1, fuzzy on | fuzzy off |
+|---|---|---|---|---|
+| 0 | 100% / 96% | 0% / 1% | 78% / 75% | 0% / 0% |
+| 2 | 100% / 96% | 0% / 0% | 80% / 78% | 0% / 0% |
+| **4 (default)** | 100% / 96% | 0% / 0% | 80% / 78% | 0% / 0% |
+| 6 | 92% / 90% | 0% / 0% | 80% / 78% | 0% / 0% |
+| 8 | 92% / 90% | 0% / 0% | 80% / 76% | 0% / 0% |
+
+Findings. (1) Yes, offline: no false switches in 600 pure-Chinese inputs from 2
+up, clean English words are found 100% / 96%, and one-letter typos are
+repaired 80% / 78% (nothing without the fuzzy layer). (2) The collision risk
+the design feared (short words such as the / you / for) did not show up:
+English words rarely spell valid Chinese key runs, because Zhuyin runs are
+syllable-shaped (initial + final) while English letter runs are not. (3) The
+cost is latency: `decodeMixed` takes 48 ms vs 18 ms for a plain decode of the
+same mixed input (release build), plus 350 ms once to build the index for
+46k words. Fine for a finished phrase; running it per keystroke needs pruning
+first (only when a letter run of >= 3 keys exists, cache spans per key
+prefix). (4) Limits of the evidence: the negatives are random lexicon-word
+sequences, not real prose; the positives use 18 words and 5 Chinese pieces;
+typos are one slip in words of 6+ letters; the 20% typo misses and the 4%
+toneless misses are not yet classified; no uppercase, digits, or hyphenated
+words. Treat it as a validated mechanism, not a quality claim.
+
+Next: wire into `InputSession` as a suggestion (English reading offered as a
+candidate, adopted automatically only above a confidence margin), with the
+latency pruning; then re-measure on real typed text.
+Run: `MISTYPE_MIXED_SWEEP=1 swift test -c release -Xswiftc -enable-testing
+--filter MixedSweepTests` after `python3 script/prepare_lexicon.py`.
 
 ## Measures
 
