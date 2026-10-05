@@ -33,11 +33,11 @@ enum MisstypePrefs {
             "MisstypeCandidatesPerPage": SelectionKeys.defaultPageSize,
             "MisstypeShiftToggleSide": ShiftToggleSide.either.rawValue,
             "MisstypeKeyBindings": "",
-            "MisstypePageKeys": PageKeys.minusEqual.rawValue,
             "MisstypeCursorCandidates": CursorCandidates.covering.rawValue,
             "MisstypeCandidateFontSize": PanelStyle.defaultFontSize,
             "MisstypePanelAppearance": PanelStyle.Appearance.system.rawValue,
             "MisstypeAccentHighlight": false,
+            "MisstypeCandidateGrid": false,
         ])
     }
 
@@ -61,11 +61,6 @@ enum MisstypePrefs {
     }
     private static var bindingsCache: (text: String, bindings: KeyBindings)?
 
-    /// Keys that turn pages while selecting, besides PageUp/PageDown.
-    static var pageKeys: PageKeys {
-        get { PageKeys(rawValue: UserDefaults.standard.string(forKey: "MisstypePageKeys") ?? "") ?? .minusEqual }
-        set { UserDefaults.standard.set(newValue.rawValue, forKey: "MisstypePageKeys") }
-    }
 
     /// Which words the syllable cursor (←/→) lists.
     static var cursorCandidates: CursorCandidates {
@@ -85,7 +80,8 @@ enum MisstypePrefs {
         return PanelStyle(
             fontSize: PanelStyle.clampFontSize(defaults.double(forKey: "MisstypeCandidateFontSize")),
             appearance: PanelStyle.Appearance(rawValue: defaults.string(forKey: "MisstypePanelAppearance") ?? "") ?? .system,
-            accentHighlight: defaults.bool(forKey: "MisstypeAccentHighlight"))
+            accentHighlight: defaults.bool(forKey: "MisstypeAccentHighlight"),
+            grid: defaults.bool(forKey: "MisstypeCandidateGrid"))
     }
 
     /// Lone-Shift-tap toggles 中/英 (default on; Shift+Space always works).
@@ -187,7 +183,7 @@ enum MisstypePrefs {
                         returnConfirmsSelection: returnConfirmsSelection,
                         mixedEnglish: mixedEnglish,
                         pageSize: candidatesPerPage, shiftToggleSide: shiftToggleSide,
-                        keyBindings: keyBindings, pageKeys: pageKeys,
+                        keyBindings: keyBindings,
                         cursorCandidates: cursorCandidates)
     }
 
@@ -220,4 +216,6 @@ struct PanelStyle: Equatable {
     var appearance: Appearance = .system
     /// Highlight in the system accent color instead of neutral gray.
     var accentHighlight = false
+    /// Show every page side by side (up to 4 columns) instead of one list.
+    var grid = false
 }

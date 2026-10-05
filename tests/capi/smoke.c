@@ -212,8 +212,8 @@ void run_c4(const char *res) {
     misstype_session_handle(s, &ev);
     
     misstype_view *v = misstype_session_view(s);
-    ASSERT(v->shows_candidates == 1 && v->selected == 1 && v->keys_active == 1 && v->candidate_count == 5, "C4 tab");
-    printf("C4 tab selected=1 keys_active=1 shows=1 count=5\n");
+    ASSERT(v->shows_candidates == 1 && v->selected == 0 && v->keys_active == 1 && v->candidate_count == 5, "C4 tab");
+    printf("C4 tab selected=0 keys_active=1 shows=1 count=5\n");
     misstype_view_free(v);
     
     // d (selection key for row 2)

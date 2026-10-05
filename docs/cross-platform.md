@@ -83,8 +83,8 @@ shortcut runs.
 - Candidates: show iff `showsCandidates`. `candidates` is the full list; page
   it `pageSize` per page (default 8) with the page containing `selected`
   visible and `selected` highlighted. The C ABI does not carry `pageSize`,
-  `shiftToggleSide`, `keyBindings`, `pageKeys` or `cursorCandidates` yet: non-Swift hosts get
-  the core defaults (8 per page, either Shift, Shift+Space on, `-`/`=`), so
+  `shiftToggleSide`, `keyBindings` or `cursorCandidates` yet: non-Swift hosts get
+  the core defaults (8 per page, either Shift, default bindings: Tab/Shift+Tab and PageUp/PageDown page, Down/Up step), so
   they keep paging by 8 until those are appended. Label visible rows with `selectionKeys`; dim or hide labels
   when `keysActive` is false (selection keys type Zhuyin then).
 - Page keys: translate PageUp/PageDown to `MISSTYPE_KEY_PAGE_UP/DOWN` (ABI
@@ -168,7 +168,7 @@ each is the named `InputSessionTests` case.
 | C1 | `s u 3 c l 3` then `⏎` | preedit `你好`, caret at end (UTF-16 2, bytes 6); `⏎` commits `你好`, preedit empty, no candidates | `testTypingConvertsLiveAndReturnCommitsThePreview` |
 | C2 | empty: `⏎`, `Backspace`, `Left`; then `Space` | first three pass with no commit; `Space` commits `" "` and is consumed | `testEmptyCompositionPassesKeysThrough` |
 | C3 | `s u 3 c l 3`, `Backspace` | preedit `你`, nothing committed | `testBackspaceEditsWithoutCommitting` |
-| C4 | `s u 3`, `Tab`, `d`, `⏎` | candidates shown; after `Tab` selected 1 and selection keys active; `d` picks row 2 → preedit `尼`; `⏎` commits `尼` | `testTabSelectsAndSelectionKeysPickThenLearn` |
+| C4 | `s u 3`, `Tab`, `d`, `⏎` | candidates shown; after `Tab` (next page; one page, so it only enters selection) selected 0 and selection keys active; `d` picks row 2 → preedit `尼`; `⏎` commits `尼` | `testTabSelectsAndSelectionKeysPickThenLearn` |
 | C5 | `s u 3`, `Down`, `Esc`, `Esc` | preedit `妳`; first `Esc` keeps `妳` and leaves selection; second clears with no commit | `testEscapeLeavesSelectionFirstThenClears` |
 | C6 | `s u 3`, Shift+`,`, Shift+`a`, `⏎` | preedit `你，` then `你，A`; commits `你，A` | `testPunctuationAndShiftLatinStayInsideTheComposition` |
 | C7 | `s u 3`, backtick, `h i` | preedit `你hi` | `testBacktickLatinRun` |

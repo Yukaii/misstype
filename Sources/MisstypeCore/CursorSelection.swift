@@ -70,35 +70,17 @@ public enum CursorCandidates: String, CaseIterable, Sendable {
     }
 }
 
-/// Keys that turn candidate pages in selection mode, on top of PageUp /
-/// PageDown. They type normally outside it, and a selection key wins when
-/// the two overlap.
-public enum PageKeys: String, CaseIterable, Sendable {
-    /// `-` / `=` (the Rime/Pinyin convention; the default).
-    case minusEqual
-    /// `,` / `.`
-    case commaPeriod
-    /// `[` / `]`
-    case brackets
-    /// PageUp / PageDown only.
-    case none
-
-    /// (previous page, next page) key labels.
-    public var labels: (previous: String, next: String)? {
-        switch self {
-        case .minusEqual: return ("-", "=")
-        case .commaPeriod: return (",", ".")
-        case .brackets: return ("[", "]")
-        case .none: return nil
-        }
-    }
-
+/// `-` / `=` turn pages in selection mode (the Rime/Pinyin convention), on
+/// top of the page bindings (Tab / Shift+Tab, PageUp / PageDown). They type
+/// normally outside it, and a selection key wins when the two overlap.
+public enum PageKeys {
     /// Paging direction for a key label: true = next page, nil = not a page key.
-    public func direction(forLabel label: String) -> Bool? {
-        guard let labels else { return nil }
-        if label == labels.next { return true }
-        if label == labels.previous { return false }
-        return nil
+    public static func direction(forLabel label: String) -> Bool? {
+        switch label {
+        case "=": return true
+        case "-": return false
+        default: return nil
+        }
     }
 }
 

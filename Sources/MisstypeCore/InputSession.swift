@@ -411,12 +411,15 @@ public final class InputSession {
             }
             if !chord {
                 switch key {
-                case .tab, .down, .up:
-                    let forward = key == .down || (key == .tab && !shift)
-                    return step(to: (menu.selected + (forward ? 1 : count - 1)) % count)
+                case .down, .up:
+                    return step(to: (menu.selected + (key == .down ? 1 : count - 1)) % count)
                 case .pageUp, .pageDown:
                     guard let index = pageTarget(menu.selected, count: count, forward: key == .pageDown) else {
-                        return .beeped
+                        // One page: the first page key arms the selection keys.
+                        guard !menu.selecting else { return .beeped }
+                        menu.selecting = true
+                        symbolMenu = menu
+                        return .handled
                     }
                     return step(to: index)
                 case .escape:
@@ -431,7 +434,7 @@ public final class InputSession {
                 if menu.selecting, !shift, let label = key.characterLabel {
                     let slot = SelectionKeys.slot(forLabel: label, keys: settings.candidateKeys,
                                                   pageSize: settings.pageSize)
-                    if slot == nil, let forward = settings.pageKeys.direction(forLabel: label),
+                    if slot == nil, let forward = PageKeys.direction(forLabel: label),
                        let index = pageTarget(menu.selected, count: count, forward: forward) {
                         return step(to: index)
                     }
@@ -574,22 +577,6 @@ public final class InputSession {
             }
             return KeyResult(consumed: true, commit: commitText(raw: false))
         }
-        if key == .tab && !composition.isEmpty {
-            if let texts = segmentTexts, texts.indices.contains(segmentSelected) {
-                // Focused Tab pins without committing: Left…Tab,Tab,Return
-                // fixes two mid-sentence words and sends the sentence.
-                pinAdvance(at: segmentSelected)
-                return .handled
-            }
-            if candidates.count > 1 {
-                // Tab steps forward, Shift+Tab steps back (Tab reliably
-                // reaches the IME; arrows are often eaten by the client app
-                // or the panel before the key event ever arrives).
-                selectCandidate((selected + (shift ? candidates.count - 1 : 1)) % candidates.count)
-                selecting = true
-            }
-            return .handled
-        }
         // Backtick toggles latin-run mode (no modifiers, either language
         // mode off): following letters append verbatim. Swallowed silently —
         // the letters themselves are the feedback. Shift+` is ～ (Punctuation).
@@ -598,14 +585,13 @@ public final class InputSession {
             engine.log("latin=\(latinMode ? 1 : 0)")
             return KeyResult(consumed: true, latinToggled: true)
         }
-        // Page keys (`SessionSettings.pageKeys`, default `-` / `=`, the
-        // Rime/Pinyin convention) turn pages in selection mode; they are ㄦ,
-        // ㄝ/ㄡ, punctuation or unmapped elsewhere, so outside it they still
-        // type. A key that is also a selection key picks instead.
+        // `-` / `=` turn pages in selection mode (the Rime/Pinyin
+        // convention); they are ㄦ / unmapped elsewhere, so outside it they
+        // still type. A key that is also a selection key picks instead.
         let pageSize = settings.pageSize
         if inSelection, !composition.isEmpty, !shift, let label = key.characterLabel,
            SelectionKeys.slot(forLabel: label, keys: settings.candidateKeys, pageSize: pageSize) == nil,
-           let forward = settings.pageKeys.direction(forLabel: label) {
+           let forward = PageKeys.direction(forLabel: label) {
             return page(forward: forward)
         }
         // Selection keys pick from the visible page, but only in selection
@@ -704,14 +690,20 @@ public final class InputSession {
     }
 
     /// Flip one page, keeping the row. Moves the highlight only, like Down:
-    /// nothing pins until a pick. Beeps when everything fits on one page.
+    /// nothing pins until a pick. When everything fits on one page the first
+    /// page key (Tab by default) enters selection mode without moving, so
+    /// the selection keys pick; after that it beeps.
     private func page(forward: Bool) -> KeyResult {
         if let texts = segmentTexts {
             guard let index = pageTarget(segmentSelected, count: texts.count, forward: forward) else { return .beeped }
             segmentSelected = index
             return .handled
         }
-        guard let index = pageTarget(selected, count: candidates.count, forward: forward) else { return .beeped }
+        guard let index = pageTarget(selected, count: candidates.count, forward: forward) else {
+            guard !selecting, candidates.count > 1 else { return .beeped }
+            selecting = true
+            return .handled
+        }
         selectCandidate(index)
         selecting = true
         return .handled

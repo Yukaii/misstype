@@ -70,7 +70,7 @@ final class KeyBindingsTests: XCTestCase {
     }
 
     func testRemovedDefaultGoesToTheApplication() {
-        settings.keyBindings = KeyBindings(overrides: [.stepCandidate: []])
+        settings.keyBindings = KeyBindings(overrides: [.nextPage: [KeyChord(.pageDown)]])
         let session = makeSession()
         type("su3", into: session)
         XCTAssertEqual(session.handle(KeyEvent(.tab, text: "\t")), KeyResult(consumed: false, commit: "你"))
@@ -89,6 +89,7 @@ final class KeyBindingsTests: XCTestCase {
 
     func testDefaultsHaveNoConflicts() {
         XCTAssertTrue(KeyBindings().conflicts.isEmpty)
-        XCTAssertEqual(KeyBindings().resolve(KeyEvent(.tab, text: "\t")), .unchanged)
+        XCTAssertEqual(KeyBindings().resolve(KeyEvent(.pageDown)), .unchanged)
+        XCTAssertEqual(KeyBindings().resolve(KeyEvent(.tab, text: "\t")), .rewritten(KeyEvent(.pageDown)))
     }
 }

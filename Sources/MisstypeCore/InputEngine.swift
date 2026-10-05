@@ -42,8 +42,6 @@ public struct SessionSettings: Equatable, Sendable {
     /// User key bindings for IME actions (`KeyBindings`; default: the
     /// built-in keys, Shift+Space toggles 中/英).
     public var keyBindings: KeyBindings
-    /// Extra keys that turn pages while selecting (PageUp/PageDown always do).
-    public var pageKeys: PageKeys
     /// Which words the syllable cursor offers (default: all covering it).
     public var cursorCandidates: CursorCandidates
 
@@ -53,13 +51,12 @@ public struct SessionSettings: Equatable, Sendable {
                 autoCommitSyllables: Int = 24, autoShowCandidates: Bool = true,
                 returnConfirmsSelection: Bool = false, mixedEnglish: Bool = true,
                 pageSize: Int = SelectionKeys.defaultPageSize, shiftToggleSide: ShiftToggleSide = .either,
-                keyBindings: KeyBindings = KeyBindings(), pageKeys: PageKeys = .minusEqual,
+                keyBindings: KeyBindings = KeyBindings(),
                 cursorCandidates: CursorCandidates = .covering) {
         self.cursorCandidates = cursorCandidates
         self.pageSizeValue = SelectionKeys.clampPageSize(pageSize)
         self.shiftToggleSide = shiftToggleSide
         self.keyBindings = keyBindings
-        self.pageKeys = pageKeys
         self.fuzzyRepair = fuzzyRepair
         self.toneTolerance = toneTolerance
         self.candidateKeys = candidateKeys

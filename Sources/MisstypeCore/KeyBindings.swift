@@ -85,11 +85,9 @@ public struct KeyChord: Hashable, Sendable, CustomStringConvertible {
 /// editing rules stay keyed on one set of keys.
 public enum KeyAction: String, CaseIterable, Sendable {
     case toggleEnglish
-    /// Tab / Shift+Tab: step the list; on a focused word, confirm it and
-    /// move on.
-    case stepCandidate, stepCandidateBack
-    /// Down / Up: move the highlight only.
+    /// Down / Up: move the highlight one row.
     case nextCandidate, previousCandidate
+    /// Tab / PageDown and Shift+Tab / PageUp: one page at a time.
     case nextPage, previousPage
     case cursorBack, cursorForward
     case markBack, markForward
@@ -101,8 +99,6 @@ public enum KeyAction: String, CaseIterable, Sendable {
     public var canonical: KeyChord {
         switch self {
         case .toggleEnglish: return KeyChord(.space, .shift)
-        case .stepCandidate: return KeyChord(.tab)
-        case .stepCandidateBack: return KeyChord(.tab, .shift)
         case .nextCandidate: return KeyChord(.down)
         case .previousCandidate: return KeyChord(.up)
         case .nextPage: return KeyChord(.pageDown)
@@ -119,14 +115,19 @@ public enum KeyAction: String, CaseIterable, Sendable {
     }
 
     /// Chords that trigger the action out of the box.
-    public var defaultChords: [KeyChord] { [canonical] }
+    public var defaultChords: [KeyChord] {
+        switch self {
+        case .nextPage: return [KeyChord(.tab), KeyChord(.pageDown)]
+        case .previousPage: return [KeyChord(.tab, .shift), KeyChord(.pageUp)]
+        default: return [canonical]
+        }
+    }
 
     /// Text the canonical event carries (the session swallows printable
     /// keys that type nothing).
     var canonicalText: String? {
         switch self {
         case .toggleEnglish: return " "
-        case .stepCandidate, .stepCandidateBack: return "\t"
         case .commit, .commitRaw: return "\r"
         case .cancel: return "\u{1b}"
         case .latinRun: return "`"

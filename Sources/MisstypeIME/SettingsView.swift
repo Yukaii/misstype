@@ -157,10 +157,15 @@ private struct AppearancePane: View {
     @AppStorage("MisstypeCandidateFontSize") private var fontSize = PanelStyle.defaultFontSize
     @AppStorage("MisstypeAccentHighlight") private var accentHighlight = false
     @AppStorage("MisstypeCandidatesPerPage") private var perPage = SelectionKeys.defaultPageSize
+    @AppStorage("MisstypeCandidateGrid") private var grid = false
 
     var body: some View {
         Form {
             Section(L("Candidate panel")) {
+                DescribedToggle(
+                    title: L("Show all pages side by side"),
+                    detail: L("Up to 4 pages in columns. ↑ ↓ move through every candidate and Tab turns pages; ← → stay the syllable cursor."),
+                    isOn: $grid)
                 Picker(L("Theme"), selection: $appearance) {
                     Text(L("Match System")).tag(PanelStyle.Appearance.system.rawValue)
                     Text(L("Light")).tag(PanelStyle.Appearance.light.rawValue)
@@ -234,7 +239,6 @@ private struct ShortcutsPane: View {
     @AppStorage("MisstypeShiftToggle") private var shiftToggle = true
     @AppStorage("MisstypeShiftToggleSide") private var shiftSide = ShiftToggleSide.either.rawValue
     @AppStorage("MisstypeKeyBindings") private var storedBindings = ""
-    @AppStorage("MisstypePageKeys") private var pageKeys = PageKeys.minusEqual.rawValue
     @AppStorage("MisstypeCandidatesPerPage") private var perPage = SelectionKeys.defaultPageSize
     @AppStorage("MisstypeCandidateKeys") private var storedKeys = SelectionKeys.defaultKeys
     @State private var draft = ""
@@ -303,17 +307,6 @@ private struct ShortcutsPane: View {
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Section(L("Page keys")) {
-                Picker(L("Turn pages while selecting"), selection: $pageKeys) {
-                    Text("-  =").tag(PageKeys.minusEqual.rawValue)
-                    Text(",  .").tag(PageKeys.commaPeriod.rawValue)
-                    Text("[  ]").tag(PageKeys.brackets.rawValue)
-                    Text(L("Page Up / Page Down only")).tag(PageKeys.none.rawValue)
-                }
-                Text(L("Used on top of the Next/Previous page bindings. These keys type normally when you are not selecting; a key that is also a selection key picks instead."))
-                    .font(.caption).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
             Section {
                 ForEach(KeyAction.allCases, id: \.self) { action in
                     BindingRow(action: action, bindings: bindings, conflicts: bindings.conflicts) { next in
@@ -353,12 +346,10 @@ extension KeyAction {
     var title: String {
         switch self {
         case .toggleEnglish: return L("Switch Chinese/English")
-        case .stepCandidate: return L("Next candidate; confirms a focused word")
-        case .stepCandidateBack: return L("Previous candidate; confirms a focused word")
-        case .nextCandidate: return L("Move the highlight down")
-        case .previousCandidate: return L("Move the highlight up")
-        case .nextPage: return L("Next page")
-        case .previousPage: return L("Previous page")
+        case .nextCandidate: return L("Next candidate")
+        case .previousCandidate: return L("Previous candidate")
+        case .nextPage: return L("Next page (also = while selecting)")
+        case .previousPage: return L("Previous page (also - while selecting)")
         case .cursorBack: return L("Syllable cursor back")
         case .cursorForward: return L("Syllable cursor forward")
         case .markBack: return L("Mark a phrase backward")
