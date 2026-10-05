@@ -534,7 +534,7 @@ final class InputSessionTests: XCTestCase {
     }
 
     func testShiftSpaceToggleCanBeTurnedOff() {
-        settings.shiftSpaceToggle = false
+        settings.keyBindings = KeyBindings(overrides: [.toggleEnglish: []])
         let session = makeSession()
         type("su3", into: session)
         let result = session.handle(key(.space, [.shift], text: " "))

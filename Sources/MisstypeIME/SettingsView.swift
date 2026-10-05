@@ -233,7 +233,7 @@ private struct PanelPreview: View {
 private struct ShortcutsPane: View {
     @AppStorage("MisstypeShiftToggle") private var shiftToggle = true
     @AppStorage("MisstypeShiftToggleSide") private var shiftSide = ShiftToggleSide.either.rawValue
-    @AppStorage("MisstypeShiftSpaceToggle") private var shiftSpace = true
+    @AppStorage("MisstypeKeyBindings") private var storedBindings = ""
     @AppStorage("MisstypePageKeys") private var pageKeys = PageKeys.minusEqual.rawValue
     @AppStorage("MisstypeCandidatesPerPage") private var perPage = SelectionKeys.defaultPageSize
     @AppStorage("MisstypeCandidateKeys") private var storedKeys = SelectionKeys.defaultKeys
@@ -255,7 +255,8 @@ private struct ShortcutsPane: View {
                 })
     }
 
-    private var paging: PageKeys { PageKeys(rawValue: pageKeys) ?? .minusEqual }
+    private var bindings: KeyBindings { KeyBindings.parse(storedBindings) }
+    private var canSwitch: Bool { shiftToggle || !bindings.chords(for: .toggleEnglish).isEmpty }
 
     var body: some View {
         Form {
@@ -266,11 +267,10 @@ private struct ShortcutsPane: View {
                     Text(L("Right Shift")).tag(ShiftToggleSide.right.rawValue)
                     Text(L("Off")).tag("off")
                 }
-                Toggle(L("Shift+Space"), isOn: $shiftSpace)
-                Text(shiftToggle || shiftSpace
-                     ? L("Turn the Shift tap off if an app mishandles lone Shift presses.")
-                     : L("With both off, no key switches between Chinese and English."))
-                    .font(.caption).foregroundStyle(shiftToggle || shiftSpace ? Color.secondary : Color.orange)
+                Text(canSwitch
+                     ? L("Turn the Shift tap off if an app mishandles lone Shift presses. Shift+Space also switches; change it under Key bindings.")
+                     : L("With the Shift tap off and no binding for it, no key switches between Chinese and English."))
+                    .font(.caption).foregroundStyle(canSwitch ? Color.secondary : Color.orange)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Section(L("Selection keys")) {
@@ -310,20 +310,27 @@ private struct ShortcutsPane: View {
                     Text("[  ]").tag(PageKeys.brackets.rawValue)
                     Text(L("Page Up / Page Down only")).tag(PageKeys.none.rawValue)
                 }
-                Text(L("Page Up and Page Down always work. The extra keys type normally when you are not selecting; a key that is also a selection key picks instead."))
+                Text(L("Used on top of the Next/Previous page bindings. These keys type normally when you are not selecting; a key that is also a selection key picks instead."))
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Section(L("Candidate keys")) {
-                shortcut("Tab · ↓", L("Next candidate"))
-                shortcut("⇧Tab · ↑", L("Previous candidate"))
-                shortcut(paging.labels.map { "Page Down · \($0.next)" } ?? "Page Down", L("Next page"))
-                shortcut(paging.labels.map { "Page Up · \($0.previous)" } ?? "Page Up", L("Previous page"))
-                shortcut("← →", L("Move the syllable cursor"))
-                shortcut("⇧← ⇧→", L("Mark a phrase for My Dictionary"))
-                shortcut("⏎", L("Commit"))
-                shortcut("⇧⏎", L("Commit the keys as typed"))
-                shortcut("Esc", L("Leave selection; press again to clear"))
+            Section {
+                ForEach(KeyAction.allCases, id: \.self) { action in
+                    BindingRow(action: action, bindings: bindings, conflicts: bindings.conflicts) { next in
+                        storedBindings = next.serialized
+                    }
+                }
+            } header: {
+                HStack {
+                    Text(L("Key bindings"))
+                    Spacer()
+                    Button(L("Restore Defaults")) { storedBindings = "" }
+                        .disabled(bindings.overrides.isEmpty)
+                }
+            } footer: {
+                Text(L("Click + and press a key combination. Letters, digits and symbols need ⌃, ⌥ or ⌘, since alone they type Zhuyin. A removed default key goes to the app instead."))
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .onAppear { draft = storedKeys }
@@ -340,13 +347,161 @@ private struct ShortcutsPane: View {
         draft = clean
     }
 
-    private func shortcut(_ keys: String, _ action: String) -> some View {
-        LabeledContent {
-            Text(keys).font(.system(.callout, design: .monospaced)).foregroundStyle(.secondary)
-        } label: {
-            Text(action)
+}
+
+extension KeyAction {
+    var title: String {
+        switch self {
+        case .toggleEnglish: return L("Switch Chinese/English")
+        case .stepCandidate: return L("Next candidate; confirms a focused word")
+        case .stepCandidateBack: return L("Previous candidate; confirms a focused word")
+        case .nextCandidate: return L("Move the highlight down")
+        case .previousCandidate: return L("Move the highlight up")
+        case .nextPage: return L("Next page")
+        case .previousPage: return L("Previous page")
+        case .cursorBack: return L("Syllable cursor back")
+        case .cursorForward: return L("Syllable cursor forward")
+        case .markBack: return L("Mark a phrase backward")
+        case .markForward: return L("Mark a phrase forward")
+        case .commit: return L("Commit")
+        case .commitRaw: return L("Commit the keys as typed")
+        case .cancel: return L("Leave selection; press again to clear")
+        case .latinRun: return L("Start or end an English run")
         }
     }
+}
+
+extension KeyChord {
+    /// macOS notation: ⌃⌥⇧⌘ then the key.
+    var symbol: String {
+        var out = ""
+        if modifiers.contains(.control) { out += "⌃" }
+        if modifiers.contains(.option) { out += "⌥" }
+        if modifiers.contains(.shift) { out += "⇧" }
+        if modifiers.contains(.command) { out += "⌘" }
+        switch key {
+        case .character(let label): out += label.uppercased()
+        case .space: out += "Space"
+        case .enter: out += "⏎"
+        case .tab: out += "⇥"
+        case .escape: out += "Esc"
+        case .left: out += "←"
+        case .right: out += "→"
+        case .up: out += "↑"
+        case .down: out += "↓"
+        case .pageUp: out += "Page Up"
+        case .pageDown: out += "Page Down"
+        default: out += "?"
+        }
+        return out
+    }
+
+    /// The chord a key-down event types, nil for keys a binding cannot use.
+    init?(event: NSEvent) {
+        var modifiers: KeyEvent.Modifiers = []
+        let flags = event.modifierFlags
+        if flags.contains(.control) { modifiers.insert(.control) }
+        if flags.contains(.option) { modifiers.insert(.option) }
+        if flags.contains(.shift) { modifiers.insert(.shift) }
+        if flags.contains(.command) { modifiers.insert(.command) }
+        self.init(MacKeyCode.key(Int(event.keyCode)), modifiers)
+        guard isBindable else { return nil }
+    }
+}
+
+/// One action: its chords as removable chips, + to record another, and a
+/// reset when it differs from the default.
+private struct BindingRow: View {
+    let action: KeyAction
+    let bindings: KeyBindings
+    let conflicts: Set<KeyChord>
+    let update: (KeyBindings) -> Void
+    @StateObject private var recorder = ChordRecorder()
+
+    private var chords: [KeyChord] { bindings.chords(for: action) }
+
+    var body: some View {
+        LabeledContent {
+            HStack(spacing: 4) {
+                ForEach(chords, id: \.self) { chord in
+                    HStack(spacing: 2) {
+                        Text(chord.symbol).font(.system(.callout, design: .monospaced))
+                        Button { set(chords.filter { $0 != chord }) } label: {
+                            Image(systemName: "xmark.circle.fill")
+                        }
+                        .buttonStyle(.borderless)
+                        .foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal, 6).padding(.vertical, 2)
+                    .background(RoundedRectangle(cornerRadius: 5).fill(
+                        conflicts.contains(chord) ? Color.orange.opacity(0.3) : Color.secondary.opacity(0.15)))
+                    .help(conflicts.contains(chord) ? L("Also bound to another action") : "")
+                }
+                if chords.isEmpty {
+                    Text(L("None")).foregroundStyle(.tertiary)
+                }
+                Button(recorder.isRecording ? L("Press keys…") : "+") {
+                    if recorder.isRecording {
+                        recorder.stop()
+                    } else {
+                        recorder.start { chord in
+                            if !chords.contains(chord) { set(chords + [chord]) }
+                        }
+                    }
+                }
+                .buttonStyle(.bordered).controlSize(.small)
+                Button {
+                    var next = bindings
+                    next.overrides[action] = nil
+                    update(next)
+                } label: {
+                    Image(systemName: "arrow.uturn.backward")
+                }
+                .buttonStyle(.borderless)
+                .help(L("Restore Default"))
+                .opacity(bindings.overrides[action] == nil ? 0 : 1)
+                .disabled(bindings.overrides[action] == nil)
+            }
+        } label: {
+            Text(action.title)
+        }
+        .onDisappear { recorder.stop() }
+    }
+
+    private func set(_ next: [KeyChord]) {
+        var changed = bindings
+        changed.overrides[action] = next == action.defaultChords ? nil : next
+        update(changed)
+    }
+}
+
+/// Captures the next key-down in this app's windows (the Settings window)
+/// and swallows it, so recording never types into a field.
+private final class ChordRecorder: ObservableObject {
+    @Published private(set) var isRecording = false
+    private var monitor: Any?
+
+    func start(_ record: @escaping (KeyChord) -> Void) {
+        stop()
+        isRecording = true
+        monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let chord = KeyChord(event: event) else {
+                NSSound.beep()
+                return nil
+            }
+            record(chord)
+            self?.stop()
+            return nil
+        }
+    }
+
+    func stop() {
+        if let monitor { NSEvent.removeMonitor(monitor) }
+        monitor = nil
+        isRecording = false
+    }
+
+    deinit { stop() }
 }
 
 // MARK: - Decoding

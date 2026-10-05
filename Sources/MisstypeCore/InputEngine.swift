@@ -39,8 +39,9 @@ public struct SessionSettings: Equatable, Sendable {
     private var pageSizeValue: Int
     /// Which lone Shift tap toggles 中/英 while `shiftToggle` is on.
     public var shiftToggleSide: ShiftToggleSide
-    /// Shift+Space toggles 中/英. Off = it types like Space.
-    public var shiftSpaceToggle: Bool
+    /// User key bindings for IME actions (`KeyBindings`; default: the
+    /// built-in keys, Shift+Space toggles 中/英).
+    public var keyBindings: KeyBindings
     /// Extra keys that turn pages while selecting (PageUp/PageDown always do).
     public var pageKeys: PageKeys
     /// Which words the syllable cursor offers (default: all covering it).
@@ -52,12 +53,12 @@ public struct SessionSettings: Equatable, Sendable {
                 autoCommitSyllables: Int = 24, autoShowCandidates: Bool = true,
                 returnConfirmsSelection: Bool = false, mixedEnglish: Bool = true,
                 pageSize: Int = SelectionKeys.defaultPageSize, shiftToggleSide: ShiftToggleSide = .either,
-                shiftSpaceToggle: Bool = true, pageKeys: PageKeys = .minusEqual,
+                keyBindings: KeyBindings = KeyBindings(), pageKeys: PageKeys = .minusEqual,
                 cursorCandidates: CursorCandidates = .covering) {
         self.cursorCandidates = cursorCandidates
         self.pageSizeValue = SelectionKeys.clampPageSize(pageSize)
         self.shiftToggleSide = shiftToggleSide
-        self.shiftSpaceToggle = shiftSpaceToggle
+        self.keyBindings = keyBindings
         self.pageKeys = pageKeys
         self.fuzzyRepair = fuzzyRepair
         self.toneTolerance = toneTolerance

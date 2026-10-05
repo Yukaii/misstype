@@ -250,6 +250,14 @@ public final class InputSession {
             }
             _ = engine.shiftTap.feed(shift: nil, shiftHeld: mods.contains(.shift),
                                      isRealKeyDown: true, otherMods: otherMods, now: now)
+            // User bindings become the canonical key of their action, so the
+            // rules below stay keyed on one set of keys.
+            var event = event
+            switch settings.keyBindings.resolve(event) {
+            case .unchanged: break
+            case .rewritten(let canonical): event = canonical
+            case .unbound: return pass()
+            }
             if composition.isEmpty { engine.reloadUserDictionaryIfChanged() }
             // Bare-modifier presses (Caps/Opt/Ctrl alone) carry no text:
             // consume silently instead of committing the composition first.
@@ -375,7 +383,7 @@ public final class InputSession {
         default:
             break
         }
-        if key == .space && shift && settings.shiftSpaceToggle { return toggleEnglish() }
+        if key == .space && shift { return toggleEnglish() }
         if engine.english || mods.contains(.capsLock) { return pass() }
         // Latin mode ends on anything but letters, digits, space (multi-word
         // runs stay latin: `hello world`) and the backtick toggle:

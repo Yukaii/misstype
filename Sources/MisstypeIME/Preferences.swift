@@ -32,7 +32,7 @@ enum MisstypePrefs {
             "MisstypeMixedEnglish": false,
             "MisstypeCandidatesPerPage": SelectionKeys.defaultPageSize,
             "MisstypeShiftToggleSide": ShiftToggleSide.either.rawValue,
-            "MisstypeShiftSpaceToggle": true,
+            "MisstypeKeyBindings": "",
             "MisstypePageKeys": PageKeys.minusEqual.rawValue,
             "MisstypeCursorCandidates": CursorCandidates.covering.rawValue,
             "MisstypeCandidateFontSize": PanelStyle.defaultFontSize,
@@ -47,11 +47,19 @@ enum MisstypePrefs {
         set { UserDefaults.standard.set(newValue.rawValue, forKey: "MisstypeShiftToggleSide") }
     }
 
-    /// Shift+Space toggles 中/英 (default on); off = it types like Space.
-    static var shiftSpaceToggle: Bool {
-        get { UserDefaults.standard.bool(forKey: "MisstypeShiftSpaceToggle") }
-        set { UserDefaults.standard.set(newValue, forKey: "MisstypeShiftSpaceToggle") }
+    /// Key bindings in `KeyBindings` text form (empty = all defaults).
+    /// Parsed once per distinct value, since it is read every keystroke.
+    static var keyBindings: KeyBindings {
+        get {
+            let text = UserDefaults.standard.string(forKey: "MisstypeKeyBindings") ?? ""
+            if let cached = bindingsCache, cached.text == text { return cached.bindings }
+            let bindings = KeyBindings.parse(text)
+            bindingsCache = (text, bindings)
+            return bindings
+        }
+        set { UserDefaults.standard.set(newValue.serialized, forKey: "MisstypeKeyBindings") }
     }
+    private static var bindingsCache: (text: String, bindings: KeyBindings)?
 
     /// Keys that turn pages while selecting, besides PageUp/PageDown.
     static var pageKeys: PageKeys {
@@ -179,7 +187,7 @@ enum MisstypePrefs {
                         returnConfirmsSelection: returnConfirmsSelection,
                         mixedEnglish: mixedEnglish,
                         pageSize: candidatesPerPage, shiftToggleSide: shiftToggleSide,
-                        shiftSpaceToggle: shiftSpaceToggle, pageKeys: pageKeys,
+                        keyBindings: keyBindings, pageKeys: pageKeys,
                         cursorCandidates: cursorCandidates)
     }
 
