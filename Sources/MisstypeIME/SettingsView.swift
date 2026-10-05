@@ -171,7 +171,12 @@ private struct AppearancePane: View {
                     title: L("Show all pages side by side"),
                     detail: L("Up to 4 pages in columns. ↑ ↓ move through every candidate and Tab turns pages; ← → stay the syllable cursor."),
                     isOn: $grid)
-                LabeledContent(L("Color scheme")) {
+                // Not LabeledContent: the grouped Form measured that row for
+                // one text line, clipping the taller swatches and leaving the
+                // label at the top. An explicit height and centered HStack.
+                HStack {
+                    Text(L("Color scheme"))
+                    Spacer()
                     HStack(spacing: 10) {
                         ForEach(PanelTheme.allCases, id: \.self) { item in
                             ThemeSwatch(theme: item, selected: theme == item.rawValue,
@@ -180,6 +185,7 @@ private struct AppearancePane: View {
                         }
                     }
                 }
+                .frame(height: 72)
                 Picker(L("Light or dark"), selection: $appearance) {
                     Text(L("Match System")).tag(PanelStyle.Appearance.system.rawValue)
                     Text(L("Light")).tag(PanelStyle.Appearance.light.rawValue)
