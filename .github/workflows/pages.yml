@@ -1,0 +1,57 @@
+name: Pages
+
+# Builds site/ with Vite on every change to it (PRs included) and publishes
+# site/dist to GitHub Pages from main.
+# Deploy is off until Pages is set up: enable Pages with source "GitHub
+# Actions" in the repository settings, then set the repository variable
+# PAGES_ENABLED=true. A manual run (workflow_dispatch) deploys regardless.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      - ".github/workflows/pages.yml"
+  pull_request:
+    paths:
+      - "site/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - run: npm ci && npm run build
+        working-directory: site
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/dist
+
+  deploy:
+    needs: build
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && vars.PAGES_ENABLED == 'true')
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/configure-pages@v5
+      - id: deployment
+        uses: actions/deploy-pages@v4

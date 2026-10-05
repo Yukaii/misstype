@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Misstype: Zhuyin without the tones</title>
+<meta name="description" content="Type Zhuyin without tones. Wrong keys, swapped keys and missed keys are fine. A free input method for macOS and Linux.">
+<meta property="og:title" content="Misstype">
+<meta property="og:description" content="Type Zhuyin without tones. Typos are fine.">
+<meta property="og:image" content="../icon.png">
+<link rel="icon" href="../icon.svg" type="image/svg+xml">
+<link rel="alternate" hreflang="zh-Hant" href="../" vite-ignore>
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+
+<header class="wrap top">
+  <a class="brand" href="./"><img src="../icon.svg" alt="">Misstype <small lang="zh-Hant">隨打注音</small></a>
+  <nav>
+    <a href="#install">Download</a>
+    <a href="https://github.com/Yukaii/misstype">GitHub</a>
+    <a href="../" lang="zh-Hant" hreflang="zh-Hant">中文</a>
+  </nav>
+</header>
+
+<main>
+  <div class="wrap hero">
+    <h1>Type Zhuyin. Skip the tones.</h1>
+    <p class="lede">Wrong key, swapped keys, a missed key: usually you still get the sentence you meant.</p>
+    <div class="cta">
+      <a class="button" href="https://github.com/Yukaii/misstype/releases/latest">Download for macOS</a>
+      <span class="note">Free · macOS 13+ · also on <a href="#linux">Linux</a></span>
+    </div>
+
+    <div class="demo" aria-hidden="true">
+      <div class="field"><span class="done">今天天氣很好</span><span class="caret"></span></div>
+      <div class="keys"><span>No tones</span><span>ㄐㄧㄣㄊㄧㄢㄊㄧㄢㄑㄧㄏㄣㄏㄠ</span></div>
+    </div>
+  </div>
+
+  <section>
+    <div class="wrap">
+      <h2>Like this</h2>
+      <p class="intro">No tones anywhere. Mistakes in red.</p>
+      <ul class="examples">
+        <li data-keys="ㄐㄧㄣㄊㄧㄢㄊㄧㄢㄑㄧㄏㄣㄏㄠ">
+          <span class="what">No tones</span>
+          <span class="typed">ㄐㄧㄣㄊㄧㄢㄊㄧㄢㄑㄧㄏㄣㄏㄠ</span>
+          <span class="arrow">→</span>
+          <span class="got">今天天氣很好</span>
+        </li>
+        <li data-keys="ㄧㄐㄣㄊㄧㄢㄊㄧㄢㄑㄧㄏㄣㄏㄠ">
+          <span class="what">Swapped</span>
+          <span class="typed"><mark>ㄧㄐ</mark>ㄣㄊㄧㄢㄊㄧㄢㄑㄧㄏㄣㄏㄠ</span>
+          <span class="arrow">→</span>
+          <span class="got">今天天氣很好</span>
+        </li>
+        <li data-keys="ㄇㄧㄥㄊㄧㄢㄗㄠㄕㄤㄐㄡㄉㄧㄢㄎㄞㄏㄨㄟ">
+          <span class="what">Missed one</span>
+          <span class="typed">ㄇㄧㄥㄊㄧㄢㄗㄠㄕㄤㄐ<mark title="missing ㄧ">‸</mark>ㄡㄉㄧㄢㄎㄞㄏㄨㄟ</span>
+          <span class="arrow">→</span>
+          <span class="got">明天早上九點開會</span>
+        </li>
+        <li data-keys="ㄒㄧㄝㄒㄧㄝㄎㄧㄅㄤㄇㄤ">
+          <span class="what">Next key over</span>
+          <span class="typed">ㄒㄧㄝㄒㄧㄝ<mark title="should be ㄋ">ㄎ</mark>ㄧㄅㄤㄇㄤ</span>
+          <span class="arrow">→</span>
+          <span class="got">謝謝你幫忙</span>
+        </li>
+      </ul>
+      <p class="fine">If it guesses wrong, press <kbd>↓</kbd> and pick another character.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2>Also</h2>
+      <ul class="plain">
+        <li>Same keyboard layout as regular Zhuyin. Tones still work if you type them.</li>
+        <li>No internet needed. What you type stays on your computer.</li>
+        <li>Characters you pick come first next time.</li>
+        <li>Add your own words: select with <kbd>Shift</kbd>+<kbd>←</kbd>, press <kbd>Return</kbd>.</li>
+        <li>Tap <kbd>Shift</kbd> to switch between Chinese and English.</li>
+        <li>Updates itself.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="install">
+    <div class="wrap">
+      <h2>Install</h2>
+      <ol class="steps">
+        <li><div><p><a href="https://github.com/Yukaii/misstype/releases/latest">Download</a> the <code>.dmg</code>.</p></div></li>
+        <li><div><p>Open it and double-click “Install Misstype”. No password needed.</p></div></li>
+        <li><div><p>Log out and back in, then pick “Misstype Bopomofo” from the input menu.</p><p class="sub">Not there? System Settings → Keyboard → Input Sources → +</p></div></li>
+      </ol>
+      <p class="other" id="linux">Linux (fcitx5): see <a href="https://github.com/Yukaii/misstype/blob/main/docs/linux-port.md">here</a>.</p>
+    </div>
+  </section>
+
+  <section class="notes">
+    <div class="wrap">
+      <h2>One more thing</h2>
+      <p>I made this for myself. It's new and it will have rough edges.</p>
+      <p>If you want a solid everyday Zhuyin input method, use <a href="https://github.com/vChewing/vChewing-macOS">vChewing</a>. If you want to try typing this way, go ahead, and tell me what breaks on <a href="https://github.com/Yukaii/misstype/issues">GitHub</a>.</p>
+      <p>Standard Zhuyin layout only. No Cangjie, Pinyin or Simplified Chinese.</p>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>Open source, MIT. Dictionary from McBopomofo and libtabe.</p>
+    <p><a href="https://github.com/Yukaii/misstype">Source code</a> · <a href="../" lang="zh-Hant" hreflang="zh-Hant">中文</a></p>
+  </div>
+</footer>
+
+<script type="module" src="../demo.js"></script>
+</body>
+</html>
