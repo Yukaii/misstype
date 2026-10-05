@@ -1,9 +1,15 @@
 # Landing page
 
-Static, no build step, no web fonts, no trackers. `index.html` is Traditional
-Chinese, `en/index.html` English; both share `style.css` and `demo.js`.
+Two plain HTML pages built with Vite (no framework, no web fonts, no
+trackers). `index.html` is Traditional Chinese, `en/index.html` English; both
+share `style.css` and `demo.js`. Files in `public/` are copied as-is.
 
-Preview: `python3 -m http.server -d site 8765`, then open http://localhost:8765/.
+```sh
+cd site
+npm ci
+npm run dev       # local preview with reload
+npm run build     # writes site/dist (what Pages publishes)
+```
 
 The examples under "打錯了，它幫你猜回來" are real decoder output (default
 settings, no tones, Enter to commit), checked through the C ABI with

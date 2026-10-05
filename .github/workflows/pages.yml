@@ -1,6 +1,6 @@
 name: Pages
 
-# Publishes site/ (static, no build step) to GitHub Pages.
+# Builds site/ with Vite and publishes site/dist to GitHub Pages.
 # Off until Pages is set up: enable Pages with source "GitHub Actions" in the
 # repository settings, then set the repository variable PAGES_ENABLED=true.
 # A manual run (workflow_dispatch) works regardless of the variable.
@@ -28,9 +28,16 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - run: npm ci && npm run build
+        working-directory: site
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: site
+          path: site/dist
       - id: deployment
         uses: actions/deploy-pages@v4
