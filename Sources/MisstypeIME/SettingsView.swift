@@ -103,13 +103,15 @@ private struct DescribedToggle: View {
         // The detail sits under the toggle, not in its label: a grouped Form
         // sizes a Toggle row for a one-line label, so a wrapping label (VStack
         // or title + subtitle Texts alike) was clipped top and bottom and the
-        // next row drew over it. A plain fixed-size Text grows the row.
-        VStack(alignment: .leading, spacing: 2) {
-            Toggle(title, isOn: $isOn)
-            Text(detail).font(.caption).foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
+        // next row drew over it. Wrapping the pair in a VStack inside one row
+        // was still measured too short (detail overlapped the next row), so
+        // the detail is its own row: a bare Text is sized correctly.
+        Toggle(title, isOn: $isOn)
+            .listRowSeparator(.hidden, edges: .bottom)
+        Text(detail).font(.caption).foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .listRowSeparator(.hidden, edges: .top)
     }
 }
 
