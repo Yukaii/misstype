@@ -902,14 +902,16 @@ public final class InputSession {
 
     /// Point the cursor at its syllable: list every word covering it
     /// (`cursorOptions`, longest first), so a fix needing a different word
-    /// boundary (大|對 -> 打對) is one pick. The highlight starts on what is
-    /// displayed now: the top path's word there, else the single character.
+    /// boundary (大|對 -> 打對) is one pick; `cursorCandidates` can narrow
+    /// that to the words ending after it (caret after the syllable) or
+    /// starting at it. The highlight starts on what is displayed now: the
+    /// top path's word there, else the single character.
     /// Outcomes are traced by code (numbers only): ok, noframe, noword.
     private func focusSegment() {
         clearSegment()
         guard let c = cursor, let frame = focusFrame(),
               let word = frame.top.alignment.first(where: { $0.syllables.contains(c) }),
-              let caret = frame.top.charOffset(ofSyllable: c) else {
+              let caret = cursorCaret(c, in: frame.top) else {
             engine.log("focus noframe")
             cursor = nil
             return
@@ -917,8 +919,10 @@ public final class InputSession {
         var options = engine.decoder.cursorOptions(
             frame.syllables, at: c, within: frame.top.run(containing: c),
             fuzzy: settings.fuzzyRepair, toneTolerance: settings.toneTolerance)
-        let shownWord = spanText(frame.top.text, word.chars)
-        let shownChar = spanText(frame.top.text, caret..<caret + 1)
+            .filter { settings.cursorCandidates.lists($0.span, cursor: c) }
+        let lists = settings.cursorCandidates.lists(word.syllables, cursor: c)
+        let shownWord = lists ? spanText(frame.top.text, word.chars) : nil
+        let shownChar = frame.top.charOffset(ofSyllable: c).flatMap { spanText(frame.top.text, $0..<$0 + 1) }
         // Multi-syllable spans keep only their best few words, so a word
         // shown thanks to learning can fall outside the list; highlighting
         // a single char instead would let Return re-pin (and rewrite) it.
@@ -938,6 +942,20 @@ public final class InputSession {
         segmentTexts = options.map(\.text)
         segmentSelected = current
         segmentCaret = caret
+    }
+
+    /// Caret for cursor syllable `c`: before it, or after it when the
+    /// cursor lists words ending there (`CursorCandidates.endingAt`).
+    private func cursorCaret(_ c: Int, in top: SentenceCandidate) -> Int? {
+        guard settings.cursorCandidates == .endingAt else { return top.charOffset(ofSyllable: c) }
+        guard let word = top.alignment.first(where: { $0.syllables.contains(c) }) else { return nil }
+        guard word.chars.count == word.syllables.count else { return word.chars.upperBound }
+        return word.chars.lowerBound + (c + 1 - word.syllables.lowerBound)
+    }
+
+    /// Syllable boundary (0…n) where the caret sits for the cursor.
+    private func cursorBoundary(_ c: Int) -> Int {
+        settings.cursorCandidates == .endingAt ? c + 1 : c
     }
 
     private func moveCursorBack() -> Bool {
@@ -982,7 +1000,7 @@ public final class InputSession {
     private func extendMark(forward: Bool) -> Bool {
         guard let frame = focusFrame(),
               let end = frame.top.alignment.last?.syllables.upperBound, end > 0 else { return false }
-        var next = mark ?? { let start = cursor ?? end; return (start, start) }()
+        var next = mark ?? { let start = cursor.map(cursorBoundary) ?? end; return (start, start) }()
         let head = next.head + (forward ? 1 : -1)
         guard (0...end).contains(head) else { return false }
         next.head = head

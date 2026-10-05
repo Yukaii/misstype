@@ -6,6 +6,12 @@
 "Jev Assist" = "Jev 辅助";
 "About" = "关于";
 "Typing" = "输入";
+"Syllable cursor" = "音节光标";
+"Candidates at the cursor" = "光标处的候选";
+"Every word covering the cursor" = "覆盖光标的所有词";
+"The word before the cursor (macOS Zhuyin)" = "光标前的词（macOS 注音风格）";
+"The word after the cursor (Microsoft New Phonetic)" = "光标后的词（微软新注音风格）";
+"Which words ← and → offer when you go back to fix one." = "回头修正时，← 与 → 会列出哪些词。";
 "Appearance" = "外观";
 "Shortcuts" = "快捷键";
 "Candidate panel" = "候选窗";

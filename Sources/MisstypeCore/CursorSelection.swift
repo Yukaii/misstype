@@ -47,6 +47,29 @@ public enum SelectionKeys {
     }
 }
 
+/// Which words the syllable cursor lists (`SessionSettings.cursorCandidates`).
+/// vChewing calls the two edge styles "cursor in front of / behind the
+/// phrase"; Misstype's default lists every word covering the cursor.
+public enum CursorCandidates: String, CaseIterable, Sendable {
+    /// Every word covering the cursor syllable, caret at its start (default).
+    case covering
+    /// Words ending at the caret, which sits after the cursor syllable: the
+    /// word before the caret (macOS built-in Zhuyin, vChewing's default).
+    case endingAt
+    /// Words starting at the cursor syllable, caret before it: the word after
+    /// the caret (Microsoft New Phonetic, vChewing's rear cursor mode).
+    case beginningAt
+
+    /// Whether a word spanning `span` is listed for cursor syllable `cursor`.
+    public func lists(_ span: Range<Int>, cursor: Int) -> Bool {
+        switch self {
+        case .covering: return span.contains(cursor)
+        case .endingAt: return span.upperBound == cursor + 1
+        case .beginningAt: return span.lowerBound == cursor
+        }
+    }
+}
+
 /// Keys that turn candidate pages in selection mode, on top of PageUp /
 /// PageDown. They type normally outside it, and a selection key wins when
 /// the two overlap.

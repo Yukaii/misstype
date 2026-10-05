@@ -6,6 +6,12 @@
 "Jev Assist" = "Jev 協助";
 "About" = "關於";
 "Typing" = "輸入";
+"Syllable cursor" = "音節游標";
+"Candidates at the cursor" = "游標處的候選";
+"Every word covering the cursor" = "涵蓋游標的所有詞";
+"The word before the cursor (macOS Zhuyin)" = "游標前的詞（macOS 注音風格）";
+"The word after the cursor (Microsoft New Phonetic)" = "游標後的詞（微軟新注音風格）";
+"Which words ← and → offer when you go back to fix one." = "回頭修正時，← 與 → 會列出哪些詞。";
 "Appearance" = "外觀";
 "Shortcuts" = "快速鍵";
 "Candidate panel" = "選字窗";

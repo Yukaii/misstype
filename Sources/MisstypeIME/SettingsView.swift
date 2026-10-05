@@ -116,6 +116,7 @@ private struct GeneralPane: View {
     @AppStorage("MisstypeAutoShowCandidates") private var autoShowCandidates = false
     @AppStorage("MisstypeReturnConfirmsSelection") private var returnConfirms = true
     @AppStorage("MisstypeMixedEnglish") private var mixedEnglish = false
+    @AppStorage("MisstypeCursorCandidates") private var cursorCandidates = CursorCandidates.covering.rawValue
 
     var body: some View {
         Form {
@@ -132,6 +133,16 @@ private struct GeneralPane: View {
                     title: L("Recognize English words while typing"),
                     detail: L("Experimental. Keys that spell an English word (typos included) are offered as English without switching modes. Slower on long mixed sentences."),
                     isOn: $mixedEnglish)
+            }
+            Section(L("Syllable cursor")) {
+                Picker(L("Candidates at the cursor"), selection: $cursorCandidates) {
+                    Text(L("Every word covering the cursor")).tag(CursorCandidates.covering.rawValue)
+                    Text(L("The word before the cursor (macOS Zhuyin)")).tag(CursorCandidates.endingAt.rawValue)
+                    Text(L("The word after the cursor (Microsoft New Phonetic)")).tag(CursorCandidates.beginningAt.rawValue)
+                }
+                Text(L("Which words ← and → offer when you go back to fix one."))
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }

@@ -43,6 +43,8 @@ public struct SessionSettings: Equatable, Sendable {
     public var shiftSpaceToggle: Bool
     /// Extra keys that turn pages while selecting (PageUp/PageDown always do).
     public var pageKeys: PageKeys
+    /// Which words the syllable cursor offers (default: all covering it).
+    public var cursorCandidates: CursorCandidates
 
     public init(fuzzyRepair: Bool = true, toneTolerance: Bool = true,
                 candidateKeys: String = SelectionKeys.defaultKeys, userLearning: Bool = true,
@@ -50,7 +52,9 @@ public struct SessionSettings: Equatable, Sendable {
                 autoCommitSyllables: Int = 24, autoShowCandidates: Bool = true,
                 returnConfirmsSelection: Bool = false, mixedEnglish: Bool = true,
                 pageSize: Int = SelectionKeys.defaultPageSize, shiftToggleSide: ShiftToggleSide = .either,
-                shiftSpaceToggle: Bool = true, pageKeys: PageKeys = .minusEqual) {
+                shiftSpaceToggle: Bool = true, pageKeys: PageKeys = .minusEqual,
+                cursorCandidates: CursorCandidates = .covering) {
+        self.cursorCandidates = cursorCandidates
         self.pageSizeValue = SelectionKeys.clampPageSize(pageSize)
         self.shiftToggleSide = shiftToggleSide
         self.shiftSpaceToggle = shiftSpaceToggle

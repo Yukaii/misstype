@@ -451,6 +451,36 @@ final class InputSessionTests: XCTestCase {
         XCTAssertEqual(session.view.caret, 2)
     }
 
+    func testCursorBeforeTheCaretListsWordsEndingThere() {
+        settings.cursorCandidates = .endingAt
+        let session = makeSession()
+        type("su3cl3", into: session)
+        // First Left: caret stays after 好, the words ending there are listed.
+        _ = session.handle(key(.left, text: "\u{F702}"))
+        XCTAssertEqual(session.view.candidates, ["你好", "好"])
+        XCTAssertEqual(session.view.selected, 0)
+        XCTAssertEqual(session.view.caret, 2)
+        // Second Left: words ending after 你; 你好 does not, so 你 is highlighted.
+        _ = session.handle(key(.left, text: "\u{F702}"))
+        XCTAssertEqual(session.view.candidates, ["你", "妳", "尼", "泥"])
+        XCTAssertEqual(session.view.caret, 1)
+        _ = session.handle(key(.character("d"), text: "d")) // row 3: 尼
+        XCTAssertEqual(session.view.preedit, "尼好")
+    }
+
+    func testCursorAfterTheCaretListsWordsStartingThere() {
+        settings.cursorCandidates = .beginningAt
+        let session = makeSession()
+        type("su3cl3", into: session)
+        _ = session.handle(key(.left, text: "\u{F702}"))
+        XCTAssertEqual(session.view.candidates, ["好"])
+        XCTAssertEqual(session.view.caret, 1)
+        _ = session.handle(key(.left, text: "\u{F702}"))
+        XCTAssertEqual(session.view.candidates.first, "你好")
+        XCTAssertFalse(session.view.candidates.contains("好"))
+        XCTAssertEqual(session.view.caret, 0)
+    }
+
     func testChordsAndCapsLockCommitThenPassThrough() {
         let session = makeSession()
         type("su3", into: session)

@@ -83,7 +83,7 @@ shortcut runs.
 - Candidates: show iff `showsCandidates`. `candidates` is the full list; page
   it `pageSize` per page (default 8) with the page containing `selected`
   visible and `selected` highlighted. The C ABI does not carry `pageSize`,
-  `shiftToggleSide`, `shiftSpaceToggle` or `pageKeys` yet: non-Swift hosts get
+  `shiftToggleSide`, `shiftSpaceToggle`, `pageKeys` or `cursorCandidates` yet: non-Swift hosts get
   the core defaults (8 per page, either Shift, Shift+Space on, `-`/`=`), so
   they keep paging by 8 until those are appended. Label visible rows with `selectionKeys`; dim or hide labels
   when `keysActive` is false (selection keys type Zhuyin then).

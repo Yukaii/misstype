@@ -34,6 +34,7 @@ enum MisstypePrefs {
             "MisstypeShiftToggleSide": ShiftToggleSide.either.rawValue,
             "MisstypeShiftSpaceToggle": true,
             "MisstypePageKeys": PageKeys.minusEqual.rawValue,
+            "MisstypeCursorCandidates": CursorCandidates.covering.rawValue,
             "MisstypeCandidateFontSize": PanelStyle.defaultFontSize,
             "MisstypePanelAppearance": PanelStyle.Appearance.system.rawValue,
             "MisstypeAccentHighlight": false,
@@ -56,6 +57,12 @@ enum MisstypePrefs {
     static var pageKeys: PageKeys {
         get { PageKeys(rawValue: UserDefaults.standard.string(forKey: "MisstypePageKeys") ?? "") ?? .minusEqual }
         set { UserDefaults.standard.set(newValue.rawValue, forKey: "MisstypePageKeys") }
+    }
+
+    /// Which words the syllable cursor (←/→) lists.
+    static var cursorCandidates: CursorCandidates {
+        get { CursorCandidates(rawValue: UserDefaults.standard.string(forKey: "MisstypeCursorCandidates") ?? "") ?? .covering }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: "MisstypeCursorCandidates") }
     }
 
     /// Candidates per page (clamped to `SelectionKeys.pageSizes`).
@@ -172,7 +179,8 @@ enum MisstypePrefs {
                         returnConfirmsSelection: returnConfirmsSelection,
                         mixedEnglish: mixedEnglish,
                         pageSize: candidatesPerPage, shiftToggleSide: shiftToggleSide,
-                        shiftSpaceToggle: shiftSpaceToggle, pageKeys: pageKeys)
+                        shiftSpaceToggle: shiftSpaceToggle, pageKeys: pageKeys,
+                        cursorCandidates: cursorCandidates)
     }
 
     /// Live adapter config: explicit enable + key presence gate the attempt;

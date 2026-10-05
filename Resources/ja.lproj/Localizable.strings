@@ -6,6 +6,12 @@
 "Jev Assist" = "Jev アシスト";
 "About" = "情報";
 "Typing" = "入力";
+"Syllable cursor" = "音節カーソル";
+"Candidates at the cursor" = "カーソル位置の候補";
+"Every word covering the cursor" = "カーソルにかかるすべての単語";
+"The word before the cursor (macOS Zhuyin)" = "カーソルの前の単語（macOS 注音方式）";
+"The word after the cursor (Microsoft New Phonetic)" = "カーソルの後の単語（Microsoft 新注音方式）";
+"Which words ← and → offer when you go back to fix one." = "戻って修正するとき ← と → で表示する単語。";
 "Appearance" = "外観";
 "Shortcuts" = "ショートカット";
 "Candidate panel" = "候補ウインドウ";
