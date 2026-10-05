@@ -76,6 +76,12 @@ extension KeyEvent.Key {
         }
     }
 
+    /// Label of any printable key, nil for space and the named keys.
+    var characterLabel: String? {
+        if case .character(let label) = self { return label }
+        return nil
+    }
+
     /// Label of a letter key ("a"…"z"), nil otherwise.
     var letterLabel: String? {
         guard case .character(let label) = self, label.count == 1,

@@ -7,9 +7,13 @@ import MisstypeCore
 /// events only beep), so selection state lives here and in the controller.
 final class CandidatesPanel: NSPanel {
     private var rows: [NSButton] = []
+    private var rowHeights: [NSLayoutConstraint] = []
     private let stack = NSStackView()
     private var onPick: (Int) -> Void = { _ in }
-    private let rowHeight: CGFloat = 28
+    private var style = PanelStyle()
+    /// 28 pt at the default 15 pt font, scaled with it.
+    private var rowHeight: CGFloat { CGFloat((style.fontSize * 28 / 15).rounded()) }
+    private let body = NSView(frame: .zero)
     private var lastAnchor: NSRect?
     private let footer = NSTextField(labelWithString: "")
 
@@ -25,11 +29,10 @@ final class CandidatesPanel: NSPanel {
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         animationBehavior = .none
 
-        let body = NSView(frame: .zero)
         body.wantsLayer = true
         body.layer?.cornerRadius = 10
-        body.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
         contentView = body
+        applyColors()
 
         stack.orientation = .vertical
         stack.spacing = 0
@@ -45,17 +48,20 @@ final class CandidatesPanel: NSPanel {
             stack.topAnchor.constraint(equalTo: body.topAnchor, constant: 3),
             stack.bottomAnchor.constraint(equalTo: body.bottomAnchor, constant: -3),
         ])
-        for index in 0..<8 {
+        // One row per slot of the largest page; `update` hides the rest.
+        for index in 0..<SelectionKeys.pageSizes.upperBound {
             let row = NSButton(title: "", target: self, action: #selector(rowClicked(_:)))
             row.tag = index
             row.bezelStyle = .inline
             row.bezelColor = .clear
             row.isBordered = false
-            row.font = .systemFont(ofSize: 15)
+            row.font = .systemFont(ofSize: style.fontSize)
             row.alignment = .left
             row.contentTintColor = .labelColor
             row.translatesAutoresizingMaskIntoConstraints = false
-            row.heightAnchor.constraint(equalToConstant: rowHeight).isActive = true
+            let height = row.heightAnchor.constraint(equalToConstant: rowHeight)
+            height.isActive = true
+            rowHeights.append(height)
             (row.cell as? NSButtonCell)?.lineBreakMode = .byTruncatingHead
             rows.append(row)
             stack.addArrangedSubview(row)
@@ -70,7 +76,37 @@ final class CandidatesPanel: NSPanel {
     }
 
     @objc private func rowClicked(_ sender: NSButton) {
-        onPick(page * 8 + sender.tag)
+        onPick(page * pageSize + sender.tag)
+    }
+
+    /// Dynamic colors resolve to fixed CGColors when assigned to a layer, so
+    /// they are re-resolved under the panel's appearance on every update.
+    private func applyColors() {
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            body.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+        }
+    }
+
+    private func applyStyle(_ next: PanelStyle) {
+        guard next != style else { return }
+        style = next
+        switch next.appearance {
+        case .system: appearance = nil
+        case .light: appearance = NSAppearance(named: .aqua)
+        case .dark: appearance = NSAppearance(named: .darkAqua)
+        }
+        for height in rowHeights { height.constant = rowHeight }
+    }
+
+    private var highlightColor: CGColor {
+        var color = CGColor.clear
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            // Neutral gray by default: selectedContentBackgroundColor follows
+            // the system accent, which can look loud; the accent is opt-in.
+            color = (style.accentHighlight ? NSColor.selectedContentBackgroundColor.withAlphaComponent(0.35)
+                                           : NSColor.unemphasizedSelectedContentBackgroundColor).cgColor
+        }
+        return color
     }
 
     static func hint(for mark: SessionView.Mark) -> String {
@@ -93,12 +129,12 @@ final class CandidatesPanel: NSPanel {
         let key = keyLabels.indices.contains(index) ? keyLabels[index] : " "
         let digit = NSMutableAttributedString(
             string: "\(key)  ",
-            attributes: [.font: NSFont.monospacedSystemFont(ofSize: 13, weight: .regular),
+            attributes: [.font: NSFont.monospacedSystemFont(ofSize: style.fontSize - 2, weight: .regular),
                          .foregroundColor: keysActive ? NSColor.secondaryLabelColor
                                                       : NSColor.quaternaryLabelColor])
         let body = NSAttributedString(
             string: text,
-            attributes: [.font: NSFont.systemFont(ofSize: 15),
+            attributes: [.font: NSFont.systemFont(ofSize: style.fontSize),
                          .foregroundColor: NSColor.labelColor])
         digit.append(body)
         let paragraph = NSMutableParagraphStyle()
@@ -110,7 +146,7 @@ final class CandidatesPanel: NSPanel {
 
     /// Rebuild rows, move highlight, follow the caret. No-op animations.
     /// Anchor chain: fresh caret rect > last good rect > mouse position.
-    /// Paging is a window over the list: 8 rows show the page holding
+    /// Paging is a window over the list: `pageSize` rows show the page holding
     /// `selected` (Tab / Shift+Tab / Down / Up walk the full list; PageUp /
     /// PageDown, or - / = in selection mode, flip whole pages; plain
     /// Left/Right move the syllable cursor and never page).
@@ -123,6 +159,7 @@ final class CandidatesPanel: NSPanel {
     /// jumps or chases the caret horizontally mid-composition. Content
     /// itself always swaps instantly.
     private(set) var page = 0
+    private var pageSize = SelectionKeys.defaultPageSize
     /// Max panel width: content fits below this; longer rows truncate
     /// (front) instead of stretching across the screen.
     private let panelWidth: CGFloat = 300
@@ -134,15 +171,21 @@ final class CandidatesPanel: NSPanel {
 
     func update(candidates: [String], selected: Int,
                 keyLabels: [String] = [], keysActive: Bool = false,
+                pageSize: Int = SelectionKeys.defaultPageSize,
+                style: PanelStyle = PanelStyle(),
                 anchor: NSRect?,
                 mark: SessionView.Mark? = nil) {
         self.keyLabels = keyLabels
         self.keysActive = keysActive
+        applyStyle(style)
+        applyColors() // also follows a system light/dark switch
+        let size = min(max(pageSize, 1), rows.count)
+        self.pageSize = size
         // Up to 64 rows pageable (single-char homophone lists); the visible
-        // window stays 8, paging math below is count-generic.
+        // window is one page, paging math below is count-generic.
         let total = Array(candidates.prefix(64))
-        page = min(max(selected, 0) / 8, max(total.count - 1, 0) / 8)
-        let shown = Array(total.dropFirst(page * 8).prefix(8))
+        page = min(max(selected, 0) / size, max(total.count - 1, 0) / size)
+        let shown = Array(total.dropFirst(page * size).prefix(size))
         // Rows show where the candidates differ (CandidateDisplay), not eight
         // front-truncated copies of the same long sentence.
         let display = CandidateDisplay.windows(shown)
@@ -150,18 +193,14 @@ final class CandidatesPanel: NSPanel {
             let row = rows[index]
             row.title = ""
             row.attributedTitle = rowTitle(index: index, text: display[index],
-                                           highlighted: index == selected - page * 8)
+                                           highlighted: index == selected - page * size)
             row.isHidden = false
             row.wantsLayer = true
             row.layer?.cornerRadius = 6
-            // Neutral gray highlight on purpose: selectedContentBackgroundColor
-            // follows the system accent (pink on this machine) and looks drunk.
-            row.layer?.backgroundColor = index == selected - page * 8
-                ? NSColor.unemphasizedSelectedContentBackgroundColor.cgColor
-                : CGColor.clear
+            row.layer?.backgroundColor = index == selected - page * size ? highlightColor : CGColor.clear
         }
         for index in shown.count..<rows.count { rows[index].isHidden = true }
-        let pages = max((total.count + 7) / 8, 1)
+        let pages = max((total.count + size - 1) / size, 1)
         footer.stringValue = pages > 1 ? "\(page + 1) / \(pages)" : ""
         footer.textColor = .tertiaryLabelColor
         if let mark {

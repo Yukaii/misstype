@@ -81,8 +81,11 @@ shortcut runs.
   fcitx5 `Text::setCursor` is **bytes**). The caret is the focused-word start
   in cursor mode, else the end.
 - Candidates: show iff `showsCandidates`. `candidates` is the full list; page
-  it 8 per page with the page containing `selected` visible and `selected`
-  highlighted. Label visible rows with `selectionKeys`; dim or hide labels
+  it `pageSize` per page (default 8) with the page containing `selected`
+  visible and `selected` highlighted. The C ABI does not carry `pageSize`,
+  `shiftToggleSide`, `shiftSpaceToggle` or `pageKeys` yet: non-Swift hosts get
+  the core defaults (8 per page, either Shift, Shift+Space on, `-`/`=`), so
+  they keep paging by 8 until those are appended. Label visible rows with `selectionKeys`; dim or hide labels
   when `keysActive` is false (selection keys type Zhuyin then).
 - Page keys: translate PageUp/PageDown to `MISSTYPE_KEY_PAGE_UP/DOWN` (ABI
   values 15/16, appended); the core pages the highlight, the host just
@@ -118,7 +121,7 @@ shortcut runs.
 | My words (`UserDictionary.defaultURL`) | `~/Library/Application Support/Misstype/user_dictionary.tsv` (inside the app sandbox container, see architecture.md) | `$XDG_DATA_HOME/misstype/user_dictionary.tsv`; the host calls `misstype_engine_set_user_dictionary_path(engine, NULL)` (default after `_new` is memory only) |
 | Learned phrases (`UserLexicon.defaultURL`) | `~/Library/Application Support/Misstype/user_phrases.json` | `$XDG_DATA_HOME/misstype/user_phrases.json` (default `~/.local/share`) |
 | My-words editor | Settings → My Dictionary (text editor over the file) | none yet: edit the TSV in any editor, reloaded at the next composition |
-| Settings store | UserDefaults (`MisstypePrefs`) | defaults in v1 (`misstype_settings_default()`), fcitx5 config later |
+| Settings store | UserDefaults (`MisstypePrefs`; Settings panes incl. Appearance, Shortcuts) | defaults in v1 (`misstype_settings_default()`), fcitx5 config later; page size, toggle keys and page keys not in the ABI yet |
 | Lone-Shift 中/英 | session (`shiftToggle` pref, default on) | fcitx5 `AltTriggerKeys` (default `Shift_L`) → session `shift_toggle = 0` |
 | Diagnostic log | `~/Library/Logs/MisstypeIME-debug.log` | none in v1 (codes only, never text, if added) |
 

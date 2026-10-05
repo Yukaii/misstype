@@ -224,6 +224,47 @@ final class InputSessionTests: XCTestCase {
         XCTAssertEqual(session.view.selected, 1)
     }
 
+    func testPageSizeSetsRowsSelectionKeysAndPaging() {
+        settings.pageSize = 5
+        let session = homophoneSession()
+        _ = session.handle(key(.down)) // row 1
+        XCTAssertEqual(session.view.pageSize, 5)
+        XCTAssertEqual(session.view.selectionKeys, ["a", "s", "d", "f", "g"])
+        _ = session.handle(key(.pageDown))
+        XCTAssertEqual(session.view.selected, 6)
+        // Selection keys address the visible page of 5: `d` is row 3 → 7.
+        _ = session.handle(key(.character("d"), text: "d"))
+        XCTAssertEqual(session.view.selected, 7)
+        XCTAssertFalse(session.view.keysActive)
+        XCTAssertEqual(session.view.preedit, session.view.candidates[7])
+        // Out-of-range sizes clamp.
+        settings.pageSize = 99
+        XCTAssertEqual(settings.pageSize, SelectionKeys.pageSizes.upperBound)
+    }
+
+    func testPageKeysPreferenceRebindsPaging() {
+        settings.pageKeys = .commaPeriod
+        let session = homophoneSession()
+        _ = session.handle(key(.down))
+        _ = session.handle(key(.character("."), text: "."))
+        XCTAssertEqual(session.view.selected, 9)
+        _ = session.handle(key(.character(","), text: ","))
+        XCTAssertEqual(session.view.selected, 1)
+        // `-` no longer pages: it leaves selection and types ㄦ.
+        _ = session.handle(key(.character("-"), text: "-"))
+        XCTAssertFalse(session.view.keysActive)
+        XCTAssertTrue(session.view.preedit.hasSuffix("ㄦ"))
+    }
+
+    func testSelectionKeyWinsOverPageKey() {
+        settings.candidateKeys = "asdfghj-"
+        let session = homophoneSession()
+        _ = session.handle(key(.down))
+        _ = session.handle(key(.character("-"), text: "-")) // slot 7, not previous page
+        XCTAssertEqual(session.view.selected, 7)
+        XCTAssertFalse(session.view.keysActive)
+    }
+
     func testPageKeyBeepsWhenOnePage() {
         let session = makeSession()
         type("su3", into: session)
@@ -449,6 +490,28 @@ final class InputSessionTests: XCTestCase {
         settings.shiftToggle = false
         session.handle(KeyEvent(.shift(.right), phase: .press, modifiers: [.shift], timestamp: 102))
         XCTAssertFalse(session.handle(KeyEvent(.shift(.right), phase: .release, timestamp: 102.1)).modeChanged)
+    }
+
+    func testShiftToggleSideLimitsWhichShiftTaps() {
+        settings.shiftToggleSide = .right
+        let session = makeSession()
+        session.handle(KeyEvent(.shift(.left), phase: .press, modifiers: [.shift], timestamp: 100))
+        XCTAssertFalse(session.handle(KeyEvent(.shift(.left), phase: .release, timestamp: 100.1)).modeChanged)
+        XCTAssertFalse(session.engine.english)
+        session.handle(KeyEvent(.shift(.right), phase: .press, modifiers: [.shift], timestamp: 101))
+        XCTAssertTrue(session.handle(KeyEvent(.shift(.right), phase: .release, timestamp: 101.1)).modeChanged)
+        XCTAssertTrue(session.engine.english)
+    }
+
+    func testShiftSpaceToggleCanBeTurnedOff() {
+        settings.shiftSpaceToggle = false
+        let session = makeSession()
+        type("su3", into: session)
+        let result = session.handle(key(.space, [.shift], text: " "))
+        XCTAssertFalse(result.modeChanged)
+        XCTAssertNil(result.commit)
+        XCTAssertFalse(session.engine.english)
+        XCTAssertEqual(session.handle(key(.enter, text: "\r")).commit, "你")
     }
 
     func testLoneShiftTapMidCompositionOpensLatinRunWithoutCommitting() {

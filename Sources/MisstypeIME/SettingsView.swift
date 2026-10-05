@@ -30,12 +30,14 @@ final class SettingsWindow: NSWindow {
 }
 
 private enum Pane: String, CaseIterable, Identifiable {
-    case general, decoding, learning, dictionary, jev, about
+    case general, appearance, shortcuts, decoding, learning, dictionary, jev, about
     var id: String { rawValue }
 
     var title: String {
         switch self {
         case .general: return L("General")
+        case .appearance: return L("Appearance")
+        case .shortcuts: return L("Shortcuts")
         case .decoding: return L("Decoding")
         case .learning: return L("Learning")
         case .dictionary: return L("My Dictionary")
@@ -46,7 +48,9 @@ private enum Pane: String, CaseIterable, Identifiable {
 
     var symbol: String {
         switch self {
-        case .general: return "keyboard"
+        case .general: return "gearshape"
+        case .appearance: return "paintbrush"
+        case .shortcuts: return "keyboard"
         case .decoding: return "wand.and.stars"
         case .learning: return "book.closed"
         case .dictionary: return "character.book.closed"
@@ -73,6 +77,8 @@ struct SettingsView: View {
             Group {
                 switch pane {
                 case .general: GeneralPane()
+                case .appearance: AppearancePane()
+                case .shortcuts: ShortcutsPane()
                 case .decoding: DecodingPane()
                 case .learning: LearningPane()
                 case .dictionary: DictionaryPane()
@@ -107,25 +113,13 @@ private struct DescribedToggle: View {
 // MARK: - General
 
 private struct GeneralPane: View {
-    @AppStorage("MisstypeShiftToggle") private var shiftToggle = true
     @AppStorage("MisstypeAutoShowCandidates") private var autoShowCandidates = false
     @AppStorage("MisstypeReturnConfirmsSelection") private var returnConfirms = true
     @AppStorage("MisstypeMixedEnglish") private var mixedEnglish = false
-    @AppStorage("MisstypeCandidateKeys") private var storedKeys = SelectionKeys.defaultKeys
-    @State private var draft = ""
-    @FocusState private var editing: Bool
-
-    private var labels: [String] {
-        SelectionKeys.labels(keys: SelectionKeys.sanitize(draft))
-    }
 
     var body: some View {
         Form {
             Section(L("Typing")) {
-                DescribedToggle(
-                    title: L("Tap Shift to switch Chinese/English"),
-                    detail: L("Shift+Space always works. Turn this off if an app mishandles lone Shift presses."),
-                    isOn: $shiftToggle)
                 DescribedToggle(
                     title: L("Show candidates automatically"),
                     detail: L("Off: the candidate panel appears only after you press Tab or an arrow key."),
@@ -138,6 +132,135 @@ private struct GeneralPane: View {
                     title: L("Recognize English words while typing"),
                     detail: L("Experimental. Keys that spell an English word (typos included) are offered as English without switching modes. Slower on long mixed sentences."),
                     isOn: $mixedEnglish)
+            }
+        }
+    }
+}
+
+// MARK: - Appearance
+
+/// Candidate panel look. Read by the panel on every redraw, so a change
+/// shows at the next keystroke.
+private struct AppearancePane: View {
+    @AppStorage("MisstypePanelAppearance") private var appearance = PanelStyle.Appearance.system.rawValue
+    @AppStorage("MisstypeCandidateFontSize") private var fontSize = PanelStyle.defaultFontSize
+    @AppStorage("MisstypeAccentHighlight") private var accentHighlight = false
+    @AppStorage("MisstypeCandidatesPerPage") private var perPage = SelectionKeys.defaultPageSize
+
+    var body: some View {
+        Form {
+            Section(L("Candidate panel")) {
+                Picker(L("Theme"), selection: $appearance) {
+                    Text(L("Match System")).tag(PanelStyle.Appearance.system.rawValue)
+                    Text(L("Light")).tag(PanelStyle.Appearance.light.rawValue)
+                    Text(L("Dark")).tag(PanelStyle.Appearance.dark.rawValue)
+                }
+                LabeledContent(L("Font size")) {
+                    HStack {
+                        Slider(value: $fontSize, in: PanelStyle.fontSizes, step: 1)
+                            .frame(maxWidth: 200)
+                        Text(L("%d pt", Int(fontSize)))
+                            .monospacedDigit().foregroundStyle(.secondary)
+                            .frame(width: 44, alignment: .trailing)
+                    }
+                }
+                Stepper(value: $perPage, in: SelectionKeys.pageSizes) {
+                    LabeledContent(L("Candidates per page"), value: "\(perPage)")
+                }
+                DescribedToggle(
+                    title: L("Highlight in the accent color"),
+                    detail: L("Off: the selected row is a neutral gray."),
+                    isOn: $accentHighlight)
+            }
+            Section(L("Preview")) {
+                PanelPreview(fontSize: fontSize, accent: accentHighlight,
+                             scheme: PanelStyle.Appearance(rawValue: appearance) ?? .system)
+            }
+        }
+    }
+}
+
+/// A static sketch of the panel with the chosen style (not the real panel).
+private struct PanelPreview: View {
+    let fontSize: Double
+    let accent: Bool
+    let scheme: PanelStyle.Appearance
+    private let rows = ["你好", "妳好", "擬好"]
+
+    var body: some View {
+        let preview = VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(rows.enumerated()), id: \.offset) { index, text in
+                HStack(spacing: 8) {
+                    Text(["a", "s", "d"][index])
+                        .font(.system(size: fontSize - 2, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                    Text(text).font(.system(size: fontSize))
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 6)
+                .frame(height: (fontSize * 28 / 15).rounded())
+                .background(RoundedRectangle(cornerRadius: 6).fill(
+                    index == 0 ? (accent ? Color.accentColor.opacity(0.35) : Color.secondary.opacity(0.2))
+                               : Color.clear))
+            }
+        }
+        .padding(4)
+        .frame(width: 180)
+        .background(RoundedRectangle(cornerRadius: 10).fill(Color(nsColor: .windowBackgroundColor)))
+        .shadow(radius: 3, y: 1)
+        .padding(.vertical, 6)
+        switch scheme {
+        case .system: preview
+        case .light: preview.environment(\.colorScheme, .light)
+        case .dark: preview.environment(\.colorScheme, .dark)
+        }
+    }
+}
+
+// MARK: - Shortcuts
+
+private struct ShortcutsPane: View {
+    @AppStorage("MisstypeShiftToggle") private var shiftToggle = true
+    @AppStorage("MisstypeShiftToggleSide") private var shiftSide = ShiftToggleSide.either.rawValue
+    @AppStorage("MisstypeShiftSpaceToggle") private var shiftSpace = true
+    @AppStorage("MisstypePageKeys") private var pageKeys = PageKeys.minusEqual.rawValue
+    @AppStorage("MisstypeCandidatesPerPage") private var perPage = SelectionKeys.defaultPageSize
+    @AppStorage("MisstypeCandidateKeys") private var storedKeys = SelectionKeys.defaultKeys
+    @State private var draft = ""
+    @FocusState private var editing: Bool
+
+    private var pageSize: Int { SelectionKeys.clampPageSize(perPage) }
+
+    private var labels: [String] {
+        SelectionKeys.labels(keys: SelectionKeys.sanitize(draft, pageSize: pageSize), pageSize: pageSize)
+    }
+
+    /// One picker over two stored keys: off, or which Shift taps.
+    private var shiftChoice: Binding<String> {
+        Binding(get: { shiftToggle ? shiftSide : "off" },
+                set: { value in
+                    shiftToggle = value != "off"
+                    if value != "off" { shiftSide = value }
+                })
+    }
+
+    private var paging: PageKeys { PageKeys(rawValue: pageKeys) ?? .minusEqual }
+
+    var body: some View {
+        Form {
+            Section(L("Switch Chinese/English")) {
+                Picker(L("Tap Shift"), selection: shiftChoice) {
+                    Text(L("Either Shift")).tag(ShiftToggleSide.either.rawValue)
+                    Text(L("Left Shift")).tag(ShiftToggleSide.left.rawValue)
+                    Text(L("Right Shift")).tag(ShiftToggleSide.right.rawValue)
+                    Text(L("Off")).tag("off")
+                }
+                Toggle(L("Shift+Space"), isOn: $shiftSpace)
+                Text(shiftToggle || shiftSpace
+                     ? L("Turn the Shift tap off if an app mishandles lone Shift presses.")
+                     : L("With both off, no key switches between Chinese and English."))
+                    .font(.caption).foregroundStyle(shiftToggle || shiftSpace ? Color.secondary : Color.orange)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Section(L("Selection keys")) {
                 HStack {
@@ -152,7 +275,7 @@ private struct GeneralPane: View {
                         draft = SelectionKeys.defaultKeys
                         commit()
                     }
-                    .disabled(SelectionKeys.sanitize(draft) == SelectionKeys.defaultKeys)
+                    .disabled(draft == SelectionKeys.defaultKeys)
                 }
                 HStack(spacing: 6) {
                     ForEach(Array(labels.enumerated()), id: \.offset) { index, label in
@@ -165,16 +288,28 @@ private struct GeneralPane: View {
                         }
                     }
                 }
-                Text(L("Pick a candidate after pressing ↓ or Tab (or in the syllable cursor's list). Up to 8 keys; while typing they stay Zhuyin keys."))
+                Text(L("Pick a candidate after pressing ↓ or Tab (or in the syllable cursor's list). One key per row of a page (%d now, see Appearance); while typing they stay Zhuyin keys.", pageSize))
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Section(L("Page keys")) {
+                Picker(L("Turn pages while selecting"), selection: $pageKeys) {
+                    Text("-  =").tag(PageKeys.minusEqual.rawValue)
+                    Text(",  .").tag(PageKeys.commaPeriod.rawValue)
+                    Text("[  ]").tag(PageKeys.brackets.rawValue)
+                    Text(L("Page Up / Page Down only")).tag(PageKeys.none.rawValue)
+                }
+                Text(L("Page Up and Page Down always work. The extra keys type normally when you are not selecting; a key that is also a selection key picks instead."))
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Section(L("Candidate keys")) {
                 shortcut("Tab · ↓", L("Next candidate"))
                 shortcut("⇧Tab · ↑", L("Previous candidate"))
-                shortcut("Page Down · =", L("Next page (= only while selecting)"))
-                shortcut("Page Up · -", L("Previous page (- only while selecting)"))
+                shortcut(paging.labels.map { "Page Down · \($0.next)" } ?? "Page Down", L("Next page"))
+                shortcut(paging.labels.map { "Page Up · \($0.previous)" } ?? "Page Up", L("Previous page"))
                 shortcut("← →", L("Move the syllable cursor"))
+                shortcut("⇧← ⇧→", L("Mark a phrase for My Dictionary"))
                 shortcut("⏎", L("Commit"))
                 shortcut("⇧⏎", L("Commit the keys as typed"))
                 shortcut("Esc", L("Leave selection; press again to clear"))
@@ -185,8 +320,11 @@ private struct GeneralPane: View {
         .onChange(of: editing) { isEditing in if !isEditing { commit() } }
     }
 
+    /// Stored up to the largest page so a later, larger page size keeps the
+    /// keys; the session uses the first `pageSize` of them.
     private func commit() {
-        let clean = SelectionKeys.sanitize(draft.trimmingCharacters(in: .whitespaces))
+        let clean = SelectionKeys.sanitize(draft.trimmingCharacters(in: .whitespaces),
+                                           pageSize: SelectionKeys.pageSizes.upperBound)
         storedKeys = clean
         draft = clean
     }

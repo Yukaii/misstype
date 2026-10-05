@@ -53,7 +53,7 @@ public struct SessionView: Equatable, Sendable {
     /// cursor mode, else the end.
     public var caret: Int
     /// Full list (focused-word options in cursor mode, else sentences); the
-    /// host pages it 8 at a time.
+    /// host pages it `pageSize` at a time.
     public var candidates: [String]
     public var selected: Int
     /// Labels shown beside the visible rows.
@@ -68,6 +68,9 @@ public struct SessionView: Equatable, Sendable {
     /// `showsCandidates` is true — hosts draw their panel with this as the
     /// hint instead of a list.
     public var mark: Mark?
+    /// Rows per page (`SessionSettings.pageSize`): the page holding
+    /// `selected` starts at `selected / pageSize * pageSize`.
+    public var pageSize: Int = SelectionKeys.defaultPageSize
 
     /// A marked span of the converted text, offered to the user dictionary.
     public struct Mark: Equatable, Sendable {
@@ -193,14 +196,15 @@ public final class InputSession {
         if let menu = symbolMenu {
             return SessionView(
                 preedit: previewText, caret: caretOffset, candidates: menu.choices, selected: menu.selected,
-                selectionKeys: SelectionKeys.labels(keys: settings.candidateKeys),
+                selectionKeys: SelectionKeys.labels(keys: settings.candidateKeys, pageSize: settings.pageSize),
                 keysActive: menu.selecting,
-                showsCandidates: menu.selecting || settings.autoShowCandidates)
+                showsCandidates: menu.selecting || settings.autoShowCandidates, pageSize: settings.pageSize)
         }
         if let marked = markView() {
             return SessionView(
                 preedit: previewText, caret: marked.caret, candidates: [], selected: 0,
-                selectionKeys: [], keysActive: false, showsCandidates: true, mark: marked.mark)
+                selectionKeys: [], keysActive: false, showsCandidates: true, mark: marked.mark,
+                pageSize: settings.pageSize)
         }
         let texts = segmentTexts ?? candidates.map(\.text)
         return SessionView(
@@ -208,10 +212,11 @@ public final class InputSession {
             caret: caretOffset,
             candidates: texts,
             selected: segmentTexts != nil ? segmentSelected : selected,
-            selectionKeys: SelectionKeys.labels(keys: settings.candidateKeys),
+            selectionKeys: SelectionKeys.labels(keys: settings.candidateKeys, pageSize: settings.pageSize),
             keysActive: inSelection,
             showsCandidates: segmentTexts != nil ? !texts.isEmpty
-                : texts.count > 1 && (selecting || settings.autoShowCandidates))
+                : texts.count > 1 && (selecting || settings.autoShowCandidates),
+            pageSize: settings.pageSize)
     }
 
     public func handle(_ event: KeyEvent) -> KeyResult {
@@ -225,7 +230,7 @@ public final class InputSession {
             // Modifier-only signals: tap bookkeeping, then consume (no text).
             let tap = engine.shiftTap.feed(shift: shift, shiftHeld: mods.contains(.shift),
                                            isRealKeyDown: false, otherMods: otherMods, now: now)
-            guard tap && settings.shiftToggle else { return .handled }
+            guard tap && settings.shiftToggle && settings.shiftToggleSide.matches(shift) else { return .handled }
             // Mid-composition a lone Shift tap opens/closes a latin run (same
             // as backtick) instead of committing: English joins the phrase and
             // one Return decodes the whole thing. The global 中/英 flip only
@@ -370,7 +375,7 @@ public final class InputSession {
         default:
             break
         }
-        if key == .space && shift { return toggleEnglish() }
+        if key == .space && shift && settings.shiftSpaceToggle { return toggleEnglish() }
         if engine.english || mods.contains(.capsLock) { return pass() }
         // Latin mode ends on anything but letters, digits, space (multi-word
         // runs stay latin: `hello world`) and the backtick toggle:
@@ -402,10 +407,10 @@ public final class InputSession {
                     let forward = key == .down || (key == .tab && !shift)
                     return step(to: (menu.selected + (forward ? 1 : count - 1)) % count)
                 case .pageUp, .pageDown:
-                    guard count > 8 else { return .beeped }
-                    let pages = (count + 7) / 8
-                    let next = (menu.selected / 8 + (key == .pageDown ? 1 : pages - 1)) % pages
-                    return step(to: min(next * 8 + menu.selected % 8, count - 1))
+                    guard let index = pageTarget(menu.selected, count: count, forward: key == .pageDown) else {
+                        return .beeped
+                    }
+                    return step(to: index)
                 case .escape:
                     symbolMenu = nil // keep the mark that shows
                     return .handled
@@ -415,14 +420,15 @@ public final class InputSession {
                 default:
                     break
                 }
-                if menu.selecting, !shift, let label {
-                    if (label == "-" || label == "="), count > 8 {
-                        let pages = (count + 7) / 8
-                        let next = (menu.selected / 8 + (label == "=" ? 1 : pages - 1)) % pages
-                        return step(to: min(next * 8 + menu.selected % 8, count - 1))
+                if menu.selecting, !shift, let label = key.characterLabel {
+                    let slot = SelectionKeys.slot(forLabel: label, keys: settings.candidateKeys,
+                                                  pageSize: settings.pageSize)
+                    if slot == nil, let forward = settings.pageKeys.direction(forLabel: label),
+                       let index = pageTarget(menu.selected, count: count, forward: forward) {
+                        return step(to: index)
                     }
-                    if let slot = SelectionKeys.slot(forLabel: label, keys: settings.candidateKeys) {
-                        let global = (menu.selected / 8) * 8 + slot
+                    if let slot {
+                        let global = (menu.selected / settings.pageSize) * settings.pageSize + slot
                         guard global < count else { return .beeped }
                         applyMenuChoice(global)
                         symbolMenu = nil
@@ -584,11 +590,15 @@ public final class InputSession {
             engine.log("latin=\(latinMode ? 1 : 0)")
             return KeyResult(consumed: true, latinToggled: true)
         }
-        // `-` / `=` turn pages in selection mode (the Rime/Pinyin convention);
-        // they are ㄦ / unmapped elsewhere, so outside it they still type.
-        if inSelection, !composition.isEmpty, !shift,
-           key == .character("-") || key == .character("=") {
-            return page(forward: key == .character("="))
+        // Page keys (`SessionSettings.pageKeys`, default `-` / `=`, the
+        // Rime/Pinyin convention) turn pages in selection mode; they are ㄦ,
+        // ㄝ/ㄡ, punctuation or unmapped elsewhere, so outside it they still
+        // type. A key that is also a selection key picks instead.
+        let pageSize = settings.pageSize
+        if inSelection, !composition.isEmpty, !shift, let label = key.characterLabel,
+           SelectionKeys.slot(forLabel: label, keys: settings.candidateKeys, pageSize: pageSize) == nil,
+           let forward = settings.pageKeys.direction(forLabel: label) {
+            return page(forward: forward)
         }
         // Selection keys pick from the visible page, but only in selection
         // mode: they are Zhuyin keys (a=ㄇ, s=ㄋ, …), so outside it they type.
@@ -596,14 +606,14 @@ public final class InputSession {
         // layer (Punctuation), so picking and symbols never collide.
         if inSelection, !composition.isEmpty, !shift,
            let label = key.zhuyinLabel,
-           let slot = SelectionKeys.slot(forLabel: label, keys: settings.candidateKeys) {
+           let slot = SelectionKeys.slot(forLabel: label, keys: settings.candidateKeys, pageSize: pageSize) {
             if let texts = segmentTexts {
-                let global = (segmentSelected / 8) * 8 + slot
+                let global = (segmentSelected / pageSize) * pageSize + slot
                 guard global < texts.count else { return .beeped }
                 pinAdvance(at: global)
                 return .handled
             }
-            let global = (selected / 8) * 8 + slot
+            let global = (selected / pageSize) * pageSize + slot
             guard global < candidates.count else { return .beeped }
             selectCandidate(global)
             selecting = false
@@ -675,22 +685,25 @@ public final class InputSession {
         refresh()
     }
 
-    /// Flip one page of 8, keeping the row (clamped on a short last page) and
-    /// wrapping at the ends. Moves the highlight only, like Down: nothing pins
-    /// until a pick. Beeps when everything fits on one page.
+    /// The same row one page over (clamped on a short last page), wrapping
+    /// at the ends; nil when everything fits on one page.
+    private func pageTarget(_ current: Int, count: Int, forward: Bool) -> Int? {
+        let size = settings.pageSize
+        guard count > size else { return nil }
+        let pages = (count + size - 1) / size
+        let next = (current / size + (forward ? 1 : pages - 1)) % pages
+        return min(next * size + current % size, count - 1)
+    }
+
+    /// Flip one page, keeping the row. Moves the highlight only, like Down:
+    /// nothing pins until a pick. Beeps when everything fits on one page.
     private func page(forward: Bool) -> KeyResult {
-        func target(_ current: Int, _ count: Int) -> Int? {
-            guard count > 8 else { return nil }
-            let pages = (count + 7) / 8
-            let next = (current / 8 + (forward ? 1 : pages - 1)) % pages
-            return min(next * 8 + current % 8, count - 1)
-        }
         if let texts = segmentTexts {
-            guard let index = target(segmentSelected, texts.count) else { return .beeped }
+            guard let index = pageTarget(segmentSelected, count: texts.count, forward: forward) else { return .beeped }
             segmentSelected = index
             return .handled
         }
-        guard let index = target(selected, candidates.count) else { return .beeped }
+        guard let index = pageTarget(selected, count: candidates.count, forward: forward) else { return .beeped }
         selectCandidate(index)
         selecting = true
         return .handled

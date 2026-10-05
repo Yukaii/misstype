@@ -30,7 +30,47 @@ enum MisstypePrefs {
             "MisstypeAutoShowCandidates": false,
             "MisstypeReturnConfirmsSelection": true,
             "MisstypeMixedEnglish": false,
+            "MisstypeCandidatesPerPage": SelectionKeys.defaultPageSize,
+            "MisstypeShiftToggleSide": ShiftToggleSide.either.rawValue,
+            "MisstypeShiftSpaceToggle": true,
+            "MisstypePageKeys": PageKeys.minusEqual.rawValue,
+            "MisstypeCandidateFontSize": PanelStyle.defaultFontSize,
+            "MisstypePanelAppearance": PanelStyle.Appearance.system.rawValue,
+            "MisstypeAccentHighlight": false,
         ])
+    }
+
+    /// Which lone Shift tap toggles 中/英 (when `shiftToggle` is on).
+    static var shiftToggleSide: ShiftToggleSide {
+        get { ShiftToggleSide(rawValue: UserDefaults.standard.string(forKey: "MisstypeShiftToggleSide") ?? "") ?? .either }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: "MisstypeShiftToggleSide") }
+    }
+
+    /// Shift+Space toggles 中/英 (default on); off = it types like Space.
+    static var shiftSpaceToggle: Bool {
+        get { UserDefaults.standard.bool(forKey: "MisstypeShiftSpaceToggle") }
+        set { UserDefaults.standard.set(newValue, forKey: "MisstypeShiftSpaceToggle") }
+    }
+
+    /// Keys that turn pages while selecting, besides PageUp/PageDown.
+    static var pageKeys: PageKeys {
+        get { PageKeys(rawValue: UserDefaults.standard.string(forKey: "MisstypePageKeys") ?? "") ?? .minusEqual }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: "MisstypePageKeys") }
+    }
+
+    /// Candidates per page (clamped to `SelectionKeys.pageSizes`).
+    static var candidatesPerPage: Int {
+        get { SelectionKeys.clampPageSize(UserDefaults.standard.integer(forKey: "MisstypeCandidatesPerPage")) }
+        set { UserDefaults.standard.set(newValue, forKey: "MisstypeCandidatesPerPage") }
+    }
+
+    /// Candidate panel look, read each time the panel redraws.
+    static var panelStyle: PanelStyle {
+        let defaults = UserDefaults.standard
+        return PanelStyle(
+            fontSize: PanelStyle.clampFontSize(defaults.double(forKey: "MisstypeCandidateFontSize")),
+            appearance: PanelStyle.Appearance(rawValue: defaults.string(forKey: "MisstypePanelAppearance") ?? "") ?? .system,
+            accentHighlight: defaults.bool(forKey: "MisstypeAccentHighlight"))
     }
 
     /// Lone-Shift-tap toggles 中/英 (default on; Shift+Space always works).
@@ -81,7 +121,10 @@ enum MisstypePrefs {
     }
 
     static var candidateKeys: String {
-        get { SelectionKeys.sanitize(UserDefaults.standard.string(forKey: "MisstypeCandidateKeys") ?? SelectionKeys.defaultKeys) }
+        get {
+            SelectionKeys.sanitize(UserDefaults.standard.string(forKey: "MisstypeCandidateKeys") ?? SelectionKeys.defaultKeys,
+                                   pageSize: candidatesPerPage)
+        }
         set { UserDefaults.standard.set(newValue, forKey: "MisstypeCandidateKeys") }
     }
 
@@ -127,7 +170,9 @@ enum MisstypePrefs {
                         autoCommitSyllables: autoCommitSyllables,
                         autoShowCandidates: autoShowCandidates,
                         returnConfirmsSelection: returnConfirmsSelection,
-                        mixedEnglish: mixedEnglish)
+                        mixedEnglish: mixedEnglish,
+                        pageSize: candidatesPerPage, shiftToggleSide: shiftToggleSide,
+                        shiftSpaceToggle: shiftSpaceToggle, pageKeys: pageKeys)
     }
 
     /// Live adapter config: explicit enable + key presence gate the attempt;
@@ -140,4 +185,23 @@ enum MisstypePrefs {
             apiKey: JevConfig.resolveApiKey(preferencesKey: jevApiKey),
             model: model.isEmpty ? JevConfig.defaultModel : model)
     }
+}
+
+/// How the candidate panel draws (macOS only: what a key does never depends
+/// on it). Font size scales the row height with it.
+struct PanelStyle: Equatable {
+    enum Appearance: String, CaseIterable {
+        case system, light, dark
+    }
+
+    static let defaultFontSize: Double = 15
+    static let fontSizes: ClosedRange<Double> = 12...24
+    static func clampFontSize(_ size: Double) -> Double {
+        size == 0 ? defaultFontSize : min(max(size, fontSizes.lowerBound), fontSizes.upperBound)
+    }
+
+    var fontSize: Double = defaultFontSize
+    var appearance: Appearance = .system
+    /// Highlight in the system accent color instead of neutral gray.
+    var accentHighlight = false
 }

@@ -19,6 +19,12 @@ public struct CursorOption: Equatable {
 /// Down/Tab or the syllable cursor); elsewhere they type phonetics.
 public enum SelectionKeys {
     public static let defaultKeys = "asdfghjkl;"
+    /// Candidates per page: default and the range a preference may pick.
+    public static let defaultPageSize = 8
+    public static let pageSizes = 4...10
+    public static func clampPageSize(_ size: Int) -> Int {
+        min(max(size, pageSizes.lowerBound), pageSizes.upperBound)
+    }
     /// Visible page slot for a key label, or nil when the label is not a
     /// selection key. Only the first `pageSize` keys address the page.
     public static func slot(forLabel label: String, keys: String, pageSize: Int = 8) -> Int? {
@@ -38,6 +44,38 @@ public enum SelectionKeys {
     /// Labels shown beside the visible rows.
     public static func labels(keys: String, pageSize: Int = 8) -> [String] {
         Array(keys).prefix(pageSize).map(String.init)
+    }
+}
+
+/// Keys that turn candidate pages in selection mode, on top of PageUp /
+/// PageDown. They type normally outside it, and a selection key wins when
+/// the two overlap.
+public enum PageKeys: String, CaseIterable, Sendable {
+    /// `-` / `=` (the Rime/Pinyin convention; the default).
+    case minusEqual
+    /// `,` / `.`
+    case commaPeriod
+    /// `[` / `]`
+    case brackets
+    /// PageUp / PageDown only.
+    case none
+
+    /// (previous page, next page) key labels.
+    public var labels: (previous: String, next: String)? {
+        switch self {
+        case .minusEqual: return ("-", "=")
+        case .commaPeriod: return (",", ".")
+        case .brackets: return ("[", "]")
+        case .none: return nil
+        }
+    }
+
+    /// Paging direction for a key label: true = next page, nil = not a page key.
+    public func direction(forLabel label: String) -> Bool? {
+        guard let labels else { return nil }
+        if label == labels.next { return true }
+        if label == labels.previous { return false }
+        return nil
     }
 }
 
