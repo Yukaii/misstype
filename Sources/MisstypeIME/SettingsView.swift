@@ -100,12 +100,12 @@ private struct DescribedToggle: View {
     @Binding var isOn: Bool
 
     var body: some View {
+        // Two Texts, no VStack: a grouped Form lays the second out as the
+        // row's subtitle and sizes the row for it. A hand-built VStack was
+        // measured too short and clipped (title top, wrapped detail bottom).
         Toggle(isOn: $isOn) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                Text(detail).font(.caption).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            Text(title)
+            Text(detail)
         }
     }
 }
@@ -166,9 +166,13 @@ private struct AppearancePane: View {
                     title: L("Show all pages side by side"),
                     detail: L("Up to 4 pages in columns. ↑ ↓ move through every candidate and Tab turns pages; ← → stay the syllable cursor."),
                     isOn: $grid)
-                Picker(L("Color scheme"), selection: $theme) {
-                    ForEach(PanelTheme.allCases, id: \.self) { item in
-                        Text(item.title).tag(item.rawValue)
+                LabeledContent(L("Color scheme")) {
+                    HStack(spacing: 10) {
+                        ForEach(PanelTheme.allCases, id: \.self) { item in
+                            ThemeSwatch(theme: item, selected: theme == item.rawValue,
+                                        scheme: PanelStyle.Appearance(rawValue: appearance) ?? .system)
+                                .onTapGesture { theme = item.rawValue }
+                        }
                     }
                 }
                 Picker(L("Light or dark"), selection: $appearance) {
@@ -194,6 +198,65 @@ private struct AppearancePane: View {
                              scheme: PanelStyle.Appearance(rawValue: appearance) ?? .system)
             }
         }
+    }
+}
+
+/// One color scheme as a tiny panel (background, highlighted row, key
+/// label, text) above its name; a ring marks the current one.
+private struct ThemeSwatch: View {
+    let theme: PanelTheme
+    let selected: Bool
+    let scheme: PanelStyle.Appearance
+
+    var body: some View {
+        switch scheme {
+        case .system: content
+        case .light: content.environment(\.colorScheme, .light)
+        case .dark: content.environment(\.colorScheme, .dark)
+        }
+    }
+
+    private var content: some View {
+        SwatchBody(theme: theme, selected: selected)
+    }
+}
+
+private struct SwatchBody: View {
+    let theme: PanelTheme
+    let selected: Bool
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        let palette = theme.palette(dark: colorScheme == .dark)
+        let background = palette.map { Color(nsColor: $0.background) } ?? Color(nsColor: .windowBackgroundColor)
+        let highlight = palette.map { Color(nsColor: $0.highlight) } ?? Color.secondary.opacity(0.2)
+        let key = palette.map { Color(nsColor: $0.key) } ?? Color.secondary
+        let text = palette.map { Color(nsColor: $0.text) } ?? Color.primary
+        VStack(spacing: 4) {
+            VStack(alignment: .leading, spacing: 2) {
+                ForEach(0..<3) { row in
+                    HStack(spacing: 3) {
+                        Circle().fill(key).frame(width: 4, height: 4)
+                        RoundedRectangle(cornerRadius: 1).fill(text.opacity(0.85))
+                            .frame(width: row == 0 ? 22 : 16, height: 3)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, 3)
+                    .frame(height: 9)
+                    .background(RoundedRectangle(cornerRadius: 2).fill(row == 0 ? highlight : Color.clear))
+                }
+            }
+            .padding(3)
+            .frame(width: 48, height: 38)
+            .background(RoundedRectangle(cornerRadius: 6).fill(background))
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.secondary.opacity(0.3), lineWidth: 0.5))
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.accentColor, lineWidth: 2)
+                .padding(-3).opacity(selected ? 1 : 0))
+            Text(theme.title).font(.caption2)
+                .foregroundStyle(selected ? Color.primary : Color.secondary)
+        }
+        .contentShape(Rectangle())
+        .help(theme.title)
     }
 }
 

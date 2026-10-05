@@ -230,7 +230,7 @@ enum PanelTheme: String, CaseIterable {
 
     var title: String {
         switch self {
-        case .system: return L("Match System")
+        case .system: return L("Default")
         case .solarized: return "Solarized"
         case .nord: return "Nord"
         case .gruvbox: return "Gruvbox"
