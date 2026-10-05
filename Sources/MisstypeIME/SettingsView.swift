@@ -100,12 +100,15 @@ private struct DescribedToggle: View {
     @Binding var isOn: Bool
 
     var body: some View {
-        // Two Texts, no VStack: a grouped Form lays the second out as the
-        // row's subtitle and sizes the row for it. A hand-built VStack was
-        // measured too short and clipped (title top, wrapped detail bottom).
-        Toggle(isOn: $isOn) {
-            Text(title)
-            Text(detail)
+        // The detail sits under the toggle, not in its label: a grouped Form
+        // sizes a Toggle row for a one-line label, so a wrapping label (VStack
+        // or title + subtitle Texts alike) was clipped top and bottom and the
+        // next row drew over it. A plain fixed-size Text grows the row.
+        VStack(alignment: .leading, spacing: 2) {
+            Toggle(title, isOn: $isOn)
+            Text(detail).font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }
