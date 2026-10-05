@@ -161,6 +161,7 @@ private struct AppearancePane: View {
     @AppStorage("MisstypePanelAppearance") private var appearance = PanelStyle.Appearance.system.rawValue
     @AppStorage("MisstypeCandidateFontSize") private var fontSize = PanelStyle.defaultFontSize
     @AppStorage("MisstypePanelTheme") private var theme = PanelTheme.system.rawValue
+    @AppStorage(CustomTheme.userDefaultsKey) private var customTheme = CustomTheme.defaultText
     @AppStorage("MisstypeCandidatesPerPage") private var perPage = SelectionKeys.defaultPageSize
     @AppStorage("MisstypeCandidateGrid") private var grid = false
 
@@ -188,6 +189,9 @@ private struct AppearancePane: View {
                 }
                 .padding(.vertical, 6)
                 .frame(height: 112, alignment: .topLeading)
+                if theme == PanelTheme.custom.rawValue {
+                    CustomThemeEditor(text: $customTheme)
+                }
                 Picker(L("Light or dark"), selection: $appearance) {
                     Text(L("Match System")).tag(PanelStyle.Appearance.system.rawValue)
                     Text(L("Light")).tag(PanelStyle.Appearance.light.rawValue)
@@ -211,6 +215,45 @@ private struct AppearancePane: View {
                              scheme: PanelStyle.Appearance(rawValue: appearance) ?? .system)
             }
         }
+    }
+}
+
+/// Four hex fields for the custom scheme; a swatch beside each shows what
+/// it parsed to (red outline = not a hex color, the default is used).
+private struct CustomThemeEditor: View {
+    @Binding var text: String
+
+    var body: some View {
+        let theme = CustomTheme(text: text)
+        let labels = [L("Background"), L("Text"), L("Selection keys"), L("Highlighted row")]
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(0..<4, id: \.self) { i in
+                HStack {
+                    Text(labels[i])
+                    Spacer()
+                    let valid = CustomTheme.parse(theme.hex[i]) != nil
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(Color(nsColor: theme.palette.colors[i]))
+                        .overlay(RoundedRectangle(cornerRadius: 3)
+                            .stroke(valid ? Color.secondary.opacity(0.4) : Color.red, lineWidth: 1))
+                        .frame(width: 22, height: 16)
+                    TextField("", text: Binding(
+                        get: { theme.hex[i] },
+                        set: { value in
+                            var next = theme
+                            next.hex[i] = value.replacingOccurrences(of: ",", with: "")
+                            text = next.text
+                        }))
+                        .textFieldStyle(.roundedBorder)
+                        .font(.body.monospaced())
+                        .frame(width: 100)
+                }
+            }
+            Text(L("Hex colors such as #1e1e2e. Used for both light and dark."))
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.vertical, 6)
     }
 }
 
@@ -269,7 +312,7 @@ private struct SwatchBody: View {
                 .lineLimit(1).minimumScaleFactor(0.7)
                 .foregroundStyle(selected ? Color.primary : Color.secondary)
         }
-        .frame(width: 78)
+        .frame(width: 70)
         .contentShape(Rectangle())
         .help(theme.title)
     }

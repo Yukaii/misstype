@@ -128,3 +128,8 @@
 "Check for Updates…" = "アップデートを確認…";
 "Updates are fetched from GitHub. Only the app and macOS versions are sent, never what you type." = "アップデートは GitHub から取得します。送信されるのはアプリと macOS のバージョンのみで、入力内容は送信されません。";
 "This build was not set up for automatic updates." = "このビルドは自動アップデートに対応していません。";
+"Custom" = "カスタム";
+"Background" = "背景";
+"Text" = "文字";
+"Highlighted row" = "選択中の行";
+"Hex colors such as #1e1e2e. Used for both light and dark." = "#1e1e2e のような 16 進カラー。ライト／ダーク共通です。";

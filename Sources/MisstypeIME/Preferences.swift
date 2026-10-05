@@ -36,6 +36,7 @@ enum MisstypePrefs {
             "MisstypeCandidateFontSize": PanelStyle.defaultFontSize,
             "MisstypePanelAppearance": PanelStyle.Appearance.system.rawValue,
             "MisstypePanelTheme": PanelTheme.system.rawValue,
+            "MisstypeCustomTheme": CustomTheme.defaultText,
             "MisstypeCandidateGrid": false,
         ])
     }
@@ -216,9 +217,10 @@ struct PanelStyle: Equatable {
 /// palette; `PanelStyle.appearance` (or the system) picks which. `system`
 /// uses the macOS semantic colors with a neutral gray highlight.
 enum PanelTheme: String, CaseIterable {
-    case system, solarized, nord, gruvbox, catppuccin
+    case system, solarized, nord, gruvbox, catppuccin, custom
 
     struct Palette: Equatable {
+        var colors: [NSColor] { [background, text, key, highlight] }
         var background: NSColor
         var text: NSColor
         /// Selection-key labels while they pick, and the page footer.
@@ -235,6 +237,7 @@ enum PanelTheme: String, CaseIterable {
         case .nord: return "Nord"
         case .gruvbox: return "Gruvbox"
         case .catppuccin: return "Catppuccin"
+        case .custom: return L("Custom")
         }
     }
 
@@ -247,6 +250,7 @@ enum PanelTheme: String, CaseIterable {
         }
         switch (self, dark) {
         case (.system, _): return nil
+        case (.custom, _): return CustomTheme.current.palette
         case (.solarized, false):
             return Palette(background: c(0xfdf6e3), text: c(0x586e75), key: c(0x268bd2), dimKey: c(0x93a1a1), highlight: c(0xeee8d5))
         case (.solarized, true):
@@ -264,5 +268,51 @@ enum PanelTheme: String, CaseIterable {
         case (.catppuccin, true):
             return Palette(background: c(0x1e1e2e), text: c(0xcdd6f4), key: c(0xcba6f7), dimKey: c(0x6c7086), highlight: c(0x313244))
         }
+    }
+}
+
+/// The user's own panel colors: four hex values (background, text, selection
+/// key, highlighted row) stored as one "bg,text,key,highlight" string and
+/// used for both light and dark. Anything unparsable falls back to the
+/// default value of that slot, so a half-typed hex never breaks the panel.
+struct CustomTheme: Equatable {
+    static let defaultText = "1e1e2e,cdd6f4,cba6f7,313244"
+    static let userDefaultsKey = "MisstypeCustomTheme"
+
+    /// Background, text, key, highlight, as typed (no "#").
+    var hex: [String]
+
+    static var current: CustomTheme {
+        CustomTheme(text: UserDefaults.standard.string(forKey: userDefaultsKey) ?? defaultText)
+    }
+
+    init(text: String) {
+        let defaults = Self.defaultText.split(separator: ",").map(String.init)
+        let parts = text.split(separator: ",", omittingEmptySubsequences: false).map(String.init)
+        hex = defaults.indices.map { parts.indices.contains($0) ? parts[$0] : defaults[$0] }
+    }
+
+    var text: String { hex.joined(separator: ",") }
+
+    /// 3- or 6-digit hex, optional leading "#"; nil when it is neither.
+    static func parse(_ string: String) -> UInt32? {
+        var digits = string.trimmingCharacters(in: .whitespaces)
+        if digits.hasPrefix("#") { digits.removeFirst() }
+        if digits.count == 3 { digits = digits.map { "\($0)\($0)" }.joined() }
+        guard digits.count == 6 else { return nil }
+        return UInt32(digits, radix: 16)
+    }
+
+    var palette: PanelTheme.Palette {
+        let fallback = Self.defaultText.split(separator: ",").map { Self.parse(String($0)) ?? 0 }
+        func color(_ i: Int) -> NSColor {
+            let v = Self.parse(hex[i]) ?? fallback[i]
+            return NSColor(srgbRed: CGFloat(v >> 16 & 0xff) / 255, green: CGFloat(v >> 8 & 0xff) / 255,
+                           blue: CGFloat(v & 0xff) / 255, alpha: 1)
+        }
+        let text = color(1), background = color(0)
+        // Dim labels (Zhuyin still typing) are the text color faded into the background.
+        let dim = text.blended(withFraction: 0.55, of: background) ?? text
+        return PanelTheme.Palette(background: background, text: text, key: color(2), dimKey: dim, highlight: color(3))
     }
 }

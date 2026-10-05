@@ -128,3 +128,8 @@
 "Check for Updates…" = "检查更新…";
 "Updates are fetched from GitHub. Only the app and macOS versions are sent, never what you type." = "更新从 GitHub 获取，只会发送本软件与 macOS 的版本，不会发送你输入的内容。";
 "This build was not set up for automatic updates." = "此版本未设置自动更新。";
+"Custom" = "自定义";
+"Background" = "背景";
+"Text" = "文字";
+"Highlighted row" = "高亮行";
+"Hex colors such as #1e1e2e. Used for both light and dark." = "16 进制色值，例如 #1e1e2e。浅色与深色共用。";
