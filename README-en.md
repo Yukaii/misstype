@@ -12,6 +12,18 @@ Everything runs locally; no network is needed. The project is still experimental
 > [!IMPORTANT]
 > This project is developed entirely with LLMs, and will keep being developed, delivered and tested by LLMs. Bug reports and feature prompts are welcome, and regular contributions are very welcome too, but be prepared for them to be closed and redone from scratch XD
 
+## Why another input method?
+
+Because I wanted one for myself.
+
+It started with wanting to type without even opening my eyes: keep going, skip the tones, fingers not too precise, and let the input method guess what I meant.
+
+Back when I used Rime, teaching it a word meant typing it on purpose, picking the right characters and deleting the extras, and I never found a quick key for editing the dictionary. Yahoo KeyKey and vChewing felt much smoother, so "Shift+←/→ marks, Return adds the word" here follows their feel.
+
+Tones are optional and typos are repaired by default; turn that off if you want it strict. Many keyboard layouts, Simplified/Traditional switching and Cangjie/Quick are not planned for now.
+
+If you just want a mature, stable daily input method, vChewing is great, use that. If you have the same lazy itch, come play.
+
 ## How it compares
 
 Based on each project's public description (snapshot 2026-10-04, not hands-on tested). `-` means no public mention was found, not that the feature is absent.
