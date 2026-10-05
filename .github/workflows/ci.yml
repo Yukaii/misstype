@@ -3,10 +3,21 @@ name: CI
 # Keeps MisstypeCore (decoder + InputSession) portable: the core and its
 # tests must build and pass on Linux, where only the core target exists
 # (Package.swift gates the macOS adapter). macOS is exercised by release.yml.
+# Site and docs-only changes skip it (the site has its own build in pages.yml).
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - "site/**"
+      - ".github/workflows/pages.yml"
+      - "docs/**"
+      - "**/*.md"
   pull_request:
+    paths-ignore:
+      - "site/**"
+      - ".github/workflows/pages.yml"
+      - "docs/**"
+      - "**/*.md"
 
 jobs:
   core-linux:
