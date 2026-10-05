@@ -314,7 +314,8 @@ void runAll(Instance &instance) {
 
     // C4 runs last: committing 尼 teaches the user lexicon, which would
     // reorder the candidates every other scenario expects.
-    // C4: Tab selects, a selection key picks row 2 (尼), Enter commits it.
+    // C4: Tab (one page: enters selection, highlight stays), a selection key
+    // picks row 2 (尼), Enter commits it.
     ic.focusIn();
     s.type("su3");
     {
@@ -324,7 +325,7 @@ void runAll(Instance &instance) {
     FCITX_ASSERT(s.key(FcitxKey_Tab, kTab));
     {
         auto *list = s.candidates();
-        FCITX_ASSERT(list && list->globalCursorIndex() == 1);
+        FCITX_ASSERT(list && list->globalCursorIndex() == 0);
         FCITX_ASSERT(list->label(0).toString() == "a" && list->label(1).toString() == "s")
             << "labels are the selection keys while they pick";
     }

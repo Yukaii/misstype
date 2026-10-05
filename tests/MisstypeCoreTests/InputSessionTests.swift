@@ -81,8 +81,9 @@ final class InputSessionTests: XCTestCase {
         type("su3", into: session)
         XCTAssertTrue(session.view.showsCandidates)
         XCTAssertFalse(session.view.keysActive)
+        // One page: Tab arms the selection keys without moving the highlight.
         XCTAssertEqual(session.handle(key(.tab, text: "\t")), KeyResult(consumed: true))
-        XCTAssertEqual(session.view.selected, 1)
+        XCTAssertEqual(session.view.selected, 0)
         XCTAssertTrue(session.view.keysActive)
         // Home-row "d" is slot 2 in selection mode (it types ㄎ elsewhere).
         XCTAssertEqual(session.handle(key(.character("d"), text: "d")), KeyResult(consumed: true))
@@ -140,7 +141,7 @@ final class InputSessionTests: XCTestCase {
         settings.returnConfirmsSelection = true
         let session = makeSession()
         type("su3", into: session)
-        session.handle(key(.tab, text: "\t"))
+        session.handle(key(.down, text: "\u{F701}"))
         XCTAssertEqual(session.view.preedit, "妳")
         XCTAssertEqual(session.handle(key(.enter, text: "\r")), KeyResult(consumed: true))
         XCTAssertFalse(session.view.keysActive)
@@ -155,7 +156,7 @@ final class InputSessionTests: XCTestCase {
         let menu = makeSession()
         type("su3", into: menu)
         menu.handle(key(.character(","), [.shift], text: "<"))
-        menu.handle(key(.tab, text: "\t"))
+        menu.handle(key(.down, text: "\u{F701}"))
         XCTAssertEqual(menu.handle(key(.enter, text: "\r")), KeyResult(consumed: true))
         XCTAssertEqual(menu.handle(key(.enter, text: "\r")).commit, "你、")
     }
@@ -163,7 +164,7 @@ final class InputSessionTests: XCTestCase {
     func testReturnCommitsAtOnceWhenConfirmIsOff() {
         let session = makeSession()
         type("su3", into: session)
-        session.handle(key(.tab, text: "\t"))
+        session.handle(key(.down, text: "\u{F701}"))
         XCTAssertEqual(session.handle(key(.enter, text: "\r")).commit, "妳")
     }
 
@@ -224,11 +225,49 @@ final class InputSessionTests: XCTestCase {
         XCTAssertEqual(session.view.selected, 1)
     }
 
-    func testPageKeyBeepsWhenOnePage() {
+    func testPageSizeSetsRowsSelectionKeysAndPaging() {
+        settings.pageSize = 5
+        let session = homophoneSession()
+        _ = session.handle(key(.down)) // row 1
+        XCTAssertEqual(session.view.pageSize, 5)
+        XCTAssertEqual(session.view.selectionKeys, ["a", "s", "d", "f", "g"])
+        _ = session.handle(key(.pageDown))
+        XCTAssertEqual(session.view.selected, 6)
+        // Selection keys address the visible page of 5: `d` is row 3 → 7.
+        _ = session.handle(key(.character("d"), text: "d"))
+        XCTAssertEqual(session.view.selected, 7)
+        XCTAssertFalse(session.view.keysActive)
+        XCTAssertEqual(session.view.preedit, session.view.candidates[7])
+        // Out-of-range sizes clamp.
+        settings.pageSize = 99
+        XCTAssertEqual(settings.pageSize, SelectionKeys.pageSizes.upperBound)
+    }
+
+    func testSelectionKeyWinsOverPageKey() {
+        settings.candidateKeys = "asdfghj-"
+        let session = homophoneSession()
+        _ = session.handle(key(.down))
+        _ = session.handle(key(.character("-"), text: "-")) // slot 7, not previous page
+        XCTAssertEqual(session.view.selected, 7)
+        XCTAssertFalse(session.view.keysActive)
+    }
+
+    func testPageKeyOnOnePageEntersSelectionThenBeeps() {
         let session = makeSession()
         type("su3", into: session)
+        XCTAssertEqual(session.handle(key(.pageDown)), KeyResult(consumed: true))
+        XCTAssertTrue(session.view.keysActive)
+        XCTAssertEqual(session.view.selected, 0)
         XCTAssertEqual(session.handle(key(.pageDown)), KeyResult(consumed: true, beep: true))
-        XCTAssertEqual(session.handle(key(.pageDown)).commit, nil)
+    }
+
+    func testTabAndShiftTabTurnPages() {
+        let session = homophoneSession()
+        XCTAssertEqual(session.handle(key(.tab, text: "\t")), KeyResult(consumed: true))
+        XCTAssertEqual(session.view.selected, 8)
+        XCTAssertTrue(session.view.keysActive)
+        _ = session.handle(key(.tab, [.shift], text: "\t"))
+        XCTAssertEqual(session.view.selected, 0)
     }
 
     func testPageKeyPassesThroughWithoutComposition() {
@@ -364,8 +403,8 @@ final class InputSessionTests: XCTestCase {
         XCTAssertEqual(Array(session.view.candidates.prefix(3)), ["，", "、", "；"])
         XCTAssertFalse(session.view.keysActive)
         // Letters are still Zhuyin until stepping starts.
-        // Tab swaps the mark live and arms the selection keys.
-        session.handle(key(.tab, text: "\t"))
+        // Down swaps the mark live and arms the selection keys.
+        session.handle(key(.down, text: "\u{F701}"))
         XCTAssertEqual(session.view.preedit, "你、")
         XCTAssertTrue(session.view.keysActive)
         // Selection key `d` = slot 2 on the page: 「；」.
@@ -410,6 +449,36 @@ final class InputSessionTests: XCTestCase {
         XCTAssertEqual(session.view.caret, 2)
     }
 
+    func testCursorBeforeTheCaretListsWordsEndingThere() {
+        settings.cursorCandidates = .endingAt
+        let session = makeSession()
+        type("su3cl3", into: session)
+        // First Left: caret stays after 好, the words ending there are listed.
+        _ = session.handle(key(.left, text: "\u{F702}"))
+        XCTAssertEqual(session.view.candidates, ["你好", "好"])
+        XCTAssertEqual(session.view.selected, 0)
+        XCTAssertEqual(session.view.caret, 2)
+        // Second Left: words ending after 你; 你好 does not, so 你 is highlighted.
+        _ = session.handle(key(.left, text: "\u{F702}"))
+        XCTAssertEqual(session.view.candidates, ["你", "妳", "尼", "泥"])
+        XCTAssertEqual(session.view.caret, 1)
+        _ = session.handle(key(.character("d"), text: "d")) // row 3: 尼
+        XCTAssertEqual(session.view.preedit, "尼好")
+    }
+
+    func testCursorAfterTheCaretListsWordsStartingThere() {
+        settings.cursorCandidates = .beginningAt
+        let session = makeSession()
+        type("su3cl3", into: session)
+        _ = session.handle(key(.left, text: "\u{F702}"))
+        XCTAssertEqual(session.view.candidates, ["好"])
+        XCTAssertEqual(session.view.caret, 1)
+        _ = session.handle(key(.left, text: "\u{F702}"))
+        XCTAssertEqual(session.view.candidates.first, "你好")
+        XCTAssertFalse(session.view.candidates.contains("好"))
+        XCTAssertEqual(session.view.caret, 0)
+    }
+
     func testChordsAndCapsLockCommitThenPassThrough() {
         let session = makeSession()
         type("su3", into: session)
@@ -449,6 +518,17 @@ final class InputSessionTests: XCTestCase {
         settings.shiftToggle = false
         session.handle(KeyEvent(.shift(.right), phase: .press, modifiers: [.shift], timestamp: 102))
         XCTAssertFalse(session.handle(KeyEvent(.shift(.right), phase: .release, timestamp: 102.1)).modeChanged)
+    }
+
+    func testShiftSpaceToggleCanBeTurnedOff() {
+        settings.keyBindings = KeyBindings(overrides: [.toggleEnglish: []])
+        let session = makeSession()
+        type("su3", into: session)
+        let result = session.handle(key(.space, [.shift], text: " "))
+        XCTAssertFalse(result.modeChanged)
+        XCTAssertNil(result.commit)
+        XCTAssertFalse(session.engine.english)
+        XCTAssertEqual(session.handle(key(.enter, text: "\r")).commit, "你")
     }
 
     func testLoneShiftTapMidCompositionOpensLatinRunWithoutCommitting() {

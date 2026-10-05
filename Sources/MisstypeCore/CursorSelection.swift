@@ -19,6 +19,12 @@ public struct CursorOption: Equatable {
 /// Down/Tab or the syllable cursor); elsewhere they type phonetics.
 public enum SelectionKeys {
     public static let defaultKeys = "asdfghjkl;"
+    /// Candidates per page: default and the range a preference may pick.
+    public static let defaultPageSize = 8
+    public static let pageSizes = 4...10
+    public static func clampPageSize(_ size: Int) -> Int {
+        min(max(size, pageSizes.lowerBound), pageSizes.upperBound)
+    }
     /// Visible page slot for a key label, or nil when the label is not a
     /// selection key. Only the first `pageSize` keys address the page.
     public static func slot(forLabel label: String, keys: String, pageSize: Int = 8) -> Int? {
@@ -38,6 +44,43 @@ public enum SelectionKeys {
     /// Labels shown beside the visible rows.
     public static func labels(keys: String, pageSize: Int = 8) -> [String] {
         Array(keys).prefix(pageSize).map(String.init)
+    }
+}
+
+/// Which words the syllable cursor lists (`SessionSettings.cursorCandidates`).
+/// vChewing calls the two edge styles "cursor in front of / behind the
+/// phrase"; Misstype's default lists every word covering the cursor.
+public enum CursorCandidates: String, CaseIterable, Sendable {
+    /// Every word covering the cursor syllable, caret at its start (default).
+    case covering
+    /// Words ending at the caret, which sits after the cursor syllable: the
+    /// word before the caret (macOS built-in Zhuyin, vChewing's default).
+    case endingAt
+    /// Words starting at the cursor syllable, caret before it: the word after
+    /// the caret (Microsoft New Phonetic, vChewing's rear cursor mode).
+    case beginningAt
+
+    /// Whether a word spanning `span` is listed for cursor syllable `cursor`.
+    public func lists(_ span: Range<Int>, cursor: Int) -> Bool {
+        switch self {
+        case .covering: return span.contains(cursor)
+        case .endingAt: return span.upperBound == cursor + 1
+        case .beginningAt: return span.lowerBound == cursor
+        }
+    }
+}
+
+/// `-` / `=` turn pages in selection mode (the Rime/Pinyin convention), on
+/// top of the page bindings (Tab / Shift+Tab, PageUp / PageDown). They type
+/// normally outside it, and a selection key wins when the two overlap.
+public enum PageKeys {
+    /// Paging direction for a key label: true = next page, nil = not a page key.
+    public static func direction(forLabel label: String) -> Bool? {
+        switch label {
+        case "=": return true
+        case "-": return false
+        default: return nil
+        }
     }
 }
 

@@ -30,7 +30,53 @@ enum MisstypePrefs {
             "MisstypeAutoShowCandidates": false,
             "MisstypeReturnConfirmsSelection": true,
             "MisstypeMixedEnglish": false,
+            "MisstypeCandidatesPerPage": SelectionKeys.defaultPageSize,
+            "MisstypeKeyBindings": "",
+            "MisstypeCursorCandidates": CursorCandidates.covering.rawValue,
+            "MisstypeCandidateFontSize": PanelStyle.defaultFontSize,
+            "MisstypePanelAppearance": PanelStyle.Appearance.system.rawValue,
+            "MisstypePanelTheme": PanelTheme.system.rawValue,
+            "MisstypeUILanguage": "",
+            "MisstypeCustomTheme": CustomTheme.defaultText,
+            "MisstypeCandidateGrid": false,
         ])
+    }
+
+    /// Key bindings in `KeyBindings` text form (empty = all defaults).
+    /// Parsed once per distinct value, since it is read every keystroke.
+    static var keyBindings: KeyBindings {
+        get {
+            let text = UserDefaults.standard.string(forKey: "MisstypeKeyBindings") ?? ""
+            if let cached = bindingsCache, cached.text == text { return cached.bindings }
+            let bindings = KeyBindings.parse(text)
+            bindingsCache = (text, bindings)
+            return bindings
+        }
+        set { UserDefaults.standard.set(newValue.serialized, forKey: "MisstypeKeyBindings") }
+    }
+    private static var bindingsCache: (text: String, bindings: KeyBindings)?
+
+
+    /// Which words the syllable cursor (←/→) lists.
+    static var cursorCandidates: CursorCandidates {
+        get { CursorCandidates(rawValue: UserDefaults.standard.string(forKey: "MisstypeCursorCandidates") ?? "") ?? .covering }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: "MisstypeCursorCandidates") }
+    }
+
+    /// Candidates per page (clamped to `SelectionKeys.pageSizes`).
+    static var candidatesPerPage: Int {
+        get { SelectionKeys.clampPageSize(UserDefaults.standard.integer(forKey: "MisstypeCandidatesPerPage")) }
+        set { UserDefaults.standard.set(newValue, forKey: "MisstypeCandidatesPerPage") }
+    }
+
+    /// Candidate panel look, read each time the panel redraws.
+    static var panelStyle: PanelStyle {
+        let defaults = UserDefaults.standard
+        return PanelStyle(
+            fontSize: PanelStyle.clampFontSize(defaults.double(forKey: "MisstypeCandidateFontSize")),
+            appearance: PanelStyle.Appearance(rawValue: defaults.string(forKey: "MisstypePanelAppearance") ?? "") ?? .system,
+            theme: PanelTheme(rawValue: defaults.string(forKey: "MisstypePanelTheme") ?? "") ?? .system,
+            grid: defaults.bool(forKey: "MisstypeCandidateGrid"))
     }
 
     /// Lone-Shift-tap toggles 中/英 (default on; Shift+Space always works).
@@ -81,7 +127,10 @@ enum MisstypePrefs {
     }
 
     static var candidateKeys: String {
-        get { SelectionKeys.sanitize(UserDefaults.standard.string(forKey: "MisstypeCandidateKeys") ?? SelectionKeys.defaultKeys) }
+        get {
+            SelectionKeys.sanitize(UserDefaults.standard.string(forKey: "MisstypeCandidateKeys") ?? SelectionKeys.defaultKeys,
+                                   pageSize: candidatesPerPage)
+        }
         set { UserDefaults.standard.set(newValue, forKey: "MisstypeCandidateKeys") }
     }
 
@@ -127,7 +176,10 @@ enum MisstypePrefs {
                         autoCommitSyllables: autoCommitSyllables,
                         autoShowCandidates: autoShowCandidates,
                         returnConfirmsSelection: returnConfirmsSelection,
-                        mixedEnglish: mixedEnglish)
+                        mixedEnglish: mixedEnglish,
+                        pageSize: candidatesPerPage,
+                        keyBindings: keyBindings,
+                        cursorCandidates: cursorCandidates)
     }
 
     /// Live adapter config: explicit enable + key presence gate the attempt;
@@ -139,5 +191,129 @@ enum MisstypePrefs {
             allowRichContext: jevRichContext,
             apiKey: JevConfig.resolveApiKey(preferencesKey: jevApiKey),
             model: model.isEmpty ? JevConfig.defaultModel : model)
+    }
+}
+
+/// How the candidate panel draws (macOS only: what a key does never depends
+/// on it). Font size scales the row height with it.
+struct PanelStyle: Equatable {
+    enum Appearance: String, CaseIterable {
+        case system, light, dark
+    }
+
+    static let defaultFontSize: Double = 15
+    static let fontSizes: ClosedRange<Double> = 12...24
+    static func clampFontSize(_ size: Double) -> Double {
+        size == 0 ? defaultFontSize : min(max(size, fontSizes.lowerBound), fontSizes.upperBound)
+    }
+
+    var fontSize: Double = defaultFontSize
+    var appearance: Appearance = .system
+    var theme: PanelTheme = .system
+    /// Show every page side by side (up to 4 columns) instead of one list.
+    var grid = false
+}
+
+/// Color scheme of the candidate panel. Each has a light and a dark
+/// palette; `PanelStyle.appearance` (or the system) picks which. `system`
+/// uses the macOS semantic colors with a neutral gray highlight.
+enum PanelTheme: String, CaseIterable {
+    case system, solarized, nord, gruvbox, catppuccin, custom
+
+    struct Palette: Equatable {
+        var colors: [NSColor] { [background, text, key, highlight] }
+        var background: NSColor
+        var text: NSColor
+        /// Selection-key labels while they pick, and the page footer.
+        var key: NSColor
+        /// Labels while the keys still type Zhuyin.
+        var dimKey: NSColor
+        var highlight: NSColor
+    }
+
+    var title: String {
+        switch self {
+        case .system: return L("Default")
+        case .solarized: return "Solarized"
+        case .nord: return "Nord"
+        case .gruvbox: return "Gruvbox"
+        case .catppuccin: return "Catppuccin"
+        case .custom: return L("Custom")
+        }
+    }
+
+    /// Published palette values (Solarized, Nord, Gruvbox, Catppuccin
+    /// Latte/Mocha); nil = system colors.
+    func palette(dark: Bool) -> Palette? {
+        func c(_ hex: UInt32) -> NSColor {
+            NSColor(srgbRed: CGFloat(hex >> 16 & 0xff) / 255, green: CGFloat(hex >> 8 & 0xff) / 255,
+                    blue: CGFloat(hex & 0xff) / 255, alpha: 1)
+        }
+        switch (self, dark) {
+        case (.system, _): return nil
+        case (.custom, _): return CustomTheme.current.palette
+        case (.solarized, false):
+            return Palette(background: c(0xfdf6e3), text: c(0x586e75), key: c(0x268bd2), dimKey: c(0x93a1a1), highlight: c(0xeee8d5))
+        case (.solarized, true):
+            return Palette(background: c(0x002b36), text: c(0x93a1a1), key: c(0x268bd2), dimKey: c(0x586e75), highlight: c(0x073642))
+        case (.nord, false):
+            return Palette(background: c(0xeceff4), text: c(0x2e3440), key: c(0x5e81ac), dimKey: c(0x9aa3b5), highlight: c(0xd8dee9))
+        case (.nord, true):
+            return Palette(background: c(0x2e3440), text: c(0xeceff4), key: c(0x88c0d0), dimKey: c(0x4c566a), highlight: c(0x434c5e))
+        case (.gruvbox, false):
+            return Palette(background: c(0xfbf1c7), text: c(0x3c3836), key: c(0xaf3a03), dimKey: c(0xa89984), highlight: c(0xebdbb2))
+        case (.gruvbox, true):
+            return Palette(background: c(0x282828), text: c(0xebdbb2), key: c(0xfabd2f), dimKey: c(0x665c54), highlight: c(0x3c3836))
+        case (.catppuccin, false):
+            return Palette(background: c(0xeff1f5), text: c(0x4c4f69), key: c(0x8839ef), dimKey: c(0x9ca0b0), highlight: c(0xccd0da))
+        case (.catppuccin, true):
+            return Palette(background: c(0x1e1e2e), text: c(0xcdd6f4), key: c(0xcba6f7), dimKey: c(0x6c7086), highlight: c(0x313244))
+        }
+    }
+}
+
+/// The user's own panel colors: four hex values (background, text, selection
+/// key, highlighted row) stored as one "bg,text,key,highlight" string and
+/// used for both light and dark. Anything unparsable falls back to the
+/// default value of that slot, so a half-typed hex never breaks the panel.
+struct CustomTheme: Equatable {
+    static let defaultText = "1e1e2e,cdd6f4,cba6f7,313244"
+    static let userDefaultsKey = "MisstypeCustomTheme"
+
+    /// Background, text, key, highlight, as typed (no "#").
+    var hex: [String]
+
+    static var current: CustomTheme {
+        CustomTheme(text: UserDefaults.standard.string(forKey: userDefaultsKey) ?? defaultText)
+    }
+
+    init(text: String) {
+        let defaults = Self.defaultText.split(separator: ",").map(String.init)
+        let parts = text.split(separator: ",", omittingEmptySubsequences: false).map(String.init)
+        hex = defaults.indices.map { parts.indices.contains($0) ? parts[$0] : defaults[$0] }
+    }
+
+    var text: String { hex.joined(separator: ",") }
+
+    /// 3- or 6-digit hex, optional leading "#"; nil when it is neither.
+    static func parse(_ string: String) -> UInt32? {
+        var digits = string.trimmingCharacters(in: .whitespaces)
+        if digits.hasPrefix("#") { digits.removeFirst() }
+        if digits.count == 3 { digits = digits.map { "\($0)\($0)" }.joined() }
+        guard digits.count == 6 else { return nil }
+        return UInt32(digits, radix: 16)
+    }
+
+    var palette: PanelTheme.Palette {
+        let fallback = Self.defaultText.split(separator: ",").map { Self.parse(String($0)) ?? 0 }
+        func color(_ i: Int) -> NSColor {
+            let v = Self.parse(hex[i]) ?? fallback[i]
+            return NSColor(srgbRed: CGFloat(v >> 16 & 0xff) / 255, green: CGFloat(v >> 8 & 0xff) / 255,
+                           blue: CGFloat(v & 0xff) / 255, alpha: 1)
+        }
+        let text = color(1), background = color(0)
+        // Dim labels (Zhuyin still typing) are the text color faded into the background.
+        let dim = text.blended(withFraction: 0.55, of: background) ?? text
+        return PanelTheme.Palette(background: background, text: text, key: color(2), dimKey: dim, highlight: color(3))
     }
 }

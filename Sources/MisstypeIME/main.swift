@@ -208,6 +208,8 @@ final class MisstypeInputController: IMKInputController, InputSessionHost {
                                   selected: view.selected,
                                   keyLabels: view.selectionKeys,
                                   keysActive: view.keysActive,
+                                  pageSize: view.pageSize,
+                                  style: MisstypePrefs.panelStyle,
                                   anchor: caretAnchor(client, length: view.preedit.utf16.count),
                                   mark: view.mark)
         } else {
