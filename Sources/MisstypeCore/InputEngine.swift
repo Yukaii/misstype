@@ -30,12 +30,30 @@ public struct SessionSettings: Equatable, Sendable {
     /// are offered as English, and adopted when clearly better than the
     /// Chinese reading. Needs `english.tsv`; without it nothing changes.
     public var mixedEnglish: Bool
+    /// Candidates per page (`SelectionKeys.pageSizes`, clamped): rows the
+    /// host shows at once and how many selection keys address them.
+    public var pageSize: Int {
+        get { pageSizeValue }
+        set { pageSizeValue = SelectionKeys.clampPageSize(newValue) }
+    }
+    private var pageSizeValue: Int
+    /// User key bindings for IME actions (`KeyBindings`; default: the
+    /// built-in keys, Shift+Space toggles 中/英).
+    public var keyBindings: KeyBindings
+    /// Which words the syllable cursor offers (default: all covering it).
+    public var cursorCandidates: CursorCandidates
 
     public init(fuzzyRepair: Bool = true, toneTolerance: Bool = true,
                 candidateKeys: String = SelectionKeys.defaultKeys, userLearning: Bool = true,
                 shiftToggle: Bool = true, jev: JevConfig = JevConfig(),
                 autoCommitSyllables: Int = 24, autoShowCandidates: Bool = true,
-                returnConfirmsSelection: Bool = false, mixedEnglish: Bool = true) {
+                returnConfirmsSelection: Bool = false, mixedEnglish: Bool = true,
+                pageSize: Int = SelectionKeys.defaultPageSize,
+                keyBindings: KeyBindings = KeyBindings(),
+                cursorCandidates: CursorCandidates = .covering) {
+        self.cursorCandidates = cursorCandidates
+        self.pageSizeValue = SelectionKeys.clampPageSize(pageSize)
+        self.keyBindings = keyBindings
         self.fuzzyRepair = fuzzyRepair
         self.toneTolerance = toneTolerance
         self.candidateKeys = candidateKeys

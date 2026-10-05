@@ -30,12 +30,14 @@ final class SettingsWindow: NSWindow {
 }
 
 private enum Pane: String, CaseIterable, Identifiable {
-    case general, decoding, learning, dictionary, jev, about
+    case general, appearance, shortcuts, decoding, learning, dictionary, jev, about
     var id: String { rawValue }
 
     var title: String {
         switch self {
         case .general: return L("General")
+        case .appearance: return L("Appearance")
+        case .shortcuts: return L("Shortcuts")
         case .decoding: return L("Decoding")
         case .learning: return L("Learning")
         case .dictionary: return L("My Dictionary")
@@ -46,7 +48,9 @@ private enum Pane: String, CaseIterable, Identifiable {
 
     var symbol: String {
         switch self {
-        case .general: return "keyboard"
+        case .general: return "gearshape"
+        case .appearance: return "paintbrush"
+        case .shortcuts: return "keyboard"
         case .decoding: return "wand.and.stars"
         case .learning: return "book.closed"
         case .dictionary: return "character.book.closed"
@@ -58,6 +62,7 @@ private enum Pane: String, CaseIterable, Identifiable {
 
 struct SettingsView: View {
     @State private var pane: Pane = .general
+    @AppStorage(UILanguage.userDefaultsKey) private var language = ""
 
     var body: some View {
         // Fixed two-column layout instead of NavigationSplitView: that adds
@@ -73,6 +78,8 @@ struct SettingsView: View {
             Group {
                 switch pane {
                 case .general: GeneralPane()
+                case .appearance: AppearancePane()
+                case .shortcuts: ShortcutsPane()
                 case .decoding: DecodingPane()
                 case .learning: LearningPane()
                 case .dictionary: DictionaryPane()
@@ -84,6 +91,9 @@ struct SettingsView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .ignoresSafeArea()
+        // Rebuild everything on a language change: L() is read in body, and
+        // views that did not read the setting would keep the old strings.
+        .id(language)
     }
 }
 
@@ -94,38 +104,40 @@ private struct DescribedToggle: View {
     @Binding var isOn: Bool
 
     var body: some View {
-        Toggle(isOn: $isOn) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                Text(detail).font(.caption).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
+        // The detail sits under the toggle, not in its label: a grouped Form
+        // sizes a Toggle row for a one-line label, so a wrapping label (VStack
+        // or title + subtitle Texts alike) was clipped top and bottom and the
+        // next row drew over it. Wrapping the pair in a VStack inside one row
+        // was still measured too short (detail overlapped the next row), so
+        // the detail is its own row: a bare Text is sized correctly.
+        Toggle(title, isOn: $isOn)
+            .listRowSeparator(.hidden, edges: .bottom)
+        Text(detail).font(.caption).foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .listRowSeparator(.hidden, edges: .top)
     }
 }
 
 // MARK: - General
 
 private struct GeneralPane: View {
-    @AppStorage("MisstypeShiftToggle") private var shiftToggle = true
     @AppStorage("MisstypeAutoShowCandidates") private var autoShowCandidates = false
     @AppStorage("MisstypeReturnConfirmsSelection") private var returnConfirms = true
     @AppStorage("MisstypeMixedEnglish") private var mixedEnglish = false
-    @AppStorage("MisstypeCandidateKeys") private var storedKeys = SelectionKeys.defaultKeys
-    @State private var draft = ""
-    @FocusState private var editing: Bool
+    @AppStorage("MisstypeCursorCandidates") private var cursorCandidates = CursorCandidates.covering.rawValue
 
-    private var labels: [String] {
-        SelectionKeys.labels(keys: SelectionKeys.sanitize(draft))
-    }
+    @AppStorage(UILanguage.userDefaultsKey) private var language = ""
 
     var body: some View {
         Form {
+            Section(L("Language")) {
+                Picker(L("Interface language"), selection: $language) {
+                    Text(L("Match System")).tag("")
+                    ForEach(UILanguage.choices, id: \.code) { Text($0.name).tag($0.code) }
+                }
+            }
             Section(L("Typing")) {
-                DescribedToggle(
-                    title: L("Tap Shift to switch Chinese/English"),
-                    detail: L("Shift+Space always works. Turn this off if an app mishandles lone Shift presses."),
-                    isOn: $shiftToggle)
                 DescribedToggle(
                     title: L("Show candidates automatically"),
                     detail: L("Off: the candidate panel appears only after you press Tab or an arrow key."),
@@ -138,6 +150,263 @@ private struct GeneralPane: View {
                     title: L("Recognize English words while typing"),
                     detail: L("Experimental. Keys that spell an English word (typos included) are offered as English without switching modes. Slower on long mixed sentences."),
                     isOn: $mixedEnglish)
+            }
+            Section(L("Syllable cursor")) {
+                Picker(L("Candidates at the cursor"), selection: $cursorCandidates) {
+                    Text(L("Every word covering the cursor")).tag(CursorCandidates.covering.rawValue)
+                    Text(L("The word before the cursor (macOS Zhuyin)")).tag(CursorCandidates.endingAt.rawValue)
+                    Text(L("The word after the cursor (Microsoft New Phonetic)")).tag(CursorCandidates.beginningAt.rawValue)
+                }
+                Text(L("Which words ← and → offer when you go back to fix one."))
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+}
+
+// MARK: - Appearance
+
+/// Candidate panel look. Read by the panel on every redraw, so a change
+/// shows at the next keystroke.
+private struct AppearancePane: View {
+    @AppStorage("MisstypePanelAppearance") private var appearance = PanelStyle.Appearance.system.rawValue
+    @AppStorage("MisstypeCandidateFontSize") private var fontSize = PanelStyle.defaultFontSize
+    @AppStorage("MisstypePanelTheme") private var theme = PanelTheme.system.rawValue
+    @AppStorage(CustomTheme.userDefaultsKey) private var customTheme = CustomTheme.defaultText
+    @AppStorage("MisstypeCandidatesPerPage") private var perPage = SelectionKeys.defaultPageSize
+    @AppStorage("MisstypeCandidateGrid") private var grid = false
+
+    var body: some View {
+        Form {
+            Section(L("Candidate panel")) {
+                DescribedToggle(
+                    title: L("Show all pages side by side"),
+                    detail: L("Up to 4 pages in columns. ↑ ↓ move through every candidate and Tab turns pages; ← → stay the syllable cursor."),
+                    isOn: $grid)
+                // Own full-width row with an explicit height: the grouped Form
+                // measures rows for one text line (see DescribedToggle), which
+                // clipped the swatches, and a trailing HStack squeezed their
+                // names into wrapping.
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(L("Color scheme"))
+                    HStack(alignment: .top, spacing: 12) {
+                        ForEach(PanelTheme.allCases, id: \.self) { item in
+                            ThemeSwatch(theme: item, selected: theme == item.rawValue,
+                                        scheme: PanelStyle.Appearance(rawValue: appearance) ?? .system)
+                                .onTapGesture { theme = item.rawValue }
+                        }
+                        Spacer(minLength: 0)
+                    }
+                }
+                .padding(.vertical, 6)
+                .frame(height: 112, alignment: .topLeading)
+                if theme == PanelTheme.custom.rawValue {
+                    CustomThemeEditor(text: $customTheme)
+                }
+                Picker(L("Light or dark"), selection: $appearance) {
+                    Text(L("Match System")).tag(PanelStyle.Appearance.system.rawValue)
+                    Text(L("Light")).tag(PanelStyle.Appearance.light.rawValue)
+                    Text(L("Dark")).tag(PanelStyle.Appearance.dark.rawValue)
+                }
+                LabeledContent(L("Font size")) {
+                    HStack {
+                        Slider(value: $fontSize, in: PanelStyle.fontSizes, step: 1)
+                            .frame(maxWidth: 200)
+                        Text(L("%d pt", Int(fontSize)))
+                            .monospacedDigit().foregroundStyle(.secondary)
+                            .frame(width: 44, alignment: .trailing)
+                    }
+                }
+                Stepper(value: $perPage, in: SelectionKeys.pageSizes) {
+                    LabeledContent(L("Candidates per page"), value: "\(perPage)")
+                }
+            }
+            Section(L("Preview")) {
+                PanelPreview(fontSize: fontSize, theme: PanelTheme(rawValue: theme) ?? .system,
+                             scheme: PanelStyle.Appearance(rawValue: appearance) ?? .system)
+            }
+        }
+    }
+}
+
+/// Four hex fields for the custom scheme; a swatch beside each shows what
+/// it parsed to (red outline = not a hex color, the default is used).
+private struct CustomThemeEditor: View {
+    @Binding var text: String
+
+    var body: some View {
+        let theme = CustomTheme(text: text)
+        let labels = [L("Background"), L("Text"), L("Selection keys"), L("Highlighted row")]
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(0..<4, id: \.self) { i in
+                HStack {
+                    Text(labels[i])
+                    Spacer()
+                    let valid = CustomTheme.parse(theme.hex[i]) != nil
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(Color(nsColor: theme.palette.colors[i]))
+                        .overlay(RoundedRectangle(cornerRadius: 3)
+                            .stroke(valid ? Color.secondary.opacity(0.4) : Color.red, lineWidth: 1))
+                        .frame(width: 22, height: 16)
+                    TextField("", text: Binding(
+                        get: { theme.hex[i] },
+                        set: { value in
+                            var next = theme
+                            next.hex[i] = value.replacingOccurrences(of: ",", with: "")
+                            text = next.text
+                        }))
+                        .textFieldStyle(.roundedBorder)
+                        .font(.body.monospaced())
+                        .frame(width: 100)
+                }
+            }
+            Text(L("Hex colors such as #1e1e2e. Used for both light and dark."))
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.vertical, 6)
+    }
+}
+
+/// One color scheme as a tiny panel (background, highlighted row, key
+/// label, text) above its name; a ring marks the current one.
+private struct ThemeSwatch: View {
+    let theme: PanelTheme
+    let selected: Bool
+    let scheme: PanelStyle.Appearance
+
+    var body: some View {
+        switch scheme {
+        case .system: content
+        case .light: content.environment(\.colorScheme, .light)
+        case .dark: content.environment(\.colorScheme, .dark)
+        }
+    }
+
+    private var content: some View {
+        SwatchBody(theme: theme, selected: selected)
+    }
+}
+
+private struct SwatchBody: View {
+    let theme: PanelTheme
+    let selected: Bool
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        let palette = theme.palette(dark: colorScheme == .dark)
+        let background = palette.map { Color(nsColor: $0.background) } ?? Color(nsColor: .windowBackgroundColor)
+        let highlight = palette.map { Color(nsColor: $0.highlight) } ?? Color.secondary.opacity(0.2)
+        let key = palette.map { Color(nsColor: $0.key) } ?? Color.secondary
+        let text = palette.map { Color(nsColor: $0.text) } ?? Color.primary
+        VStack(spacing: 4) {
+            VStack(alignment: .leading, spacing: 2) {
+                ForEach(0..<3) { row in
+                    HStack(spacing: 3) {
+                        Circle().fill(key).frame(width: 4, height: 4)
+                        RoundedRectangle(cornerRadius: 1).fill(text.opacity(0.85))
+                            .frame(width: row == 0 ? 22 : 16, height: 3)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, 3)
+                    .frame(height: 9)
+                    .background(RoundedRectangle(cornerRadius: 2).fill(row == 0 ? highlight : Color.clear))
+                }
+            }
+            .padding(3)
+            .frame(width: 48, height: 38)
+            .background(RoundedRectangle(cornerRadius: 6).fill(background))
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.secondary.opacity(0.3), lineWidth: 0.5))
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.accentColor, lineWidth: 2)
+                .padding(-3).opacity(selected ? 1 : 0))
+            Text(theme.title).font(.caption2)
+                .lineLimit(1).minimumScaleFactor(0.7)
+                .foregroundStyle(selected ? Color.primary : Color.secondary)
+        }
+        .frame(width: 70)
+        .contentShape(Rectangle())
+        .help(theme.title)
+    }
+}
+
+/// A static sketch of the panel with the chosen style (not the real panel).
+private struct PanelPreview: View {
+    let fontSize: Double
+    let theme: PanelTheme
+    let scheme: PanelStyle.Appearance
+
+    var body: some View {
+        switch scheme {
+        case .system: PreviewBody(fontSize: fontSize, theme: theme)
+        case .light: PreviewBody(fontSize: fontSize, theme: theme).environment(\.colorScheme, .light)
+        case .dark: PreviewBody(fontSize: fontSize, theme: theme).environment(\.colorScheme, .dark)
+        }
+    }
+}
+
+private struct PreviewBody: View {
+    let fontSize: Double
+    let theme: PanelTheme
+    @Environment(\.colorScheme) private var colorScheme
+    private let rows = ["你好", "妳好", "擬好"]
+
+    var body: some View {
+        let palette = theme.palette(dark: colorScheme == .dark)
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(rows.enumerated()), id: \.offset) { index, text in
+                HStack(spacing: 8) {
+                    Text(["a", "s", "d"][index])
+                        .font(.system(size: fontSize - 2, design: .monospaced))
+                        .foregroundStyle(palette.map { Color(nsColor: $0.key) } ?? Color.secondary)
+                    Text(text).font(.system(size: fontSize))
+                        .foregroundStyle(palette.map { Color(nsColor: $0.text) } ?? Color.primary)
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 6)
+                .frame(height: (fontSize * 28 / 15).rounded())
+                .background(RoundedRectangle(cornerRadius: 6).fill(
+                    index == 0 ? (palette.map { Color(nsColor: $0.highlight) } ?? Color.secondary.opacity(0.2))
+                               : Color.clear))
+            }
+        }
+        .padding(4)
+        .frame(width: 180)
+        .background(RoundedRectangle(cornerRadius: 10).fill(
+            palette.map { Color(nsColor: $0.background) } ?? Color(nsColor: .windowBackgroundColor)))
+        .shadow(radius: 3, y: 1)
+        .padding(.vertical, 6)
+    }
+}
+
+// MARK: - Shortcuts
+
+private struct ShortcutsPane: View {
+    @AppStorage("MisstypeShiftToggle") private var shiftToggle = true
+    @AppStorage("MisstypeKeyBindings") private var storedBindings = ""
+    @AppStorage("MisstypeCandidatesPerPage") private var perPage = SelectionKeys.defaultPageSize
+    @AppStorage("MisstypeCandidateKeys") private var storedKeys = SelectionKeys.defaultKeys
+    @State private var draft = ""
+    @FocusState private var editing: Bool
+
+    private var pageSize: Int { SelectionKeys.clampPageSize(perPage) }
+
+    private var labels: [String] {
+        SelectionKeys.labels(keys: SelectionKeys.sanitize(draft, pageSize: pageSize), pageSize: pageSize)
+    }
+
+    private var bindings: KeyBindings { KeyBindings.parse(storedBindings) }
+    private var canSwitch: Bool { shiftToggle || !bindings.chords(for: .toggleEnglish).isEmpty }
+
+    var body: some View {
+        Form {
+            Section(L("Switch Chinese/English")) {
+                Toggle(L("Tap Shift to switch Chinese/English"), isOn: $shiftToggle)
+                Text(canSwitch
+                     ? L("Turn the Shift tap off if an app mishandles lone Shift presses. Shift+Space also switches; change it under Key bindings.")
+                     : L("With the Shift tap off and no binding for it, no key switches between Chinese and English."))
+                    .font(.caption).foregroundStyle(canSwitch ? Color.secondary : Color.orange)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Section(L("Selection keys")) {
                 HStack {
@@ -152,7 +421,7 @@ private struct GeneralPane: View {
                         draft = SelectionKeys.defaultKeys
                         commit()
                     }
-                    .disabled(SelectionKeys.sanitize(draft) == SelectionKeys.defaultKeys)
+                    .disabled(draft == SelectionKeys.defaultKeys)
                 }
                 HStack(spacing: 6) {
                     ForEach(Array(labels.enumerated()), id: \.offset) { index, label in
@@ -165,19 +434,27 @@ private struct GeneralPane: View {
                         }
                     }
                 }
-                Text(L("Pick a candidate after pressing ↓ or Tab (or in the syllable cursor's list). Up to 8 keys; while typing they stay Zhuyin keys."))
+                Text(L("Pick a candidate after pressing ↓ or Tab (or in the syllable cursor's list). One key per row of a page (%d now, see Appearance); while typing they stay Zhuyin keys.", pageSize))
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Section(L("Candidate keys")) {
-                shortcut("Tab · ↓", L("Next candidate"))
-                shortcut("⇧Tab · ↑", L("Previous candidate"))
-                shortcut("Page Down · =", L("Next page (= only while selecting)"))
-                shortcut("Page Up · -", L("Previous page (- only while selecting)"))
-                shortcut("← →", L("Move the syllable cursor"))
-                shortcut("⏎", L("Commit"))
-                shortcut("⇧⏎", L("Commit the keys as typed"))
-                shortcut("Esc", L("Leave selection; press again to clear"))
+            Section {
+                ForEach(KeyAction.allCases, id: \.self) { action in
+                    BindingRow(action: action, bindings: bindings, conflicts: bindings.conflicts) { next in
+                        storedBindings = next.serialized
+                    }
+                }
+            } header: {
+                HStack {
+                    Text(L("Key bindings"))
+                    Spacer()
+                    Button(L("Restore Defaults")) { storedBindings = "" }
+                        .disabled(bindings.overrides.isEmpty)
+                }
+            } footer: {
+                Text(L("Click + and press a key combination. Letters, digits and symbols need ⌃, ⌥ or ⌘, since alone they type Zhuyin. A removed default key goes to the app instead."))
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .onAppear { draft = storedKeys }
@@ -185,19 +462,168 @@ private struct GeneralPane: View {
         .onChange(of: editing) { isEditing in if !isEditing { commit() } }
     }
 
+    /// Stored up to the largest page so a later, larger page size keeps the
+    /// keys; the session uses the first `pageSize` of them.
     private func commit() {
-        let clean = SelectionKeys.sanitize(draft.trimmingCharacters(in: .whitespaces))
+        let clean = SelectionKeys.sanitize(draft.trimmingCharacters(in: .whitespaces),
+                                           pageSize: SelectionKeys.pageSizes.upperBound)
         storedKeys = clean
         draft = clean
     }
 
-    private func shortcut(_ keys: String, _ action: String) -> some View {
-        LabeledContent {
-            Text(keys).font(.system(.callout, design: .monospaced)).foregroundStyle(.secondary)
-        } label: {
-            Text(action)
+}
+
+extension KeyAction {
+    var title: String {
+        switch self {
+        case .toggleEnglish: return L("Switch Chinese/English")
+        case .nextCandidate: return L("Next candidate")
+        case .previousCandidate: return L("Previous candidate")
+        case .nextPage: return L("Next page (also = while selecting)")
+        case .previousPage: return L("Previous page (also - while selecting)")
+        case .cursorBack: return L("Syllable cursor back")
+        case .cursorForward: return L("Syllable cursor forward")
+        case .markBack: return L("Mark a phrase backward")
+        case .markForward: return L("Mark a phrase forward")
+        case .commit: return L("Commit")
+        case .commitRaw: return L("Commit the keys as typed")
+        case .cancel: return L("Leave selection; press again to clear")
+        case .latinRun: return L("Start or end an English run")
         }
     }
+}
+
+extension KeyChord {
+    /// macOS notation: ⌃⌥⇧⌘ then the key.
+    var symbol: String {
+        var out = ""
+        if modifiers.contains(.control) { out += "⌃" }
+        if modifiers.contains(.option) { out += "⌥" }
+        if modifiers.contains(.shift) { out += "⇧" }
+        if modifiers.contains(.command) { out += "⌘" }
+        switch key {
+        case .character(let label): out += label.uppercased()
+        case .space: out += "Space"
+        case .enter: out += "⏎"
+        case .tab: out += "⇥"
+        case .escape: out += "Esc"
+        case .left: out += "←"
+        case .right: out += "→"
+        case .up: out += "↑"
+        case .down: out += "↓"
+        case .pageUp: out += "Page Up"
+        case .pageDown: out += "Page Down"
+        default: out += "?"
+        }
+        return out
+    }
+
+    /// The chord a key-down event types, nil for keys a binding cannot use.
+    init?(event: NSEvent) {
+        var modifiers: KeyEvent.Modifiers = []
+        let flags = event.modifierFlags
+        if flags.contains(.control) { modifiers.insert(.control) }
+        if flags.contains(.option) { modifiers.insert(.option) }
+        if flags.contains(.shift) { modifiers.insert(.shift) }
+        if flags.contains(.command) { modifiers.insert(.command) }
+        self.init(MacKeyCode.key(Int(event.keyCode)), modifiers)
+        guard isBindable else { return nil }
+    }
+}
+
+/// One action: its chords as removable chips, + to record another, and a
+/// reset when it differs from the default.
+private struct BindingRow: View {
+    let action: KeyAction
+    let bindings: KeyBindings
+    let conflicts: Set<KeyChord>
+    let update: (KeyBindings) -> Void
+    @StateObject private var recorder = ChordRecorder()
+
+    private var chords: [KeyChord] { bindings.chords(for: action) }
+
+    var body: some View {
+        LabeledContent {
+            HStack(spacing: 4) {
+                ForEach(chords, id: \.self) { chord in
+                    HStack(spacing: 2) {
+                        Text(chord.symbol).font(.system(.callout, design: .monospaced))
+                        Button { set(chords.filter { $0 != chord }) } label: {
+                            Image(systemName: "xmark.circle.fill")
+                        }
+                        .buttonStyle(.borderless)
+                        .foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal, 6).padding(.vertical, 2)
+                    .background(RoundedRectangle(cornerRadius: 5).fill(
+                        conflicts.contains(chord) ? Color.orange.opacity(0.3) : Color.secondary.opacity(0.15)))
+                    .help(conflicts.contains(chord) ? L("Also bound to another action") : "")
+                }
+                if chords.isEmpty {
+                    Text(L("None")).foregroundStyle(.tertiary)
+                }
+                Button(recorder.isRecording ? L("Press keys…") : "+") {
+                    if recorder.isRecording {
+                        recorder.stop()
+                    } else {
+                        recorder.start { chord in
+                            if !chords.contains(chord) { set(chords + [chord]) }
+                        }
+                    }
+                }
+                .buttonStyle(.bordered).controlSize(.small)
+                Button {
+                    var next = bindings
+                    next.overrides[action] = nil
+                    update(next)
+                } label: {
+                    Image(systemName: "arrow.uturn.backward")
+                }
+                .buttonStyle(.borderless)
+                .help(L("Restore Default"))
+                .opacity(bindings.overrides[action] == nil ? 0 : 1)
+                .disabled(bindings.overrides[action] == nil)
+            }
+        } label: {
+            Text(action.title)
+        }
+        .onDisappear { recorder.stop() }
+    }
+
+    private func set(_ next: [KeyChord]) {
+        var changed = bindings
+        changed.overrides[action] = next == action.defaultChords ? nil : next
+        update(changed)
+    }
+}
+
+/// Captures the next key-down in this app's windows (the Settings window)
+/// and swallows it, so recording never types into a field.
+private final class ChordRecorder: ObservableObject {
+    @Published private(set) var isRecording = false
+    private var monitor: Any?
+
+    func start(_ record: @escaping (KeyChord) -> Void) {
+        stop()
+        isRecording = true
+        monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let chord = KeyChord(event: event) else {
+                NSSound.beep()
+                return nil
+            }
+            record(chord)
+            self?.stop()
+            return nil
+        }
+    }
+
+    func stop() {
+        if let monitor { NSEvent.removeMonitor(monitor) }
+        monitor = nil
+        isRecording = false
+    }
+
+    deinit { stop() }
 }
 
 // MARK: - Decoding

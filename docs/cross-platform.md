@@ -81,8 +81,11 @@ shortcut runs.
   fcitx5 `Text::setCursor` is **bytes**). The caret is the focused-word start
   in cursor mode, else the end.
 - Candidates: show iff `showsCandidates`. `candidates` is the full list; page
-  it 8 per page with the page containing `selected` visible and `selected`
-  highlighted. Label visible rows with `selectionKeys`; dim or hide labels
+  it `pageSize` per page (default 8) with the page containing `selected`
+  visible and `selected` highlighted. The C ABI does not carry `pageSize`,
+  `keyBindings` or `cursorCandidates` yet: non-Swift hosts get
+  the core defaults (8 per page, default bindings: Tab/Shift+Tab and PageUp/PageDown page, Down/Up step), so
+  they keep paging by 8 until those are appended. Label visible rows with `selectionKeys`; dim or hide labels
   when `keysActive` is false (selection keys type Zhuyin then).
 - Page keys: translate PageUp/PageDown to `MISSTYPE_KEY_PAGE_UP/DOWN` (ABI
   values 15/16, appended); the core pages the highlight, the host just
@@ -118,7 +121,7 @@ shortcut runs.
 | My words (`UserDictionary.defaultURL`) | `~/Library/Application Support/Misstype/user_dictionary.tsv` (inside the app sandbox container, see architecture.md) | `$XDG_DATA_HOME/misstype/user_dictionary.tsv`; the host calls `misstype_engine_set_user_dictionary_path(engine, NULL)` (default after `_new` is memory only) |
 | Learned phrases (`UserLexicon.defaultURL`) | `~/Library/Application Support/Misstype/user_phrases.json` | `$XDG_DATA_HOME/misstype/user_phrases.json` (default `~/.local/share`) |
 | My-words editor | Settings → My Dictionary (text editor over the file) | none yet: edit the TSV in any editor, reloaded at the next composition |
-| Settings store | UserDefaults (`MisstypePrefs`) | defaults in v1 (`misstype_settings_default()`), fcitx5 config later |
+| Settings store | UserDefaults (`MisstypePrefs`; Settings panes incl. Appearance, Shortcuts) | defaults in v1 (`misstype_settings_default()`), fcitx5 config later; page size, toggle keys and page keys not in the ABI yet |
 | Lone-Shift 中/英 | session (`shiftToggle` pref, default on) | fcitx5 `AltTriggerKeys` (default `Shift_L`) → session `shift_toggle = 0` |
 | Diagnostic log | `~/Library/Logs/MisstypeIME-debug.log` | none in v1 (codes only, never text, if added) |
 
@@ -165,7 +168,7 @@ each is the named `InputSessionTests` case.
 | C1 | `s u 3 c l 3` then `⏎` | preedit `你好`, caret at end (UTF-16 2, bytes 6); `⏎` commits `你好`, preedit empty, no candidates | `testTypingConvertsLiveAndReturnCommitsThePreview` |
 | C2 | empty: `⏎`, `Backspace`, `Left`; then `Space` | first three pass with no commit; `Space` commits `" "` and is consumed | `testEmptyCompositionPassesKeysThrough` |
 | C3 | `s u 3 c l 3`, `Backspace` | preedit `你`, nothing committed | `testBackspaceEditsWithoutCommitting` |
-| C4 | `s u 3`, `Tab`, `d`, `⏎` | candidates shown; after `Tab` selected 1 and selection keys active; `d` picks row 2 → preedit `尼`; `⏎` commits `尼` | `testTabSelectsAndSelectionKeysPickThenLearn` |
+| C4 | `s u 3`, `Tab`, `d`, `⏎` | candidates shown; after `Tab` (next page; one page, so it only enters selection) selected 0 and selection keys active; `d` picks row 2 → preedit `尼`; `⏎` commits `尼` | `testTabSelectsAndSelectionKeysPickThenLearn` |
 | C5 | `s u 3`, `Down`, `Esc`, `Esc` | preedit `妳`; first `Esc` keeps `妳` and leaves selection; second clears with no commit | `testEscapeLeavesSelectionFirstThenClears` |
 | C6 | `s u 3`, Shift+`,`, Shift+`a`, `⏎` | preedit `你，` then `你，A`; commits `你，A` | `testPunctuationAndShiftLatinStayInsideTheComposition` |
 | C7 | `s u 3`, backtick, `h i` | preedit `你hi` | `testBacktickLatinRun` |
