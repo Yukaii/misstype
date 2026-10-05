@@ -171,21 +171,23 @@ private struct AppearancePane: View {
                     title: L("Show all pages side by side"),
                     detail: L("Up to 4 pages in columns. ↑ ↓ move through every candidate and Tab turns pages; ← → stay the syllable cursor."),
                     isOn: $grid)
-                // Not LabeledContent: the grouped Form measured that row for
-                // one text line, clipping the taller swatches and leaving the
-                // label at the top. An explicit height and centered HStack.
-                HStack {
+                // Own full-width row with an explicit height: the grouped Form
+                // measures rows for one text line (see DescribedToggle), which
+                // clipped the swatches, and a trailing HStack squeezed their
+                // names into wrapping.
+                VStack(alignment: .leading, spacing: 8) {
                     Text(L("Color scheme"))
-                    Spacer()
-                    HStack(spacing: 10) {
+                    HStack(alignment: .top, spacing: 12) {
                         ForEach(PanelTheme.allCases, id: \.self) { item in
                             ThemeSwatch(theme: item, selected: theme == item.rawValue,
                                         scheme: PanelStyle.Appearance(rawValue: appearance) ?? .system)
                                 .onTapGesture { theme = item.rawValue }
                         }
+                        Spacer(minLength: 0)
                     }
                 }
-                .frame(height: 72)
+                .padding(.vertical, 6)
+                .frame(height: 112, alignment: .topLeading)
                 Picker(L("Light or dark"), selection: $appearance) {
                     Text(L("Match System")).tag(PanelStyle.Appearance.system.rawValue)
                     Text(L("Light")).tag(PanelStyle.Appearance.light.rawValue)
@@ -264,8 +266,10 @@ private struct SwatchBody: View {
             .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.accentColor, lineWidth: 2)
                 .padding(-3).opacity(selected ? 1 : 0))
             Text(theme.title).font(.caption2)
+                .lineLimit(1).minimumScaleFactor(0.7)
                 .foregroundStyle(selected ? Color.primary : Color.secondary)
         }
+        .frame(width: 78)
         .contentShape(Rectangle())
         .help(theme.title)
     }
