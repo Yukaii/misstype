@@ -36,6 +36,7 @@ enum MisstypePrefs {
             "MisstypeCandidateFontSize": PanelStyle.defaultFontSize,
             "MisstypePanelAppearance": PanelStyle.Appearance.system.rawValue,
             "MisstypePanelTheme": PanelTheme.system.rawValue,
+            "MisstypeUILanguage": "",
             "MisstypeCustomTheme": CustomTheme.defaultText,
             "MisstypeCandidateGrid": false,
         ])

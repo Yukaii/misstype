@@ -133,3 +133,5 @@
 "Text" = "文字";
 "Highlighted row" = "高亮行";
 "Hex colors such as #1e1e2e. Used for both light and dark." = "16 进制色值，例如 #1e1e2e。浅色与深色共用。";
+"Language" = "语言";
+"Interface language" = "界面语言";

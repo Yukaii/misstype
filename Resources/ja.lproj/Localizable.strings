@@ -133,3 +133,5 @@
 "Text" = "文字";
 "Highlighted row" = "選択中の行";
 "Hex colors such as #1e1e2e. Used for both light and dark." = "#1e1e2e のような 16 進カラー。ライト／ダーク共通です。";
+"Language" = "言語";
+"Interface language" = "表示言語";

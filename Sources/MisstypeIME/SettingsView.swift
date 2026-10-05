@@ -62,6 +62,7 @@ private enum Pane: String, CaseIterable, Identifiable {
 
 struct SettingsView: View {
     @State private var pane: Pane = .general
+    @AppStorage(UILanguage.userDefaultsKey) private var language = ""
 
     var body: some View {
         // Fixed two-column layout instead of NavigationSplitView: that adds
@@ -90,6 +91,9 @@ struct SettingsView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .ignoresSafeArea()
+        // Rebuild everything on a language change: L() is read in body, and
+        // views that did not read the setting would keep the old strings.
+        .id(language)
     }
 }
 
@@ -123,8 +127,16 @@ private struct GeneralPane: View {
     @AppStorage("MisstypeMixedEnglish") private var mixedEnglish = false
     @AppStorage("MisstypeCursorCandidates") private var cursorCandidates = CursorCandidates.covering.rawValue
 
+    @AppStorage(UILanguage.userDefaultsKey) private var language = ""
+
     var body: some View {
         Form {
+            Section(L("Language")) {
+                Picker(L("Interface language"), selection: $language) {
+                    Text(L("Match System")).tag("")
+                    ForEach(UILanguage.choices, id: \.code) { Text($0.name).tag($0.code) }
+                }
+            }
             Section(L("Typing")) {
                 DescribedToggle(
                     title: L("Show candidates automatically"),
