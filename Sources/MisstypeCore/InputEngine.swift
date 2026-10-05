@@ -37,8 +37,6 @@ public struct SessionSettings: Equatable, Sendable {
         set { pageSizeValue = SelectionKeys.clampPageSize(newValue) }
     }
     private var pageSizeValue: Int
-    /// Which lone Shift tap toggles 中/英 while `shiftToggle` is on.
-    public var shiftToggleSide: ShiftToggleSide
     /// User key bindings for IME actions (`KeyBindings`; default: the
     /// built-in keys, Shift+Space toggles 中/英).
     public var keyBindings: KeyBindings
@@ -50,12 +48,11 @@ public struct SessionSettings: Equatable, Sendable {
                 shiftToggle: Bool = true, jev: JevConfig = JevConfig(),
                 autoCommitSyllables: Int = 24, autoShowCandidates: Bool = true,
                 returnConfirmsSelection: Bool = false, mixedEnglish: Bool = true,
-                pageSize: Int = SelectionKeys.defaultPageSize, shiftToggleSide: ShiftToggleSide = .either,
+                pageSize: Int = SelectionKeys.defaultPageSize,
                 keyBindings: KeyBindings = KeyBindings(),
                 cursorCandidates: CursorCandidates = .covering) {
         self.cursorCandidates = cursorCandidates
         self.pageSizeValue = SelectionKeys.clampPageSize(pageSize)
-        self.shiftToggleSide = shiftToggleSide
         self.keyBindings = keyBindings
         self.fuzzyRepair = fuzzyRepair
         self.toneTolerance = toneTolerance

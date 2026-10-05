@@ -31,20 +31,13 @@ enum MisstypePrefs {
             "MisstypeReturnConfirmsSelection": true,
             "MisstypeMixedEnglish": false,
             "MisstypeCandidatesPerPage": SelectionKeys.defaultPageSize,
-            "MisstypeShiftToggleSide": ShiftToggleSide.either.rawValue,
             "MisstypeKeyBindings": "",
             "MisstypeCursorCandidates": CursorCandidates.covering.rawValue,
             "MisstypeCandidateFontSize": PanelStyle.defaultFontSize,
             "MisstypePanelAppearance": PanelStyle.Appearance.system.rawValue,
-            "MisstypeAccentHighlight": false,
+            "MisstypePanelTheme": PanelTheme.system.rawValue,
             "MisstypeCandidateGrid": false,
         ])
-    }
-
-    /// Which lone Shift tap toggles 中/英 (when `shiftToggle` is on).
-    static var shiftToggleSide: ShiftToggleSide {
-        get { ShiftToggleSide(rawValue: UserDefaults.standard.string(forKey: "MisstypeShiftToggleSide") ?? "") ?? .either }
-        set { UserDefaults.standard.set(newValue.rawValue, forKey: "MisstypeShiftToggleSide") }
     }
 
     /// Key bindings in `KeyBindings` text form (empty = all defaults).
@@ -80,7 +73,7 @@ enum MisstypePrefs {
         return PanelStyle(
             fontSize: PanelStyle.clampFontSize(defaults.double(forKey: "MisstypeCandidateFontSize")),
             appearance: PanelStyle.Appearance(rawValue: defaults.string(forKey: "MisstypePanelAppearance") ?? "") ?? .system,
-            accentHighlight: defaults.bool(forKey: "MisstypeAccentHighlight"),
+            theme: PanelTheme(rawValue: defaults.string(forKey: "MisstypePanelTheme") ?? "") ?? .system,
             grid: defaults.bool(forKey: "MisstypeCandidateGrid"))
     }
 
@@ -182,7 +175,7 @@ enum MisstypePrefs {
                         autoShowCandidates: autoShowCandidates,
                         returnConfirmsSelection: returnConfirmsSelection,
                         mixedEnglish: mixedEnglish,
-                        pageSize: candidatesPerPage, shiftToggleSide: shiftToggleSide,
+                        pageSize: candidatesPerPage,
                         keyBindings: keyBindings,
                         cursorCandidates: cursorCandidates)
     }
@@ -214,8 +207,62 @@ struct PanelStyle: Equatable {
 
     var fontSize: Double = defaultFontSize
     var appearance: Appearance = .system
-    /// Highlight in the system accent color instead of neutral gray.
-    var accentHighlight = false
+    var theme: PanelTheme = .system
     /// Show every page side by side (up to 4 columns) instead of one list.
     var grid = false
+}
+
+/// Color scheme of the candidate panel. Each has a light and a dark
+/// palette; `PanelStyle.appearance` (or the system) picks which. `system`
+/// uses the macOS semantic colors with a neutral gray highlight.
+enum PanelTheme: String, CaseIterable {
+    case system, solarized, nord, gruvbox, catppuccin
+
+    struct Palette: Equatable {
+        var background: NSColor
+        var text: NSColor
+        /// Selection-key labels while they pick, and the page footer.
+        var key: NSColor
+        /// Labels while the keys still type Zhuyin.
+        var dimKey: NSColor
+        var highlight: NSColor
+    }
+
+    var title: String {
+        switch self {
+        case .system: return L("Match System")
+        case .solarized: return "Solarized"
+        case .nord: return "Nord"
+        case .gruvbox: return "Gruvbox"
+        case .catppuccin: return "Catppuccin"
+        }
+    }
+
+    /// Published palette values (Solarized, Nord, Gruvbox, Catppuccin
+    /// Latte/Mocha); nil = system colors.
+    func palette(dark: Bool) -> Palette? {
+        func c(_ hex: UInt32) -> NSColor {
+            NSColor(srgbRed: CGFloat(hex >> 16 & 0xff) / 255, green: CGFloat(hex >> 8 & 0xff) / 255,
+                    blue: CGFloat(hex & 0xff) / 255, alpha: 1)
+        }
+        switch (self, dark) {
+        case (.system, _): return nil
+        case (.solarized, false):
+            return Palette(background: c(0xfdf6e3), text: c(0x586e75), key: c(0x268bd2), dimKey: c(0x93a1a1), highlight: c(0xeee8d5))
+        case (.solarized, true):
+            return Palette(background: c(0x002b36), text: c(0x93a1a1), key: c(0x268bd2), dimKey: c(0x586e75), highlight: c(0x073642))
+        case (.nord, false):
+            return Palette(background: c(0xeceff4), text: c(0x2e3440), key: c(0x5e81ac), dimKey: c(0x9aa3b5), highlight: c(0xd8dee9))
+        case (.nord, true):
+            return Palette(background: c(0x2e3440), text: c(0xeceff4), key: c(0x88c0d0), dimKey: c(0x4c566a), highlight: c(0x434c5e))
+        case (.gruvbox, false):
+            return Palette(background: c(0xfbf1c7), text: c(0x3c3836), key: c(0xaf3a03), dimKey: c(0xa89984), highlight: c(0xebdbb2))
+        case (.gruvbox, true):
+            return Palette(background: c(0x282828), text: c(0xebdbb2), key: c(0xfabd2f), dimKey: c(0x665c54), highlight: c(0x3c3836))
+        case (.catppuccin, false):
+            return Palette(background: c(0xeff1f5), text: c(0x4c4f69), key: c(0x8839ef), dimKey: c(0x9ca0b0), highlight: c(0xccd0da))
+        case (.catppuccin, true):
+            return Palette(background: c(0x1e1e2e), text: c(0xcdd6f4), key: c(0xcba6f7), dimKey: c(0x6c7086), highlight: c(0x313244))
+        }
+    }
 }

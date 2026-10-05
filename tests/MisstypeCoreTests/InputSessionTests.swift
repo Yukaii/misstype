@@ -520,17 +520,6 @@ final class InputSessionTests: XCTestCase {
         XCTAssertFalse(session.handle(KeyEvent(.shift(.right), phase: .release, timestamp: 102.1)).modeChanged)
     }
 
-    func testShiftToggleSideLimitsWhichShiftTaps() {
-        settings.shiftToggleSide = .right
-        let session = makeSession()
-        session.handle(KeyEvent(.shift(.left), phase: .press, modifiers: [.shift], timestamp: 100))
-        XCTAssertFalse(session.handle(KeyEvent(.shift(.left), phase: .release, timestamp: 100.1)).modeChanged)
-        XCTAssertFalse(session.engine.english)
-        session.handle(KeyEvent(.shift(.right), phase: .press, modifiers: [.shift], timestamp: 101))
-        XCTAssertTrue(session.handle(KeyEvent(.shift(.right), phase: .release, timestamp: 101.1)).modeChanged)
-        XCTAssertTrue(session.engine.english)
-    }
-
     func testShiftSpaceToggleCanBeTurnedOff() {
         settings.keyBindings = KeyBindings(overrides: [.toggleEnglish: []])
         let session = makeSession()

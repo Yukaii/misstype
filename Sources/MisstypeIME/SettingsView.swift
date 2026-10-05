@@ -155,7 +155,7 @@ private struct GeneralPane: View {
 private struct AppearancePane: View {
     @AppStorage("MisstypePanelAppearance") private var appearance = PanelStyle.Appearance.system.rawValue
     @AppStorage("MisstypeCandidateFontSize") private var fontSize = PanelStyle.defaultFontSize
-    @AppStorage("MisstypeAccentHighlight") private var accentHighlight = false
+    @AppStorage("MisstypePanelTheme") private var theme = PanelTheme.system.rawValue
     @AppStorage("MisstypeCandidatesPerPage") private var perPage = SelectionKeys.defaultPageSize
     @AppStorage("MisstypeCandidateGrid") private var grid = false
 
@@ -166,7 +166,12 @@ private struct AppearancePane: View {
                     title: L("Show all pages side by side"),
                     detail: L("Up to 4 pages in columns. ↑ ↓ move through every candidate and Tab turns pages; ← → stay the syllable cursor."),
                     isOn: $grid)
-                Picker(L("Theme"), selection: $appearance) {
+                Picker(L("Color scheme"), selection: $theme) {
+                    ForEach(PanelTheme.allCases, id: \.self) { item in
+                        Text(item.title).tag(item.rawValue)
+                    }
+                }
+                Picker(L("Light or dark"), selection: $appearance) {
                     Text(L("Match System")).tag(PanelStyle.Appearance.system.rawValue)
                     Text(L("Light")).tag(PanelStyle.Appearance.light.rawValue)
                     Text(L("Dark")).tag(PanelStyle.Appearance.dark.rawValue)
@@ -183,13 +188,9 @@ private struct AppearancePane: View {
                 Stepper(value: $perPage, in: SelectionKeys.pageSizes) {
                     LabeledContent(L("Candidates per page"), value: "\(perPage)")
                 }
-                DescribedToggle(
-                    title: L("Highlight in the accent color"),
-                    detail: L("Off: the selected row is a neutral gray."),
-                    isOn: $accentHighlight)
             }
             Section(L("Preview")) {
-                PanelPreview(fontSize: fontSize, accent: accentHighlight,
+                PanelPreview(fontSize: fontSize, theme: PanelTheme(rawValue: theme) ?? .system,
                              scheme: PanelStyle.Appearance(rawValue: appearance) ?? .system)
             }
         }
@@ -199,37 +200,49 @@ private struct AppearancePane: View {
 /// A static sketch of the panel with the chosen style (not the real panel).
 private struct PanelPreview: View {
     let fontSize: Double
-    let accent: Bool
+    let theme: PanelTheme
     let scheme: PanelStyle.Appearance
+
+    var body: some View {
+        switch scheme {
+        case .system: PreviewBody(fontSize: fontSize, theme: theme)
+        case .light: PreviewBody(fontSize: fontSize, theme: theme).environment(\.colorScheme, .light)
+        case .dark: PreviewBody(fontSize: fontSize, theme: theme).environment(\.colorScheme, .dark)
+        }
+    }
+}
+
+private struct PreviewBody: View {
+    let fontSize: Double
+    let theme: PanelTheme
+    @Environment(\.colorScheme) private var colorScheme
     private let rows = ["你好", "妳好", "擬好"]
 
     var body: some View {
-        let preview = VStack(alignment: .leading, spacing: 0) {
+        let palette = theme.palette(dark: colorScheme == .dark)
+        VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(rows.enumerated()), id: \.offset) { index, text in
                 HStack(spacing: 8) {
                     Text(["a", "s", "d"][index])
                         .font(.system(size: fontSize - 2, design: .monospaced))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(palette.map { Color(nsColor: $0.key) } ?? Color.secondary)
                     Text(text).font(.system(size: fontSize))
+                        .foregroundStyle(palette.map { Color(nsColor: $0.text) } ?? Color.primary)
                     Spacer(minLength: 0)
                 }
                 .padding(.horizontal, 6)
                 .frame(height: (fontSize * 28 / 15).rounded())
                 .background(RoundedRectangle(cornerRadius: 6).fill(
-                    index == 0 ? (accent ? Color.accentColor.opacity(0.35) : Color.secondary.opacity(0.2))
+                    index == 0 ? (palette.map { Color(nsColor: $0.highlight) } ?? Color.secondary.opacity(0.2))
                                : Color.clear))
             }
         }
         .padding(4)
         .frame(width: 180)
-        .background(RoundedRectangle(cornerRadius: 10).fill(Color(nsColor: .windowBackgroundColor)))
+        .background(RoundedRectangle(cornerRadius: 10).fill(
+            palette.map { Color(nsColor: $0.background) } ?? Color(nsColor: .windowBackgroundColor)))
         .shadow(radius: 3, y: 1)
         .padding(.vertical, 6)
-        switch scheme {
-        case .system: preview
-        case .light: preview.environment(\.colorScheme, .light)
-        case .dark: preview.environment(\.colorScheme, .dark)
-        }
     }
 }
 
@@ -237,7 +250,6 @@ private struct PanelPreview: View {
 
 private struct ShortcutsPane: View {
     @AppStorage("MisstypeShiftToggle") private var shiftToggle = true
-    @AppStorage("MisstypeShiftToggleSide") private var shiftSide = ShiftToggleSide.either.rawValue
     @AppStorage("MisstypeKeyBindings") private var storedBindings = ""
     @AppStorage("MisstypeCandidatesPerPage") private var perPage = SelectionKeys.defaultPageSize
     @AppStorage("MisstypeCandidateKeys") private var storedKeys = SelectionKeys.defaultKeys
@@ -250,27 +262,13 @@ private struct ShortcutsPane: View {
         SelectionKeys.labels(keys: SelectionKeys.sanitize(draft, pageSize: pageSize), pageSize: pageSize)
     }
 
-    /// One picker over two stored keys: off, or which Shift taps.
-    private var shiftChoice: Binding<String> {
-        Binding(get: { shiftToggle ? shiftSide : "off" },
-                set: { value in
-                    shiftToggle = value != "off"
-                    if value != "off" { shiftSide = value }
-                })
-    }
-
     private var bindings: KeyBindings { KeyBindings.parse(storedBindings) }
     private var canSwitch: Bool { shiftToggle || !bindings.chords(for: .toggleEnglish).isEmpty }
 
     var body: some View {
         Form {
             Section(L("Switch Chinese/English")) {
-                Picker(L("Tap Shift"), selection: shiftChoice) {
-                    Text(L("Either Shift")).tag(ShiftToggleSide.either.rawValue)
-                    Text(L("Left Shift")).tag(ShiftToggleSide.left.rawValue)
-                    Text(L("Right Shift")).tag(ShiftToggleSide.right.rawValue)
-                    Text(L("Off")).tag("off")
-                }
+                Toggle(L("Tap Shift to switch Chinese/English"), isOn: $shiftToggle)
                 Text(canSwitch
                      ? L("Turn the Shift tap off if an app mishandles lone Shift presses. Shift+Space also switches; change it under Key bindings.")
                      : L("With the Shift tap off and no binding for it, no key switches between Chinese and English."))

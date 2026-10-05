@@ -12,19 +12,6 @@ import Foundation
 /// (hold ≠ tap), and cool down after each trigger against bounce
 /// re-detection. Press additionally requires no sibling modifiers so
 /// Cmd/Opt/Ctrl chords can never arm.
-/// Which lone Shift tap toggles 中/英 (`SessionSettings.shiftToggleSide`).
-public enum ShiftToggleSide: String, CaseIterable, Sendable {
-    case either, left, right
-
-    public func matches(_ side: KeyEvent.ShiftSide?) -> Bool {
-        switch self {
-        case .either: return side != nil
-        case .left: return side == .left
-        case .right: return side == .right
-        }
-    }
-}
-
 public struct ShiftTapTracker {
     /// Max press→release span counting as a tap (longer = hold).
     public var tapTimeLimit: TimeInterval = 0.2

@@ -109,10 +109,14 @@ final class CandidatesPanel: NSPanel {
     /// Dynamic colors resolve to fixed CGColors when assigned to a layer, so
     /// they are re-resolved under the panel's appearance on every update.
     private func applyColors() {
+        palette = style.theme.palette(dark: effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua)
         effectiveAppearance.performAsCurrentDrawingAppearance {
-            body.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+            body.layer?.backgroundColor = (palette?.background ?? NSColor.windowBackgroundColor).cgColor
         }
     }
+
+    /// Theme colors for the current appearance; nil = system colors.
+    private var palette: PanelTheme.Palette?
 
     private func applyStyle(_ next: PanelStyle) {
         guard next != style else { return }
@@ -128,10 +132,9 @@ final class CandidatesPanel: NSPanel {
     private var highlightColor: CGColor {
         var color = CGColor.clear
         effectiveAppearance.performAsCurrentDrawingAppearance {
-            // Neutral gray by default: selectedContentBackgroundColor follows
-            // the system accent, which can look loud; the accent is opt-in.
-            color = (style.accentHighlight ? NSColor.selectedContentBackgroundColor.withAlphaComponent(0.35)
-                                           : NSColor.unemphasizedSelectedContentBackgroundColor).cgColor
+            // Neutral gray, never the accent: selectedContentBackgroundColor
+            // follows the system accent (pink on one test machine) and looks loud.
+            color = (palette?.highlight ?? NSColor.unemphasizedSelectedContentBackgroundColor).cgColor
         }
         return color
     }
@@ -159,12 +162,12 @@ final class CandidatesPanel: NSPanel {
         let digit = NSMutableAttributedString(
             string: "\(key)  ",
             attributes: [.font: NSFont.monospacedSystemFont(ofSize: style.fontSize - 2, weight: .regular),
-                         .foregroundColor: keysActive ? NSColor.secondaryLabelColor
-                                                      : NSColor.quaternaryLabelColor])
+                         .foregroundColor: keysActive ? palette?.key ?? NSColor.secondaryLabelColor
+                                                      : palette?.dimKey ?? NSColor.quaternaryLabelColor])
         let body = NSAttributedString(
             string: text,
             attributes: [.font: NSFont.systemFont(ofSize: style.fontSize),
-                         .foregroundColor: NSColor.labelColor])
+                         .foregroundColor: palette?.text ?? NSColor.labelColor])
         digit.append(body)
         let paragraph = NSMutableParagraphStyle()
         paragraph.alignment = .left
@@ -254,11 +257,12 @@ final class CandidatesPanel: NSPanel {
             tallest = max(tallest, shown.count)
         }
         footer.stringValue = pages > 1 ? "\(page + 1) / \(pages)" : ""
-        footer.textColor = .tertiaryLabelColor
+        footer.textColor = palette?.dimKey ?? NSColor.tertiaryLabelColor
         if let mark {
             // Phrase marking: the footer says what Return will do.
             footer.stringValue = Self.hint(for: mark)
-            footer.textColor = mark.action == .add || mark.action == .remove ? .secondaryLabelColor : .systemOrange
+            footer.textColor = mark.action == .add || mark.action == .remove
+                ? palette?.key ?? NSColor.secondaryLabelColor : NSColor.systemOrange
         }
         let height = CGFloat(tallest) * rowHeight + 6 + 16
         // Fitted width: the widest row per column, capped and eased by
