@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>隨打注音：打注音，不用管聲調</title>
-<meta name="description" content="打注音不用管聲調，按錯、打反、漏打也沒關係。免費的注音輸入法，macOS 和 Linux。">
+<meta name="description" content="打注音不用管聲調，順序打反、按到隔壁鍵、漏打符號都沒關係。免費開源的注音輸入法，支援 macOS 和 Linux。">
 <meta property="og:title" content="隨打注音">
-<meta property="og:description" content="打注音不用管聲調，打錯也沒關係。">
+<meta property="og:description" content="打注音不用管聲調，手滑打錯也能猜回來。">
 <meta property="og:image" content="icon.png">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="alternate" hreflang="en" href="en/">
@@ -26,73 +26,73 @@
 <main>
   <div class="wrap hero">
     <h1>打注音，不用管聲調。</h1>
-    <p class="lede">按錯鍵、打反、漏打一個都沒關係，打完通常就是你要的那句。</p>
+    <p class="lede">順序打反、按到隔壁鍵、漏按符號都沒關係。一路隨便打，打完大多就是你要的那句。</p>
     <div class="cta">
       <a class="button" href="https://github.com/Yukaii/misstype/releases/latest">下載 macOS 版</a>
-      <span class="note">免費 · macOS 13 以上 · 也有 <a href="#linux">Linux 版</a></span>
+      <span class="note">免費開源 · macOS 13 以上 · 也有 <a href="#linux">Linux 版</a></span>
     </div>
 
     <div class="demo" aria-hidden="true">
       <div class="field"><span class="done">今天天氣很好</span><span class="caret"></span></div>
-      <div class="keys"><span>沒打聲調</span><span>ㄐㄧㄣㄊㄧㄢㄊㄧㄢㄑㄧㄏㄣㄏㄠ</span></div>
+      <div class="keys"><span>免打聲調</span><span>ㄐㄧㄣㄊㄧㄢㄊㄧㄢㄑㄧㄏㄣㄏㄠ</span></div>
     </div>
   </div>
 
   <section>
     <div class="wrap">
-      <h2>像這樣</h2>
-      <p class="intro">都沒打聲調，紅色是打錯的地方。</p>
+      <h2>打錯了，它幫你猜回來</h2>
+      <p class="intro">完全沒打聲調，紅色是打錯或漏打的地方：</p>
       <ul class="examples">
         <li data-keys="ㄐㄧㄣㄊㄧㄢㄊㄧㄢㄑㄧㄏㄣㄏㄠ">
-          <span class="what">沒打聲調</span>
+          <span class="what">免打聲調</span>
           <span class="typed">ㄐㄧㄣㄊㄧㄢㄊㄧㄢㄑㄧㄏㄣㄏㄠ</span>
           <span class="arrow">→</span>
           <span class="got">今天天氣很好</span>
         </li>
         <li data-keys="ㄧㄐㄣㄊㄧㄢㄊㄧㄢㄑㄧㄏㄣㄏㄠ">
-          <span class="what">打反了</span>
+          <span class="what">順序打反</span>
           <span class="typed"><mark>ㄧㄐ</mark>ㄣㄊㄧㄢㄊㄧㄢㄑㄧㄏㄣㄏㄠ</span>
           <span class="arrow">→</span>
           <span class="got">今天天氣很好</span>
         </li>
         <li data-keys="ㄇㄧㄥㄊㄧㄢㄗㄠㄕㄤㄐㄡㄉㄧㄢㄎㄞㄏㄨㄟ">
-          <span class="what">漏了一個</span>
+          <span class="what">漏打符號</span>
           <span class="typed">ㄇㄧㄥㄊㄧㄢㄗㄠㄕㄤㄐ<mark title="少了 ㄧ">‸</mark>ㄡㄉㄧㄢㄎㄞㄏㄨㄟ</span>
           <span class="arrow">→</span>
           <span class="got">明天早上九點開會</span>
         </li>
         <li data-keys="ㄒㄧㄝㄒㄧㄝㄎㄧㄅㄤㄇㄤ">
-          <span class="what">按到旁邊的鍵</span>
+          <span class="what">按到隔壁鍵</span>
           <span class="typed">ㄒㄧㄝㄒㄧㄝ<mark title="應該是 ㄋ">ㄎ</mark>ㄧㄅㄤㄇㄤ</span>
           <span class="arrow">→</span>
           <span class="got">謝謝你幫忙</span>
         </li>
       </ul>
-      <p class="fine">猜錯的時候，按 <kbd>↓</kbd> 換一個字。</p>
+      <p class="fine">萬一猜錯了，按 <kbd>↓</kbd> 就能換字。</p>
     </div>
   </section>
 
   <section>
     <div class="wrap">
-      <h2>還有</h2>
+      <h2>日常好用的細節</h2>
       <ul class="plain">
-        <li>鍵盤排列跟一般注音一樣，想打聲調也可以。</li>
-        <li>不用網路，打的字不會傳出去。</li>
-        <li>你選過的字，下次會排前面。</li>
-        <li>人名、店名可以自己加：<kbd>Shift</kbd>+<kbd>←</kbd> 選起來，按 <kbd>Return</kbd>。</li>
-        <li>輕按 <kbd>Shift</kbd> 切換中英文。</li>
-        <li>會自己更新。</li>
+        <li>標準注音鍵盤排列，想打聲調隨時可以打。</li>
+        <li>純本機運算，不需網路，你打的字不會傳出去。</li>
+        <li>越用越順手，選過的字詞下次自動排到最前面。</li>
+        <li>自訂詞庫超直覺：按 <kbd>Shift</kbd>+<kbd>←</kbd> 選起來，按 <kbd>Return</kbd> 就記住了。</li>
+        <li>輕按一下 <kbd>Shift</kbd> 快速切換中英文。</li>
+        <li>內建背景自動更新。</li>
       </ul>
     </div>
   </section>
 
   <section id="install">
     <div class="wrap">
-      <h2>安裝</h2>
+      <h2>安裝方式</h2>
       <ol class="steps">
         <li><div><p><a href="https://github.com/Yukaii/misstype/releases/latest">下載</a> <code>.dmg</code> 檔。</p></div></li>
-        <li><div><p>打開，點兩下「Install Misstype」。不用輸入密碼。</p></div></li>
-        <li><div><p>登出再登入，在選單列的輸入法裡選「隨打注音」。</p><p class="sub">沒看到的話：系統設定 → 鍵盤 → 輸入方式 → +</p></div></li>
+        <li><div><p>打開後，點兩下「Install Misstype」。不需要管理者密碼。</p></div></li>
+        <li><div><p>登出再登入，在選單列的輸入法裡選「隨打注音」。</p><p class="sub">沒看到的話：系統設定 → 鍵盤 → 輸入方式 → 按「+」加入。</p></div></li>
       </ol>
       <p class="other" id="linux">Linux（fcitx5）請看<a href="https://github.com/Yukaii/misstype/blob/main/docs/linux-port.md">這裡</a>。</p>
     </div>
@@ -100,10 +100,10 @@
 
   <section class="notes">
     <div class="wrap">
-      <h2>先說一下</h2>
-      <p>這是我做給自己用的輸入法，還很新，難免有問題。</p>
-      <p>想要穩定好用的注音輸入法，推薦<a href="https://github.com/vChewing/vChewing-macOS">唯音</a>。想試試這種打法的，歡迎下載，有問題到 <a href="https://github.com/Yukaii/misstype/issues">GitHub</a> 跟我說。</p>
-      <p>只支援標準注音鍵盤，沒有倉頡、拼音、簡體。</p>
+      <h2>寫在前面</h2>
+      <p>這是我為了滿足自己「不用對準鍵盤、不打聲調」的懶人打字需求做出來的輸入法，目前還很新，難免有些小毛病。</p>
+      <p>如果你想要的是成熟穩定、每天工作可靠的注音輸入法，真心推薦 <a href="https://github.com/vChewing/vChewing-macOS">唯音（vChewing）</a>。如果你也有一樣的懶人打字渴望，歡迎下載試試看，遇到問題請到 <a href="https://github.com/Yukaii/misstype/issues">GitHub</a> 跟我說！</p>
+      <p class="fine">目前僅支援標準注音排列，暫不提供倉頡、拼音或簡體中文。</p>
     </div>
   </section>
 </main>
