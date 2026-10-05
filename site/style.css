@@ -159,12 +159,10 @@ section > .wrap > p.intro { margin: 0 0 28px; color: var(--muted); max-width: 42
   .examples .got::before { content: "→ "; color: var(--muted); font-weight: 400; }
 }
 
-/* Feature list: plain two-column definitions, no icons. */
+/* Plain list, no icons. */
 
-.points { display: grid; grid-template-columns: 1fr 1fr; gap: 28px 40px; margin: 0; }
-.points dt { font-weight: 600; margin-bottom: 4px; }
-.points dd { margin: 0; color: var(--muted); }
-@media (max-width: 680px) { .points { grid-template-columns: 1fr; } }
+.plain { margin: 0; padding: 0 0 0 1.2em; display: grid; gap: 10px; }
+.plain li::marker { color: var(--muted); }
 
 kbd {
   font: inherit;
@@ -197,6 +195,7 @@ kbd {
 .steps p { margin: 0; }
 .steps .sub { color: var(--muted); font-size: 15px; }
 .other { margin: 28px 0 0; color: var(--muted); }
+#install h2 { margin-bottom: 24px; }
 
 /* Honest notes */
 

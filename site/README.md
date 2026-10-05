@@ -18,5 +18,6 @@ same list, so there is one place to update. Keys used (standard layout):
 | missed key | `au/wu0ylg;r.2u0d9cjo` | 明天早上九點開會 |
 | neighbor key | `vu,vu,du1;a;` | 謝謝你幫忙 |
 
-Not deployed yet. The download button points at GitHub Releases `latest`,
+Deployed by `.github/workflows/pages.yml` once Pages is enabled (see the
+workflow header). The download button points at GitHub Releases `latest`,
 which only works for visitors once the repository is public.
