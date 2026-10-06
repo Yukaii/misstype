@@ -226,7 +226,8 @@ final class MisstypeInputController: IMKInputController, InputSessionHost {
         } else {
             candidatePanel.hidePanel()
         }
-        if view.preedit != rendered.preedit || view.caret != rendered.caret || view.mark != rendered.mark {
+        if view.preedit != rendered.preedit || view.caret != rendered.caret || view.mark != rendered.mark
+            || view.segments != rendered.segments || view.focus != rendered.focus {
             // Focused mode parks the caret at the start of the focused word;
             // end mode keeps it after the last unit (converted or pending raw).
             // A phrase mark is the marked text's selection, which clients
@@ -241,10 +242,10 @@ final class MisstypeInputController: IMKInputController, InputSessionHost {
             // Clients that cannot show marked text get a one-space
             // placeholder (the composition stays alive for IMK) and the
             // real text in a floating window.
-            let marked = NSAttributedString(string: popup ? " " : view.preedit, attributes: [
-                .underlineStyle: NSUnderlineStyle.single.rawValue,
-                .markedClauseSegment: 0,
-            ])
+            let marked = popup
+                ? NSAttributedString(string: " ", attributes: [
+                    .underlineStyle: NSUnderlineStyle.single.rawValue, .markedClauseSegment: 0])
+                : Self.markedText(view)
             client.setMarkedText(marked, selectionRange: popup ? NSRange(location: 0, length: 0) : selection,
                                  replacementRange: missingRange)
             popupActive = popup
@@ -258,6 +259,32 @@ final class MisstypeInputController: IMKInputController, InputSessionHost {
         }
         rendered = view
         UpdateController.setComposing(!view.preedit.isEmpty)
+    }
+
+    /// The preedit as clause segments, one per word (what vChewing and
+    /// McBopomofo send): clients draw a break between segments with different
+    /// `markedClauseSegment`, which is the split underline. Underline style
+    /// 1 = single, 2 = thick (the cursor's word). Falls back to one segment
+    /// when the ranges do not tile the preedit.
+    static func markedText(_ view: SessionView) -> NSAttributedString {
+        let units = Array(view.preedit.utf16)
+        func plain() -> NSAttributedString {
+            NSAttributedString(string: view.preedit, attributes: [
+                .underlineStyle: NSUnderlineStyle.single.rawValue, .markedClauseSegment: 0])
+        }
+        guard view.segments.count > 1, view.segments.first?.lowerBound == 0,
+              view.segments.last?.upperBound == units.count,
+              zip(view.segments, view.segments.dropFirst()).allSatisfy({ $0.upperBound == $1.lowerBound }) else {
+            return plain()
+        }
+        let out = NSMutableAttributedString()
+        for (index, range) in view.segments.enumerated() {
+            let thick = view.focus == range
+            out.append(NSAttributedString(
+                string: String(decoding: units[range], as: UTF16.self),
+                attributes: [.underlineStyle: thick ? 2 : 1, .markedClauseSegment: index]))
+        }
+        return out
     }
 
     /// Diagnostic for native-vs-popup detection (lengths and flags only, never

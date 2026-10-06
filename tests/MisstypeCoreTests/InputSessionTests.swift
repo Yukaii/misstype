@@ -297,6 +297,20 @@ final class InputSessionTests: XCTestCase {
         XCTAssertEqual(session.handle(key(.enter, text: "\r")).commit, "你，A")
     }
 
+    func testViewSegmentsTileThePreeditAtWordBoundaries() {
+        let session = makeSession()
+        type("su3`hi", into: session)
+        // 你 | hi : the decoded word and the Latin run underline separately.
+        XCTAssertEqual(session.view.preedit, "你hi")
+        XCTAssertEqual(session.view.segments, [0..<1, 1..<3])
+        XCTAssertNil(session.view.focus)
+        session.handle(key(.escape))
+        type("`su3cl3", into: session) // Esc keeps the run open; the backtick closes it
+        XCTAssertEqual(session.view.segments, [0..<2]) // one word 你好
+        session.handle(key(.left, text: nil))
+        XCTAssertEqual(session.view.focus, 0..<2)
+    }
+
     func testBacktickLatinRun() {
         let session = makeSession()
         type("su3`hi", into: session)
