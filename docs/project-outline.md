@@ -661,8 +661,9 @@ should be taken:
 4. **Linux user-dictionary editor.** The file is plain text; a `misstype-dict`
    command (list / add / remove) or an fcitx5 config page. Low risk.
 5. **Personalization from use.** *(Keyboard half started 2026-10-06: the
-   decoder takes per-user substitution costs, and an oracle sweep shows they
-   pay off; learning them from use is open. See "Personal channel model"
+   decoder takes per-user substitution costs, learned from Backspace re-types,
+   picks and reverts. The replay beats generic on unseen sentences; it is off
+   by default and the adapters are not wired. See "Personal channel model"
    below.)* Per-key tap
    distributions learned from confirmed taps (a 2-D Gaussian per key replaces
    the fixed `1 - 1.5d` weight), then per-user repair costs from Backspace
@@ -1004,7 +1005,7 @@ fix it. Read as a log-odds, a 10% slip rate is cost ~2.3 and 30% is ~1.2.
 Latency: toned decoding is unchanged; toneless sentences go from 13.9 to about
 17 ms per decode at 1.2, because more repaired paths survive the beam.
 
-Next, the learning half (not started). This is two learners adapting to each
+Learning half (landed 2026-10-06, off by default). This is two learners adapting to each
 other: the system adapts to the user, and the user adapts to the system's
 habits. The rule is that the system follows the user, but more slowly than the
 user changes (user decision 2026-10-06).
@@ -1030,15 +1031,67 @@ user changes (user decision 2026-10-06).
   never mid-typing, so a frequent word's top-1 does not jump under the
   user's compensating habits.
 
-Store it locally, make it clearable, and keep it off when learning is off.
-Falsify with the same synthetic user replayed through `InputSession` at slip
-rates of 10% and 30%: the learned cost should approach the oracle optimum. A
-user who never slips must keep generic costs, and a user who stops slipping
-must decay back to them.
+Implementation: `ChannelLearner` in `ChannelModel.swift`, owned by
+`InputEngine` (`channelLearner`, persisted at `channelLearnerURL`, nil = memory
+only). It is on only when both `SessionSettings.channelLearning` (default
+off) and `userLearning` are on; off means the decoder overlay is nil. Evidence
+is gathered at learning-grade commits (no raw tail, not raw, not an English
+reading), not at chunked auto-commits:
+
+- intended keys per committed syllable, from `LexiconDecoder.readings(of:)`;
+- one-key substitutions the committed text repaired: weight 1 when the user
+  picked it, 0.25 when it only went unchallenged;
+- Backspace re-types: the keys before a Backspace streak against the keys
+  once they are back at that length, counted only when exactly one symbol key
+  changed;
+- reverts: the top candidate before the first explicit pick used a repair on
+  a syllable that the committed text spells exactly as typed. Each revert
+  cancels 3 slips.
+
+Constants: half-life 3000 syllables, prior 50 opportunities at the generic
+rate, learned floor 1.2, step 0.2 per commit toward cheaper and 1.0 toward
+generic. The store holds keys and counts, never text.
+
+Replay (`ChannelLearningSweepTests`): the synthetic user types the 40 dev
+sentences 6 times. Each ㄣ is typed as ㄥ at the given rate, and 30% of slips
+are noticed at once (Backspace, retype). Otherwise the user picks the right
+sentence when it is in the list, else commits. Word learning is on in both
+arms. Afterwards, the 40 holdout sentences, never typed in training, are typed
+with every ㄣ slipped, and only the first-pass preview is scored. 5 seeds per
+arm.
+
+| user | learned ㄥ→ㄣ cost | holdout slipped first-pass, generic → learned | exact ㄥ kept |
+|---|---|---|---|
+| never slips | none | 71.4% → 71.4% | 77.8% → 77.8% |
+| slips 10% | 3.0-4.5 | 71.4% → 82.9% | unchanged |
+| slips 30% | 2.3-3.0 | 71.4% → 90.5% | unchanged |
+| slips 60% | 1.7-1.9 | 71.4% → 90.5% | unchanged |
+| 30%, then 4x as long at 0% | none (decayed back) | 71.4% → 71.4% | unchanged |
+
+Not falsified. The learned cost tracks the slip rate. It generalizes to
+sentences never typed in training, which word learning cannot do. No exact
+ㄥ holdout sentence flipped (the 77.8% ceiling is the decoder's own exact-input
+miss rate on that set). A user who never slips learns nothing, and a dropped
+habit decays back to generic. The 60% user is still above the floor after 6
+epochs: that is the bounded step working as intended.
+
+Not done:
+- Wiring the adapters: a macOS preference and store path, a Linux/C ABI
+  switch, and "Clear learned typos" next to clearing learned phrases. Until
+  then it is reachable only through `SessionSettings` in the core.
+- Real typing. The synthetic user slips one fixed pair and corrects
+  perfectly.
+- The touch half: per-key tap distributions, which need a touch surface
+  wired to `InputSession`.
+
+The replay takes ~8 minutes in a release build because every keystroke
+refreshes the session.
 
 Run: `MISSTYPE_CHANNEL_SWEEP=1 swift test -c release -Xswiftc -enable-testing
---filter ChannelSweepTests` after `python3 script/prepare_lexicon.py`. Tests:
-`ChannelModelTests`.
+--filter 'ChannelSweepTests|ChannelLearningSweepTests'` after
+`python3 script/prepare_lexicon.py`. Tests: `ChannelModelTests` (learner:
+bounded steps, floor, reverts, decay, persistence; evidence; session
+re-type).
 
 ## Measures
 
