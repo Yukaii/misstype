@@ -79,15 +79,6 @@ a:hover { color: var(--mark); }
   text-decoration: none;
 }
 .button:hover { color: #fff; background: #3a424d; }
-.button.secondary {
-  background: var(--card);
-  color: var(--ink);
-  border: 1px solid var(--line);
-}
-.button.secondary:hover {
-  background: #ede9e0;
-  color: var(--ink);
-}
 .cta .note { color: var(--muted); font-size: 15px; }
 
 /* Typing demo: a fake text field. The underline mimics how the IME draws
@@ -98,10 +89,10 @@ a:hover { color: var(--mark); }
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: 22px 24px;
-  min-height: 88px;
-  font-size: clamp(24px, 4vw, 32px);
-  line-height: 1.5;
+  padding: 18px 22px;
+  min-height: 132px;
+  font-size: clamp(18px, 2.6vw, 22px);
+  line-height: 1.6;
 }
 .field .done { color: var(--ink); }
 .field .composing {
@@ -129,6 +120,8 @@ a:hover { color: var(--mark); }
   color: var(--muted);
   font-size: 15px;
 }
+.demo .try { margin: 6px 4px 0; color: var(--muted); font-size: 14px; }
+.demo .try[hidden] { display: none; }
 .demo .keys b { color: var(--mark); font-weight: 600; }
 
 /* Sections */
@@ -158,87 +151,67 @@ section > .wrap > p.intro { margin: 0 0 28px; color: var(--muted); max-width: 42
   border-radius: 3px;
   padding: 0 2px;
 }
-.examples .arrow { color: var(--muted); font-size: 18px; text-align: center; }
-.examples .got { font-size: 20px; font-weight: 600; color: var(--ink); }
+.examples .arrow { color: var(--muted); }
+.examples .got { font-size: 22px; font-weight: 600; }
+.fine { margin: 18px 0 0; color: var(--muted); font-size: 15px; }
 
-.fine { margin: 24px 0 0; color: var(--muted); font-size: 15px; }
+@media (max-width: 680px) {
+  .examples li { grid-template-columns: 1fr; gap: 4px; }
+  .examples .arrow { display: none; }
+  .examples .got::before { content: "→ "; color: var(--muted); font-weight: 400; }
+}
+
+/* Plain list, no icons. */
+
+.plain { margin: 0; padding: 0 0 0 1.2em; display: grid; gap: 10px; }
+.plain li::marker { color: var(--muted); }
+
 kbd {
-  font-family: inherit;
-  font-size: 13px;
-  padding: 2px 6px;
+  font: inherit;
+  font-size: 0.85em;
+  padding: 1px 6px;
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-bottom-width: 2px;
+  border-radius: 5px;
   background: var(--card);
   color: var(--ink);
-}
-
-/* Feature bullets */
-
-ul.plain { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
-ul.plain li {
-  padding-left: 24px;
-  position: relative;
-  max-width: 38em;
-}
-ul.plain li::before {
-  content: "";
-  position: absolute;
-  left: 4px;
-  top: 10px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--mark);
+  white-space: nowrap;
 }
 
 /* Install steps */
 
-ol.steps {
-  list-style: none;
-  counter-reset: step;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 16px;
-  max-width: 38em;
-}
-ol.steps li {
-  counter-increment: step;
-  display: grid;
-  grid-template-columns: 32px 1fr;
-  gap: 16px;
-  align-items: baseline;
-}
-ol.steps li::before {
+.steps { margin: 0; padding: 0; list-style: none; counter-reset: step; display: grid; gap: 18px; }
+.steps li { counter-increment: step; display: grid; grid-template-columns: 40px 1fr; }
+.steps li::before {
   content: counter(step);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: var(--ink);
-  color: #fff;
+  border: 1px solid var(--ink);
+  display: grid;
+  place-items: center;
   font-size: 14px;
   font-weight: 600;
+  margin-top: 2px;
 }
-ol.steps li p { margin: 0; }
-ol.steps li .sub { margin-top: 4px; font-size: 14px; color: var(--muted); }
+.steps p { margin: 0; }
+.steps .sub { color: var(--muted); font-size: 15px; }
+.other { margin: 28px 0 0; color: var(--muted); }
+#install h2 { margin-bottom: 24px; }
 
-.other { margin: 28px 0 0; color: var(--muted); font-size: 15px; }
+/* Honest notes */
 
-/* Footer */
+.notes p { max-width: 38em; }
+.notes p:last-child { margin-bottom: 0; }
 
-footer {
-  padding: 40px 0 60px;
-  border-top: 1px solid var(--line);
-  color: var(--muted);
-  font-size: 14px;
+footer { padding: 32px 0 48px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }
+footer p { margin: 0 0 6px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .caret { animation: none; }
 }
-footer .wrap {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 12px 24px;
+
+@media (max-width: 520px) {
+  .brand small { display: none; }
+  .top nav { gap: 14px; }
 }
-footer nav { display: flex; gap: 16px; }

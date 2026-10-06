@@ -12,7 +12,6 @@ export default defineConfig({
       input: {
         main: resolve(import.meta.dirname, "index.html"),
         en: resolve(import.meta.dirname, "en/index.html"),
-        playground: resolve(import.meta.dirname, "playground.html"),
       },
     },
   },

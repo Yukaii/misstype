@@ -1,4 +1,5 @@
 import { WASI } from "@bjorn3/browser_wasi_shim";
+import "./playground.css";
 
 /**
  * Misstype WebAssembly Interactive Playground Controller
@@ -10,6 +11,8 @@ export class MisstypePlayground {
     this.lexiconUrl = options.lexiconUrl || "lexicon.tsv";
     this.tonelessUrl = options.tonelessUrl || "toneless.tsv";
     this.onStateChange = options.onStateChange || null;
+    this.onReady = options.onReady;
+    this.onError = options.onError;
 
     this.wasi = null;
     this.instance = null;
@@ -55,7 +58,7 @@ export class MisstypePlayground {
   }
 
   async init() {
-    this.showLoading("正在下載隨打注音 Wasm 引擎及詞庫...");
+    this.showLoading("載入中，請稍候⋯");
 
     try {
       this.wasi = new WASI([], [], []);
@@ -68,10 +71,9 @@ export class MisstypePlayground {
         fetch(this.tonelessUrl).catch(() => ({ ok: false }))
       ]);
 
-      if (!wasmResponse.ok) throw new Error(`載入 wasm 失敗: HTTP ${wasmResponse.status}`);
+      if (!wasmResponse.ok) throw new Error(`載入失敗: HTTP ${wasmResponse.status}`);
       if (!lexResponse.ok) throw new Error(`載入詞庫失敗: HTTP ${lexResponse.status}`);
 
-      this.showLoading("載入 Wasm 模組中...");
       const wasmBytes = await wasmResponse.arrayBuffer();
       const { instance } = await WebAssembly.instantiate(wasmBytes, wasiImport);
       this.instance = instance;
@@ -79,7 +81,7 @@ export class MisstypePlayground {
       this.memory = instance.exports.memory;
       this.wasi.start(instance);
 
-      this.showLoading("解析詞庫索引中（約 15 萬詞）...");
+      this.showLoading("整理詞庫中⋯");
       const [lexText, toneText] = await Promise.all([
         lexResponse.text(),
         toneResponse.ok ? toneResponse.text() : Promise.resolve("")
@@ -97,17 +99,17 @@ export class MisstypePlayground {
       this.exports.misstype_wasm_free(toneBuf.ptr);
 
       if (res !== 1) {
-        throw new Error("Wasm 初始化失敗");
+        throw new Error("初始化失敗");
       }
 
       this.ready = true;
       this.hideLoading();
       this.updateState();
       this.render();
-      console.log("[MisstypePlayground] Wasm IME 就緒！");
+      this.onReady?.();
     } catch (err) {
       console.error(err);
-      this.showLoading(`初始化失敗: ${err.message}`);
+      this.onError?.(err);
     }
   }
 
@@ -165,22 +167,8 @@ export class MisstypePlayground {
   setupDOM() {
     if (!this.container) return;
     this.container.innerHTML = `
-      <div class="playground-card">
-        <div class="playground-header">
-          <div class="playground-title">
-            <span>線上試打 Playground</span>
-            <span class="playground-badge loading" id="pg-badge">載入中</span>
-          </div>
-          <div class="playground-controls">
-            <button class="mode-toggle-btn" id="pg-mode-btn" title="輕按 Shift 或點擊切換中英">中</button>
-            <button class="clear-btn" id="pg-clear-btn">清空</button>
-          </div>
-        </div>
-
-        <div class="playground-box" tabindex="0" id="pg-box" role="textbox" aria-label="隨打注音試打區">
-          <span class="text-committed" id="pg-committed"></span><span class="text-preedit" id="pg-preedit"></span><span class="playground-caret" id="pg-caret"></span>
-          <span class="playground-placeholder" id="pg-placeholder">點這裡開始試打...（例：輸入 su3cl3 打「你好」，或 sucl 免聲調打「你好」）</span>
-        </div>
+      <div class="pg">
+        <div class="field pg-box" tabindex="0" id="pg-box" role="textbox" aria-multiline="true" aria-label="隨打注音試打區"><span id="pg-committed"></span><span id="pg-preedit"></span><span class="caret" id="pg-caret"></span><span class="pg-placeholder" id="pg-placeholder"></span></div>
 
         <div class="candidate-panel ${this.candidateOrientation}" id="pg-cand-panel" style="display: none;">
           <div class="candidate-list" id="pg-cand-list"></div>
@@ -194,57 +182,37 @@ export class MisstypePlayground {
           </div>
         </div>
 
-        <div class="playground-footer">
-          <div class="tips-row">
-            <span><kbd>↓</kbd> / <kbd>↑</kbd> 展開與瀏覽候選字</span>
-            <span><kbd>A</kbd>~<kbd>K</kbd> / 點擊選字</span>
-            <span><kbd>Shift</kbd> 輕按切換中/英</span>
-            <span><kbd>Enter</kbd> 送字</span>
-          </div>
-          <div class="quick-examples">
-            <span class="example-label">試試看點擊打字：</span>
-            <button class="preset-chip" data-keys="sucl">你好 (免聲調)</button>
-            <button class="preset-chip" data-keys="ru0tu8">今天 (免聲調)</button>
-            <button class="preset-chip" data-keys="u;jp6">ㄧㄐㄢ (順序打反)</button>
-            <button class="preset-chip" data-keys="h0ru0x;3">ㄘㄐㄧㄣˇ (按到隔壁)</button>
-          </div>
-        </div>
-
-        <div class="playground-loading-mask" id="pg-loading">
-          <div class="loading-spinner"></div>
-          <div class="loading-text" id="pg-loading-text">正在載入 WebAssembly 核心...</div>
+        <div class="pg-bar">
+          <span><kbd>↓</kbd> 選字 · <kbd>Shift</kbd> 切換中英 · <kbd>Enter</kbd> 送字</span>
+          <span class="pg-actions">
+            <button class="pg-btn" id="pg-mode-btn" title="輕按 Shift 也能切換">中</button>
+            <button class="pg-btn" id="pg-clear-btn">清空</button>
+          </span>
         </div>
       </div>
     `;
 
-    this.boxEl = this.container.querySelector("#pg-box");
-    this.committedEl = this.container.querySelector("#pg-committed");
-    this.preeditEl = this.container.querySelector("#pg-preedit");
-    this.caretEl = this.container.querySelector("#pg-caret");
-    this.placeholderEl = this.container.querySelector("#pg-placeholder");
-    this.candidatePanel = this.container.querySelector("#pg-cand-panel");
-    this.candidateList = this.container.querySelector("#pg-cand-list");
-    this.candidatePageEl = this.container.querySelector("#pg-cand-page");
-    this.candPrevBtn = this.container.querySelector("#pg-cand-prev");
-    this.candNextBtn = this.container.querySelector("#pg-cand-next");
-    this.modeBtn = this.container.querySelector("#pg-mode-btn");
-    this.loadingMask = this.container.querySelector("#pg-loading");
-    this.loadingText = this.container.querySelector("#pg-loading-text");
-    this.badgeEl = this.container.querySelector("#pg-badge");
-    this.clearBtn = this.container.querySelector("#pg-clear-btn");
+    const q = (id) => this.container.querySelector(id);
+    this.boxEl = q("#pg-box");
+    this.committedEl = q("#pg-committed");
+    this.preeditEl = q("#pg-preedit");
+    this.caretEl = q("#pg-caret");
+    this.placeholderEl = q("#pg-placeholder");
+    this.candidatePanel = q("#pg-cand-panel");
+    this.candidateList = q("#pg-cand-list");
+    this.candidatePageEl = q("#pg-cand-page");
+    this.candPrevBtn = q("#pg-cand-prev");
+    this.candNextBtn = q("#pg-cand-next");
+    this.modeBtn = q("#pg-mode-btn");
+    this.clearBtn = q("#pg-clear-btn");
   }
 
   showLoading(text) {
-    if (this.loadingText) this.loadingText.textContent = text;
-    if (this.loadingMask) this.loadingMask.style.display = "flex";
+    this.placeholderEl.textContent = text;
   }
 
   hideLoading() {
-    if (this.loadingMask) this.loadingMask.style.display = "none";
-    if (this.badgeEl) {
-      this.badgeEl.textContent = "已就緒";
-      this.badgeEl.className = "playground-badge";
-    }
+    this.placeholderEl.textContent = "打字試試，例如 sucl";
   }
 
   bindEvents() {
@@ -357,39 +325,6 @@ export class MisstypePlayground {
       this.sendKey("PageDown", "PageDown", 0, 0);
       this.boxEl.focus();
     });
-
-    // Preset chips
-    this.container.querySelectorAll(".preset-chip").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        const keys = btn.dataset.keys;
-        if (!keys) return;
-        this.simulateTyping(keys);
-      });
-    });
-  }
-
-  async simulateTyping(keyString) {
-    this.clear();
-    this.boxEl.focus();
-
-    for (const ch of keyString) {
-      // Map char to KeyboardEvent code
-      let code = "";
-      if (ch >= 'a' && ch <= 'z') {
-        code = `Key${ch.toUpperCase()}`;
-      } else if (ch >= '0' && ch <= '9') {
-        code = `Digit${ch}`;
-      } else if (ch === ';') code = "Semicolon";
-      else if (ch === '/') code = "Slash";
-      else if (ch === '.') code = "Period";
-      else if (ch === ',') code = "Comma";
-      else if (ch === '-') code = "Minus";
-      else code = "Key" + ch.toUpperCase();
-
-      this.sendKey(code, ch, 0, 0);
-      await new Promise(r => setTimeout(r, 90));
-    }
   }
 
   render() {
@@ -418,7 +353,7 @@ export class MisstypePlayground {
       for (const [start, end] of segments) {
         const text = preedit.substring(start, end);
         const isFocused = focus && start === focus[0] && end === focus[1];
-        segHtml += `<span class="text-segment ${isFocused ? "focused" : ""}">${escapeHtml(text)}</span>`;
+        segHtml += `<span class="pg-seg ${isFocused ? "focused" : ""}">${escapeHtml(text)}</span>`;
       }
       this.preeditEl.innerHTML = segHtml;
     } else {
@@ -467,10 +402,10 @@ export class MisstypePlayground {
     if (this.modeBtn) {
       if (this.state.english) {
         this.modeBtn.textContent = "英";
-        this.modeBtn.className = "mode-toggle-btn english";
+        this.modeBtn.className = "pg-btn english";
       } else {
         this.modeBtn.textContent = "中";
-        this.modeBtn.className = this.state.latinActive ? "mode-toggle-btn english" : "mode-toggle-btn";
+        this.modeBtn.className = this.state.latinActive ? "pg-btn english" : "pg-btn";
       }
     }
 
@@ -481,7 +416,7 @@ export class MisstypePlayground {
 
   positionCandidatePanel() {
     if (!this.caretEl || !this.candidatePanel || !this.boxEl) return;
-    const cardEl = this.boxEl.closest(".playground-card") || this.boxEl;
+    const cardEl = this.boxEl.closest(".pg") || this.boxEl;
     const caretRect = this.caretEl.getBoundingClientRect();
     const cardRect = cardEl.getBoundingClientRect();
 

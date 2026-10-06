@@ -1,138 +1,41 @@
-/* Misstype WebAssembly Playground Styles */
+/* In-page typing field. The box reuses .field from style.css. */
 
-.playground-container {
-  margin: 32px 0;
-  position: relative;
-}
-
-.playground-card {
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
-  position: relative;
-}
-
-.playground-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 18px;
-  background: #fdfcf9;
-  border-bottom: 1px solid var(--line);
-  border-top-left-radius: var(--radius);
-  border-top-right-radius: var(--radius);
-  font-size: 14px;
-}
-
-.playground-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 600;
-  color: var(--ink);
-}
-
-.playground-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 8px;
-  font-size: 12px;
-  border-radius: 12px;
-  background: #eef5f0;
-  color: var(--ok);
-  font-weight: 500;
-}
-
-.playground-badge.loading {
-  background: #fdf3e7;
-  color: #b36b00;
-}
-
-.playground-controls {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.mode-toggle-btn {
-  padding: 4px 10px;
-  font-size: 13px;
-  font-weight: 600;
-  border-radius: 6px;
-  border: 1px solid var(--line);
-  background: var(--paper);
-  color: var(--ink);
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.mode-toggle-btn:hover {
-  background: #ede9e0;
-}
-
-.mode-toggle-btn.english {
-  background: #e8ecf4;
-  color: #1a4f8b;
-  border-color: #cad6ea;
-}
-
-/* Typing area */
-.playground-box {
-  min-height: 120px;
-  padding: 22px 24px;
-  font-size: clamp(20px, 3.5vw, 28px);
-  line-height: 1.6;
+.pg { position: relative; }
+.pg-box {
+  white-space: pre-wrap;
+  word-break: break-word;
   outline: none;
   cursor: text;
-  word-break: break-word;
-  position: relative;
 }
+.pg-box:focus { border-color: var(--ink); }
+.pg-placeholder { color: var(--muted); user-select: none; pointer-events: none; }
+.pg-box .caret + .pg-placeholder { margin-left: 4px; }
+.pg-seg { border-bottom: 2px solid var(--ink); padding-bottom: 2px; }
+.pg-seg.focused { border-bottom-color: var(--mark); }
 
-.playground-box:focus {
-  background: #ffffff;
+.pg-bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px 16px;
+  margin: 10px 4px 0;
+  color: var(--muted);
+  font-size: 14px;
 }
-
-.playground-placeholder {
-  color: #9aa0a6;
-  user-select: none;
-  pointer-events: none;
-}
-
-.text-committed {
+.pg-actions { display: flex; gap: 8px; }
+.pg-btn {
+  font: inherit;
+  font-size: 13px;
+  padding: 2px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--card);
   color: var(--ink);
+  cursor: pointer;
 }
-
-.text-preedit {
-  color: var(--ink);
-  position: relative;
-  display: inline;
-}
-
-.text-segment {
-  border-bottom: 2px solid var(--ink);
-  padding-bottom: 2px;
-  transition: border-color 0.15s ease;
-}
-
-.text-segment.focused {
-  border-bottom: 2.5px solid var(--mark);
-}
-
-.playground-caret {
-  display: inline-block;
-  width: 2.5px;
-  height: 1.15em;
-  margin-left: 1px;
-  margin-right: 1px;
-  vertical-align: -0.15em;
-  background: var(--mark);
-  animation: pgBlink 1s steps(1) infinite;
-}
-
-@keyframes pgBlink {
-  50% { opacity: 0; }
-}
+.pg-btn:hover { background: #ede9e0; }
+.pg-btn.english { background: #e8ecf4; color: #1a4f8b; border-color: #cad6ea; }
 
 /* Floating candidate panel (選字介面) */
 .candidate-panel {
@@ -267,118 +170,3 @@
 }
 
 /* Quick test presets */
-.playground-presets {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  margin-top: 14px;
-}
-
-.preset-chip {
-  padding: 4px 10px;
-  font-size: 12px;
-  border-radius: 14px;
-  border: 1px solid var(--line);
-  background: #ffffff;
-  color: var(--ink);
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.preset-chip:hover {
-  background: var(--paper);
-  border-color: #c9c3b8;
-}
-
-.playground-footer {
-  padding: 14px 20px;
-  background: #faf8f5;
-  border-top: 1px solid var(--line);
-  border-bottom-left-radius: var(--radius);
-  border-bottom-right-radius: var(--radius);
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.tips-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 14px;
-  font-size: 12px;
-  color: var(--muted);
-}
-
-.tips-row kbd {
-  display: inline-block;
-  padding: 1px 5px;
-  font-size: 11px;
-  font-family: inherit;
-  border-radius: 4px;
-  background: #ffffff;
-  border: 1px solid var(--line);
-  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.05);
-}
-
-.quick-examples {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-}
-
-.example-label {
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.clear-btn {
-  background: none;
-  border: none;
-  font-size: 13px;
-  color: var(--muted);
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 4px;
-}
-
-.clear-btn:hover {
-  color: var(--ink);
-  background: rgba(0, 0, 0, 0.05);
-}
-
-/* Loading overlay */
-.playground-loading-mask {
-  position: absolute;
-  inset: 0;
-  background: rgba(255, 255, 255, 0.88);
-  backdrop-filter: blur(4px);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 14px;
-  z-index: 200;
-  border-radius: var(--radius);
-}
-
-.loading-spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid var(--line);
-  border-top-color: var(--ink);
-  border-radius: 50%;
-  animation: pgSpin 0.8s linear infinite;
-}
-
-@keyframes pgSpin {
-  to { transform: rotate(360deg); }
-}
-
-.loading-text {
-  font-size: 14px;
-  color: var(--muted);
-  font-weight: 500;
-}
