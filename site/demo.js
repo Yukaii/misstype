@@ -27,10 +27,16 @@
 
     function reveal() {
       if (!requested || !playground?.ready) return;
-      stopped = true;
-      field.hidden = caption.hidden = hint.hidden = true;
-      host.hidden = false;
-      playground.boxEl.focus();
+      // Let the browser paint the completed loading state before revealing the
+      // editor; WASM initialization can otherwise make this transition feel frozen.
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+          stopped = true;
+          field.hidden = caption.hidden = hint.hidden = true;
+          host.hidden = false;
+          playground.boxEl.focus();
+        });
+      });
     }
 
     // Warm the dynamically imported decoder after the page paints. The live
@@ -115,15 +121,15 @@
         var syllable = keys.slice(from, to).join("");
         var committed = chars.slice(0, i).join("");
         for (var j = 1; j <= syllable.length && !stopped; j++) {
-          show('<span class="done">' + committed + '</span><span class="composing">' + syllable.slice(0, j) + '</span>');
-          await wait(260 + Math.random() * 100);
+          show('<span class="composing">' + committed + syllable.slice(0, j) + '</span>');
+          await wait(190 + Math.random() * 60);
         }
         await wait(500);
-        show('<span class="done">' + chars.slice(0, i + 1).join("") + '</span>');
-        await wait(620);
+        show('<span class="composing">' + chars.slice(0, i + 1).join("") + '</span>');
+        await wait(760);
       }
       show('<span class="done">' + ex.got + "</span>");
-      await wait(2600);
+      await wait(3000);
     }
 
     (async function () {
