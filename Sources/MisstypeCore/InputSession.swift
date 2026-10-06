@@ -139,6 +139,12 @@ public final class InputSession {
     /// UTF-16 offset of the cursor syllable (caret for marked text/panel).
     private var segmentCaret: Int?
     private var sessionPins = UserLexicon()
+    /// The subset of sessionPins that changed their span's text: what
+    /// learning may record. Return on a focused word pins it even when it
+    /// already shows the option, and learning those confirmations taught
+    /// the store the decoder's own mistake (如故|ㄛ -> 喔, user report
+    /// 2026-10-06).
+    private var learnPins = UserLexicon()
     /// Automatic pins for accepted text (earlier runs, and words 3+
     /// syllables before the end): re-derived from top-1 every refresh, kept
     /// apart from explicit sessionPins so they never train, and dropped
@@ -764,6 +770,7 @@ public final class InputSession {
         if !keepCursor, pinnedPick != nil, selected != 0, candidates.indices.contains(selected),
            !completeTexts.contains(candidates[selected].text), !completeTexts.contains(candidates[0].text) {
             sessionPins.pinDifferences(of: candidates[selected], from: candidates[0])
+            learnPins.pinDifferences(of: candidates[selected], from: candidates[0])
             settledPins = UserLexicon()
         }
         let live = engine.decoder.livePreview(composition, fuzzy: settings.fuzzyRepair,
@@ -858,16 +865,20 @@ public final class InputSession {
         engine.gradeJevEval(rawKeys: composition.rawKeys.joined(), committed: text)
         // Topic continuity for future Jev runs (in-memory ring, never disk).
         engine.recordCommit(text)
-        if settings.userLearning && explicitPick && learnable {
+        // A pick trains only when it corrected something: a list row other
+        // than the top, or a focused pin that changed its span. Confirming
+        // what was already shown stays a session pin and never trains.
+        let corrected = explicitPick && (selected != 0 || !learnPins.isEmpty)
+        if settings.userLearning && corrected && learnable {
             // Word-level: cursor picks still pinned, words changed by a
             // whole-sentence pick, or the input when it is one word.
-            engine.learn(UserLexicon.learnedWords(committed: candidates[selected], pins: sessionPins,
+            engine.learn(UserLexicon.learnedWords(committed: candidates[selected], pins: learnPins,
                                                   baseline: selected == 0 ? nil : candidates[0]))
         }
         if settings.userLearning && settings.channelLearning && learnable {
             engine.observeChannel(engine.decoder.channelEvidence(
-                committed: candidates[selected], unpicked: explicitPick ? unpickedTop : nil,
-                explicit: explicitPick, retypes: retypes))
+                committed: candidates[selected], unpicked: corrected ? unpickedTop : nil,
+                explicit: corrected, retypes: retypes))
         }
         clear()
         return text
@@ -889,6 +900,7 @@ public final class InputSession {
         mark = nil
         clearSegment()
         sessionPins = UserLexicon()
+        learnPins = UserLexicon()
         selected = 0
         latinMode = false
         retypeBefore = nil
@@ -921,6 +933,17 @@ public final class InputSession {
               let end = top.alignment.last?.syllables.upperBound, end > 0,
               top.syllables.count == end else { return nil }
         return FocusFrame(syllables: top.syllables, top: top)
+    }
+
+    /// Text `top` shows over a syllable span. A boundary inside a word that
+    /// is not one char per syllable snaps to the word start, so the text
+    /// differs and the pick counts as a change (the old, learning behavior).
+    private func spanText(of span: Range<Int>, in top: SentenceCandidate) -> String? {
+        let length = top.text.utf16.count
+        guard let start = top.charOffset(ofSyllable: span.lowerBound) else { return nil }
+        let end = span.upperBound >= top.syllables.count ? length : top.charOffset(ofSyllable: span.upperBound)
+        guard let end, start <= end else { return nil }
+        return spanText(top.text, start..<end)
     }
 
     private func spanText(_ text: String, _ chars: Range<Int>) -> String? {
@@ -1013,12 +1036,15 @@ public final class InputSession {
     /// Pin a focused option: session-scoped decisive bonus (never disk) that
     /// changes only the option's span — overlapping older picks keep their
     /// characters outside it (`UserLexicon.pin(_:over:)`). Whole-text pin is
-    /// cleared so the two never fight; the pick counts as explicit for
-    /// user-phrase learning at commit.
+    /// cleared so the two never fight; the pick counts as explicit, and
+    /// trains at commit only if it changed the span's text (`learnPins`).
     private func pinAdvance(at index: Int) {
         guard segmentOptions.indices.contains(index), let frame = focusFrame() else { return }
         let option = segmentOptions[index]
         if unpickedTop == nil { unpickedTop = candidates.first }
+        if spanText(of: option.span, in: frame.top) != option.text {
+            learnPins.pin(option, over: frame.top)
+        }
         sessionPins.pin(option, over: frame.top)
         settledPins = UserLexicon()
         pinnedPick = nil

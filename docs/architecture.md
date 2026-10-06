@@ -153,10 +153,14 @@ Use monotonic timestamps for ordering and a separate wall-clock field only for d
 6. Accept an enhanced result only if it belongs to the current revision; otherwise decode the latest offline snapshot.
 7. User phrase learning (default on, opt-out in Preferences; local JSON
    only, never network): committing after an explicit pick
-   (Tab/arrows/digit/click — never separator pinning) records
-   word-level (readings → text) pairs (`UserLexicon.learnedWords`): cursor
-   picks of 2+ syllables still pinned at commit, words a whole-sentence pick
-   changed versus top-1, or the input itself when it is one word. Whole
+   (Tab/arrows/digit/click — never separator pinning) that corrected
+   something records word-level (readings → text) pairs
+   (`UserLexicon.learnedWords`): cursor picks of 2+ syllables still pinned
+   at commit, words a whole-sentence pick changed versus top-1, or the input
+   itself when it is one word. A pick that only confirms what was shown (top
+   row, or Return on a focused word showing that option) pins for the
+   session but never trains words or the channel model (`learnPins`;
+   learning confirmations stored the decoder's own mistakes, 2026-10-06). Whole
    sentences are never stored — the decoder boosts only dictionary words, so
    they never applied. Single characters inside a sentence are learned only
    in context, keyed "previous word|readings" (下次|ㄗㄞ -> 再), and boost

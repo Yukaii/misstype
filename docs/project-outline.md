@@ -567,8 +567,11 @@ list to the first head option only, so ㄍㄨㄛˇ never reached decode and
 split cost (ties in the old order). Toned/toneless replay and live_trace
 unchanged; every-third-syllable-toned top-1 168 -> 174/240 (6 fixed, 0
 lost: 最及嗯 -> 最近, 名你按 -> 明年, 與誒 -> 約, ...), decode p95 17.1 ->
-12.9 ms. Learning had already recorded the bad split (如故|ㄛ -> 喔),
-so a wrong commit still trains the store.
+12.9 ms. Learning had recorded the bad split (如故|ㄛ -> 喔): the log
+shows Left/Right then Return on each word, and Return on a focused word
+pinned it as an explicit pick even though nothing changed. Only pins that
+change their span's text (and list picks off the top row) train now;
+confirmations stay session pins.
 
 Settling accepted text (2026-09-27, user report: long input listed
 sentence alternatives that only varied old text before a ，, while the

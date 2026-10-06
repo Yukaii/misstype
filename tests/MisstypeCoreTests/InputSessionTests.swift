@@ -449,6 +449,50 @@ final class InputSessionTests: XCTestCase {
         XCTAssertEqual(session.view.caret, 2)
     }
 
+    private func makeLearningSession() -> InputSession {
+        let decoder = LexiconDecoder(tsv: """
+        ㄋㄧˇ\t你\t-5
+        ㄏㄠˇ\t好\t-5
+        ㄏㄠˇ\t郝\t-9
+        ㄋㄧˇ-ㄏㄠˇ\t你好\t-3
+        """)
+        let engine = InputEngine(decoder: decoder, settings: { [unowned self] in self.settings })
+        let session = InputSession(engine: engine)
+        session.host = host
+        return session
+    }
+
+    func testReturnOnAnUnchangedFocusedWordDoesNotLearn() {
+        // User report 2026-10-06: walking the cursor back and pressing Return
+        // on each word confirmed the decoder's own split, and learning stored
+        // it (如故|ㄛ -> 喔). A pin that changes nothing must not train.
+        for confirms in [true, false] {
+            settings.returnConfirmsSelection = confirms
+            let session = makeLearningSession()
+            type("su3cl3", into: session)
+            _ = session.handle(key(.left, text: "\u{F702}"))
+            XCTAssertEqual(session.view.candidates.first, "你好")
+            var result = session.handle(key(.enter, text: "\r"))
+            if confirms { result = session.handle(key(.enter, text: "\r")) }
+            XCTAssertEqual(result.commit, "你好")
+            XCTAssertEqual(session.engine.userLexicon.count, 0, "returnConfirmsSelection=\(confirms)")
+        }
+    }
+
+    func testFocusedPickThatChangesTextStillLearnsOnlyThatWord() {
+        settings.cursorCandidates = .endingAt
+        let session = makeLearningSession()
+        type("su3cl3", into: session)
+        _ = session.handle(key(.left, text: "\u{F702}"))
+        XCTAssertEqual(session.view.candidates, ["你好", "好", "郝"])
+        _ = session.handle(key(.character("d"), text: "d")) // row 3: 郝
+        XCTAssertEqual(session.view.preedit, "你郝")
+        XCTAssertEqual(session.handle(key(.enter, text: "\r")).commit, "你郝")
+        let learned = session.engine.userLexicon.entries
+        XCTAssertEqual(Array(learned.keys), [UserLexicon.contextKey(previous: "你", readings: "ㄏㄠ")])
+        XCTAssertNotNil(learned.values.first?["郝"])
+    }
+
     func testCursorBeforeTheCaretListsWordsEndingThere() {
         settings.cursorCandidates = .endingAt
         let session = makeSession()
