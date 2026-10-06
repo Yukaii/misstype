@@ -555,6 +555,21 @@ keys keep their whole-syllable repair. Replay unchanged, keynoise one row
 better (swap CER 1.067 -> 0.933). Remaining: churn 38/1738 keystrokes
 toned, 78/1168 toneless (e.g. 我進體 -> 我今天).
 
+Mixed-tone flip (2026-10-06, user report: 如果 turned into 如故喔 once a
+long sentence kept growing). Keys from the IME debug log replayed through
+`--session-trace` (now takes ⌫/⏎/arrow glyphs and copies of the user's
+learned state): ㄖㄨㄍㄨㄛˇ + ㄐㄧㄡㄓㄜㄧㄤㄧ␣ + ㄓˊ, no user state needed.
+Each fused run's `repairComplete` options come round-robin, so ㄍㄨ|ㄛˇ is
+listed before ㄍㄨㄛˇ; `decodeComposition` multiplied the runs' options
+in arrival order with a 6/12 cap, and the third complete syllable cut the
+list to the first head option only, so ㄍㄨㄛˇ never reached decode and
+喔 won with a tone repair. The product now keeps the cheapest 12 by clean
+split cost (ties in the old order). Toned/toneless replay and live_trace
+unchanged; every-third-syllable-toned top-1 168 -> 174/240 (6 fixed, 0
+lost: 最及嗯 -> 最近, 名你按 -> 明年, 與誒 -> 約, ...), decode p95 17.1 ->
+12.9 ms. Learning had already recorded the bad split (如故|ㄛ -> 喔),
+so a wrong commit still trains the store.
+
 Settling accepted text (2026-09-27, user report: long input listed
 sentence alternatives that only varied old text before a ，, while the
 part being typed was cut off). Earlier runs, and words ending 3+

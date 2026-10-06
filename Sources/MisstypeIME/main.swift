@@ -339,9 +339,10 @@ final class MisstypeInputController: IMKInputController, InputSessionHost {
     }
 }
 
-// --session-trace <keys> [--auto-commit N]: the full InputSession (real
-// lexicon, no user lexicon) key by key. Prints per-key latency, every
-// auto-commit chunk, and the final text (dev measurement, offline).
+// --session-trace <keys> [--auto-commit N] [--show]: the full InputSession
+// (real lexicon) key by key. Prints per-key latency, every auto-commit chunk,
+// the preedit after each key with --show, and the final text (dev
+// measurement, offline).
 if let traceIndex = CommandLine.arguments.firstIndex(of: "--session-trace"),
    traceIndex + 1 < CommandLine.arguments.count {
     MisstypePrefs.register()
@@ -355,18 +356,34 @@ if let traceIndex = CommandLine.arguments.firstIndex(of: "--session-trace"),
        flag + 1 < CommandLine.arguments.count, let value = Int(CommandLine.arguments[flag + 1]) {
         settings.autoCommitSyllables = value
     }
-    let engine = InputEngine(decoder: Runtime.decoder, settings: { settings })
+    // --user-lexicon / --user-dictionary / --channel <path>: replay against a
+    // copy of a user's learned state (no URLs, so nothing is written back).
+    func flagURL(_ flag: String) -> URL? {
+        guard let index = CommandLine.arguments.firstIndex(of: flag),
+              index + 1 < CommandLine.arguments.count else { return nil }
+        return URL(fileURLWithPath: CommandLine.arguments[index + 1])
+    }
+    let engine = InputEngine(decoder: Runtime.decoder,
+                             userLexicon: flagURL("--user-lexicon").map { UserLexicon.load(from: $0) } ?? UserLexicon(),
+                             userDictionary: flagURL("--user-dictionary").map { UserDictionary.load(from: $0) } ?? UserDictionary(),
+                             settings: { settings })
+    if let url = flagURL("--channel") { engine.channelLearner = ChannelLearner.load(from: url) }
     let session = InputSession(engine: engine)
     let host = TraceHost()
     session.host = host
     var committed = ""
     for (count, char) in CommandLine.arguments[traceIndex + 1].enumerated() {
         let label = String(char)
-        let event = label == " " ? KeyEvent(.space, text: " ") : KeyEvent(.character(label), text: label)
+        // Editing keys as glyphs, so a debug-log key sequence replays verbatim.
+        let named: [String: KeyEvent.Key] = ["⌫": .backspace, "⏎": .enter, "←": .left, "→": .right,
+                                             "↑": .up, "↓": .down, "⇥": .tab, "⎋": .escape]
+        let event = label == " " ? KeyEvent(.space, text: " ")
+            : named[label].map { KeyEvent($0) } ?? KeyEvent(.character(label), text: label)
         let started = Date()
         let result = session.handle(event)
         let ms = Date().timeIntervalSince(started) * 1000
         print("time\t\(count + 1)\t\(String(format: "%.1f", ms))")
+        if CommandLine.arguments.contains("--show") { print("view\t\(count + 1)\t\(session.view.preedit)") }
         if let text = result.commit {
             committed += text
             print("chunk\t\(count + 1)\t\(text)\tpreedit=\(session.view.preedit)")
