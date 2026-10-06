@@ -71,6 +71,13 @@ public struct SessionView: Equatable, Sendable {
     /// Rows per page (`SessionSettings.pageSize`): the page holding
     /// `selected` starts at `selected / pageSize * pageSize`.
     public var pageSize: Int = SelectionKeys.defaultPageSize
+    /// Word boundaries of `preedit` as contiguous UTF-16 ranges covering all
+    /// of it (decoded words, gaps such as Latin runs and punctuation, the raw
+    /// tail), so hosts can draw one underline segment per word. Empty = no
+    /// segmentation known: draw one segment.
+    public var segments: [Range<Int>] = []
+    /// The syllable cursor's word (one of `segments`), nil outside cursor mode.
+    public var focus: Range<Int>?
 
     /// A marked span of the converted text, offered to the user dictionary.
     public struct Mark: Equatable, Sendable {
@@ -230,7 +237,34 @@ public final class InputSession {
             keysActive: inSelection,
             showsCandidates: segmentTexts != nil ? !texts.isEmpty
                 : texts.count > 1 && (selecting || settings.autoShowCandidates),
-            pageSize: settings.pageSize)
+            pageSize: settings.pageSize,
+            segments: wordSegments.segments, focus: wordSegments.focus)
+    }
+
+    /// Word ranges of the shown preedit (`SessionView.segments`) and the
+    /// cursor's word. Boundaries come from the shown candidate's alignment;
+    /// anything between words (Latin, punctuation) and the raw Zhuyin tail
+    /// become segments of their own. English readings adopted by mixed
+    /// decoding carry no alignment of their own and stay one segment.
+    private var wordSegments: (segments: [Range<Int>], focus: Range<Int>?) {
+        let total = previewText.utf16.count
+        guard total > 0, candidates.indices.contains(selected),
+              !completeTexts.contains(candidates[selected].text) else { return ([], nil) }
+        let shown = candidates[selected]
+        let converted = shown.text.utf16.count
+        var cuts: Set<Int> = [0, converted, total]
+        for word in shown.alignment where word.chars.upperBound <= converted {
+            cuts.insert(word.chars.lowerBound)
+            cuts.insert(word.chars.upperBound)
+        }
+        let ordered = cuts.filter { $0 >= 0 && $0 <= total }.sorted()
+        let segments = zip(ordered, ordered.dropFirst()).map { $0..<$1 }
+        var focus: Range<Int>?
+        if let c = cursor, segmentTexts != nil, let word = shown.alignment.first(where: { $0.syllables.contains(c) }),
+           word.chars.upperBound <= converted {
+            focus = word.chars
+        }
+        return (segments, focus)
     }
 
     public func handle(_ event: KeyEvent) -> KeyResult {
