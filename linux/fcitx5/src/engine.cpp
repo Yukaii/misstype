@@ -138,6 +138,14 @@ public:
             misstype_engine_set_channel_path(engine_, nullptr);
             const char *channel = std::getenv("MISSTYPE_CHANNEL_LEARNING");
             misstype_engine_set_channel_learning(engine_, channel && std::string(channel) == "1");
+            // Repair strength: MISSTYPE_REPAIR_STRENGTH=off|light|standard|strong
+            // (default standard; no config page yet).
+            if (const char *strength = std::getenv("MISSTYPE_REPAIR_STRENGTH")) {
+                const std::string levels[] = {"off", "light", "standard", "strong"};
+                for (int level = 0; level < 4; ++level) {
+                    if (levels[level] == strength) misstype_engine_set_repair_strength(engine_, level);
+                }
+            }
         } else {
             // Never crash and never filter: every key passes through.
             FCITX_ERROR() << "Misstype: cannot load lexicon.tsv from " << resources;

@@ -89,6 +89,14 @@ public final class LexiconDecoder {
     public var contextBigrams: ContextBigrams?
     /// Optional per-user substitution costs (nil = byte-identical decode).
     public var channel: ChannelModel?
+    /// Added to every generic edit-repair cost (`RepairStrength.costOffset`);
+    /// only meaningful while `fuzzy` is on. 0 = byte-identical decode.
+    public var repairCostOffset = 0.0
+    /// Neighbor, transposition and deletion repairs also run on syllables
+    /// that already spell a valid reading (slips that land on another real
+    /// syllable), not only on invalid ones. Insertion stays gated (37
+    /// symbols per gap). false = byte-identical decode.
+    public var repairValidReadings = false
     /// Cost per dictionary word on a path (0 = off). McBopomofo single-char
     /// scores count bound morphemes, so splitting a word into chars is
     /// over-rewarded; a per-token cost rebalances word vs chars.
@@ -142,7 +150,8 @@ public final class LexiconDecoder {
         // is on (never gated: a valid-base typo like 更-for-功 or 業-for-越
         // must still compete — costs, not gates, protect exact input).
         // Tiers: exact 0, toneless 0.5, explicit-tone-mismatch 4.0,
-        // transpose 4, substitute/phonetic 5, insert/delete 6.
+        // transpose 4, substitute/phonetic 5, insert/delete 6; the edit
+        // tiers shift by `repairCostOffset` (user's repair strength).
         var scored: [String: (cost: Double, correction: Int)] = [:]
         func add(_ reading: String, _ cost: Double, _ correction: Int) {
             if let prev = scored[reading], prev.cost <= cost { return }
@@ -173,7 +182,9 @@ public final class LexiconDecoder {
             // and phonetic-confusion substitution, deletion of an extra key,
             // insertion of a missing key.
             let tonelessProbe = syllable.tone == nil
-            func consider(keys: [String], cost: Double) {
+            let offset = repairCostOffset
+            func consider(keys: [String], cost: Double, generic: Bool = true) {
+                let cost = generic ? cost + offset : cost
                 let repaired = Syllable(keys: keys, tone: syllable.tone).reading
                 if !tonelessProbe {
                     if readings.contains(repaired) { add(repaired, cost, 1) }
@@ -204,10 +215,10 @@ public final class LexiconDecoder {
             for (replacement, cost) in personal {
                 var keys = base
                 keys[index] = replacement
-                consider(keys: keys, cost: cost)
+                consider(keys: keys, cost: cost, generic: false)
             }
         }
-        if cleanEmpty {
+        if cleanEmpty || repairValidReadings {
             for index in base.indices {
                 for replacement in ZhuyinKeyboard.neighbors(of: base[index]) {
                     var keys = base

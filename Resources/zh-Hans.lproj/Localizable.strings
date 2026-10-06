@@ -59,7 +59,11 @@
 "Commit the keys as typed" = "按按键原样提交（注音文）";
 "Leave selection; press again to clear" = "退出选字；再按一次清除";
 "Fuzzy repair" = "模糊修复";
-"Recovers from transposed, substituted, missing or extra keys." = "可修复按键顺序颠倒、按错、漏按或多按。";
+"Recovers from transposed, substituted, missing or extra keys. Gentle suits precise typists: what you type wins unless it makes no sense. Strong suits frequent slips: corrections compete sooner, so exact input is occasionally overridden." = "可修复按键顺序颠倒、按错、漏按或多按。轻微适合打字精准的人：除非打出来的不成词，否则以你按的键为准。积极适合常按错的人：修正会更早介入，偶尔会盖过你确实按对的键。";
+"Off" = "关闭";
+"Gentle" = "轻微";
+"Standard" = "标准";
+"Strong" = "积极";
 "Tone tolerance" = "声调容错";
 "A wrong tone stays viable with a ranking penalty. Off: tones you type must match exactly; toneless input still works." = "声调错误仍可解码，但排序会扣分。关闭后，你输入的声调必须完全一致；不输入声调仍可使用。";
 "Changes apply on the next keystroke. Decoding always runs offline." = "更改会在下一次按键时生效。解码始终在本机离线进行。";

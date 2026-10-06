@@ -3,8 +3,9 @@ import MisstypeCore
 
 /// User preferences: UserDefaults-backed, read live (no caching, so the
 /// panel and `defaults write` take effect on the next keystroke).
-/// - fuzzyRepair: tiered edit repair (transpose/neighbor/phonetic/insert/
-///   delete). Off = exact + toneless readings only.
+/// - repairStrength: tiered edit repair (transpose/neighbor/phonetic/insert/
+///   delete) and how readily it competes with exact input (`RepairStrength`).
+///   Off = exact + toneless readings only.
 /// - toneTolerance: wrong-tone variants stay viable with a penalty. Off =
 ///   explicit tones must match exactly (toneless input still decodes via
 ///   toneless variants — strictness applies to asserted tones).
@@ -16,8 +17,16 @@ import MisstypeCore
 ///   Rich context additionally gates the alignment/diff/contract metadata.
 enum MisstypePrefs {
     static func register() {
+        // Repair was an on/off switch before 2026-10-06: carry an explicit
+        // "off" over once, then drop the old key.
+        let defaults = UserDefaults.standard
+        if defaults.object(forKey: "MisstypeRepairStrength") == nil,
+           defaults.object(forKey: "MisstypeFuzzyRepair") as? Bool == false {
+            defaults.set(RepairStrength.off.rawValue, forKey: "MisstypeRepairStrength")
+        }
+        defaults.removeObject(forKey: "MisstypeFuzzyRepair")
         UserDefaults.standard.register(defaults: [
-            "MisstypeFuzzyRepair": true,
+            "MisstypeRepairStrength": RepairStrength.standard.rawValue,
             "MisstypeToneTolerance": true,
             "MisstypeCandidateKeys": "asdfghjkl;",
             "MisstypeUserLearning": true,
@@ -145,10 +154,15 @@ enum MisstypePrefs {
         set { UserDefaults.standard.set(newValue, forKey: "MisstypeAutoCommitSyllables") }
     }
 
-    static var fuzzyRepair: Bool {
-        get { UserDefaults.standard.bool(forKey: "MisstypeFuzzyRepair") }
-        set { UserDefaults.standard.set(newValue, forKey: "MisstypeFuzzyRepair") }
+    static var repairStrength: RepairStrength {
+        get {
+            RepairStrength(rawValue: UserDefaults.standard.string(forKey: "MisstypeRepairStrength") ?? "")
+                ?? .standard
+        }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: "MisstypeRepairStrength") }
     }
+
+    static var fuzzyRepair: Bool { repairStrength != .off }
 
     static var toneTolerance: Bool {
         get { UserDefaults.standard.bool(forKey: "MisstypeToneTolerance") }
@@ -208,7 +222,7 @@ enum MisstypePrefs {
 
     /// Everything one keystroke reads, snapshotted per event by the session.
     static var sessionSettings: SessionSettings {
-        SessionSettings(fuzzyRepair: fuzzyRepair, toneTolerance: toneTolerance,
+        SessionSettings(repairStrength: repairStrength, toneTolerance: toneTolerance,
                         candidateKeys: candidateKeys, userLearning: userLearning,
                         shiftToggle: shiftToggle, jev: jevConfig,
                         autoCommitSyllables: autoCommitSyllables,

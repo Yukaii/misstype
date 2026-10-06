@@ -134,6 +134,11 @@ void misstype_engine_set_user_dictionary_path(misstype_engine *engine, const cha
  * also needs user_learning; misstype_engine_set_settings keeps the flag. */
 void misstype_engine_set_channel_path(misstype_engine *engine, const char *path);
 void misstype_engine_set_channel_learning(misstype_engine *engine, int32_t enabled);
+/* Repair strength (how readily keyboard slips are repaired): 0 off,
+ * 1 light, 2 standard (the default), 3 strong; other values are ignored.
+ * Appended, like the channel functions. misstype_engine_set_settings keeps
+ * it while fuzzy_repair stays 1; fuzzy_repair = 0 means off. */
+void misstype_engine_set_repair_strength(misstype_engine *engine, int32_t level);
 /* Forgets every learned slip, on disk too. */
 void misstype_engine_clear_channel(misstype_engine *engine);
 /* Number of learned pairs the decoder currently uses. */

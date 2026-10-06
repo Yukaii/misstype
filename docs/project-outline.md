@@ -1119,6 +1119,52 @@ Run: `MISSTYPE_CHANNEL_SWEEP=1 swift test -c release -Xswiftc -enable-testing
 bounded steps, floor, reverts, decay, persistence; evidence; session
 re-type).
 
+### Repair strength (2026-10-06)
+
+Issue #21: typists differ, so the user picks how readily keyboard slips are
+repaired: off, light, standard (the default, unchanged), strong
+(`RepairStrength`, macOS Settings → Decoding picker; fcitx5
+`MISSTYPE_REPAIR_STRENGTH`). The personal channel model learns which pairs
+one user swaps. This setting is the user's overall prior, chosen by hand.
+
+Hypothesis: shifting every generic repair tier by a log-space offset trades
+exact-input accuracy against slip recovery. Falsified if offset 0 is best or
+tied at every slip rate.
+
+Measured with `RepairStrengthSweepTests`: 80 cursor_replay sentences on the
+real lexicon, 6 seeds. Each symbol key slips with probability p into a
+neighbor key, a swap with the next key, a dropped key, or a phonetic
+confusion. Score: sentence top-1, offline decoder, release build.
+
+| arm | toned p=0/2/5/10/15% | toneless p=0/2/5/10/15% | ms (toned/toneless) |
+|---|---|---|---|
+| standard (0, gated) | 87.5/76.7/63.1/37.3/24.8 | 63.8/54.2/41.5/25.6/15.6 | 0.5/9 |
+| light (+2, gated) | 87.5/76.2/61.7/34.8/23.5 | 63.8/54.0/41.2/24.0/14.8 | 0.5/9 |
+| -1.5, gated | 86.2/76.2/62.5/37.7/25.2 | 61.2/52.3/40.4/25.0/16.9 | 0.5/10 |
+| 0, ungated | 86.2/77.3/66.2/42.5/29.2 | 62.5/53.3/41.9/25.8/16.7 | 1/19 |
+| strong (-1, ungated) | 86.2/77.9/67.1/44.2/31.5 | 61.2/52.1/41.7/25.2/17.9 | 1/21 |
+
+The offset alone barely matters (about 2 pp either way). Neighbor, swap and
+drop repairs only run on syllables with no valid reading, so a slip that
+lands on another real syllable is never tried, whatever it costs. Strong
+therefore also opens that gate (`LexiconDecoder.repairValidReadings`;
+insertion stays gated). Results for strong:
+- Toned input: +4 to +7 pp at 5-15% slips, for one lost sentence of 80 on
+  clean input.
+- Toneless input: about neutral, at roughly twice the decode time (9 → 21
+  ms per sentence decode).
+
+Light measured no gain here. Clean-input sentence errors at standard are
+language-model misses, not false repairs, so there was nothing for light to
+win back. It is kept for typists who want what they type to win.
+
+Not done: real typing at each level, and per-keystroke latency of strong on
+long toneless runs.
+
+Run: `MISSTYPE_REPAIR_SWEEP=1 swift test -c release -Xswiftc -enable-testing
+--filter RepairStrengthSweepTests` (~10 min). Tests: `RepairStrengthTests`
+and the `run_repair_strength` scenario in `tests/capi/smoke.c`.
+
 ## Measures
 
 Track phrase-level character error rate, syllable error rate, commit latency, p50/p95 decode latency, backspaces or replays, candidate interruptions, and task completion time. Log confidence and decoder source for every result. Run a fixed synthetic fixture set plus consented user sessions kept outside the repository.

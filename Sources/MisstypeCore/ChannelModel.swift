@@ -1,5 +1,41 @@
 import Foundation
 
+/// How readily the decoder assumes a keyboard slip (issue #21): the generic
+/// half of the noisy channel, picked by the user. Two levers:
+/// - `costOffset` shifts every generic edit-repair tier (transpose 4,
+///   substitute/phonetic 5, insert/delete 6) in the lexicon's log units,
+///   i.e. scales the assumed slip rate by e^-offset;
+/// - `repairsValidReadings` also tries neighbor/transpose/delete repairs on
+///   syllables that already spell a real reading (by default only invalid
+///   syllables are repaired, so a slip onto another real syllable is never
+///   undone except by phonetic confusions).
+/// Measured (`RepairStrengthSweepTests`, 80 sentences, toned, top-1 at a
+/// 0/5/10/15% per-key slip rate): standard 87.5/63.1/37.3/24.8, strong
+/// 86.2/67.1/44.2/31.5 at 2x decode time, light 87.5/61.7/34.8/23.5. The
+/// offset alone moves little: the gate is the lever. Tone tolerance and
+/// learned `ChannelModel` pairs are separate and unaffected.
+public enum RepairStrength: String, CaseIterable, Codable, Sendable {
+    /// No edit repair (fuzzy off): exact and toneless readings only.
+    case off
+    /// Assumes ~7x (e^2) fewer slips: what you type wins unless it is no
+    /// reading at all or the language evidence is overwhelming.
+    case light
+    case standard
+    /// Repairs are cheaper and also undo slips onto another real syllable.
+    case strong
+
+    /// Added to generic repair costs.
+    public var costOffset: Double {
+        switch self {
+        case .off, .standard: return 0
+        case .light: return 2
+        case .strong: return -1
+        }
+    }
+
+    public var repairsValidReadings: Bool { self == .strong }
+}
+
 /// Per-user channel model: how THIS user mistypes, as opposed to the
 /// language model (what text is likely). The generic repair tiers in
 /// `LexiconDecoder.alternatives` price every user alike (phonetic confusion
