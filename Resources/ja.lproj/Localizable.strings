@@ -110,6 +110,7 @@
 "English mode" = "英語モード";
 "Chinese mode" = "中国語モード";
 "Settings…" = "設定…";
+"Floating composition in this app" = "このアプリでは浮動入力窓を使う";
 "My Dictionary" = "マイ辞書";
 "Mark text while typing with Shift+← / → and press Return to add it here. Press Return on the same mark again to remove it." = "入力中に Shift+← / → で範囲を選び、Return を押すとここに追加されます。同じ範囲でもう一度 Return を押すと削除されます。";
 "Words" = "語句";
