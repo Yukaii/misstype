@@ -244,6 +244,7 @@ final class MisstypeInputController: IMKInputController, InputSessionHost {
             client.setMarkedText(marked, selectionRange: popup ? NSRange(location: 0, length: 0) : selection,
                                  replacementRange: missingRange)
             popupActive = popup
+            probeMarkedText(client, sent: marked.length, popup: popup)
         }
         if popupActive, !view.preedit.isEmpty {
             CompositionPopup.shared.show(preedit: view.preedit, caret: view.caret, mark: view.mark,
@@ -253,6 +254,21 @@ final class MisstypeInputController: IMKInputController, InputSessionHost {
         }
         rendered = view
         UpdateController.setComposing(!view.preedit.isEmpty)
+    }
+
+    /// Diagnostic for native-vs-popup detection (lengths and flags only, never
+    /// text): what the client reports back right after `setMarkedText`.
+    /// `marked` = markedRange length (-1 = NSNotFound), `sub` = the client's
+    /// text for that range has the length we sent, `rect` = it gives a caret
+    /// rect for the marked text.
+    private func probeMarkedText(_ client: IMKTextInput, sent: Int, popup: Bool) {
+        guard sent > 0 else { return }
+        let range = client.markedRange()
+        let marked = range.location == NSNotFound ? -1 : range.length
+        let sub = marked > 0 ? (client.attributedSubstring(from: range)?.length ?? -1) : -1
+        var rect = NSRect.zero
+        _ = client.attributes(forCharacterIndex: 0, lineHeightRectangle: &rect)
+        Runtime.debugLog("probe app=\(client.bundleIdentifier() ?? "none") popup=\(popup ? 1 : 0) sent=\(sent) marked=\(marked) sub=\(sub) rect=\(rect.origin == .zero ? 0 : 1)")
     }
 
     /// Caret rect in screen coordinates for panel placement (McBopomofo-style:
