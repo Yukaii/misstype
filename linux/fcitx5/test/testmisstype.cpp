@@ -177,6 +177,12 @@ void runAll(Instance &instance) {
     s.type("su3`hi");
     FCITX_ASSERT(s.preedit() == "你hi") << s.preedit();
     s.clear();
+    // Escape wipes the text but the run stays open (the user is still typing
+    // English); the toggle closes it so the next scenario types Zhuyin.
+    s.type("ok");
+    FCITX_ASSERT(s.preedit() == "ok") << "run survives Escape: " << s.preedit();
+    s.clear();
+    s.type("`");
     pass("C7");
 
     // C8: Right at the end beeps (consumed, no change); Left focuses a word.
