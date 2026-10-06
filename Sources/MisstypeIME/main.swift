@@ -249,7 +249,6 @@ final class MisstypeInputController: IMKInputController, InputSessionHost {
             client.setMarkedText(marked, selectionRange: popup ? NSRange(location: 0, length: 0) : selection,
                                  replacementRange: missingRange)
             popupActive = popup
-            probeMarkedText(client, sent: marked.length, popup: popup)
         }
         if popupActive, !view.preedit.isEmpty {
             CompositionPopup.shared.show(preedit: view.preedit, caret: view.caret, mark: view.mark,
@@ -285,28 +284,6 @@ final class MisstypeInputController: IMKInputController, InputSessionHost {
                 attributes: [.underlineStyle: thick ? 2 : 1, .markedClauseSegment: index]))
         }
         return out
-    }
-
-    /// Diagnostic for native-vs-popup detection (lengths and flags only, never
-    /// text): what the client reports back right after `setMarkedText`.
-    /// `marked` = markedRange length (-1 = NSNotFound), `sub` = the client's
-    /// text for that range has the length we sent, `rect` = it gives a caret
-    /// rect for the marked text.
-    private func probeMarkedText(_ client: IMKTextInput, sent: Int, popup: Bool) {
-        guard sent > 0 else { return }
-        let range = client.markedRange()
-        let marked = range.location == NSNotFound ? -1 : range.length
-        let sub = marked > 0 ? (client.attributedSubstring(from: range)?.length ?? -1) : -1
-        var rect = NSRect.zero
-        _ = client.attributes(forCharacterIndex: 0, lineHeightRectangle: &rect)
-        // Per-element signals for telling a terminal's hidden textarea from a
-        // normal field: selection, caret rect geometry, document text, what
-        // the client says it can draw.
-        let selected = client.selectedRange()
-        let sel = selected.location == NSNotFound ? "-" : "\(selected.location)+\(selected.length)"
-        let doc = client.attributedSubstring(from: NSRange(location: 0, length: 1))?.length ?? -1
-        let valid = client.validAttributesForMarkedText()?.count ?? -1
-        Runtime.debugLog("probe app=\(client.bundleIdentifier() ?? "none") popup=\(popup ? 1 : 0) sent=\(sent) marked=\(marked) sub=\(sub) rect=\(rect.origin == .zero ? 0 : 1) sel=\(sel) doc0=\(doc) valid=\(valid) at=\(Int(rect.minX)),\(Int(rect.minY)) size=\(Int(rect.width))x\(Int(rect.height))")
     }
 
     /// Caret rect in screen coordinates for panel placement (McBopomofo-style:
