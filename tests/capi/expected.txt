@@ -15,5 +15,6 @@ C12 pick preedit=泥 selected=3
 C13 mark add range=0..6 text=你好 reading=ㄋㄧˇ-ㄏㄠˇ
 C13 filed then mark remove
 settings shift_toggle=0 tap ignored
+channel off=0 learned=1 cleared=0
 keymap evdev31=s evdev57=space evdev42=shift-left A=a+shift !=1+shift
 DONE

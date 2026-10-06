@@ -74,6 +74,12 @@
 "Clear" = "消去";
 "Cancel" = "キャンセル";
 "This can't be undone." = "この操作は取り消せません。";
+"Learn my typing slips (experimental)" = "自分の打ち間違いを学習（実験的）";
+"Notices keys you often swap, such as ㄥ typed for ㄣ, from Backspace re-types and the candidates you pick, and corrects exactly those more readily. Adapts slowly, forgets habits you drop, and backs off when you undo a correction. Stores keys and counts only, on this Mac." = "Backspace での打ち直しや選んだ候補から、よく取り違えるキー（例：ㄣ を ㄥ と打つ）を見つけ、その組み合わせだけを積極的に修正します。変化はゆっくりで、やめた癖は徐々に忘れ、修正を取り消すと控えめに戻ります。保存するのはキーと回数だけで、この Mac 内にのみ保存されます。";
+"Learned typing slips" = "学習した打ち間違い";
+"None yet" = "まだありません";
+"about %d%% of the time" = "約 %d%% の頻度";
+"Clear all learned typing slips?" = "学習した打ち間違いをすべて消去しますか？";
 "Optional. When candidates are too close to call, a remote model can help decide. Off by default: Misstype decodes fully offline unless you enable this and provide a key." = "任意の機能です。候補の優劣が付けにくいとき、リモートのモデルが判断を手伝います。既定はオフ。有効にしてキーを設定しない限り、完全にオフラインで変換します。";
 "Enable Jev assistance" = "Jev アシストを有効にする";
 "Allow richer context" = "より詳しい文脈を許可";

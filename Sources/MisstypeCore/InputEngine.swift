@@ -188,6 +188,12 @@ public final class InputEngine {
         settings.userLearning && settings.channelLearning ? channelLearner.model : nil
     }
 
+    /// Forget every learned typo (settings "Clear"), on disk too.
+    public func clearChannel() {
+        channelLearner = ChannelLearner()
+        if let url = channelLearnerURL { channelLearner.save(to: url) }
+    }
+
     func observeChannel(_ evidence: ChannelEvidence) {
         guard !evidence.isEmpty else { return }
         channelLearner.observe(evidence)

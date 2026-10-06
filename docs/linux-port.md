@@ -214,6 +214,14 @@ minus space) is in `EvdevKeyCode.labels.values`;
     `misstype_engine_set_settings` replaces it (candidate keys go through
     `SelectionKeys.sanitize`). Jev stays at `JevConfig()` (off); no host is
     set, so remote calls are impossible from C.
+  - Channel model (appended 2026-10-06, settings struct unchanged):
+    `misstype_engine_set_channel_path` (`NULL` → `ChannelLearner.defaultURL`,
+    `""` → memory only, the default after `_new`),
+    `misstype_engine_set_channel_learning` (default 0; kept across
+    `misstype_engine_set_settings`, still needs `user_learning`),
+    `misstype_engine_clear_channel`, `misstype_engine_channel_pair_count`.
+    The fcitx5 addon sets the default path and enables learning only when
+    `MISSTYPE_CHANNEL_LEARNING=1` (there is no config page yet).
   - `user_lexicon_path`: `NULL` → `UserLexicon.load()` with
     `userLexiconURL = UserLexicon.defaultURL`; `""` → empty lexicon, no URL
     (never touches disk); otherwise load/save at that path.

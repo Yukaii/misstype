@@ -14,13 +14,18 @@ enum Runtime {
     }()
     /// Process-wide engine: every controller's session shares the decoder,
     /// the learned-phrase overlay, 中/英 mode and Shift-tap tracking.
-    static let engine = InputEngine(decoder: decoder,
-                                    userLexicon: UserLexicon.load(),
-                                    userLexiconURL: UserLexicon.defaultURL,
-                                    userDictionary: UserDictionary.load(),
-                                    userDictionaryURL: UserDictionary.defaultURL,
-                                    settings: { MisstypePrefs.sessionSettings },
-                                    log: debugLog)
+    static let engine: InputEngine = {
+        let engine = InputEngine(decoder: decoder,
+                                 userLexicon: UserLexicon.load(),
+                                 userLexiconURL: UserLexicon.defaultURL,
+                                 userDictionary: UserDictionary.load(),
+                                 userDictionaryURL: UserDictionary.defaultURL,
+                                 settings: { MisstypePrefs.sessionSettings },
+                                 log: debugLog)
+        engine.channelLearner = ChannelLearner.load()
+        engine.channelLearnerURL = ChannelLearner.defaultURL
+        return engine
+    }()
     /// File trace for routing diagnosis (~/Library/Logs/MisstypeIME-debug.log).
     /// NSLog is a black hole under TIS-launched ad-hoc builds, so diagnosis
     /// goes here instead. Codes and indices only — never text content.

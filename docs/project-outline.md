@@ -662,8 +662,9 @@ should be taken:
    command (list / add / remove) or an fcitx5 config page. Low risk.
 5. **Personalization from use.** *(Keyboard half started 2026-10-06: the
    decoder takes per-user substitution costs, learned from Backspace re-types,
-   picks and reverts. The replay beats generic on unseen sentences; it is off
-   by default and the adapters are not wired. See "Personal channel model"
+   picks and reverts. The replay beats generic on unseen sentences. It is off
+   by default: a macOS Settings toggle, and `MISSTYPE_CHANNEL_LEARNING=1` on
+   fcitx5. See "Personal channel model"
    below.)* Per-key tap
    distributions learned from confirmed taps (a 2-D Gaussian per key replaces
    the fixed `1 - 1.5d` weight), then per-user repair costs from Backspace
@@ -1075,10 +1076,17 @@ miss rate on that set). A user who never slips learns nothing, and a dropped
 habit decays back to generic. The 60% user is still above the floor after 6
 epochs: that is the bounded step working as intended.
 
+Adapters (2026-10-06): macOS has Settings → Learning → "Learn my typing
+slips (experimental)". It is off by default, disabled while phrase learning is
+off, and lists learned pairs with their approximate slip rate next to a Clear
+button. The store is `channel_model.json` beside `user_phrases.json`. The C ABI
+gains appended functions (path, enable, clear, pair count; the settings struct
+is unchanged), covered by a `tests/capi/smoke.c` scenario. fcitx5 persists to
+`$XDG_DATA_HOME/misstype/channel_model.json` and enables learning with
+`MISSTYPE_CHANNEL_LEARNING=1`. The macOS pane was not built or checked on a
+Mac.
+
 Not done:
-- Wiring the adapters: a macOS preference and store path, a Linux/C ABI
-  switch, and "Clear learned typos" next to clearing learned phrases. Until
-  then it is reachable only through `SessionSettings` in the core.
 - Real typing. The synthetic user slips one fixed pair and corrects
   perfectly.
 - The touch half: per-key tap distributions, which need a touch surface
