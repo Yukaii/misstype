@@ -349,7 +349,11 @@ final class MisstypeInputController: IMKInputController, InputSessionHost {
         if let id = clientBundleID, !id.isEmpty {
             let popup = NSMenuItem(title: L("Floating composition in this app"),
                                    action: #selector(togglePopupComposition(_:)), keyEquivalent: "")
-            popup.target = self
+            // No target: IMK ships the menu to the system's input menu and
+            // dispatches actions back to the controller by selector (as with
+            // Settings…). A target object cannot cross that boundary, and the
+            // whole input menu (icon included) disappeared with it.
+            popup.target = nil
             popup.isEnabled = true
             popup.state = ClientMitigation.needsPopup(bundleID: id) ? .on : .off
             menu.addItem(popup)
