@@ -120,10 +120,15 @@
         var syllable = keys.slice(from, to).join("");
         var committed = chars.slice(0, i).join("");
         for (var j = 1; j <= syllable.length && !stopped; j++) {
-          show('<span class="composing">' + committed + syllable.slice(0, j) + '</span>');
+          var lastKey = j === syllable.length;
+          if (lastKey) {
+            // In Zhuyin the final rime key completes the syllable immediately.
+            show('<span class="composing">' + committed + '</span><span class="done">' + chars[i] + '</span>');
+          } else {
+            show('<span class="composing">' + committed + syllable.slice(0, j) + '</span>');
+          }
           await wait(190 + Math.random() * 60);
         }
-        await wait(500);
         show('<span class="composing">' + chars.slice(0, i + 1).join("") + '</span>');
         await wait(760);
       }
