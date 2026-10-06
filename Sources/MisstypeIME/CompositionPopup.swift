@@ -18,7 +18,7 @@ enum ClientMitigation {
     private static var cache: [String: Bool] = [:]
 
     static func needsPopup(bundleID: String?) -> Bool {
-        guard let bundleID, !bundleID.isEmpty else { return false }
+        guard let bundleID, !bundleID.isEmpty, !MisstypePrefs.popupCompositionDisabled else { return false }
         if builtinIncapable.contains(bundleID) || MisstypePrefs.popupCompositionClients.contains(bundleID) {
             return true
         }

@@ -92,6 +92,12 @@ enum MisstypePrefs {
         UserDefaults.standard.bool(forKey: "MisstypePopupCompositionForElectron")
     }
 
+    /// Debug: send real marked text everywhere (probe the native path of a
+    /// client the popup rules would otherwise cover).
+    static var popupCompositionDisabled: Bool {
+        UserDefaults.standard.bool(forKey: "MisstypePopupCompositionDisabled")
+    }
+
     /// Extra bundle IDs that always use the floating composition window.
     static var popupCompositionClients: Set<String> {
         Set(UserDefaults.standard.stringArray(forKey: "MisstypePopupCompositionClients") ?? [])
