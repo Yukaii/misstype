@@ -11,6 +11,8 @@ enum ClientMitigation {
     /// Apps known to mishandle marked text that are not Electron.
     static let builtinIncapable: Set<String> = [
         "com.valvesoftware.steam", "jp.naver.line.mac", "org.alacritty", "com.github.wez.wezterm",
+        // Electron terminal (xterm.js): marked text is never drawn there.
+        "com.t3tools.t3code",
     ]
 
     private static var cache: [String: Bool] = [:]
