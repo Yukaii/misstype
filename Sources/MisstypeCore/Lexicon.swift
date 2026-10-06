@@ -392,19 +392,32 @@ public final class LexiconDecoder {
     /// (surfaced as unresolved) when nothing segments.
     public func decodeComposition(complete: [Syllable], pendingKeys: [String], fuzzy: Bool = true, toneTolerance: Bool = true, userLexicon: UserLexicon? = nil, locked: UserLexicon? = nil) -> [SentenceCandidate] {
         // Expand fused complete runs (usually a no-op of one option each).
+        // The cross-run product keeps the cheapest 12 by split cost (clean
+        // tiers, as in segmentations), never by arrival order: round-robin
+        // lists ㄍㄨ|ㄛˇ before ㄍㄨㄛˇ, and an arrival-order cap let a later
+        // tone run drop every 如果 split, so 如果 flipped to 如故喔 mid-
+        // sentence (user report 2026-10-06). Ties keep repairComplete order.
+        func splitCost(_ option: [Syllable]) -> Double {
+            option.reduce(0) { total, syllable in
+                // An invalid tail (no clean reading) ranks behind every clean split.
+                total + (alternatives(syllable, fuzzy: false, toneTolerance: toneTolerance).map(\.1).min() ?? 6)
+            }
+        }
         var expandedComplete: [[Syllable]] = [[]]
+        var expandedCost: [Double] = [0]
         for syllable in complete {
             let options = repairComplete(syllable, toneTolerance: toneTolerance)
             let chosen = options.isEmpty ? [[syllable]] : options
-            var next: [[Syllable]] = []
-            for prefix in expandedComplete.prefix(6) {
-                for option in chosen.prefix(6) {
-                    next.append(prefix + option)
-                    if next.count >= 12 { break }
+            let costs = chosen.map(splitCost)
+            var next: [(syllables: [Syllable], cost: Double, order: Int)] = []
+            for (p, prefix) in expandedComplete.enumerated() {
+                for (o, option) in chosen.enumerated() {
+                    next.append((prefix + option, expandedCost[p] + costs[o], next.count))
                 }
-                if next.count >= 12 { break }
             }
-            expandedComplete = next
+            next.sort { $0.cost == $1.cost ? $0.order < $1.order : $0.cost < $1.cost }
+            expandedComplete = next.prefix(12).map(\.syllables)
+            expandedCost = next.prefix(12).map(\.cost)
         }
         var segmentOptions: [[Syllable]] = [[]]
         if !pendingKeys.isEmpty {

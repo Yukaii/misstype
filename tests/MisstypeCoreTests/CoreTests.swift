@@ -805,6 +805,38 @@ final class CoreTests: XCTestCase {
         let top = decoder.decodeSegments(segments, pendingKeys: [])[0]
         XCTAssertEqual(top.text, "挖挖挖打對")
     }
+    func testLaterToneRunDoesNotDropEarlierRunSplit() {
+        // User report 2026-10-06: ㄖㄨㄍㄨㄛˇ + ㄐㄧㄡㄓㄜㄧㄤㄧ␣ + ㄓˊ turned
+        // 如果 into 如故喔 once ㄓˊ completed. Round-robin lists the shorter
+        // tail (ㄍㄨ|ㄛˇ) first; the cross-run product kept combos in arrival
+        // order, so the third complete syllable truncated it to the first
+        // head option only and ㄍㄨㄛˇ never reached decode.
+        let decoder = LexiconDecoder(tsv: """
+        ㄖㄨˊ\t如\t-5
+        ㄍㄨㄛˇ\t果\t-6
+        ㄖㄨˊ-ㄍㄨㄛˇ\t如果\t-4
+        ㄍㄨˋ\t故\t-5
+        ㄖㄨˊ-ㄍㄨˋ\t如故\t-6
+        ㄛ\t喔\t-5
+        ㄐㄧㄡˋ\t就\t-4
+        ㄓㄜˋ\t這\t-4
+        ㄧㄤˋ\t樣\t-4
+        ㄓㄜˋ-ㄧㄤˋ\t這樣\t-4
+        ㄧ\t一\t-3
+        ㄓˊ\t直\t-5
+        ㄧ-ㄓˊ\t一直\t-5
+        ㄐㄧ\t機\t-6
+        ㄡ\t歐\t-7
+        ㄓ\t之\t-6
+        ㄜ\t鵝\t-7
+        ㄤ\t骯\t-8
+        """)
+        let input = composition("bjeji3ru.5ku;u 56")
+        XCTAssertEqual(input.parsed.complete.count, 3)
+        let top = decoder.decodeSegments(input.segments, pendingKeys: [])[0]
+        XCTAssertEqual(top.text, "如果就這樣一直")
+        XCTAssertEqual(top.repairs, 0)
+    }
     func testToneClosedRunKeepsLeadWhenTailIsInvalid() {
         // 你好 + ㄉ + Space: the run must not collapse into ㄋㄧㄏㄠㄉ.
         let top = decoder.decodeSegments(composition("sucl2 ").segments, pendingKeys: [], fuzzy: false)[0]
