@@ -660,7 +660,10 @@ should be taken:
    Measures), on the Swift decoder.
 4. **Linux user-dictionary editor.** The file is plain text; a `misstype-dict`
    command (list / add / remove) or an fcitx5 config page. Low risk.
-5. **Personalization from use (direction, not started).** Per-key tap
+5. **Personalization from use.** *(Keyboard half started 2026-10-06: the
+   decoder takes per-user substitution costs, and an oracle sweep shows they
+   pay off; learning them from use is open. See "Personal channel model"
+   below.)* Per-key tap
    distributions learned from confirmed taps (a 2-D Gaussian per key replaces
    the fixed `1 - 1.5d` weight), then per-user repair costs from Backspace
    re-types. Labels come only from explicit signals (Backspace re-type, an
@@ -956,6 +959,86 @@ all in the first wiring of the mixed pass:
 Shipping-path numbers did not change (clean English 92% / 90% adopted, pure
 Chinese 0% adopted), refresh cost fell slightly (95 vs 111 ms toneless).
 Tests: `MixedSessionTests` (punctuation then more Chinese, capital, raw tail).
+
+### Personal channel model (2026-10-06)
+
+A noisy-channel decoder has two halves: the language model (is this text
+likely) and the channel model (how does this person mistype). Learning
+(`UserLexicon`) and the user dictionary personalize only the first. The repair
+tiers price every user the same: a phonetic confusion such as ㄣ/ㄥ costs 5.0,
+which in our natural-log units means a slip rate of about e^-5, or 0.7%.
+
+Hypothesis: for a user who systematically types ㄥ for ㄣ, a cheaper personal
+ㄥ→ㄣ repair recovers their slips without flipping genuine ㄥ input. It is
+falsified if no cost gains more than it loses.
+
+Mechanism: `ChannelModel` (typed key → intended key → cost), set as
+`LexiconDecoder.channel`, follows the same overlay contract as
+`contextBigrams`. nil (the default) gives byte-identical decode. A personal pair
+replaces the generic cost for that pair only. It is directional, rides along
+with every syllable like the phonetic confusions, and is clamped at
+`ChannelModel.floor` (0.5) so exact input always keeps a margin. Nothing sets
+it yet.
+
+Oracle sweep (`ChannelSweepTests`, real lexicon): the synthetic user types
+every ㄣ as ㄥ. Probes are the most frequent reading per side (300) and the 80
+`cursor_replay` sentences. Only probes whose exact typing already decodes
+top-1 are counted. "Recovered" is the share of slipped ㄣ probes decoded
+right; "kept" is the share of exact ㄥ probes still right.
+
+| group, mode | generic 5.0 recovered | at 2.3 | at 1.2 | kept at 1.2 |
+|---|---|---|---|---|
+| words 2-4, toned | 65.7% | 96.3% | 99.0% | 100% |
+| words 2-4, toneless | 49.8% | 85.1% | 95.9% | 100% |
+| sentences, toned | 83.9% | 96.8% | 96.8% | 100% |
+| sentences, toneless | 59.1% | 81.8% | 90.9% | 100% |
+| single chars, toned | 8.8% | 22.0% | 42.9% | 86.5% |
+| single chars, toneless | 0% | 21.1% | 36.8% | 76.2% |
+
+Not falsified wherever there is context. In words and sentences the pair
+recovers most slips and no exact ㄥ probe flipped at any cost down to 0.5. A
+lone character is a real trade-off with nothing to break the tie: at 1.2,
+仍→人, 風→分, 寧→您 and so on flip. There the right cost depends on how often
+this user actually slips, which is the reason to learn the cost rather than
+fix it. Read as a log-odds, a 10% slip rate is cost ~2.3 and 30% is ~1.2.
+Latency: toned decoding is unchanged; toneless sentences go from 13.9 to about
+17 ms per decode at 1.2, because more repaired paths survive the beam.
+
+Next, the learning half (not started). This is two learners adapting to each
+other: the system adapts to the user, and the user adapts to the system's
+habits. The rule is that the system follows the user, but more slowly than the
+user changes (user decision 2026-10-06).
+
+- Estimate: a pair's cost is -ln(slips / opportunities), smoothed toward the
+  generic 5.0 and clamped to [learned floor, 5]. Opportunities come from
+  committed syllables.
+- Time decay: counts are exponentially decayed (a half-life in typed
+  syllables, not wall time). A habit the user has dropped therefore fades
+  back to the generic cost instead of "correcting" input that is now right.
+- Signal weights. The strongest signal is a reverted repair: the user picks
+  the exact-reading text over a repair the system made (typed ㄕㄥ, got 深,
+  picked 升). It means the system over-corrected, so it is weighted well
+  above one observation, against the slip side. A Backspace re-type of one
+  key inside a syllable counts as one slip. A repaired commit that is never
+  reverted counts only weakly, because it may simply be unnoticed.
+- Degenerate loop (sloppier typing → looser costs → sloppier typing):
+  learned costs never go below a learned floor of 1.2, about a 30% slip rate,
+  which is above the decoder's 0.5. Exact input therefore always stays
+  stronger evidence than a learned habit, and the user keeps the ability to
+  type precisely as a fallback. This is a default to revisit with real data.
+- Stability: costs move by a bounded step and only between compositions,
+  never mid-typing, so a frequent word's top-1 does not jump under the
+  user's compensating habits.
+
+Store it locally, make it clearable, and keep it off when learning is off.
+Falsify with the same synthetic user replayed through `InputSession` at slip
+rates of 10% and 30%: the learned cost should approach the oracle optimum. A
+user who never slips must keep generic costs, and a user who stops slipping
+must decay back to them.
+
+Run: `MISSTYPE_CHANNEL_SWEEP=1 swift test -c release -Xswiftc -enable-testing
+--filter ChannelSweepTests` after `python3 script/prepare_lexicon.py`. Tests:
+`ChannelModelTests`.
 
 ## Measures
 
