@@ -102,8 +102,12 @@ final class CompositionPopup: NSPanel {
         }
         // The caret: a thin bar between units, as the client would draw it.
         let at = min(max(caret, 0), text.length)
-        text.insert(NSAttributedString(string: "▏", attributes: [
-            .font: font, .foregroundColor: NSColor.controlAccentColor,
+        // ASCII bar, not a block-element glyph: "▏" falls back to a CJK-wide
+        // font and reads as a character slot, hiding the focused character.
+        text.insert(NSAttributedString(string: "|", attributes: [
+            .font: NSFont.systemFont(ofSize: fontSize, weight: .light),
+            .foregroundColor: NSColor.controlAccentColor,
+            .underlineStyle: 0,
         ]), at: at)
         label.attributedStringValue = text
         let textSize = text.size()
