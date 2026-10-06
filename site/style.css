@@ -77,8 +77,14 @@ a:hover { color: var(--mark); }
   color: #fff;
   font-weight: 600;
   text-decoration: none;
+  border: 1px solid #1d2229;
+  box-shadow: 0 4px 0 #11151a, 0 8px 16px rgba(38, 44, 52, .16);
+  transform: translateY(-1px);
+  transition: transform .16s ease, box-shadow .16s ease, background .16s ease;
 }
-.button:hover { color: #fff; background: #3a424d; }
+.button:hover { color: #fff; background: #3a424d; transform: translateY(-3px); box-shadow: 0 6px 0 #11151a, 0 12px 20px rgba(38, 44, 52, .18); }
+.button:active { transform: translateY(2px); box-shadow: 0 1px 0 #11151a, 0 3px 8px rgba(38, 44, 52, .14); }
+.button:focus-visible { outline: 3px solid var(--mark-bg); outline-offset: 3px; }
 .cta .note { color: var(--muted); font-size: 15px; }
 
 /* Typing demo: a fake text field. The underline mimics how the IME draws
@@ -89,10 +95,10 @@ a:hover { color: var(--mark); }
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: 22px 24px;
-  min-height: 88px;
-  font-size: clamp(24px, 4vw, 32px);
-  line-height: 1.5;
+  padding: 18px 22px;
+  min-height: 132px;
+  font-size: clamp(18px, 2.6vw, 22px);
+  line-height: 1.6;
 }
 .field .done { color: var(--ink); }
 .field .composing {
@@ -120,6 +126,11 @@ a:hover { color: var(--mark); }
   color: var(--muted);
   font-size: 15px;
 }
+.demo .try { margin: 6px 4px 0; color: var(--mark); font-size: 14px; }
+.demo .field[role="button"] { cursor: pointer; }
+.demo .field[role="button"]:hover,
+.demo .field[role="button"]:focus-visible { border-color: var(--ink); outline: none; }
+.demo .try[hidden] { display: none; }
 .demo .keys b { color: var(--mark); font-weight: 600; }
 
 /* Sections */
