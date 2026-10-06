@@ -575,6 +575,59 @@ final class InputSessionTests: XCTestCase {
         XCTAssertEqual(session.handle(key(.enter, text: "\r")).commit, "你")
     }
 
+    private func tapShift(_ session: InputSession, at time: Double) -> KeyResult {
+        session.handle(KeyEvent(.shift(.left), phase: .press, modifiers: [.shift], timestamp: time))
+        return session.handle(KeyEvent(.shift(.left), phase: .release, timestamp: time + 0.1))
+    }
+
+    func testLatinRunSurvivesEscapeAndDeleteAllUntilShiftTapClosesIt() {
+        let session = makeSession()
+        type("su3", into: session)
+        XCTAssertTrue(tapShift(session, at: 100).latinToggled)
+        type("hi", into: session)
+        // Esc wipes the text but the user is still typing English.
+        session.handle(key(.escape))
+        XCTAssertTrue(session.latinActive)
+        type("ok", into: session)
+        XCTAssertEqual(session.view.preedit, "ok")
+        // Delete-all, then one more Backspace on the empty composition.
+        session.handle(key(.backspace)); session.handle(key(.backspace))
+        session.handle(key(.backspace))
+        XCTAssertTrue(session.latinActive)
+        type("a", into: session)
+        XCTAssertEqual(session.view.preedit, "a")
+        // With the run open and nothing composed, the tap closes the run
+        // (no global flip).
+        session.handle(key(.escape))
+        let closed = tapShift(session, at: 101)
+        XCTAssertTrue(closed.latinToggled)
+        XCTAssertFalse(closed.modeChanged)
+        XCTAssertFalse(session.latinActive)
+    }
+
+    func testShiftTapRereadsStrandedZhuyinAsEnglishKeys() {
+        let session = makeSession()
+        // "world is" typed in Zhuyin mode: nothing decodes, raw Zhuyin stays.
+        type("world is", into: session)
+        XCTAssertNotEqual(session.rawPhonetic, "world is")
+        let result = tapShift(session, at: 100)
+        XCTAssertEqual(result, KeyResult(consumed: true, latinToggled: true))
+        XCTAssertEqual(session.view.preedit, "world is")
+        XCTAssertTrue(session.latinActive)
+        // The run stays open: more English keeps typing verbatim.
+        type("ok", into: session)
+        XCTAssertEqual(session.view.preedit, "world isok")
+        XCTAssertEqual(session.handle(key(.enter, text: "\r")).commit, "world isok")
+    }
+
+    func testShiftTapAfterDecodedChineseStillJustOpensARun() {
+        let session = makeSession()
+        type("su3c", into: session) // 你 + one raw syllable in progress
+        XCTAssertTrue(tapShift(session, at: 100).latinToggled)
+        XCTAssertEqual(session.view.preedit, "你ㄏ")
+        XCTAssertEqual(session.rawPhonetic, "ㄋㄧˇㄏ")
+    }
+
     func testLoneShiftTapMidCompositionOpensLatinRunWithoutCommitting() {
         let session = makeSession()
         type("su3", into: session)
