@@ -42,6 +42,10 @@ public struct SessionSettings: Equatable, Sendable {
     public var keyBindings: KeyBindings
     /// Which words the syllable cursor offers (default: all covering it).
     public var cursorCandidates: CursorCandidates
+    /// Personal channel model: learn which keys this user swaps and cheapen
+    /// exactly those repairs (`ChannelLearner`). Needs `userLearning` too.
+    /// Off by default until measured on real typing.
+    public var channelLearning: Bool
 
     public init(fuzzyRepair: Bool = true, toneTolerance: Bool = true,
                 candidateKeys: String = SelectionKeys.defaultKeys, userLearning: Bool = true,
@@ -50,8 +54,10 @@ public struct SessionSettings: Equatable, Sendable {
                 returnConfirmsSelection: Bool = false, mixedEnglish: Bool = true,
                 pageSize: Int = SelectionKeys.defaultPageSize,
                 keyBindings: KeyBindings = KeyBindings(),
-                cursorCandidates: CursorCandidates = .covering) {
+                cursorCandidates: CursorCandidates = .covering,
+                channelLearning: Bool = false) {
         self.cursorCandidates = cursorCandidates
+        self.channelLearning = channelLearning
         self.pageSizeValue = SelectionKeys.clampPageSize(pageSize)
         self.keyBindings = keyBindings
         self.fuzzyRepair = fuzzyRepair
@@ -81,6 +87,11 @@ public final class InputEngine {
     public var userLexicon: UserLexicon
     /// Where learned words persist; nil = memory only (tests, replay).
     public var userLexiconURL: URL?
+    /// How this user mistypes (`SessionSettings.channelLearning`); applied
+    /// to the decoder per refresh, nil when off.
+    public var channelLearner = ChannelLearner()
+    /// Where the channel model persists; nil = memory only.
+    public var channelLearnerURL: URL?
     private let englishLock = NSLock()
     private var englishStore: EnglishLexicon?
     /// English word list for mixed typing (`english.tsv` beside the lexicon);
@@ -171,6 +182,16 @@ public final class InputEngine {
 
     func activeUserLexicon(_ settings: SessionSettings) -> UserLexicon? {
         settings.userLearning ? userLexicon : nil
+    }
+
+    func activeChannel(_ settings: SessionSettings) -> ChannelModel? {
+        settings.userLearning && settings.channelLearning ? channelLearner.model : nil
+    }
+
+    func observeChannel(_ evidence: ChannelEvidence) {
+        guard !evidence.isEmpty else { return }
+        channelLearner.observe(evidence)
+        if let url = channelLearnerURL { channelLearner.save(to: url) }
     }
 
     func learn(_ words: [(key: String, text: String)]) {
