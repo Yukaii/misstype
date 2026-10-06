@@ -40,7 +40,7 @@ enum MisstypePrefs {
             "MisstypeUILanguage": "",
             "MisstypeCustomTheme": CustomTheme.defaultText,
             "MisstypeCandidateGrid": false,
-            "MisstypePopupCompositionForElectron": true,
+            "MisstypePopupCompositionForElectron": false,
             "MisstypePopupCompositionClients": [String](),
         ])
     }
@@ -84,8 +84,9 @@ enum MisstypePrefs {
 
     /// Lone-Shift-tap toggles 中/英 (default on; Shift+Space always works).
     /// Kill-switch for clients that misdeliver modifier events.
-    /// Electron/WebView clients get a floating composition window instead of
-    /// marked text (default on; `defaults write` only, like vChewing's
+    /// Every Electron/WebView client gets a floating composition window instead
+    /// of marked text (default off: probes 2026-10-06 showed Obsidian draws it
+    /// natively; `defaults write` only, like vChewing's
     /// AlwaysUsePCBWithElectronBasedClients).
     static var popupCompositionForElectron: Bool {
         UserDefaults.standard.bool(forKey: "MisstypePopupCompositionForElectron")
