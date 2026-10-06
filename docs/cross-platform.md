@@ -172,7 +172,7 @@ each is the named `InputSessionTests` case.
 | C4 | `s u 3`, `Tab`, `d`, `⏎` | candidates shown; after `Tab` (next page; one page, so it only enters selection) selected 0 and selection keys active; `d` picks row 2 → preedit `尼`; `⏎` commits `尼` | `testTabSelectsAndSelectionKeysPickThenLearn` |
 | C5 | `s u 3`, `Down`, `Esc`, `Esc` | preedit `妳`; first `Esc` keeps `妳` and leaves selection; second clears with no commit | `testEscapeLeavesSelectionFirstThenClears` |
 | C6 | `s u 3`, Shift+`,`, Shift+`a`, `⏎` | preedit `你，` then `你，A`; commits `你，A` | `testPunctuationAndShiftLatinStayInsideTheComposition` |
-| C7 | `s u 3`, backtick, `h i` | preedit `你hi` | `testBacktickLatinRun` |
+| C7 | `s u 3`, backtick, `h i`; Esc ×3; `o k`; Esc ×3; backtick | preedit `你hi`; after Esc the run is still open (`ok` types as text); the closing backtick returns to Zhuyin | `testBacktickLatinRun` |
 | C8 | `s u 3 c l 3`, `Right`, `Left` | `Right` consumed without change (beep); `Left` enters cursor mode: candidates shown with `你好` first, selection keys active, caret UTF-16 1 / bytes 3 | `testSyllableCursorFocusesAWord` |
 | C9 | `s u 3`, Ctrl+`c` (macOS: Cmd+`c`) | commits `你`, then the key passes | `testChordsAndCapsLockCommitThenPassThrough` |
 | C10 | `s u 3`, Shift+`Space`, `s` | Shift+Space commits `你` and flips to English (mode indicator); `s` passes | `testShiftSpaceTogglesEnglishCommittingFirst` |
