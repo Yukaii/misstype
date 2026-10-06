@@ -19,7 +19,7 @@ import XCTest
 /// Falsified if no cost recovers more than it loses for a heavy-slip user.
 final class ChannelSweepTests: XCTestCase {
     /// tools/cursor_replay.py dev + holdout, readings as it derives them.
-    private static let sentences: [(text: String, readings: String)] = [
+    static let sentences: [(text: String, readings: String)] = [
         ("測試一下會不會打對", "ㄘㄜˋ ㄕˋ ㄧ ㄒㄧㄚˋ ㄏㄨㄟˋ ㄅㄨˋ ㄏㄨㄟˋ ㄉㄚˇ ㄉㄨㄟˋ"),
         ("我今天要去買東西", "ㄨㄛˇ ㄐㄧㄣ ㄊㄧㄢ ㄧㄠˋ ㄑㄩˋ ㄇㄞˇ ㄉㄨㄥ ㄒㄧ"),
         ("這個問題很難回答", "ㄓㄜˋ ㄍㄜ˙ ㄨㄣˋ ㄊㄧˊ ㄏㄣˇ ㄋㄢˊ ㄏㄨㄟˊ ㄉㄚˊ"),

@@ -29,3 +29,207 @@ public struct ChannelModel: Codable, Equatable {
         substitutions[typed]?.mapValues { max(Self.floor, $0) }
     }
 }
+
+/// One commit's evidence about how the user mistypes. Keys are physical
+/// Zhuyin symbol keys; a pair means "typed `typed`, meant `intended`".
+public struct ChannelEvidence: Equatable {
+    public typealias Pair = (typed: String, intended: String)
+    /// Intended symbol keys of every committed syllable (the opportunities).
+    public var intended: [String] = []
+    /// Substitutions the committed text repaired. `explicit` means the user
+    /// picked that text; otherwise it only went unchallenged.
+    public var repaired: [Pair] = []
+    public var explicit = false
+    /// One-key Backspace re-types (typed X, erased it, typed Y in its place).
+    public var retypes: [Pair] = []
+    /// Repairs the system made that the user undid by picking the text the
+    /// keys spelled exactly — the system over-corrected.
+    public var reverts: [Pair] = []
+
+    public init() {}
+
+    public static func == (a: Self, b: Self) -> Bool {
+        func same(_ x: [Pair], _ y: [Pair]) -> Bool {
+            x.map { $0.typed + ">" + $0.intended } == y.map { $0.typed + ">" + $0.intended }
+        }
+        return a.intended == b.intended && a.explicit == b.explicit && same(a.repaired, b.repaired)
+            && same(a.retypes, b.retypes) && same(a.reverts, b.reverts)
+    }
+
+    public var isEmpty: Bool { intended.isEmpty && retypes.isEmpty && reverts.isEmpty }
+}
+
+/// Learns `ChannelModel` costs from use. The system follows the user, but
+/// more slowly than the user changes (design: project outline, Personal
+/// channel model):
+/// - a pair's target cost is -ln(slip rate): slips over opportunities (how
+///   often the intended key was typed at all), smoothed toward the generic
+///   rate and clamped to [learnedFloor, genericCost];
+/// - every count decays with a half-life in committed syllables, so a habit
+///   the user dropped fades back to the generic cost;
+/// - a reverted repair is the strongest signal and cancels several slips; an
+///   unchallenged repair counts only weakly (it may be unnoticed);
+/// - learned costs never go below `learnedFloor` (~30% slip), so exact input
+///   always beats a learned habit and precise typing stays a fallback;
+/// - the published cost moves at most `stepDown` per commit toward cheaper
+///   and `stepUp` toward generic, and only between compositions.
+/// Local data: keys and counts, never text.
+public struct ChannelLearner: Codable, Equatable {
+    public static let genericCost = 5.0
+    public static let learnedFloor = 1.2
+    public static let halfLife = 3000.0
+    public static let priorOpportunities = 50.0
+    public static let retypeWeight = 1.0
+    public static let pickedRepairWeight = 1.0
+    public static let unchallengedRepairWeight = 0.25
+    public static let revertWeight = 3.0
+    public static let stepDown = 0.2
+    public static let stepUp = 1.0
+
+    /// Intended key → decayed count of committed syllables containing it.
+    public private(set) var opportunities: [String: Double] = [:]
+    /// Typed → intended → decayed slip weight.
+    public private(set) var slips: [String: [String: Double]] = [:]
+    /// Typed → intended → decayed revert weight.
+    public private(set) var reverts: [String: [String: Double]] = [:]
+    /// Typed → intended → cost currently published to the decoder.
+    public private(set) var costs: [String: [String: Double]] = [:]
+
+    public init() {}
+
+    /// What the decoder uses; nil until some pair is cheaper than generic.
+    public var model: ChannelModel? {
+        let cheaper = costs.compactMapValues { row -> [String: Double]? in
+            let kept = row.filter { $0.value < Self.genericCost }
+            return kept.isEmpty ? nil : kept
+        }
+        return cheaper.isEmpty ? nil : ChannelModel(substitutions: cheaper)
+    }
+
+    /// Target cost of one pair from the current counts.
+    public func target(typed: String, intended: String) -> Double {
+        let slip = max(0, (slips[typed]?[intended] ?? 0)
+            - Self.revertWeight * (reverts[typed]?[intended] ?? 0))
+        let prior = Self.priorOpportunities
+        let rate = (slip + prior * exp(-Self.genericCost)) / ((opportunities[intended] ?? 0) + prior)
+        return min(Self.genericCost, max(Self.learnedFloor, -log(rate)))
+    }
+
+    public mutating func observe(_ evidence: ChannelEvidence) {
+        guard !evidence.isEmpty else { return }
+        let factor = pow(0.5, Double(max(1, evidence.intended.count)) / Self.halfLife)
+        func decay(_ table: inout [String: [String: Double]]) {
+            table = table.mapValues { $0.mapValues { $0 * factor } }
+        }
+        opportunities = opportunities.mapValues { $0 * factor }
+        decay(&slips)
+        decay(&reverts)
+        func valid(_ pair: ChannelEvidence.Pair) -> Bool {
+            pair.typed != pair.intended && ZhuyinKeyboard.symbols[pair.typed] != nil
+                && ZhuyinKeyboard.symbols[pair.intended] != nil
+        }
+        for key in evidence.intended where ZhuyinKeyboard.symbols[key] != nil {
+            opportunities[key, default: 0] += 1
+        }
+        let repairWeight = evidence.explicit ? Self.pickedRepairWeight : Self.unchallengedRepairWeight
+        for pair in evidence.repaired where valid(pair) {
+            slips[pair.typed, default: [:]][pair.intended, default: 0] += repairWeight
+        }
+        for pair in evidence.retypes where valid(pair) {
+            slips[pair.typed, default: [:]][pair.intended, default: 0] += Self.retypeWeight
+        }
+        for pair in evidence.reverts where valid(pair) {
+            reverts[pair.typed, default: [:]][pair.intended, default: 0] += 1
+        }
+        // Step every known pair toward its target; drop pairs back at
+        // generic with nothing left to remember.
+        var pairs = Set<String>()
+        for (typed, row) in slips { for intended in row.keys { pairs.insert(typed + "\t" + intended) } }
+        for (typed, row) in costs { for intended in row.keys { pairs.insert(typed + "\t" + intended) } }
+        for pair in pairs {
+            let parts = pair.split(separator: "\t").map(String.init)
+            let (typed, intended) = (parts[0], parts[1])
+            let current = costs[typed]?[intended] ?? Self.genericCost
+            let goal = target(typed: typed, intended: intended)
+            let next = goal < current ? max(goal, current - Self.stepDown) : min(goal, current + Self.stepUp)
+            costs[typed, default: [:]][intended] = next
+            if next >= Self.genericCost, (slips[typed]?[intended] ?? 0) < 0.01 {
+                costs[typed]?[intended] = nil
+                slips[typed]?[intended] = nil
+                reverts[typed]?[intended] = nil
+            }
+        }
+        costs = costs.filter { !$0.value.isEmpty }
+        slips = slips.filter { !$0.value.isEmpty }
+        reverts = reverts.filter { !$0.value.isEmpty }
+    }
+
+    public static func load(from url: URL) -> ChannelLearner {
+        guard let data = try? Data(contentsOf: url),
+              let learner = try? JSONDecoder().decode(ChannelLearner.self, from: data) else { return ChannelLearner() }
+        return learner
+    }
+
+    public func save(to url: URL) {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        guard let data = try? encoder.encode(self) else { return }
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
+                                                 withIntermediateDirectories: true)
+        try? data.write(to: url, options: .atomic)
+    }
+}
+
+extension LexiconDecoder {
+    /// Intended symbol keys per syllable of `candidate` (nil where the text
+    /// is no dictionary word, e.g. raw Bopomofo): the readings its words
+    /// were decoded from, mapped back to keys.
+    func intendedKeys(of candidate: SentenceCandidate) -> [[String]?] {
+        var out = [[String]?](repeating: nil, count: candidate.syllables.count)
+        let units = Array(candidate.text.utf16)
+        var reverse: [String: String] = [:]
+        for (key, symbol) in ZhuyinKeyboard.symbols { reverse[symbol] = key }
+        for span in candidate.alignment where span.chars.upperBound <= units.count
+            && span.syllables.upperBound <= candidate.syllables.count {
+            let word = String(decoding: units[span.chars], as: UTF16.self)
+            guard let path = readings(of: word, syllables: candidate.syllables, span: span.syllables) else { continue }
+            for (offset, reading) in path.split(separator: "-").enumerated() {
+                out[span.syllables.lowerBound + offset] = reading.compactMap { reverse[String($0)] }
+            }
+        }
+        return out
+    }
+
+    /// The one-key substitution turning `typed` into `intended`, if that is
+    /// all that differs.
+    static func substitution(typed: [String], intended: [String]) -> ChannelEvidence.Pair? {
+        guard typed.count == intended.count else { return nil }
+        let diffs = typed.indices.filter { typed[$0] != intended[$0] }
+        guard diffs.count == 1 else { return nil }
+        return (typed[diffs[0]], intended[diffs[0]])
+    }
+
+    /// Evidence from one learning-grade commit. `unpicked` is the top
+    /// candidate before the user's first explicit pick, when there was one.
+    func channelEvidence(committed: SentenceCandidate, unpicked: SentenceCandidate?, explicit: Bool,
+                         retypes: [ChannelEvidence.Pair]) -> ChannelEvidence {
+        var evidence = ChannelEvidence()
+        evidence.explicit = explicit
+        evidence.retypes = retypes
+        let typed = committed.syllables.map(\.keys)
+        let intended = intendedKeys(of: committed)
+        for (index, keys) in intended.enumerated() {
+            guard let keys else { continue }
+            evidence.intended += keys
+            if let pair = Self.substitution(typed: typed[index], intended: keys) { evidence.repaired.append(pair) }
+        }
+        if let unpicked, unpicked.text != committed.text, unpicked.syllables.map(\.keys) == typed {
+            for (index, keys) in intendedKeys(of: unpicked).enumerated() {
+                guard let keys, intended[index] == typed[index],
+                      let pair = Self.substitution(typed: typed[index], intended: keys) else { continue }
+                evidence.reverts.append(pair)
+            }
+        }
+        return evidence
+    }
+}

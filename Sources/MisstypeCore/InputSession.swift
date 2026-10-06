@@ -177,6 +177,14 @@ public final class InputSession {
     /// the user dictionary, anything else drops it.
     private var mark: (anchor: Int, head: Int)?
     private var jevRequestID = 0
+    /// Channel learning: the raw keys before a Backspace streak, compared
+    /// with the keys once the user has typed back to that length; a single
+    /// symbol key that changed is a re-type (typed X, meant Y).
+    private var retypeBefore: [String]?
+    private var retypes: [ChannelEvidence.Pair] = []
+    /// Top candidate before the first explicit pick of this composition, so
+    /// a pick that undoes a repair reads as a revert.
+    private var unpickedTop: SentenceCandidate?
     private let jevLock = NSLock()
 
     public init(engine: InputEngine) {
@@ -308,6 +316,7 @@ public final class InputSession {
         engine.recordCommit(chunk)
         _ = nextJevID()
         composition.dropHead(keys: cutIndex)
+        retypeBefore = nil
         candidates = []
         settledPins = UserLexicon()
         pinnedPick = nil
@@ -329,6 +338,7 @@ public final class InputSession {
             return
         }
         guard candidates.indices.contains(index) else { return }
+        if unpickedTop == nil { unpickedTop = candidates.first }
         selected = index
         pinnedPick = candidates[index].text
         explicitPick = true
@@ -457,6 +467,7 @@ public final class InputSession {
                 latinMode = false
                 return pass(committing: false)
             }
+            if retypeBefore == nil { retypeBefore = composition.rawKeys }
             selected = 0
             // Separator/punctuation pinning (and the settled pins derived
             // from it) must not outlive the key that created it: erasing a
@@ -710,6 +721,7 @@ public final class InputSession {
     }
 
     private func selectCandidate(_ index: Int) {
+        if unpickedTop == nil { unpickedTop = candidates.first }
         selected = index
         pinnedPick = candidates[index].text
         explicitPick = true
@@ -741,6 +753,8 @@ public final class InputSession {
         // single source of candidates. Presence-only logging keeps remote
         // intent observable per repo policy without leaking key or text.
         engine.logJevGate(settings.jev)
+        engine.decoder.channel = engine.activeChannel(settings)
+        noteRetype()
         // Live conversion (RIME-style continuous typing): the pending run
         // converts as it is typed, except the syllable still in progress,
         // which stays raw (`livePendingCut`). Space is a first-tone key, not
@@ -802,6 +816,20 @@ public final class InputSession {
         scheduleJevEvaluation()
     }
 
+    /// Once the keys are back at their pre-Backspace length, a single
+    /// changed symbol key is a re-type; anything else is a rewrite.
+    private func noteRetype() {
+        guard let before = retypeBefore else { return }
+        let now = composition.rawKeys
+        if now.isEmpty { retypeBefore = nil; return }
+        guard now.count >= before.count else { return }
+        retypeBefore = nil
+        if let pair = LexiconDecoder.substitution(typed: before, intended: Array(now.prefix(before.count))),
+           ZhuyinKeyboard.symbols[pair.typed] != nil, ZhuyinKeyboard.symbols[pair.intended] != nil {
+            retypes.append(pair)
+        }
+    }
+
     private func commitText(raw: Bool) -> String? {
         guard !composition.isEmpty else { return nil }
         // What you see is what commits: the converted text plus any raw
@@ -836,6 +864,11 @@ public final class InputSession {
             engine.learn(UserLexicon.learnedWords(committed: candidates[selected], pins: sessionPins,
                                                   baseline: selected == 0 ? nil : candidates[0]))
         }
+        if settings.userLearning && settings.channelLearning && learnable {
+            engine.observeChannel(engine.decoder.channelEvidence(
+                committed: candidates[selected], unpicked: explicitPick ? unpickedTop : nil,
+                explicit: explicitPick, retypes: retypes))
+        }
         clear()
         return text
     }
@@ -858,6 +891,9 @@ public final class InputSession {
         sessionPins = UserLexicon()
         selected = 0
         latinMode = false
+        retypeBefore = nil
+        retypes = []
+        unpickedTop = nil
     }
 
     // MARK: - Syllable cursor (go back and pick a word, no modifiers)
@@ -982,6 +1018,7 @@ public final class InputSession {
     private func pinAdvance(at index: Int) {
         guard segmentOptions.indices.contains(index), let frame = focusFrame() else { return }
         let option = segmentOptions[index]
+        if unpickedTop == nil { unpickedTop = candidates.first }
         sessionPins.pin(option, over: frame.top)
         settledPins = UserLexicon()
         pinnedPick = nil
