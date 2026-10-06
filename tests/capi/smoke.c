@@ -465,6 +465,38 @@ void run_settings(const char *res) {
     misstype_engine_free(eng);
 }
 
+/* Personal channel model: a one-key Backspace re-type (typed ㄩ, meant ㄧ)
+ * is learned only when enabled, survives set_settings, and clears. */
+static void retype_ni(misstype_session *s) {
+    misstype_string_free(send(s, MISSTYPE_KEY_CHARACTER, "s", 0).commit);
+    misstype_string_free(send(s, MISSTYPE_KEY_CHARACTER, "m", 0).commit);
+    misstype_string_free(send(s, MISSTYPE_KEY_BACKSPACE, NULL, 0).commit);
+    misstype_string_free(send(s, MISSTYPE_KEY_CHARACTER, "u", 0).commit);
+    misstype_string_free(send(s, MISSTYPE_KEY_CHARACTER, "3", 0).commit);
+    misstype_key_result r = send(s, MISSTYPE_KEY_ENTER, NULL, 0);
+    ASSERT(r.commit && strcmp(r.commit, "你") == 0, "channel commit 你");
+    misstype_string_free(r.commit);
+}
+
+void run_channel(const char *res) {
+    misstype_engine *eng = misstype_engine_new(res, "");
+    misstype_engine_set_channel_path(eng, ""); /* memory only */
+    misstype_session *s = misstype_session_new(eng);
+    retype_ni(s);
+    ASSERT(misstype_engine_channel_pair_count(eng) == 0, "channel off by default");
+    misstype_engine_set_channel_learning(eng, 1);
+    misstype_settings st = misstype_settings_default();
+    misstype_engine_set_settings(eng, &st); /* keeps the channel flag */
+    retype_ni(s);
+    int32_t learned = misstype_engine_channel_pair_count(eng);
+    ASSERT(learned == 1, "channel learns the re-type");
+    misstype_engine_clear_channel(eng);
+    ASSERT(misstype_engine_channel_pair_count(eng) == 0, "channel cleared");
+    printf("channel off=0 learned=%d cleared=0\n", learned);
+    misstype_session_free(s);
+    misstype_engine_free(eng);
+}
+
 int main(int argc, char **argv) {
     if (argc < 2) {
         fprintf(stderr, "usage: %s <resource_dir> [keys]\n", argv[0]);
@@ -485,6 +517,7 @@ int main(int argc, char **argv) {
         run_c12(res);
         run_c13(res);
         run_settings(res);
+        run_channel(res);
         test_keymap();
         printf("DONE\n");
         return 0;

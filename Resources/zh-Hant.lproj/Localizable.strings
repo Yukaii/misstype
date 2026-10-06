@@ -74,6 +74,12 @@
 "Clear" = "清除";
 "Cancel" = "取消";
 "This can't be undone." = "此操作無法復原。";
+"Learn my typing slips (experimental)" = "學習我的打字習慣錯誤（實驗性）";
+"Notices keys you often swap, such as ㄥ typed for ㄣ, from Backspace re-types and the candidates you pick, and corrects exactly those more readily. Adapts slowly, forgets habits you drop, and backs off when you undo a correction. Stores keys and counts only, on this Mac." = "從 Backspace 重打和你選的候選，留意你常打混的鍵（例如把ㄣ打成ㄥ），並只對這些更積極地修正。調整得很慢，你改掉的習慣會逐漸忘記，你撤銷修正時會退回。只在這台 Mac 上存放按鍵與次數。";
+"Learned typing slips" = "已學到的打字錯誤";
+"None yet" = "尚無";
+"about %d%% of the time" = "約 %d%% 的時候";
+"Clear all learned typing slips?" = "清除所有已學到的打字錯誤？";
 "Optional. When candidates are too close to call, a remote model can help decide. Off by default: Misstype decodes fully offline unless you enable this and provide a key." = "選用功能。候選難分高下時，可由遠端模型協助判斷。預設關閉：除非你啟用並提供金鑰，隨打注音完全離線解碼。";
 "Enable Jev assistance" = "啟用 Jev 協助";
 "Allow richer context" = "允許更豐富的上下文";

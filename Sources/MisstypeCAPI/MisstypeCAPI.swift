@@ -272,8 +272,41 @@ public func misstype_engine_set_settings(
         toneTolerance: settings.pointee.tone_tolerance != 0,
         candidateKeys: settings.pointee.candidate_keys.map { String(cString: $0) } ?? "asdfghjkl;",
         userLearning: settings.pointee.user_learning != 0,
-        shiftToggle: settings.pointee.shift_toggle != 0
+        shiftToggle: settings.pointee.shift_toggle != 0,
+        channelLearning: handle?.settings.value.channelLearning ?? false
     )
+}
+
+@_cdecl("misstype_engine_set_channel_path")
+public func misstype_engine_set_channel_path(_ engine: OpaquePointer?, _ path: UnsafePointer<CChar>?) {
+    guard let engine = engine, let handle = getEngine(engine) else { return }
+    let url: URL?
+    if let path = path {
+        let text = String(cString: path)
+        url = text.isEmpty ? nil : URL(fileURLWithPath: text)
+    } else {
+        url = ChannelLearner.defaultURL
+    }
+    handle.engine.channelLearnerURL = url
+    handle.engine.channelLearner = url.map { ChannelLearner.load(from: $0) } ?? ChannelLearner()
+}
+
+@_cdecl("misstype_engine_set_channel_learning")
+public func misstype_engine_set_channel_learning(_ engine: OpaquePointer?, _ enabled: Int32) {
+    guard let engine = engine, let handle = getEngine(engine) else { return }
+    handle.settings.value.channelLearning = enabled != 0
+}
+
+@_cdecl("misstype_engine_clear_channel")
+public func misstype_engine_clear_channel(_ engine: OpaquePointer?) {
+    guard let engine = engine, let handle = getEngine(engine) else { return }
+    handle.engine.clearChannel()
+}
+
+@_cdecl("misstype_engine_channel_pair_count")
+public func misstype_engine_channel_pair_count(_ engine: OpaquePointer?) -> Int32 {
+    guard let engine = engine, let handle = getEngine(engine) else { return 0 }
+    return Int32(handle.engine.channelLearner.learnedPairs.count)
 }
 
 @_cdecl("misstype_engine_set_user_dictionary_path")

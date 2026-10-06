@@ -654,8 +654,11 @@ private struct DecodingPane: View {
 
 private struct LearningPane: View {
     @AppStorage("MisstypeUserLearning") private var learning = true
+    @AppStorage("MisstypeChannelLearning") private var channel = false
     @State private var count = Runtime.engine.userLexicon.count
+    @State private var slips = Runtime.engine.channelLearner.learnedPairs
     @State private var confirmClear = false
+    @State private var confirmClearSlips = false
 
     var body: some View {
         Form {
@@ -682,13 +685,46 @@ private struct LearningPane: View {
                 Text(L("A portable local JSON file — copy it to export or back up."))
                     .font(.caption).foregroundStyle(.secondary)
             }
+            Section {
+                DescribedToggle(
+                    title: L("Learn my typing slips (experimental)"),
+                    detail: L("Notices keys you often swap, such as ㄥ typed for ㄣ, from Backspace re-types and the candidates you pick, and corrects exactly those more readily. Adapts slowly, forgets habits you drop, and backs off when you undo a correction. Stores keys and counts only, on this Mac."),
+                    isOn: $channel)
+                    .disabled(!learning)
+            }
+            Section(L("Learned typing slips")) {
+                if slips.isEmpty {
+                    Text(L("None yet")).foregroundStyle(.secondary)
+                } else {
+                    ForEach(slips.indices, id: \.self) { index in
+                        let slip = slips[index]
+                        let pair: String = slip.typed + " → " + slip.intended
+                        let percent = Int((exp(-slip.cost) * 100).rounded())
+                        LabeledContent(pair, value: L("about %d%% of the time", percent))
+                    }
+                }
+                Button(L("Clear…"), role: .destructive) { confirmClearSlips = true }
+                    .disabled(slips.isEmpty)
+            }
         }
-        .onAppear { count = Runtime.engine.userLexicon.count }
+        .onAppear {
+            count = Runtime.engine.userLexicon.count
+            slips = Runtime.engine.channelLearner.learnedPairs
+        }
         .alert(L("Clear all learned phrases?"), isPresented: $confirmClear) {
             Button(L("Clear"), role: .destructive) {
                 Runtime.engine.userLexicon = UserLexicon()
                 Runtime.engine.userLexicon.save()
                 count = 0
+            }
+            Button(L("Cancel"), role: .cancel) {}
+        } message: {
+            Text(L("This can't be undone."))
+        }
+        .alert(L("Clear all learned typing slips?"), isPresented: $confirmClearSlips) {
+            Button(L("Clear"), role: .destructive) {
+                Runtime.engine.clearChannel()
+                slips = []
             }
             Button(L("Cancel"), role: .cancel) {}
         } message: {
