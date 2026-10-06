@@ -14,8 +14,10 @@ import XCTest
 /// so a cheaper offset wins at high slip rates and a dearer one at ~0.
 /// Falsified if the standard offset (0) is best or tied at every slip rate.
 /// Result (2026-10-06): the offset alone moves top-1 by ~2 pp either way;
-/// opening the gate on valid readings is the lever (toned p=10%: 37.3% →
-/// 44.2% at offset -1), see `RepairStrength`.
+/// opening the gate on valid readings (inside words) is the lever (toned
+/// p=10%: 37.3% → 42.5%). Offset -1 adds ~2 pp but changes 8 of 1000
+/// exactly typed frequent chars (屋→一), so strong keeps 0. See
+/// `RepairStrength`.
 /// Synthetic typist: the cursor_replay sentences, toned and toneless; each
 /// symbol key slips with probability p into one of neighbor substitution,
 /// transposition with the next key of its syllable, a dropped key, or a
@@ -33,10 +35,10 @@ final class RepairStrengthSweepTests: XCTestCase {
     }
 
     private static let toneKeys: [Character: String] = ["ˊ": "6", "ˇ": "3", "ˋ": "4", "˙": "7"]
-    /// (offset, repairValidReadings) arms: standard, light, gated offset
-    /// only, then the gate opened. Strong is (-1, true).
+    /// (offset, repairValidReadings) arms: standard, light, strong (0, true),
+    /// and the rejected (-1, true).
     private static let arms: [(offset: Double, ungated: Bool)] =
-        [(0, false), (2, false), (-1.5, false), (0, true), (1, true), (2, true), (-1, true)]
+        [(0, false), (2, false), (0, true), (-1, true)]
     private static let slipRates = [0.0, 0.02, 0.05, 0.10, 0.15]
 
     private func realDecoder() throws -> LexiconDecoder {
@@ -52,6 +54,25 @@ final class RepairStrengthSweepTests: XCTestCase {
         }
         defer { try? FileManager.default.removeItem(at: dir) }
         return try XCTUnwrap(LexiconLoader.load(resourceDirectory: dir, environment: [:]))
+    }
+
+    /// Most frequent text per reading with `syllables` syllables, best first.
+    private func words(syllables: ClosedRange<Int>, limit: Int) throws -> [(text: String, readings: String)] {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let lexicon = try String(contentsOf: root.appendingPathComponent(".cache/mcbopomofo/lexicon.tsv"), encoding: .utf8)
+        var best: [String: (String, Double)] = [:]
+        for line in lexicon.split(separator: "\n") {
+            let fields = line.split(separator: "\t")
+            guard fields.count == 3, let score = Double(fields[2]) else { continue }
+            let reading = String(fields[0])
+            let count = reading.split(separator: "-").count
+            guard syllables.contains(count), fields[1].count == count else { continue }
+            if let seen = best[reading], seen.1 >= score { continue }
+            best[reading] = (String(fields[1]), score)
+        }
+        return best.sorted { $0.value.1 == $1.value.1 ? $0.key < $1.key : $0.value.1 > $1.value.1 }
+            .prefix(limit).map { (text: $0.value.0, readings: $0.key.replacingOccurrences(of: "-", with: " ")) }
     }
 
     /// Per-syllable symbol keys plus the tone key (" " for first tone).
@@ -139,8 +160,57 @@ final class RepairStrengthSweepTests: XCTestCase {
                 out += String(format: " | %6.1f\n", Date().timeIntervalSince(started) * 1000 / Double(decodes))
             }
         }
+        // Clean input: frequent chars and words typed exactly (the 好喔→好一
+        // class). Only probes standard decodes right count; reports how many
+        // each arm keeps.
+        let limit = environment["MISSTYPE_REPAIR_WORDS"].flatMap(Int.init) ?? 1000
+        for (name, range) in [("chars", 1...1), ("words", 2...4)] {
+            let probes = try words(syllables: range, limit: limit)
+            for toned in [true, false] {
+                decoder.repairCostOffset = 0
+                decoder.repairValidReadings = false
+                var rng = SplitMix64(state: 0)
+                let baseline = probes.filter { top(decoder, typed(syllables($0.readings), toned: toned, slip: 0, rng: &rng)) == $0.text }
+                out += "\nclean \(name) \(toned ? "toned" : "toneless"): \(baseline.count) of \(probes.count) right at standard\n"
+                for arm in Self.arms {
+                    decoder.repairCostOffset = arm.offset
+                    decoder.repairValidReadings = arm.ungated
+                    let lost = baseline.compactMap { probe -> String? in
+                        let got = top(decoder, typed(syllables(probe.readings), toned: toned, slip: 0, rng: &rng))
+                        return got == probe.text ? nil : "\(probe.text)→\(got ?? "-")"
+                    }
+                    out += String(format: "%+5.1f ", arm.offset) + (arm.ungated ? "all  " : "gate ")
+                        + "lost \(lost.count)  " + lost.prefix(8).joined(separator: " ") + "\n"
+                }
+            }
+        }
         decoder.repairCostOffset = 0
         decoder.repairValidReadings = false
+        print(out)
+    }
+
+    /// Exact phrases users reported flipping, at every level.
+    func testSpotChecks() throws {
+        try XCTSkipIf(ProcessInfo.processInfo.environment["MISSTYPE_REPAIR_SWEEP"] == nil,
+                      "measurement; set MISSTYPE_REPAIR_SWEEP=1")
+        let decoder = try realDecoder()
+        let spots = [("好喔", "ㄏㄠˇ ㄛ"), ("好喔", "ㄏㄠˇ ㄛ˙")]
+        var out = "\nspot checks\n"
+        for (text, readings) in spots {
+            for toned in [true, false] {
+                var rng = SplitMix64(state: 0)
+                let keys = typed(syllables(readings), toned: toned, slip: 0, rng: &rng)
+                out += "\(readings) \(toned ? "toned" : "toneless"):"
+                for level in RepairStrength.allCases where level != .off {
+                    decoder.repairCostOffset = level.costOffset
+                    decoder.repairValidReadings = level.repairsValidReadings
+                    out += " \(level)=\(top(decoder, keys) ?? "-")"
+                }
+                decoder.repairCostOffset = 0
+                decoder.repairValidReadings = false
+                out += " (want \(text))\n"
+            }
+        }
         print(out)
     }
 }

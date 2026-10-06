@@ -1134,36 +1134,50 @@ tied at every slip rate.
 Measured with `RepairStrengthSweepTests`: 80 cursor_replay sentences on the
 real lexicon, 6 seeds. Each symbol key slips with probability p into a
 neighbor key, a swap with the next key, a dropped key, or a phonetic
-confusion. Score: sentence top-1, offline decoder, release build.
+confusion. Score: sentence top-1, offline decoder, release build. A
+clean-input check types the 1000 most frequent single chars and 1000 words
+(2-4 syllables) exactly and counts those an arm changes, out of the ones
+standard gets right.
 
-| arm | toned p=0/2/5/10/15% | toneless p=0/2/5/10/15% | ms (toned/toneless) |
-|---|---|---|---|
-| standard (0, gated) | 87.5/76.7/63.1/37.3/24.8 | 63.8/54.2/41.5/25.6/15.6 | 0.5/9 |
-| light (+2, gated) | 87.5/76.2/61.7/34.8/23.5 | 63.8/54.0/41.2/24.0/14.8 | 0.5/9 |
-| -1.5, gated | 86.2/76.2/62.5/37.7/25.2 | 61.2/52.3/40.4/25.0/16.9 | 0.5/10 |
-| 0, ungated | 86.2/77.3/66.2/42.5/29.2 | 62.5/53.3/41.9/25.8/16.7 | 1/19 |
-| strong (-1, ungated) | 86.2/77.9/67.1/44.2/31.5 | 61.2/52.1/41.7/25.2/17.9 | 1/21 |
+| arm | toned p=0/2/5/10/15% | toneless p=0/2/5/10/15% | ms (toned/toneless) | clean chars changed (toned/toneless) |
+|---|---|---|---|---|
+| standard (0, gated) | 87.5/76.7/63.1/37.3/24.8 | 63.8/54.2/41.5/25.6/15.6 | 0.5/9 | 0/0 |
+| light (+2, gated) | 87.5/76.2/61.7/34.8/23.5 | 63.8/54.0/41.2/24.0/14.8 | 0.5/9 | 0/0 |
+| strong (0, ungated, word-only) | 86.2/77.3/65.8/42.5/29.2 | 62.5/53.3/41.7/25.8/16.7 | 1/17 | 0/0 |
+| rejected: -1, ungated, word-only | 86.2/77.9/66.7/44.2/31.0 | 61.2/52.1/41.7/25.4/17.9 | 1/18 | 8/8 |
 
-The offset alone barely matters (about 2 pp either way). Neighbor, swap and
-drop repairs only run on syllables with no valid reading, so a slip that
-lands on another real syllable is never tried, whatever it costs. Strong
-therefore also opens that gate (`LexiconDecoder.repairValidReadings`;
-insertion stays gated). Results for strong:
-- Toned input: +4 to +7 pp at 5-15% slips, for one lost sentence of 80 on
-  clean input.
-- Toneless input: about neutral, at roughly twice the decode time (9 → 21
-  ms per sentence decode).
+No arm changed any of the clean words.
 
-Light measured no gain here. Clean-input sentence errors at standard are
-language-model misses, not false repairs, so there was nothing for light to
-win back. It is kept for typists who want what they type to win.
+What the arms showed:
+- The offset alone barely matters (about 2 pp either way; -1.5 gated was
+  within 1 pp of standard). Neighbor, swap and drop repairs only run on
+  syllables with no valid reading, so a slip that lands on another real
+  syllable is never tried, whatever it costs. Strong therefore opens that
+  gate (`LexiconDecoder.repairValidReadings`; insertion stays gated).
+- Results for strong:
+  - Toned input: +3 to +5 pp at 5-15% slips, for one lost sentence of 80 on
+    clean input.
+  - Toneless input: about neutral, at roughly twice the decode time.
+- The first strong (offset -1, ungated anywhere) turned 好喔 into 好一 in
+  real use. ㄛ and ㄧ are neighbor keys, and for a lone character only
+  frequency argues for the repair. So valid-reading repairs are word-only
+  (they may complete a multi-syllable word, never stand as one char), and
+  the clean-input check was added because the sentence sweep had missed it.
+  Offset -1 still changed 8 frequent chars (屋→一, 呢→了, 娘→年) through
+  the always-on phonetic confusions, so strong keeps offset 0.
+- 好喔 typed ㄛ˙ still becomes 好啊 under strong. 喔 has no ㄛ˙ reading, so
+  both readings are repairs (tone 4.0 vs the word 好啊 via ㄚ, 5.0).
+- Light measured no gain here. Clean-input errors at standard are
+  language-model misses, not false repairs, so there was nothing for light to
+  win back. It is kept for typists who want what they type to win.
 
 Not done: real typing at each level, and per-keystroke latency of strong on
 long toneless runs.
 
 Run: `MISSTYPE_REPAIR_SWEEP=1 swift test -c release -Xswiftc -enable-testing
---filter RepairStrengthSweepTests` (~10 min). Tests: `RepairStrengthTests`
-and the `run_repair_strength` scenario in `tests/capi/smoke.c`.
+--filter RepairStrengthSweepTests` (~10 min; `testSpotChecks` alone for the
+reported phrases). Tests: `RepairStrengthTests` and the
+`run_repair_strength` scenario in `tests/capi/smoke.c`.
 
 ## Measures
 

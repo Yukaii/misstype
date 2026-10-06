@@ -59,7 +59,7 @@
 "Commit the keys as typed" = "入力したキーのまま確定";
 "Leave selection; press again to clear" = "選択を終了。もう一度押すとクリア";
 "Fuzzy repair" = "あいまい補正";
-"Recovers from transposed, substituted, missing or extra keys. Gentle suits precise typists: what you type wins unless it makes no sense. Strong suits frequent slips: corrections compete sooner, so exact input is occasionally overridden." = "キーの入れ替わり、打ち間違い、抜け、余分な入力を補正します。弱は正確に打つ人向け：意味をなさない場合を除き、打ったキーが優先されます。強は打ち間違いが多い人向け：補正が早めに働き、正しく打った入力が置き換わることもあります。";
+"Recovers from transposed, substituted, missing or extra keys. Gentle suits precise typists: what you type wins unless it makes no sense. Strong suits frequent slips: a wrong key that still spells a real syllable is also fixed when the fix completes a word. Slower on long input without tones." = "キーの入れ替わり、打ち間違い、抜け、余分な入力を補正します。弱は正確に打つ人向け：意味をなさない場合を除き、打ったキーが優先されます。強は打ち間違いが多い人向け：打ち間違いが別の正しい音節になっていても、補正で語になるなら補正します。声調なしの長い入力では遅くなります。";
 "Off" = "オフ";
 "Gentle" = "弱";
 "Standard" = "標準";

@@ -59,7 +59,7 @@
 "Commit the keys as typed" = "依按鍵原樣送出（注音文）";
 "Leave selection; press again to clear" = "離開選字；再按一次清除";
 "Fuzzy repair" = "模糊修復";
-"Recovers from transposed, substituted, missing or extra keys. Gentle suits precise typists: what you type wins unless it makes no sense. Strong suits frequent slips: corrections compete sooner, so exact input is occasionally overridden." = "可修復按鍵順序顛倒、按錯、漏按或多按。輕微適合打字精準的人：除非打出來的不成詞，否則以你按的鍵為準。積極適合常按錯的人：修正會更早介入，偶爾會蓋過你確實按對的鍵。";
+"Recovers from transposed, substituted, missing or extra keys. Gentle suits precise typists: what you type wins unless it makes no sense. Strong suits frequent slips: a wrong key that still spells a real syllable is also fixed when the fix completes a word. Slower on long input without tones." = "可修復按鍵順序顛倒、按錯、漏按或多按。輕微適合打字精準的人：除非打出來的不成詞，否則以你按的鍵為準。積極適合常按錯的人：按錯但剛好拼成另一個音節時，若修正後能組成詞，也會一併修正。不打聲調的長句會變慢。";
 "Off" = "關閉";
 "Gentle" = "輕微";
 "Standard" = "標準";

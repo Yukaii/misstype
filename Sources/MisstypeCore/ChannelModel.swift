@@ -6,14 +6,17 @@ import Foundation
 ///   substitute/phonetic 5, insert/delete 6) in the lexicon's log units,
 ///   i.e. scales the assumed slip rate by e^-offset;
 /// - `repairsValidReadings` also tries neighbor/transpose/delete repairs on
-///   syllables that already spell a real reading (by default only invalid
-///   syllables are repaired, so a slip onto another real syllable is never
-///   undone except by phonetic confusions).
+///   syllables that already spell a real reading, inside multi-syllable
+///   words only (by default only invalid syllables are repaired, so a slip
+///   onto another real syllable is never undone except by phonetic
+///   confusions).
 /// Measured (`RepairStrengthSweepTests`, 80 sentences, toned, top-1 at a
 /// 0/5/10/15% per-key slip rate): standard 87.5/63.1/37.3/24.8, strong
-/// 86.2/67.1/44.2/31.5 at 2x decode time, light 87.5/61.7/34.8/23.5. The
-/// offset alone moves little: the gate is the lever. Tone tolerance and
-/// learned `ChannelModel` pairs are separate and unaffected.
+/// 86.2/65.8/42.5/29.2 at 2x decode time, light 87.5/61.7/34.8/23.5. None
+/// changes any of 1000 frequent chars or words typed exactly. A cheaper
+/// offset is not used: at -1 phonetic confusions overrode exact single
+/// chars (屋→一, 呢→了). Tone tolerance and learned `ChannelModel` pairs are
+/// separate and unaffected.
 public enum RepairStrength: String, CaseIterable, Codable, Sendable {
     /// No edit repair (fuzzy off): exact and toneless readings only.
     case off
@@ -21,15 +24,14 @@ public enum RepairStrength: String, CaseIterable, Codable, Sendable {
     /// reading at all or the language evidence is overwhelming.
     case light
     case standard
-    /// Repairs are cheaper and also undo slips onto another real syllable.
+    /// Also undoes slips onto another real syllable inside a word.
     case strong
 
     /// Added to generic repair costs.
     public var costOffset: Double {
         switch self {
-        case .off, .standard: return 0
+        case .off, .standard, .strong: return 0
         case .light: return 2
-        case .strong: return -1
         }
     }
 
