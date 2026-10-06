@@ -83,6 +83,14 @@ public func misstype_wasm_init(
     return 1
 }
 
+@_cdecl("misstype_wasm_load_english")
+public func misstype_wasm_load_english(_ tsvPtr: UnsafePointer<UInt8>, _ tsvLen: Int) -> Int32 {
+    guard let engine = globalEngine else { return 0 }
+    let tsv = String(decoding: UnsafeBufferPointer(start: tsvPtr, count: tsvLen), as: UTF8.self)
+    engine.englishLexicon = EnglishLexicon(tsv: tsv)
+    return 1
+}
+
 private func parseKeyCode(_ code: String, keyText: String) -> KeyEvent.Key {
     switch code {
     case "Space": return .space

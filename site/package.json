@@ -6,7 +6,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "build:wasm": "docker run --rm -v $(pwd)/..:/src -w /src misstype-wasm-dev swift build --product MisstypeWasm --swift-sdk wasm32-unknown-wasi -c release -Xlinker --export=misstype_wasm_alloc -Xlinker --export=misstype_wasm_free -Xlinker --export=misstype_wasm_init -Xlinker --export=misstype_wasm_handle_key -Xlinker --export=misstype_wasm_pick_candidate -Xlinker --export=misstype_wasm_commit -Xlinker --export=misstype_wasm_reset -Xlinker --export=misstype_wasm_clear_committed -Xlinker --export=misstype_wasm_set_setting -Xlinker --export=misstype_wasm_get_state_json -Xlinker --strip-all && cp ../.build/wasm32-unknown-wasi/release/MisstypeWasm.wasm public/misstype.wasm",
+    "build:wasm": "docker run --rm -v $(pwd)/..:/src -w /src misstype-wasm-dev swift build --product MisstypeWasm --swift-sdk wasm32-unknown-wasi -c release -Xlinker --export=misstype_wasm_alloc -Xlinker --export=misstype_wasm_free -Xlinker --export=misstype_wasm_init -Xlinker --export=misstype_wasm_handle_key -Xlinker --export=misstype_wasm_pick_candidate -Xlinker --export=misstype_wasm_commit -Xlinker --export=misstype_wasm_load_english -Xlinker --export=misstype_wasm_toggle_english -Xlinker --export=misstype_wasm_set_english -Xlinker --export=misstype_wasm_reset -Xlinker --export=misstype_wasm_clear_committed -Xlinker --export=misstype_wasm_set_setting -Xlinker --export=misstype_wasm_get_state_json -Xlinker --strip-all && cp ../.build/wasm32-unknown-wasi/release/MisstypeWasm.wasm public/misstype.wasm",
     "test:wasm": "node ../tests/wasm_test.mjs"
   },
   "devDependencies": {

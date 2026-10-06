@@ -8,9 +8,10 @@
   cursor: text;
 }
 .pg-box:focus { border-color: var(--ink); }
-.pg-placeholder { color: var(--muted); user-select: none; pointer-events: none; }
-.pg-box .caret + .pg-placeholder { margin-left: 4px; }
-.pg-seg { border-bottom: 2px solid var(--ink); padding-bottom: 2px; }
+.pg-box:empty::before { content: attr(data-placeholder); color: var(--muted); pointer-events: none; }
+.pg-box { caret-color: var(--ink); }
+.pg-preedit { user-select: none; }
+.pg-seg { border-bottom: 2px solid var(--ink); padding-bottom: 1px; }
 .pg-seg.focused { border-bottom-color: var(--mark); }
 
 .pg-bar {

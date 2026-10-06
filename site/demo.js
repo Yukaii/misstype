@@ -45,6 +45,7 @@
         wasmUrl: assets + "misstype.wasm",
         lexiconUrl: assets + "lexicon.tsv",
         tonelessUrl: assets + "toneless.tsv",
+        englishUrl: assets + "english.tsv",
         onReady: function () {
           stopped = true;
           field.hidden = caption.hidden = hint.hidden = true;

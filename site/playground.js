@@ -10,6 +10,7 @@ export class MisstypePlayground {
     this.wasmUrl = options.wasmUrl || "misstype.wasm";
     this.lexiconUrl = options.lexiconUrl || "lexicon.tsv";
     this.tonelessUrl = options.tonelessUrl || "toneless.tsv";
+    this.englishUrl = options.englishUrl || "english.tsv";
     this.onStateChange = options.onStateChange || null;
     this.onReady = options.onReady;
     this.onError = options.onError;
@@ -21,7 +22,6 @@ export class MisstypePlayground {
 
     this.ready = false;
     this.state = null;
-    this.committedText = "";
     this.candidateOrientation = options.candidateOrientation || "vertical"; // 'vertical' | 'horizontal'
 
     this.setupDOM();
@@ -102,6 +102,21 @@ export class MisstypePlayground {
         throw new Error("初始化失敗");
       }
 
+      // Optional: word list for mixed Chinese/English typing. An older wasm
+      // without the export, or a missing file, just leaves that pass off.
+      if (this.exports.misstype_wasm_load_english) {
+        try {
+          const englishResponse = await fetch(this.englishUrl);
+          if (englishResponse.ok) {
+            const englishBuf = this.writeString(await englishResponse.text());
+            this.exports.misstype_wasm_load_english(englishBuf.ptr, englishBuf.len);
+            this.exports.misstype_wasm_free(englishBuf.ptr);
+          }
+        } catch (err) {
+          console.warn("english word list unavailable", err);
+        }
+      }
+
       this.ready = true;
       this.hideLoading();
       this.updateState();
@@ -116,7 +131,7 @@ export class MisstypePlayground {
   updateState() {
     this.state = this.getState();
     if (this.state && this.state.lastCommit) {
-      this.committedText += this.state.lastCommit;
+      this.insertCommitted(this.state.lastCommit);
       this.exports.misstype_wasm_clear_committed();
     }
   }
@@ -157,7 +172,8 @@ export class MisstypePlayground {
 
   clear() {
     if (!this.ready) return;
-    this.committedText = "";
+    this.boxEl.textContent = "";
+    this.preeditEl = null;
     this.exports.misstype_wasm_reset();
     this.updateState();
     this.render();
@@ -168,7 +184,7 @@ export class MisstypePlayground {
     if (!this.container) return;
     this.container.innerHTML = `
       <div class="pg">
-        <div class="field pg-box" tabindex="0" id="pg-box" role="textbox" aria-multiline="true" aria-label="隨打注音試打區"><span id="pg-committed"></span><span id="pg-preedit"></span><span class="caret" id="pg-caret"></span><span class="pg-placeholder" id="pg-placeholder"></span></div>
+        <div class="field pg-box" id="pg-box" role="textbox" aria-multiline="true" aria-label="隨打注音試打區" spellcheck="false"></div>
 
         <div class="candidate-panel ${this.candidateOrientation}" id="pg-cand-panel" style="display: none;">
           <div class="candidate-list" id="pg-cand-list"></div>
@@ -194,10 +210,9 @@ export class MisstypePlayground {
 
     const q = (id) => this.container.querySelector(id);
     this.boxEl = q("#pg-box");
-    this.committedEl = q("#pg-committed");
-    this.preeditEl = q("#pg-preedit");
-    this.caretEl = q("#pg-caret");
-    this.placeholderEl = q("#pg-placeholder");
+    this.preeditEl = null;
+    this.boxEl.contentEditable = "plaintext-only";
+    if (this.boxEl.contentEditable !== "plaintext-only") this.boxEl.contentEditable = "true";
     this.candidatePanel = q("#pg-cand-panel");
     this.candidateList = q("#pg-cand-list");
     this.candidatePageEl = q("#pg-cand-page");
@@ -208,26 +223,74 @@ export class MisstypePlayground {
   }
 
   showLoading(text) {
-    this.placeholderEl.textContent = text;
+    this.boxEl.dataset.placeholder = text;
   }
 
   hideLoading() {
-    this.placeholderEl.textContent = "打字試試，例如 sucl";
+    this.boxEl.dataset.placeholder = "打字試試，例如 sucl";
+  }
+
+  // Committed text goes into the real editable at the composition spot (or the
+  // caret), so selection, caret movement, paste and undo stay native.
+  insertCommitted(text) {
+    if (this.preeditEl && this.preeditEl.isConnected) {
+      this.preeditEl.before(document.createTextNode(text));
+    } else {
+      this.boxEl.focus();
+      document.execCommand("insertText", false, text);
+    }
+  }
+
+  // Compose in place: the preedit is an inline, non-editable span at the caret.
+  syncPreeditNode(has) {
+    const sel = window.getSelection();
+    if (has && !(this.preeditEl && this.preeditEl.isConnected)) {
+      const span = document.createElement("span");
+      span.className = "pg-preedit";
+      span.contentEditable = "false";
+      const range = sel.rangeCount && this.boxEl.contains(sel.anchorNode)
+        ? sel.getRangeAt(0)
+        : (() => { const r = document.createRange(); r.selectNodeContents(this.boxEl); r.collapse(false); return r; })();
+      range.deleteContents();
+      range.insertNode(span);
+      this.preeditEl = span;
+    } else if (!has && this.preeditEl) {
+      const parent = this.preeditEl.parentNode;
+      if (parent) {
+        const at = Array.prototype.indexOf.call(parent.childNodes, this.preeditEl);
+        this.preeditEl.remove();
+        sel.collapse(parent, at);
+      }
+      this.preeditEl = null;
+    }
+    if (has) sel.collapse(this.preeditEl.parentNode, Array.prototype.indexOf.call(this.preeditEl.parentNode.childNodes, this.preeditEl) + 1);
+  }
+
+  // Moving the caret elsewhere ends the composition where it is.
+  commitPending() {
+    if (!this.ready || !this.state?.preedit) return;
+    if (this.exports.misstype_wasm_commit() !== 0) {
+      this.updateState();
+      this.render();
+    }
   }
 
   bindEvents() {
     if (!this.boxEl) return;
 
-    // Focus handler
-    this.boxEl.addEventListener("click", () => {
-      this.boxEl.focus();
+    // Panel and buttons must not steal focus, or the blur would end the composition.
+    this.container.querySelectorAll(".candidate-panel, .pg-bar").forEach((el) => {
+      el.addEventListener("mousedown", (e) => e.preventDefault());
     });
+    this.boxEl.addEventListener("pointerdown", () => this.commitPending());
+    this.boxEl.addEventListener("blur", () => this.commitPending());
 
     let shiftDownTime = 0;
     let shiftInterrupted = false;
 
     // Keydown handler
     this.boxEl.addEventListener("keydown", (e) => {
+      if (e.isComposing || e.keyCode === 229) return;
       if (e.code === "ShiftLeft" || e.code === "ShiftRight") {
         shiftDownTime = performance.now();
         shiftInterrupted = false;
@@ -247,30 +310,9 @@ export class MisstypePlayground {
         return;
       }
 
-      const consumed = this.sendKey(e.code, e.key, modifiers, 0);
-      if (consumed) {
-        e.preventDefault();
-      } else {
-        // When unconsumed (e.g. in English mode or pass-through keys):
-        // Simulate text typing into the committed buffer
-        if (!e.ctrlKey && !e.metaKey && !e.altKey) {
-          if (e.key.length === 1) {
-            this.committedText += e.key;
-            this.render();
-            e.preventDefault();
-          } else if (e.key === "Backspace") {
-            if (this.committedText.length > 0) {
-              this.committedText = this.committedText.slice(0, -1);
-              this.render();
-            }
-            e.preventDefault();
-          } else if (e.key === "Enter") {
-            this.committedText += "\n";
-            this.render();
-            e.preventDefault();
-          }
-        }
-      }
+      // Keys the decoder leaves alone (English mode, arrows, Enter with no
+      // composition) fall through to the browser's own editing.
+      if (this.sendKey(e.code, e.key, modifiers, 0)) e.preventDefault();
     });
 
     // Keyup handler (for Shift tap detection)
@@ -330,20 +372,10 @@ export class MisstypePlayground {
   render() {
     if (!this.state) return;
 
-    // Committed text
-    this.committedEl.textContent = this.committedText;
-
-    // Preedit rendering with caret positioning
     const preedit = this.state.preedit || "";
-
-    if (this.committedText.length > 0 || preedit.length > 0) {
-      this.placeholderEl.style.display = "none";
-    } else {
-      this.placeholderEl.style.display = "inline";
-    }
+    this.syncPreeditNode(preedit.length > 0);
 
     if (preedit.length > 0) {
-      // Render segments with guaranteed underline
       const segments = (this.state.segments && this.state.segments.length > 0)
         ? this.state.segments
         : [[0, preedit.length]];
@@ -356,8 +388,6 @@ export class MisstypePlayground {
         segHtml += `<span class="pg-seg ${isFocused ? "focused" : ""}">${escapeHtml(text)}</span>`;
       }
       this.preeditEl.innerHTML = segHtml;
-    } else {
-      this.preeditEl.innerHTML = "";
     }
 
     // Candidate window rendering
@@ -415,20 +445,13 @@ export class MisstypePlayground {
   }
 
   positionCandidatePanel() {
-    if (!this.caretEl || !this.candidatePanel || !this.boxEl) return;
-    const cardEl = this.boxEl.closest(".pg") || this.boxEl;
-    const caretRect = this.caretEl.getBoundingClientRect();
-    const cardRect = cardEl.getBoundingClientRect();
-
-    const left = caretRect.left - cardRect.left;
-    const top = caretRect.bottom - cardRect.top + 6;
-
+    if (!this.preeditEl || !this.candidatePanel) return;
+    const card = this.container.querySelector(".pg").getBoundingClientRect();
+    const rect = this.preeditEl.getClientRects()[0] || this.preeditEl.getBoundingClientRect();
     const panelWidth = this.candidatePanel.offsetWidth || 200;
-    const maxLeft = Math.max(12, cardRect.width - panelWidth - 16);
-    const clampedLeft = Math.min(Math.max(12, left), maxLeft);
-
-    this.candidatePanel.style.left = `${clampedLeft}px`;
-    this.candidatePanel.style.top = `${top}px`;
+    const left = Math.min(Math.max(12, rect.left - card.left), Math.max(12, card.width - panelWidth - 16));
+    this.candidatePanel.style.left = `${left}px`;
+    this.candidatePanel.style.top = `${rect.bottom - card.top + 6}px`;
   }
 }
 
