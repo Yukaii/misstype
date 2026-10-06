@@ -42,6 +42,7 @@ enum MisstypePrefs {
             "MisstypeCandidateGrid": false,
             "MisstypePopupCompositionForElectron": false,
             "MisstypePopupCompositionClients": [String](),
+            "MisstypeNativeCompositionClients": [String](),
         ])
     }
 
@@ -98,9 +99,15 @@ enum MisstypePrefs {
         UserDefaults.standard.bool(forKey: "MisstypePopupCompositionDisabled")
     }
 
-    /// Extra bundle IDs that always use the floating composition window.
+    /// Bundle IDs forced onto the floating composition window / forced to
+    /// native marked text (the menu item writes these; native wins).
     static var popupCompositionClients: Set<String> {
-        Set(UserDefaults.standard.stringArray(forKey: "MisstypePopupCompositionClients") ?? [])
+        get { Set(UserDefaults.standard.stringArray(forKey: "MisstypePopupCompositionClients") ?? []) }
+        set { UserDefaults.standard.set(newValue.sorted(), forKey: "MisstypePopupCompositionClients") }
+    }
+    static var nativeCompositionClients: Set<String> {
+        get { Set(UserDefaults.standard.stringArray(forKey: "MisstypeNativeCompositionClients") ?? []) }
+        set { UserDefaults.standard.set(newValue.sorted(), forKey: "MisstypeNativeCompositionClients") }
     }
 
     static var shiftToggle: Bool {

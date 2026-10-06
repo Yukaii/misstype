@@ -11,14 +11,29 @@ enum ClientMitigation {
     /// Apps known to mishandle marked text that are not Electron.
     static let builtinIncapable: Set<String> = [
         "com.valvesoftware.steam", "jp.naver.line.mac", "org.alacritty", "com.github.wez.wezterm",
-        // Electron terminal (xterm.js): marked text is never drawn there.
-        "com.t3tools.t3code",
     ]
+
+    /// The menu toggle: flip this app between the popup and native marked
+    /// text, whatever the rules currently say.
+    static func togglePopup(bundleID: String) {
+        var popup = MisstypePrefs.popupCompositionClients
+        var native = MisstypePrefs.nativeCompositionClients
+        if needsPopup(bundleID: bundleID) {
+            popup.remove(bundleID)
+            native.insert(bundleID)
+        } else {
+            native.remove(bundleID)
+            popup.insert(bundleID)
+        }
+        MisstypePrefs.popupCompositionClients = popup
+        MisstypePrefs.nativeCompositionClients = native
+    }
 
     private static var cache: [String: Bool] = [:]
 
     static func needsPopup(bundleID: String?) -> Bool {
         guard let bundleID, !bundleID.isEmpty, !MisstypePrefs.popupCompositionDisabled else { return false }
+        if MisstypePrefs.nativeCompositionClients.contains(bundleID) { return false }
         if builtinIncapable.contains(bundleID) || MisstypePrefs.popupCompositionClients.contains(bundleID) {
             return true
         }

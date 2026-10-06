@@ -110,6 +110,7 @@
 "English mode" = "英文模式";
 "Chinese mode" = "中文模式";
 "Settings…" = "設定…";
+"Floating composition in this app" = "在此 App 用浮動組字窗";
 "My Dictionary" = "我的詞庫";
 "Mark text while typing with Shift+← / → and press Return to add it here. Press Return on the same mark again to remove it." = "打字時用 Shift+← / → 標記文字，按 Return 即可加入此處；對同一段標記再按一次 Return 則移除。";
 "Words" = "詞語";

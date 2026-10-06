@@ -333,11 +333,29 @@ final class MisstypeInputController: IMKInputController, InputSessionHost {
         mode.state = .on
         mode.isEnabled = false
         menu.addItem(mode)
+        // Per-app fallback for clients that draw no marked text (terminals in
+        // Electron): the signal cannot be detected, so the user decides.
+        if let id = lastClient?.bundleIdentifier(), !id.isEmpty {
+            let popup = NSMenuItem(title: L("Floating composition in this app"),
+                                   action: #selector(togglePopupComposition(_:)), keyEquivalent: "")
+            popup.target = self
+            popup.isEnabled = true
+            popup.state = ClientMitigation.needsPopup(bundleID: id) ? .on : .off
+            menu.addItem(popup)
+        }
         let prefs = NSMenuItem(title: L("Settings…"), action: #selector(openPreferences(_:)), keyEquivalent: "")
         prefs.target = nil
         prefs.isEnabled = true
         menu.addItem(prefs)
         return menu
+    }
+
+    @objc func togglePopupComposition(_ sender: Any?) {
+        guard let client = lastClient, let id = client.bundleIdentifier(), !id.isEmpty else { return }
+        ClientMitigation.togglePopup(bundleID: id)
+        // Redraw under the new mode: end the composition so no stale marked
+        // text stays in a client that will not show it (or the popup stays).
+        commitComposition(client)
     }
 
     @objc func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
