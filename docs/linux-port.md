@@ -222,6 +222,11 @@ minus space) is in `EvdevKeyCode.labels.values`;
     `misstype_engine_clear_channel`, `misstype_engine_channel_pair_count`.
     The fcitx5 addon sets the default path and enables learning only when
     `MISSTYPE_CHANNEL_LEARNING=1` (there is no config page yet).
+  - Repair strength (appended 2026-10-06, settings struct unchanged):
+    `misstype_engine_set_repair_strength` (0 off, 1 light, 2 standard =
+    default, 3 strong; out of range ignored; kept across
+    `misstype_engine_set_settings` while `fuzzy_repair` is 1). The fcitx5
+    addon reads `MISSTYPE_REPAIR_STRENGTH=off|light|standard|strong`.
   - `user_lexicon_path`: `NULL` → `UserLexicon.load()` with
     `userLexiconURL = UserLexicon.defaultURL`; `""` → empty lexicon, no URL
     (never touches disk); otherwise load/save at that path.

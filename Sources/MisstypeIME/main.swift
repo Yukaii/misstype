@@ -472,6 +472,8 @@ if let decodeIndex = CommandLine.arguments.firstIndex(of: "--decode"),
     // which this early-exit path never reaches — every --decode number ever
     // measured ran the no-fuzzy, no-tolerance baseline instead.
     MisstypePrefs.register()
+    Runtime.decoder.repairCostOffset = MisstypePrefs.repairStrength.costOffset
+    Runtime.decoder.repairValidReadings = MisstypePrefs.repairStrength.repairsValidReadings
     func compose<S: Sequence>(_ keys: S) -> Composition where S.Element == Character {
     var composition = Composition()
     var latin = false

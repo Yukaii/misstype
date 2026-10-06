@@ -629,16 +629,23 @@ private final class ChordRecorder: ObservableObject {
 // MARK: - Decoding
 
 private struct DecodingPane: View {
-    @AppStorage("MisstypeFuzzyRepair") private var fuzzy = true
+    @AppStorage("MisstypeRepairStrength") private var strength = RepairStrength.standard.rawValue
     @AppStorage("MisstypeToneTolerance") private var tone = true
 
     var body: some View {
         Form {
             Section {
-                DescribedToggle(
-                    title: L("Fuzzy repair"),
-                    detail: L("Recovers from transposed, substituted, missing or extra keys."),
-                    isOn: $fuzzy)
+                Picker(L("Fuzzy repair"), selection: $strength) {
+                    Text(L("Off")).tag(RepairStrength.off.rawValue)
+                    Text(L("Gentle")).tag(RepairStrength.light.rawValue)
+                    Text(L("Standard")).tag(RepairStrength.standard.rawValue)
+                    Text(L("Strong")).tag(RepairStrength.strong.rawValue)
+                }
+                .listRowSeparator(.hidden, edges: .bottom)
+                Text(L("Recovers from transposed, substituted, missing or extra keys. Gentle suits precise typists: what you type wins unless it makes no sense. Strong suits frequent slips: corrections compete sooner, so exact input is occasionally overridden."))
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .listRowSeparator(.hidden, edges: .top)
                 DescribedToggle(
                     title: L("Tone tolerance"),
                     detail: L("A wrong tone stays viable with a ranking penalty. Off: tones you type must match exactly; toneless input still works."),

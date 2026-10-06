@@ -802,6 +802,8 @@ public final class InputSession {
         // intent observable per repo policy without leaking key or text.
         engine.logJevGate(settings.jev)
         engine.decoder.channel = engine.activeChannel(settings)
+        engine.decoder.repairCostOffset = settings.repairStrength.costOffset
+        engine.decoder.repairValidReadings = settings.repairStrength.repairsValidReadings
         noteRetype()
         // Live conversion (RIME-style continuous typing): the pending run
         // converts as it is typed, except the syllable still in progress,

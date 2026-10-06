@@ -59,7 +59,11 @@
 "Commit the keys as typed" = "入力したキーのまま確定";
 "Leave selection; press again to clear" = "選択を終了。もう一度押すとクリア";
 "Fuzzy repair" = "あいまい補正";
-"Recovers from transposed, substituted, missing or extra keys." = "キーの入れ替わり、打ち間違い、抜け、余分な入力を補正します。";
+"Recovers from transposed, substituted, missing or extra keys. Gentle suits precise typists: what you type wins unless it makes no sense. Strong suits frequent slips: corrections compete sooner, so exact input is occasionally overridden." = "キーの入れ替わり、打ち間違い、抜け、余分な入力を補正します。弱は正確に打つ人向け：意味をなさない場合を除き、打ったキーが優先されます。強は打ち間違いが多い人向け：補正が早めに働き、正しく打った入力が置き換わることもあります。";
+"Off" = "オフ";
+"Gentle" = "弱";
+"Standard" = "標準";
+"Strong" = "強";
 "Tone tolerance" = "声調の許容";
 "A wrong tone stays viable with a ranking penalty. Off: tones you type must match exactly; toneless input still works." = "声調が違っても順位を下げた上で候補に残します。オフにすると入力した声調は完全一致が必要です（声調なしの入力は引き続き使えます）。";
 "Changes apply on the next keystroke. Decoding always runs offline." = "変更は次のキー入力から反映されます。変換は常にオフラインで行われます。";

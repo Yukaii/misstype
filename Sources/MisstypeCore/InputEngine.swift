@@ -4,7 +4,10 @@ import Foundation
 /// their own store (macOS: UserDefaults) — live, per event, never cached, so
 /// a preference flip applies on the next keystroke.
 public struct SessionSettings: Equatable, Sendable {
-    public var fuzzyRepair: Bool
+    /// How readily keyboard slips are repaired (`.off` = exact and toneless
+    /// readings only).
+    public var repairStrength: RepairStrength
+    public var fuzzyRepair: Bool { repairStrength != .off }
     public var toneTolerance: Bool
     /// Selection keys (sanitized; see `SelectionKeys.sanitize`).
     public var candidateKeys: String
@@ -47,7 +50,7 @@ public struct SessionSettings: Equatable, Sendable {
     /// Off by default until measured on real typing.
     public var channelLearning: Bool
 
-    public init(fuzzyRepair: Bool = true, toneTolerance: Bool = true,
+    public init(repairStrength: RepairStrength = .standard, toneTolerance: Bool = true,
                 candidateKeys: String = SelectionKeys.defaultKeys, userLearning: Bool = true,
                 shiftToggle: Bool = true, jev: JevConfig = JevConfig(),
                 autoCommitSyllables: Int = 24, autoShowCandidates: Bool = true,
@@ -60,7 +63,7 @@ public struct SessionSettings: Equatable, Sendable {
         self.channelLearning = channelLearning
         self.pageSizeValue = SelectionKeys.clampPageSize(pageSize)
         self.keyBindings = keyBindings
-        self.fuzzyRepair = fuzzyRepair
+        self.repairStrength = repairStrength
         self.toneTolerance = toneTolerance
         self.candidateKeys = candidateKeys
         self.userLearning = userLearning

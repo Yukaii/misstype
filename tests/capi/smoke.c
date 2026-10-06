@@ -497,6 +497,34 @@ void run_channel(const char *res) {
     misstype_engine_free(eng);
 }
 
+/* Repair strength: off leaves bare ㄋˇ unrepaired, light still rescues it
+ * (no clean reading, so any level competes); out-of-range levels are
+ * ignored. */
+static char *type_s3(misstype_session *s) {
+    misstype_string_free(send(s, MISSTYPE_KEY_CHARACTER, "s", 0).commit);
+    misstype_string_free(send(s, MISSTYPE_KEY_CHARACTER, "3", 0).commit);
+    return send(s, MISSTYPE_KEY_ENTER, NULL, 0).commit;
+}
+
+void run_repair_strength(const char *res) {
+    misstype_engine *eng = misstype_engine_new(res, "");
+    misstype_session *s = misstype_session_new(eng);
+    misstype_engine_set_repair_strength(eng, 0);
+    char *off = type_s3(s);
+    ASSERT(!off || strcmp(off, "你") != 0, "repair off: s3 stays raw");
+    misstype_engine_set_repair_strength(eng, 1);
+    misstype_settings st = misstype_settings_default();
+    misstype_engine_set_settings(eng, &st);
+    misstype_engine_set_repair_strength(eng, 9); /* ignored */
+    char *light = type_s3(s);
+    ASSERT(light && strcmp(light, "你") == 0, "repair light: s3 -> 你");
+    printf("repair_strength off=%s light=%s\n", off ? off : "(null)", light);
+    misstype_string_free(off);
+    misstype_string_free(light);
+    misstype_session_free(s);
+    misstype_engine_free(eng);
+}
+
 int main(int argc, char **argv) {
     if (argc < 2) {
         fprintf(stderr, "usage: %s <resource_dir> [keys]\n", argv[0]);
@@ -518,6 +546,7 @@ int main(int argc, char **argv) {
         run_c13(res);
         run_settings(res);
         run_channel(res);
+        run_repair_strength(res);
         test_keymap();
         printf("DONE\n");
         return 0;

@@ -268,13 +268,24 @@ public func misstype_engine_set_settings(
     guard let engine = engine, let settings = settings else { return }
     let handle = getEngine(engine)
     handle?.settings.value = SessionSettings(
-        fuzzyRepair: settings.pointee.fuzzy_repair != 0,
+        repairStrength: settings.pointee.fuzzy_repair == 0 ? .off
+            : handle.map { $0.settings.value.fuzzyRepair ? $0.settings.value.repairStrength : .standard } ?? .standard,
         toneTolerance: settings.pointee.tone_tolerance != 0,
         candidateKeys: settings.pointee.candidate_keys.map { String(cString: $0) } ?? "asdfghjkl;",
         userLearning: settings.pointee.user_learning != 0,
         shiftToggle: settings.pointee.shift_toggle != 0,
         channelLearning: handle?.settings.value.channelLearning ?? false
     )
+}
+
+/// 0 off, 1 light, 2 standard, 3 strong (`RepairStrength`); out of range
+/// is ignored. Kept across `misstype_engine_set_settings` unless that turns
+/// `fuzzy_repair` off.
+@_cdecl("misstype_engine_set_repair_strength")
+public func misstype_engine_set_repair_strength(_ engine: OpaquePointer?, _ level: Int32) {
+    guard let engine = engine, let handle = getEngine(engine),
+          RepairStrength.allCases.indices.contains(Int(level)) else { return }
+    handle.settings.value.repairStrength = RepairStrength.allCases[Int(level)]
 }
 
 @_cdecl("misstype_engine_set_channel_path")
