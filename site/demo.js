@@ -14,7 +14,6 @@
   if (!demo || !field || !caption) return;
 
   var stopped = false;
-  var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   if (items.length) animate();
   if (hint && typeof WebAssembly === "object") {
@@ -103,7 +102,7 @@
     var index = 0;
 
     function show(html) { if (!stopped) field.innerHTML = html + caret; }
-    function wait(ms) { return new Promise(function (r) { setTimeout(r, reduced ? Math.min(ms, 45) : ms); }); }
+    function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
     async function play(ex) {
       caption.innerHTML = "<span>" + ex.what + "</span><span>" + ex.typed + "</span>";
