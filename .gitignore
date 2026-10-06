@@ -9,6 +9,8 @@ build/
 .build/
 .cache/
 .swiftpm/
+# Site demo assets are generated from the pinned lexicon and WASM build.
+site/public/
 # Local secrets (API keys for opt-in tools-only experiments). Never commit.
 .env
 .env.local
