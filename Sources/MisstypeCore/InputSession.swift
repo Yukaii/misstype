@@ -215,11 +215,14 @@ public final class InputSession {
 
     public var view: SessionView {
         if let menu = symbolMenu {
+            let total = previewText.utf16.count
+            let segs: [Range<Int>] = total > 0 ? [0..<total] : []
             return SessionView(
                 preedit: previewText, caret: caretOffset, candidates: menu.choices, selected: menu.selected,
                 selectionKeys: SelectionKeys.labels(keys: settings.candidateKeys, pageSize: settings.pageSize),
                 keysActive: menu.selecting,
-                showsCandidates: menu.selecting || settings.autoShowCandidates, pageSize: settings.pageSize)
+                showsCandidates: menu.selecting || settings.autoShowCandidates, pageSize: settings.pageSize,
+                segments: segs, focus: total > 0 ? (0..<total) : nil)
         }
         if let marked = markView() {
             return SessionView(

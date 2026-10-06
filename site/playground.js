@@ -182,16 +182,16 @@ export class MisstypePlayground {
           <span class="playground-placeholder" id="pg-placeholder">點這裡開始試打...（例：輸入 su3cl3 打「你好」，或 sucl 免聲調打「你好」）</span>
         </div>
 
-        <div class="playground-candidate-panel ${this.candidateOrientation}" id="pg-cand-panel" style="display: none;">
-          <div class="candidate-header">
-            <span class="cand-title">候選字</span>
-            <div class="cand-pagination">
-              <button class="cand-page-btn" id="pg-cand-prev" title="上一頁 (PageUp)">‹</button>
+        <div class="candidate-panel ${this.candidateOrientation}" id="pg-cand-panel" style="display: none;">
+          <div class="candidate-list" id="pg-cand-list"></div>
+          <div class="candidate-footer">
+            <span class="candidate-title">候選字</span>
+            <div class="candidate-page-nav">
+              <button class="candidate-nav-btn" id="pg-cand-prev" title="上一頁 (PageUp)">‹</button>
               <span id="pg-cand-page">1/1</span>
-              <button class="cand-page-btn" id="pg-cand-next" title="下一頁 (PageDown)">›</button>
+              <button class="candidate-nav-btn" id="pg-cand-next" title="下一頁 (PageDown)">›</button>
             </div>
           </div>
-          <div class="candidate-list" id="pg-cand-list"></div>
         </div>
 
         <div class="playground-footer">
@@ -400,7 +400,6 @@ export class MisstypePlayground {
 
     // Preedit rendering with caret positioning
     const preedit = this.state.preedit || "";
-    const caretPos = this.state.caret;
 
     if (this.committedText.length > 0 || preedit.length > 0) {
       this.placeholderEl.style.display = "none";
@@ -409,28 +408,26 @@ export class MisstypePlayground {
     }
 
     if (preedit.length > 0) {
-      // Render segments
-      const segments = this.state.segments || [];
-      const focus = this.state.focus;
+      // Render segments with guaranteed underline
+      const segments = (this.state.segments && this.state.segments.length > 0)
+        ? this.state.segments
+        : [[0, preedit.length]];
+      const focus = this.state.focus || [0, preedit.length];
 
-      if (segments.length > 0) {
-        let segHtml = "";
-        for (const [start, end] of segments) {
-          const text = preedit.substring(start, end);
-          const isFocused = focus && start === focus[0] && end === focus[1];
-          segHtml += `<span class="text-segment ${isFocused ? "focused" : ""}">${escapeHtml(text)}</span>`;
-        }
-        this.preeditEl.innerHTML = segHtml;
-      } else {
-        this.preeditEl.textContent = preedit;
+      let segHtml = "";
+      for (const [start, end] of segments) {
+        const text = preedit.substring(start, end);
+        const isFocused = focus && start === focus[0] && end === focus[1];
+        segHtml += `<span class="text-segment ${isFocused ? "focused" : ""}">${escapeHtml(text)}</span>`;
       }
+      this.preeditEl.innerHTML = segHtml;
     } else {
       this.preeditEl.innerHTML = "";
     }
 
     // Candidate window rendering
     if (this.state.showsCandidates && this.state.candidates.length > 0) {
-      this.candidatePanel.style.display = "flex";
+      this.candidatePanel.style.display = "block";
       this.candidatePageEl.textContent = `${this.state.page + 1}/${this.state.pageCount}`;
 
       const pageCandidates = this.state.pageCandidates || [];
@@ -443,8 +440,8 @@ export class MisstypePlayground {
         const keyLabel = selectionKeys[idx] ? selectionKeys[idx].toUpperCase() : `${idx + 1}`;
         html += `
           <div class="candidate-item ${isSelected ? "selected" : ""}" data-index="${this.state.page * this.state.pageSize + idx}">
-            <span class="cand-key">${keyLabel}</span>
-            <span class="cand-text">${escapeHtml(cand)}</span>
+            <span class="candidate-text">${escapeHtml(cand)}</span>
+            <span class="candidate-key">${keyLabel}</span>
           </div>
         `;
       });
@@ -483,14 +480,19 @@ export class MisstypePlayground {
   }
 
   positionCandidatePanel() {
-    if (!this.caretEl || !this.candidatePanel) return;
+    if (!this.caretEl || !this.candidatePanel || !this.boxEl) return;
+    const cardEl = this.boxEl.closest(".playground-card") || this.boxEl;
     const caretRect = this.caretEl.getBoundingClientRect();
-    const boxRect = this.boxEl.getBoundingClientRect();
+    const cardRect = cardEl.getBoundingClientRect();
 
-    const left = caretRect.left - boxRect.left;
-    const top = caretRect.bottom - boxRect.top + 8;
+    const left = caretRect.left - cardRect.left;
+    const top = caretRect.bottom - cardRect.top + 6;
 
-    this.candidatePanel.style.left = `${Math.max(0, left)}px`;
+    const panelWidth = this.candidatePanel.offsetWidth || 200;
+    const maxLeft = Math.max(12, cardRect.width - panelWidth - 16);
+    const clampedLeft = Math.min(Math.max(12, left), maxLeft);
+
+    this.candidatePanel.style.left = `${clampedLeft}px`;
     this.candidatePanel.style.top = `${top}px`;
   }
 }
