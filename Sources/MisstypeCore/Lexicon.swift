@@ -87,6 +87,8 @@ public final class LexiconDecoder {
     public private(set) var entryCount = 0
     /// Optional homophone bigram overlay (nil = byte-identical decode).
     public var contextBigrams: ContextBigrams?
+    /// Optional per-user substitution costs (nil = byte-identical decode).
+    public var channel: ChannelModel?
     /// Cost per dictionary word on a path (0 = off). McBopomofo single-char
     /// scores count bound morphemes, so splitting a word into chars is
     /// over-rewarded; a per-token cost rebalances word vs chars.
@@ -189,11 +191,20 @@ public final class LexiconDecoder {
         // Phonetic confusions ride along always: 1–2 options per key, so
         // they cost almost nothing and catch real ㄧㄨㄩ / 捲平舌 slips that
         // land on another valid reading (業-for-越).
+        // A learned personal pair (ChannelModel) replaces the generic cost
+        // for that pair only and rides along the same way.
         for index in base.indices {
-            for replacement in ZhuyinKeyboard.phoneticConfusions[base[index]] ?? [] {
+            let personal = channel?.substitutes(for: base[index]) ?? [:]
+            for replacement in ZhuyinKeyboard.phoneticConfusions[base[index]] ?? []
+            where personal[replacement] == nil {
                 var keys = base
                 keys[index] = replacement
                 consider(keys: keys, cost: 5)
+            }
+            for (replacement, cost) in personal {
+                var keys = base
+                keys[index] = replacement
+                consider(keys: keys, cost: cost)
             }
         }
         if cleanEmpty {
