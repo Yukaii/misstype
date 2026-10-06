@@ -642,7 +642,7 @@ private struct DecodingPane: View {
                     Text(L("Strong")).tag(RepairStrength.strong.rawValue)
                 }
                 .listRowSeparator(.hidden, edges: .bottom)
-                Text(L("Recovers from transposed, substituted, missing or extra keys. Gentle suits precise typists: what you type wins unless it makes no sense. Strong suits frequent slips: corrections compete sooner, so exact input is occasionally overridden."))
+                Text(L("Recovers from transposed, substituted, missing or extra keys. Gentle suits precise typists: what you type wins unless it makes no sense. Strong suits frequent slips: a wrong key that still spells a real syllable is also fixed when the fix completes a word. Slower on long input without tones."))
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                     .listRowSeparator(.hidden, edges: .top)

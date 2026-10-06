@@ -180,7 +180,7 @@ extension LexiconDecoder {
 extension LexiconDecoder {
     private struct TouchSlice {
         let syllable: Syllable
-        let options: [(String, Double, Int)]
+        let options: [ReadingOption]
     }
 
     /// Lattice version: spatial hypotheses are priced inside each syllable's
@@ -226,8 +226,8 @@ extension LexiconDecoder {
         }
         if let start = runStart { runs.append((start..<taps.count, nil)) }
 
-        var cache: [String: [(String, Double, Int)]] = [:]
-        func sliceOptions(_ range: Range<Int>, tone: String?, repairNearest: Bool) -> [(String, Double, Int)] {
+        var cache: [String: [ReadingOption]] = [:]
+        func sliceOptions(_ range: Range<Int>, tone: String?, repairNearest: Bool) -> [ReadingOption] {
             let id = "\(range.lowerBound)-\(range.upperBound)-\(repairNearest)-\(tone ?? "~")"
             if let hit = cache[id] { return hit }
             var combos: [(keys: [String], cost: Double)] = [([], 0)]
@@ -240,19 +240,19 @@ extension LexiconDecoder {
                 combos = Array(next.prefix(combosPerSlice))
             }
             let nearestKeys = range.map { taps[$0].key }
-            var merged: [String: (cost: Double, correction: Int)] = [:]
+            var merged: [String: (cost: Double, correction: Int, wordOnly: Bool)] = [:]
             for (rank, combo) in combos.enumerated() {
                 let isNearest = combo.keys == nearestKeys
                 let syllable = Syllable(keys: combo.keys, tone: tone)
-                for (reading, cost, correction) in alternatives(syllable, fuzzy: repairNearest && rank < repairCombos,
+                for (reading, cost, correction, wordOnly) in alternatives(syllable, fuzzy: repairNearest && rank < repairCombos,
                                                                  toneTolerance: toneTolerance) {
                     let total = cost + combo.cost
                     if let existing = merged[reading], existing.cost <= total { continue }
-                    merged[reading] = (total, correction + (isNearest ? 0 : 1))
+                    merged[reading] = (total, correction + (isNearest ? 0 : 1), wordOnly)
                 }
             }
             let result = merged.sorted { $0.value.cost == $1.value.cost ? $0.key < $1.key : $0.value.cost < $1.value.cost }
-                .prefix(16).map { ($0.key, $0.value.cost, $0.value.correction) }
+                .prefix(16).map { ($0.key, $0.value.cost, $0.value.correction, $0.value.wordOnly) }
             cache[id] = result
             return result
         }

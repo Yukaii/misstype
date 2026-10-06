@@ -94,8 +94,12 @@ public final class LexiconDecoder {
     public var repairCostOffset = 0.0
     /// Neighbor, transposition and deletion repairs also run on syllables
     /// that already spell a valid reading (slips that land on another real
-    /// syllable), not only on invalid ones. Insertion stays gated (37
-    /// symbols per gap). false = byte-identical decode.
+    /// syllable), not only on invalid ones. Such a repair is word-only: it
+    /// can complete a multi-syllable word but never stands as a single
+    /// character, whose only evidence would be frequency (strong turned
+    /// 好喔 into 好一: ㄛ and ㄧ are neighbor keys and 一 is far more common).
+    /// Insertion stays gated (37 symbols per gap). false = byte-identical
+    /// decode.
     public var repairValidReadings = false
     /// Cost per dictionary word on a path (0 = off). McBopomofo single-char
     /// scores count bound morphemes, so splitting a word into chars is
@@ -144,7 +148,11 @@ public final class LexiconDecoder {
         String(text.filter { !"ˊˇˋ˙".contains($0) })
     }
 
-    func alternatives(_ syllable: Syllable, fuzzy: Bool, toneTolerance: Bool = true) -> [(String, Double, Int)] {
+    /// One reading a syllable may stand for: its cost, repairs counted, and
+    /// whether it may only appear inside a multi-syllable word.
+    typealias ReadingOption = (reading: String, cost: Double, correction: Int, wordOnly: Bool)
+
+    func alternatives(_ syllable: Syllable, fuzzy: Bool, toneTolerance: Bool = true) -> [ReadingOption] {
         let reading = syllable.reading
         // Clean readings first; repair classes join the same list when fuzzy
         // is on (never gated: a valid-base typo like 更-for-功 or 業-for-越
@@ -152,10 +160,10 @@ public final class LexiconDecoder {
         // Tiers: exact 0, toneless 0.5, explicit-tone-mismatch 4.0,
         // transpose 4, substitute/phonetic 5, insert/delete 6; the edit
         // tiers shift by `repairCostOffset` (user's repair strength).
-        var scored: [String: (cost: Double, correction: Int)] = [:]
-        func add(_ reading: String, _ cost: Double, _ correction: Int) {
+        var scored: [String: (cost: Double, correction: Int, wordOnly: Bool)] = [:]
+        func add(_ reading: String, _ cost: Double, _ correction: Int, wordOnly: Bool = false) {
             if let prev = scored[reading], prev.cost <= cost { return }
-            scored[reading] = (cost, correction)
+            scored[reading] = (cost, correction, wordOnly)
         }
         if syllable.tone != nil {
             // Explicit tone — including the space key's first tone (""), as
@@ -183,15 +191,15 @@ public final class LexiconDecoder {
             // insertion of a missing key.
             let tonelessProbe = syllable.tone == nil
             let offset = repairCostOffset
-            func consider(keys: [String], cost: Double, generic: Bool = true) {
+            func consider(keys: [String], cost: Double, generic: Bool = true, wordOnly: Bool = false) {
                 let cost = generic ? cost + offset : cost
                 let repaired = Syllable(keys: keys, tone: syllable.tone).reading
                 if !tonelessProbe {
-                    if readings.contains(repaired) { add(repaired, cost, 1) }
+                    if readings.contains(repaired) { add(repaired, cost, 1, wordOnly: wordOnly) }
                     return
                 }
                 for variant in toneless[Self.withoutTone(repaired)] ?? [] {
-                    add(variant, cost, 1)
+                    add(variant, cost, 1, wordOnly: wordOnly)
                 }
             }
         let base = syllable.keys
@@ -219,21 +227,22 @@ public final class LexiconDecoder {
             }
         }
         if cleanEmpty || repairValidReadings {
+            let wordOnly = !cleanEmpty
             for index in base.indices {
                 for replacement in ZhuyinKeyboard.neighbors(of: base[index]) {
                     var keys = base
                     keys[index] = replacement
-                    consider(keys: keys, cost: 5)
+                    consider(keys: keys, cost: 5, wordOnly: wordOnly)
                 }
                 if index + 1 < base.count {
                     var keys = base
                     keys.swapAt(index, index + 1)
-                    consider(keys: keys, cost: 4)
+                    consider(keys: keys, cost: 4, wordOnly: wordOnly)
                 }
                 if base.count > 1 {
                     var keys = base
                     keys.remove(at: index)
-                    consider(keys: keys, cost: 6)
+                    consider(keys: keys, cost: 6, wordOnly: wordOnly)
                 }
             }
         }
@@ -251,7 +260,7 @@ public final class LexiconDecoder {
         }
         return scored.sorted {
             $0.value.cost == $1.value.cost ? $0.key < $1.key : $0.value.cost < $1.value.cost
-        }.prefix(16).map { ($0.key, $0.value.cost, $0.value.correction) }
+        }.prefix(16).map { ($0.key, $0.value.cost, $0.value.correction, $0.value.wordOnly) }
     }
 
     /// Longest symbol-only run that can form one syllable (initial+medial+final).
@@ -338,7 +347,7 @@ public final class LexiconDecoder {
                 }
                 return
             }
-            for (reading, cost, _) in options[index] {
+            for (reading, cost, _, wordOnly) in options[index] where !(wordOnly && span.count == 1) {
                 guard let child = node.children[reading] else { continue }
                 walk(child, index + 1, penalty + cost)
             }
@@ -567,7 +576,7 @@ public final class LexiconDecoder {
     /// Decode with caller-supplied reading options per syllable
     /// (reading, cost, correction), cheapest first. The touch lattice uses it
     /// to price spatial key hypotheses inside the same beam.
-    func decode(_ syllables: [Syllable], options: [[(String, Double, Int)]], userLexicon: UserLexicon? = nil, locked: UserLexicon? = nil) -> [SentenceCandidate] {
+    func decode(_ syllables: [Syllable], options: [[ReadingOption]], userLexicon: UserLexicon? = nil, locked: UserLexicon? = nil) -> [SentenceCandidate] {
         guard !syllables.isEmpty, options.count == syllables.count else { return [] }
         // Context-keyed learning (previous word -> readings -> text), nil
         // unless the user lexicon holds any (see UserLexicon.contextKey).
@@ -639,10 +648,11 @@ public final class LexiconDecoder {
             for end in start..<min(syllables.count, start + 8) {
                 var next: [(node: Node, penalty: Double, repairs: Int, readings: [String])] = []
                 for (node, penalty, repairs, readings) in states {
-                    for (reading, cost, correction) in options[end] {
+                    for (reading, cost, correction, wordOnly) in options[end] {
                         guard let child = node.children[reading] else { continue }
                         let span = readings + [reading]
                         next.append((child, penalty + cost, repairs + correction, span))
+                        if wordOnly && end == start { continue }
                         // Single-syllable inputs ARE homophone browsing: walk
                         // the full node (cheap, no lattice). Longer spans pay
                         // per extra entry with zero beam benefit past a few.
@@ -806,7 +816,7 @@ public final class LexiconDecoder {
                 }
                 return
             }
-            for (reading, cost, _) in options[index] {
+            for (reading, cost, _, _) in options[index] {
                 guard let child = node.children[reading] else { continue }
                 walk(child, index + 1, penalty + cost, path + [reading])
             }

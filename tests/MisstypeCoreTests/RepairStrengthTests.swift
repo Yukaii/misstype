@@ -12,15 +12,15 @@ final class RepairStrengthTests: XCTestCase {
     func testOffsetDecidesWhenARepairBeatsExactInput() {
         // Exact 升 (-9) against 深 via the generic ㄥ→ㄣ confusion (-4.5 - 5).
         let decoder = LexiconDecoder(tsv: "ㄕㄣ\t深\t-4.5\nㄕㄥ\t升\t-9\n")
-        decoder.repairCostOffset = RepairStrength.standard.costOffset
-        XCTAssertEqual(top(decoder, "g/ ")?.text, "升")
-        decoder.repairCostOffset = RepairStrength.light.costOffset
-        XCTAssertEqual(top(decoder, "g/ ")?.text, "升")
-        decoder.repairCostOffset = RepairStrength.strong.costOffset
-        decoder.repairValidReadings = RepairStrength.strong.repairsValidReadings
-        let strong = top(decoder, "g/ ")
-        XCTAssertEqual(strong?.text, "深")
-        XCTAssertEqual(strong?.repairs, 1)
+        for level in RepairStrength.allCases where level != .off {
+            decoder.repairCostOffset = level.costOffset
+            decoder.repairValidReadings = level.repairsValidReadings
+            XCTAssertEqual(top(decoder, "g/ ")?.text, "升", "\(level)")
+        }
+        decoder.repairCostOffset = -1
+        let cheaper = top(decoder, "g/ ")
+        XCTAssertEqual(cheaper?.text, "深")
+        XCTAssertEqual(cheaper?.repairs, 1)
     }
 
     func testLightKeepsExactInputThatStandardRepairs() {
@@ -38,19 +38,29 @@ final class RepairStrengthTests: XCTestCase {
         XCTAssertEqual(top(decoder, "s3")?.text, "你")
     }
 
-    func testStrongUndoesASlipOntoAnotherRealSyllable() throws {
+    func testStrongUndoesASlipOntoAnotherRealSyllableInsideAWord() throws {
         // ㄕㄥ is a real reading, so a neighbor-key repair of it is gated off
-        // unless the level repairs valid readings too.
+        // unless the level repairs valid readings too; then it may complete
+        // the word 好對 (c = ㄏ, l = ㄠ).
         let neighbor = try XCTUnwrap(ZhuyinKeyboard.neighbors(of: "g").first)
         let symbol = try XCTUnwrap(ZhuyinKeyboard.symbols[neighbor])
-        let decoder = LexiconDecoder(tsv: "\(symbol)ㄥ\t對\t-5\nㄕㄥ\t升\t-12\n")
-        XCTAssertEqual(top(decoder, "g/ ")?.text, "升")
-        decoder.repairCostOffset = RepairStrength.strong.costOffset
-        XCTAssertEqual(top(decoder, "g/ ")?.text, "升")
+        let decoder = LexiconDecoder(tsv: "ㄏㄠˇ\t好\t-6\nㄕㄥ\t升\t-12\n\(symbol)ㄥ\t對\t-12\nㄏㄠˇ-\(symbol)ㄥ\t好對\t-5\n")
+        XCTAssertEqual(top(decoder, "cl3g/ ")?.text, "好升")
         decoder.repairValidReadings = true
-        let strong = top(decoder, "g/ ")
-        XCTAssertEqual(strong?.text, "對")
+        let strong = top(decoder, "cl3g/ ")
+        XCTAssertEqual(strong?.text, "好對")
         XCTAssertEqual(strong?.repairs, 1)
+    }
+
+    func testStrongNeverTurnsARealSingleSyllableIntoAMoreCommonNeighbor() {
+        // 好喔 (i = ㄛ) must not become 好一 (u = ㄧ, a neighbor key): a
+        // single character has only frequency to argue for a repair.
+        let decoder = LexiconDecoder(tsv: "ㄏㄠˇ\t好\t-6\nㄛ\t喔\t-11\nㄧ\t一\t-2\n")
+        decoder.repairValidReadings = RepairStrength.strong.repairsValidReadings
+        XCTAssertEqual(top(decoder, "cl3i")?.text, "好喔")
+        XCTAssertEqual(top(decoder, "i ")?.text, "喔")
+        let picker = decoder.segmentOptions([Syllable(keys: ["i"], tone: "")], span: 0..<1).map(\.text)
+        XCTAssertFalse(picker.contains("一"))
     }
 
     func testLearnedPairIgnoresTheOffset() {
@@ -66,8 +76,10 @@ final class RepairStrengthTests: XCTestCase {
         func sessionDidChange(_ session: InputSession) {}
     }
 
-    func testSessionAppliesTheLevelPerKeystroke() {
-        let decoder = LexiconDecoder(tsv: "ㄕㄣ\t深\t-4.5\nㄕㄥ\t升\t-9\nㄋㄧˇ\t你\t-5\n")
+    func testSessionAppliesTheLevelPerKeystroke() throws {
+        let neighbor = try XCTUnwrap(ZhuyinKeyboard.neighbors(of: "g").first)
+        let symbol = try XCTUnwrap(ZhuyinKeyboard.symbols[neighbor])
+        let decoder = LexiconDecoder(tsv: "ㄏㄠˇ\t好\t-6\nㄕㄥ\t升\t-12\n\(symbol)ㄥ\t對\t-12\nㄏㄠˇ-\(symbol)ㄥ\t好對\t-5\nㄋㄧˇ\t你\t-5\n")
         var settings = SessionSettings()
         let engine = InputEngine(decoder: decoder, settings: { settings })
         let session = InputSession(engine: engine)
@@ -80,9 +92,9 @@ final class RepairStrengthTests: XCTestCase {
             }
             return session.handle(KeyEvent(.enter, text: "\r")).commit
         }
-        XCTAssertEqual(type("g/ "), "升")
+        XCTAssertEqual(type("cl3g/ "), "好升")
         settings.repairStrength = .strong
-        XCTAssertEqual(type("g/ "), "深")
+        XCTAssertEqual(type("cl3g/ "), "好對")
         settings.repairStrength = .off
         XCTAssertFalse(settings.fuzzyRepair)
         XCTAssertNotEqual(type("s3"), "你")
