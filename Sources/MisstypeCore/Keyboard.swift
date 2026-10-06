@@ -160,6 +160,9 @@ public struct Composition {
     public static func isLatinKey(_ key: String) -> Bool {
         key.hasPrefix("L:")
     }
+    /// ASCII punctuation that is plain text inside a latin run although the
+    /// key is a Zhuyin letter (ㄡㄝㄤㄥㄦ). Shift+key stays the full-width layer.
+    public static let latinPunctuation: Set<String> = [".", ",", ";", "/", "-"]
     public static func latinChar(_ key: String) -> String {
         String(key.dropFirst(2))
     }
@@ -297,7 +300,7 @@ public struct Composition {
     /// Stored marked so bare symbol keys stay unambiguously Zhuyin.
     @discardableResult public mutating func appendLatin(_ text: String) -> Bool {
         guard rawKeys.count < 256, text.count == 1,
-              let char = text.first, char.isASCII, char.isLetter || char.isNumber || char == "." else { return false }
+              let char = text.first, char.isASCII, char.isLetter || char.isNumber || Composition.latinPunctuation.contains(String(char)) else { return false }
         rawKeys.append("L:\(char)")
         return true
     }
