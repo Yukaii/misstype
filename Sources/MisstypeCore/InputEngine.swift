@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(Dispatch)
+import Dispatch
+#endif
 
 /// Preferences one keystroke is processed under. Adapters read them from
 /// their own store (macOS: UserDefaults) — live, per event, never cached, so
@@ -115,7 +118,11 @@ public final class InputEngine {
             self?.englishLexicon = EnglishLexicon(tsv: tsv)
             self?.log("english words loaded")
         }
+        #if canImport(Dispatch)
         if background { DispatchQueue.global(qos: .utility).async(execute: build) } else { build() }
+        #else
+        build()
+        #endif
     }
 
     /// Words the user added on purpose (and built-in words they hid): real

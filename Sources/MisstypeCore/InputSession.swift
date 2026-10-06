@@ -462,7 +462,6 @@ public final class InputSession {
         }
         if var menu = symbolMenu {
             let count = menu.choices.count
-            let label = key.zhuyinLabel
             func step(to index: Int) -> KeyResult {
                 menu.selected = index
                 menu.selecting = true
@@ -1225,6 +1224,7 @@ public final class InputSession {
     }
 
     private func scheduleJevEvaluation() {
+        #if !os(WASI)
         let requestID = nextJevID()
         let config = settings.jev
         // Never while the pending run is still growing: live conversion
@@ -1311,8 +1311,10 @@ public final class InputSession {
                 log("[jev-api] err ms=\(elapsedMs())ms \(error.localizedDescription)")
             }
         }
+        #endif
     }
 
+    #if !os(WASI)
     private func applyJev(_ result: JevEvaluationResult, requestID: Int, rawKeys: String, elapsedMs: Int) {
         guard let host,
               currentJevID() == requestID,
@@ -1332,4 +1334,5 @@ public final class InputSession {
             host.sessionDidChange(self)
         }
     }
+    #endif
 }

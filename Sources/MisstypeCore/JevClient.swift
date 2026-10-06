@@ -2,6 +2,9 @@ import Foundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking // URLSession lives here on Linux
 #endif
+#if canImport(Dispatch)
+import Dispatch
+#endif
 
 /// Result of a remote Jev evaluation request.
 public struct JevEvaluationResult: Equatable, Sendable {
@@ -38,6 +41,7 @@ public enum JevClientError: LocalizedError, Equatable {
     }
 }
 
+#if !os(WASI)
 /// Native HTTP client for Vercel AI Gateway's typesafe-ai/jev model.
 public enum JevClient {
     public static let endpoint = URL(string: "https://ai-gateway.vercel.sh/v4/ai/evaluation-model")!
@@ -194,3 +198,4 @@ public enum JevClient {
         return try parseResponse(data: data, candidates: candidates, latencyMs: latencyMs)
     }
 }
+#endif

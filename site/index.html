@@ -11,12 +11,14 @@
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="alternate" hreflang="en" href="en/" vite-ignore>
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="playground.css">
 </head>
 <body>
 
 <header class="wrap top">
   <a class="brand" href="./"><img src="icon.svg" alt="">隨打注音 <small>Misstype</small></a>
   <nav>
+    <a href="#playground">線上試打</a>
     <a href="#install">下載</a>
     <a href="https://github.com/Yukaii/misstype">GitHub</a>
     <a href="en/" lang="en" hreflang="en">English</a>
@@ -29,6 +31,7 @@
     <p class="lede">順序打反、按到隔壁鍵、漏按符號都沒關係。一路隨便打，打完大多就是你要的那句。</p>
     <div class="cta">
       <a class="button" href="https://github.com/Yukaii/misstype/releases/latest">下載 macOS 版</a>
+      <a class="button secondary" href="#playground">線上免安裝試打</a>
       <span class="note">免費開源 · macOS 13 以上 · 也有 <a href="#linux">Linux 版</a></span>
     </div>
 
@@ -37,6 +40,15 @@
       <div class="keys"><span>免打聲調</span><span>ㄐㄧㄣㄊㄧㄢㄊㄧㄢㄑㄧㄏㄣㄏㄠ</span></div>
     </div>
   </div>
+
+  <section id="playground">
+    <div class="wrap">
+      <h2>線上親自試打（WebAssembly）</h2>
+      <p class="intro">透過 SwiftWasm 將隨打注音編譯為 WebAssembly，免安裝、免上傳伺服器，100% 在瀏覽器本機執行。包含選字視窗、候選字按鍵與點擊選字：</p>
+      <div class="playground-container"></div>
+      <p class="fine" style="margin-top: 14px;">想要進階設定或全螢幕試打？請前往 <a href="playground.html">完整 Playground 獨立頁面</a>。</p>
+    </div>
+  </section>
 
   <section>
     <div class="wrap">
@@ -55,9 +67,9 @@
           <span class="arrow">→</span>
           <span class="got">今天天氣很好</span>
         </li>
-        <li data-keys="ㄇㄧㄥㄊㄧㄢㄗㄠㄕㄤㄐㄡㄉㄧㄢㄎㄞㄏㄨㄟ">
+        <li data-keys="ㄇㄧㄥㄊㄧㄢㄗㄠㄐㄧㄡㄉㄧㄢㄎㄞㄏㄨㄟ">
           <span class="what">漏打符號</span>
-          <span class="typed">ㄇㄧㄥㄊㄧㄢㄗㄠㄕㄤㄐ<mark title="少了 ㄧ">‸</mark>ㄡㄉㄧㄢㄎㄞㄏㄨㄟ</span>
+          <span class="typed">ㄇㄧㄥㄊㄧㄢㄗㄠㄐ<mark title="少了 ㄧ">‸</mark>ㄡㄉㄧㄢㄎㄞㄏㄨㄟ</span>
           <span class="arrow">→</span>
           <span class="got">明天早上九點開會</span>
         </li>
@@ -102,7 +114,7 @@
     <div class="wrap">
       <h2>寫在前面</h2>
       <p>這是我為了滿足自己「不用對準鍵盤、不打聲調」的懶人打字需求做出來的輸入法，目前還很新，難免有些小毛病。</p>
-      <p>如果你想要的是成熟穩定、每天工作可靠的注音輸入法，真心推薦 <a href="https://github.com/vChewing/vChewing-macOS">唯音（vChewing）</a>。如果你也有一樣的懶人打字渴望，歡迎下載試試看，遇到問題請到 <a href="https://github.com/Yukaii/misstype/issues">GitHub</a> 跟我說！</p>
+      <p>如果你想要的是成熟穩定、每天工作可靠的注音輸入法，真心推薦 <a href="https://github.com/vChewing/vChewing-macOS">唯音（vChewing）</a>。如果你也有同一樣的懶人打字渴望，歡迎下載試試看，遇到問題請到 <a href="https://github.com/Yukaii/misstype/issues">GitHub</a> 跟我說！</p>
       <p class="fine">目前僅支援標準注音排列，暫不提供倉頡、拼音或簡體中文。</p>
     </div>
   </section>
@@ -116,5 +128,18 @@
 </footer>
 
 <script type="module" src="./demo.js"></script>
+<script type="module">
+  import { MisstypePlayground } from "./playground.js";
+  const pgContainer = document.querySelector(".playground-container");
+  if (pgContainer) {
+    const pg = new MisstypePlayground({
+      container: pgContainer,
+      wasmUrl: "misstype.wasm",
+      lexiconUrl: "lexicon.tsv",
+      tonelessUrl: "toneless.tsv"
+    });
+    pg.init();
+  }
+</script>
 </body>
 </html>

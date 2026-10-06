@@ -79,6 +79,15 @@ a:hover { color: var(--mark); }
   text-decoration: none;
 }
 .button:hover { color: #fff; background: #3a424d; }
+.button.secondary {
+  background: var(--card);
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+.button.secondary:hover {
+  background: #ede9e0;
+  color: var(--ink);
+}
 .cta .note { color: var(--muted); font-size: 15px; }
 
 /* Typing demo: a fake text field. The underline mimics how the IME draws
@@ -149,67 +158,87 @@ section > .wrap > p.intro { margin: 0 0 28px; color: var(--muted); max-width: 42
   border-radius: 3px;
   padding: 0 2px;
 }
-.examples .arrow { color: var(--muted); }
-.examples .got { font-size: 22px; font-weight: 600; }
-.fine { margin: 18px 0 0; color: var(--muted); font-size: 15px; }
+.examples .arrow { color: var(--muted); font-size: 18px; text-align: center; }
+.examples .got { font-size: 20px; font-weight: 600; color: var(--ink); }
 
-@media (max-width: 680px) {
-  .examples li { grid-template-columns: 1fr; gap: 4px; }
-  .examples .arrow { display: none; }
-  .examples .got::before { content: "→ "; color: var(--muted); font-weight: 400; }
-}
-
-/* Plain list, no icons. */
-
-.plain { margin: 0; padding: 0 0 0 1.2em; display: grid; gap: 10px; }
-.plain li::marker { color: var(--muted); }
-
+.fine { margin: 24px 0 0; color: var(--muted); font-size: 15px; }
 kbd {
-  font: inherit;
-  font-size: 0.85em;
-  padding: 1px 6px;
+  font-family: inherit;
+  font-size: 13px;
+  padding: 2px 6px;
   border: 1px solid var(--line);
-  border-bottom-width: 2px;
-  border-radius: 5px;
+  border-radius: 4px;
   background: var(--card);
   color: var(--ink);
-  white-space: nowrap;
+}
+
+/* Feature bullets */
+
+ul.plain { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+ul.plain li {
+  padding-left: 24px;
+  position: relative;
+  max-width: 38em;
+}
+ul.plain li::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 10px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--mark);
 }
 
 /* Install steps */
 
-.steps { margin: 0; padding: 0; list-style: none; counter-reset: step; display: grid; gap: 18px; }
-.steps li { counter-increment: step; display: grid; grid-template-columns: 40px 1fr; }
-.steps li::before {
+ol.steps {
+  list-style: none;
+  counter-reset: step;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 16px;
+  max-width: 38em;
+}
+ol.steps li {
+  counter-increment: step;
+  display: grid;
+  grid-template-columns: 32px 1fr;
+  gap: 16px;
+  align-items: baseline;
+}
+ol.steps li::before {
   content: counter(step);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  border: 1px solid var(--ink);
-  display: grid;
-  place-items: center;
+  background: var(--ink);
+  color: #fff;
   font-size: 14px;
   font-weight: 600;
-  margin-top: 2px;
 }
-.steps p { margin: 0; }
-.steps .sub { color: var(--muted); font-size: 15px; }
-.other { margin: 28px 0 0; color: var(--muted); }
-#install h2 { margin-bottom: 24px; }
+ol.steps li p { margin: 0; }
+ol.steps li .sub { margin-top: 4px; font-size: 14px; color: var(--muted); }
 
-/* Honest notes */
+.other { margin: 28px 0 0; color: var(--muted); font-size: 15px; }
 
-.notes p { max-width: 38em; }
-.notes p:last-child { margin-bottom: 0; }
+/* Footer */
 
-footer { padding: 32px 0 48px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }
-footer p { margin: 0 0 6px; }
-
-@media (prefers-reduced-motion: reduce) {
-  .caret { animation: none; }
+footer {
+  padding: 40px 0 60px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 14px;
 }
-
-@media (max-width: 520px) {
-  .brand small { display: none; }
-  .top nav { gap: 14px; }
+footer .wrap {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px 24px;
 }
+footer nav { display: flex; gap: 16px; }
