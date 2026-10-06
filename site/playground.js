@@ -201,6 +201,17 @@ export class MisstypePlayground {
         <div class="pg-bar">
           <span><kbd>↓</kbd> 選字 · <kbd>Shift</kbd> 切換中英 · <kbd>Enter</kbd> 送字</span>
           <span class="pg-actions">
+            <span class="pg-theme-control">
+              <span class="pg-theme-label">主題</span>
+              <button class="pg-theme-trigger" id="pg-theme-trigger" type="button" aria-haspopup="menu" aria-expanded="false">預設 <span aria-hidden="true">▾</span></button>
+              <span class="pg-theme-menu" id="pg-theme-menu" role="menu" hidden>
+                <button type="button" role="menuitem" data-theme="system">預設</button>
+                <button type="button" role="menuitem" data-theme="solarized">Solarized</button>
+                <button type="button" role="menuitem" data-theme="nord">Nord</button>
+                <button type="button" role="menuitem" data-theme="gruvbox">Gruvbox</button>
+                <button type="button" role="menuitem" data-theme="catppuccin">Catppuccin</button>
+              </span>
+            </span>
             <button class="pg-btn" id="pg-mode-btn" title="輕按 Shift 也能切換">中</button>
             <button class="pg-btn" id="pg-clear-btn">清空</button>
           </span>
@@ -220,6 +231,9 @@ export class MisstypePlayground {
     this.candNextBtn = q("#pg-cand-next");
     this.modeBtn = q("#pg-mode-btn");
     this.clearBtn = q("#pg-clear-btn");
+    this.themeTrigger = q("#pg-theme-trigger");
+    this.themeMenu = q("#pg-theme-menu");
+    this.themeName = "system";
   }
 
   showLoading(text) {
@@ -230,40 +244,72 @@ export class MisstypePlayground {
     this.boxEl.dataset.placeholder = "打字試試，例如 sucl";
   }
 
-  // Committed text goes into the real editable at the composition spot (or the
-  // caret), so selection, caret movement, paste and undo stay native.
-  insertCommitted(text) {
-    if (this.preeditEl && this.preeditEl.isConnected) {
-      this.preeditEl.before(document.createTextNode(text));
-    } else {
-      this.boxEl.focus();
-      document.execCommand("insertText", false, text);
+  editorRange() {
+    const sel = window.getSelection();
+    if (sel.rangeCount && this.boxEl.contains(sel.anchorNode) && this.boxEl.contains(sel.focusNode)) {
+      return sel.getRangeAt(0).cloneRange();
     }
+    const range = document.createRange();
+    range.selectNodeContents(this.boxEl);
+    range.collapse(false);
+    return range;
   }
 
-  // Compose in place: the preedit is an inline, non-editable span at the caret.
-  syncPreeditNode(has) {
+  // Preedit is temporary presentation. Restore the original selection before
+  // making a browser editing transaction, so undo also restores replaced text.
+  restorePreedit() {
+    if (!this.preeditEl?.isConnected) return;
+    const range = document.createRange();
+    range.selectNode(this.preeditEl);
+    range.deleteContents();
+    const original = this.replacedContent;
+    const first = original?.firstChild;
+    const last = original?.lastChild;
+    if (first) {
+      range.insertNode(original);
+      range.setStartBefore(first);
+      range.setEndAfter(last);
+    }
+    this.preeditEl = null;
+    this.replacedContent = null;
     const sel = window.getSelection();
-    if (has && !(this.preeditEl && this.preeditEl.isConnected)) {
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+
+  insertCommitted(text) {
+    this.restorePreedit();
+    // insertText is deliberately used here: Range mutations do not enter the
+    // browser's undo history. This is one transaction per decoder commit.
+    this.insertingCommit = true;
+    document.execCommand("insertText", false, text);
+    this.insertingCommit = false;
+  }
+
+  syncPreeditNode(has) {
+    if (has && !this.preeditEl?.isConnected) {
+      const range = this.editorRange();
+      this.replacedContent = range.extractContents();
       const span = document.createElement("span");
       span.className = "pg-preedit";
       span.contentEditable = "false";
-      const range = sel.rangeCount && this.boxEl.contains(sel.anchorNode)
-        ? sel.getRangeAt(0)
-        : (() => { const r = document.createRange(); r.selectNodeContents(this.boxEl); r.collapse(false); return r; })();
-      range.deleteContents();
       range.insertNode(span);
       this.preeditEl = span;
-    } else if (!has && this.preeditEl) {
-      const parent = this.preeditEl.parentNode;
-      if (parent) {
-        const at = Array.prototype.indexOf.call(parent.childNodes, this.preeditEl);
-        this.preeditEl.remove();
-        sel.collapse(parent, at);
-      }
-      this.preeditEl = null;
+    } else if (!has) {
+      this.restorePreedit();
     }
-    if (has) sel.collapse(this.preeditEl.parentNode, Array.prototype.indexOf.call(this.preeditEl.parentNode.childNodes, this.preeditEl) + 1);
+  }
+
+  placeCompositionCaret() {
+    if (!this.preeditEl) return;
+    // The native caret remains outside the protected preedit. Its visual
+    // position inside that span follows the core's UTF-16 syllable cursor.
+    const sel = window.getSelection();
+    const range = document.createRange();
+    range.setStartAfter(this.preeditEl);
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
   }
 
   // Moving the caret elsewhere ends the composition where it is.
@@ -279,36 +325,41 @@ export class MisstypePlayground {
     if (!this.boxEl) return;
 
     // Panel and buttons must not steal focus, or the blur would end the composition.
-    this.container.querySelectorAll(".candidate-panel, .pg-bar").forEach((el) => {
+    this.container.querySelectorAll(".candidate-panel").forEach((el) => {
       el.addEventListener("mousedown", (e) => e.preventDefault());
     });
     this.boxEl.addEventListener("pointerdown", () => this.commitPending());
-    this.boxEl.addEventListener("blur", () => this.commitPending());
+    this.boxEl.addEventListener("blur", () => {
+      this.commitPending();
+    });
+    // Paste, cut, native IME input, and undo operate on committed document text.
+    for (const type of ["paste", "cut", "compositionstart"]) {
+      this.boxEl.addEventListener(type, () => this.commitPending());
+    }
+    this.boxEl.addEventListener("beforeinput", (e) => {
+      if (!this.insertingCommit && this.state?.preedit) this.commitPending();
+    });
+    window.addEventListener("resize", () => this.positionCandidatePanel());
+    window.addEventListener("scroll", () => this.positionCandidatePanel(), true);
 
-    let shiftDownTime = 0;
-    let shiftInterrupted = false;
+
 
     // Keydown handler
     this.boxEl.addEventListener("keydown", (e) => {
       if (e.isComposing || e.keyCode === 229) return;
-      if (e.code === "ShiftLeft" || e.code === "ShiftRight") {
-        shiftDownTime = performance.now();
-        shiftInterrupted = false;
-      } else {
-        shiftInterrupted = true;
-      }
-
       const modifiers = (e.shiftKey ? 1 : 0) |
                         (e.ctrlKey ? 2 : 0) |
                         (e.altKey ? 4 : 0) |
                         (e.metaKey ? 8 : 0) |
                         (e.getModifierState("CapsLock") ? 16 : 0);
 
-      // Pass browser shortcut combos through (Cmd+C, Cmd+V, etc.)
-      if ((e.metaKey || (e.ctrlKey && e.code !== "KeyJ" && e.code !== "KeyK")) &&
-          e.code !== "KeyA" && e.code !== "KeyZ") {
+      // The browser owns document shortcuts; settle preedit before it copies,
+      // replaces, or navigates text. Decoder Control+J/K remain available.
+      if (e.metaKey || (e.ctrlKey && !["KeyJ", "KeyK"].includes(e.code))) {
+        this.commitPending();
         return;
       }
+      if (["Home", "End"].includes(e.code)) this.commitPending();
 
       // Keys the decoder leaves alone (English mode, arrows, Enter with no
       // composition) fall through to the browser's own editing.
@@ -326,20 +377,30 @@ export class MisstypePlayground {
       if (e.code === "ShiftLeft" || e.code === "ShiftRight") {
         const consumed = this.sendKey(e.code, e.key, modifiers, 1);
         if (consumed) e.preventDefault();
-
-        // If user tapped Shift quickly (< 450ms) with no intervening keys,
-        // and WASM hasn't already toggled it:
-        if (!shiftInterrupted && shiftDownTime > 0) {
-          const tapDuration = performance.now() - shiftDownTime;
-          if (tapDuration > 10 && tapDuration < 450) {
-            if (!this.state?.modeChanged && !this.state?.latinToggled) {
-              this.toggleEnglish();
-            }
-          }
-        }
-        shiftDownTime = 0;
-        shiftInterrupted = false;
       }
+    });
+
+    const themeLabels = { system: "預設", solarized: "Solarized", nord: "Nord", gruvbox: "Gruvbox", catppuccin: "Catppuccin" };
+    const closeThemes = () => {
+      this.themeMenu.hidden = true;
+      this.themeTrigger.setAttribute("aria-expanded", "false");
+    };
+    this.themeTrigger?.addEventListener("click", (event) => {
+      event.stopPropagation();
+      this.themeMenu.hidden = !this.themeMenu.hidden;
+      this.themeTrigger.setAttribute("aria-expanded", String(!this.themeMenu.hidden));
+    });
+    this.themeMenu?.querySelectorAll("[data-theme]").forEach((option) => option.addEventListener("click", (event) => {
+      event.stopPropagation();
+      this.themeName = option.dataset.theme;
+      this.container.querySelector(".pg")?.setAttribute("data-theme", this.themeName);
+      this.themeTrigger.innerHTML = `${themeLabels[this.themeName]} <span aria-hidden="true">▾</span>`;
+      closeThemes();
+      this.boxEl.focus();
+    }));
+    document.addEventListener("click", closeThemes);
+    this.themeTrigger?.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") closeThemes();
     });
 
     // Mode toggle button click
@@ -379,20 +440,31 @@ export class MisstypePlayground {
       const segments = (this.state.segments && this.state.segments.length > 0)
         ? this.state.segments
         : [[0, preedit.length]];
-      const focus = this.state.focus || [0, preedit.length];
+      const focus = this.state.focus;
 
       let segHtml = "";
       for (const [start, end] of segments) {
         const text = preedit.substring(start, end);
         const isFocused = focus && start === focus[0] && end === focus[1];
-        segHtml += `<span class="pg-seg ${isFocused ? "focused" : ""}">${escapeHtml(text)}</span>`;
+        const caret = Math.max(0, Math.min(preedit.length, this.state.caret));
+        const caretHtml = '<span class="pg-composition-caret" aria-hidden="true"></span>';
+        let content = escapeHtml(text);
+        if (caret >= start && (caret < end || (caret === end && end === preedit.length))) {
+          content = escapeHtml(text.slice(0, caret - start)) + caretHtml + escapeHtml(text.slice(caret - start));
+        }
+        segHtml += `<span class="pg-seg ${isFocused ? "focused" : ""}">${content}</span>`;
       }
       this.preeditEl.innerHTML = segHtml;
+      this.placeCompositionCaret();
     }
+
+    this.boxEl.classList.toggle("composing", preedit.length > 0);
 
     // Candidate window rendering
     if (this.state.showsCandidates && this.state.candidates.length > 0) {
       this.candidatePanel.style.display = "block";
+      this.candPrevBtn.disabled = this.state.page === 0;
+      this.candNextBtn.disabled = this.state.page + 1 >= this.state.pageCount;
       this.candidatePageEl.textContent = `${this.state.page + 1}/${this.state.pageCount}`;
 
       const pageCandidates = this.state.pageCandidates || [];
@@ -406,7 +478,7 @@ export class MisstypePlayground {
         html += `
           <div class="candidate-item ${isSelected ? "selected" : ""}" data-index="${this.state.page * this.state.pageSize + idx}">
             <span class="candidate-text">${escapeHtml(cand)}</span>
-            <span class="candidate-key">${keyLabel}</span>
+            <span class="candidate-key">${this.state.keysActive ? keyLabel : ""}</span>
           </div>
         `;
       });
@@ -446,12 +518,22 @@ export class MisstypePlayground {
 
   positionCandidatePanel() {
     if (!this.preeditEl || !this.candidatePanel) return;
-    const card = this.container.querySelector(".pg").getBoundingClientRect();
-    const rect = this.preeditEl.getClientRects()[0] || this.preeditEl.getBoundingClientRect();
-    const panelWidth = this.candidatePanel.offsetWidth || 200;
-    const left = Math.min(Math.max(12, rect.left - card.left), Math.max(12, card.width - panelWidth - 16));
+    if (this.candidatePanel.style.display === "none") return;
+    const anchor = this.preeditEl.querySelector(".pg-composition-caret");
+    const rect = (anchor || this.preeditEl).getBoundingClientRect();
+    const panelWidth = this.candidatePanel.offsetWidth;
+    const panelHeight = this.candidatePanel.offsetHeight;
+    const viewport = window.visualViewport;
+    const leftEdge = viewport?.offsetLeft || 0;
+    const topEdge = viewport?.offsetTop || 0;
+    const width = viewport?.width || window.innerWidth;
+    const height = viewport?.height || window.innerHeight;
+    const left = Math.max(leftEdge + 8, Math.min(rect.left, leftEdge + width - panelWidth - 8));
+    let top = rect.bottom + 8;
+    if (top + panelHeight > topEdge + height - 8) top = rect.top - panelHeight - 8;
+    top = Math.max(topEdge + 8, Math.min(top, topEdge + height - panelHeight - 8));
     this.candidatePanel.style.left = `${left}px`;
-    this.candidatePanel.style.top = `${rect.bottom - card.top + 6}px`;
+    this.candidatePanel.style.top = `${top}px`;
   }
 }
 

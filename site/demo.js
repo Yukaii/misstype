@@ -16,47 +16,71 @@
   var stopped = false;
   var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  if (items.length && !reduced) animate();
+  if (items.length) animate();
   if (hint && typeof WebAssembly === "object") {
     hint.hidden = false;
-    var loading = false;
-    var start = function () {
-      if (loading) return;
-      loading = true;
-      hint.textContent = hint.dataset.loading;
-      load().catch(function (err) {
-        console.error(err);
-        hint.textContent = hint.dataset.failed;
-      });
-    };
-    field.addEventListener("click", start);
-    field.addEventListener("focus", start);
-  }
-
-  async function load() {
-    var mod = await import("./playground.js");
-    var assets = demo.dataset.assets || "./";
+    var requested = false;
+    var playground = null;
     var host = document.createElement("div");
     host.hidden = true;
     demo.insertBefore(host, field);
-    await new Promise(function (resolve, reject) {
-      var pg = new mod.MisstypePlayground({
-        container: host,
-        wasmUrl: assets + "misstype.wasm",
-        lexiconUrl: assets + "lexicon.tsv",
-        tonelessUrl: assets + "toneless.tsv",
-        englishUrl: assets + "english.tsv",
-        onReady: function () {
-          stopped = true;
-          field.hidden = caption.hidden = hint.hidden = true;
-          host.hidden = false;
-          pg.boxEl.focus();
-          resolve();
-        },
-        onError: function (err) { host.remove(); reject(err); }
-      });
-      pg.init();
+
+    function reveal() {
+      if (!requested || !playground?.ready) return;
+      stopped = true;
+      field.hidden = caption.hidden = hint.hidden = true;
+      host.hidden = false;
+      playground.boxEl.focus();
+    }
+
+    // Warm the dynamically imported decoder after the page paints. The live
+    // editor stays hidden and never takes focus until the visitor activates it.
+    var loadingPromise;
+    function preload() {
+      if (!loadingPromise) {
+        loadingPromise = load().catch(function (err) {
+          console.error(err);
+          host.remove();
+          field.removeAttribute("aria-busy");
+          hint.textContent = hint.dataset.failed;
+        });
+      }
+      return loadingPromise;
+    }
+    var start = function () {
+      requested = true;
+      if (!playground?.ready) {
+        hint.textContent = hint.dataset.loading;
+        field.setAttribute("aria-busy", "true");
+      }
+      preload().then(reveal);
+    };
+    field.addEventListener("click", start);
+    field.addEventListener("keydown", function (event) {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        start();
+      }
     });
+    if ("requestIdleCallback" in window) window.requestIdleCallback(preload, { timeout: 1500 });
+    else setTimeout(preload, 0);
+
+    async function load() {
+      var mod = await import("./playground.js");
+      var assets = demo.dataset.assets || "./";
+      await new Promise(function (resolve, reject) {
+        playground = new mod.MisstypePlayground({
+          container: host,
+          wasmUrl: assets + "misstype.wasm",
+          lexiconUrl: assets + "lexicon.tsv",
+          tonelessUrl: assets + "toneless.tsv",
+          englishUrl: assets + "english.tsv",
+          onReady: resolve,
+          onError: reject
+        });
+        playground.init();
+      });
+    }
   }
 
   function animate() {
@@ -73,7 +97,7 @@
     var index = 0;
 
     function show(html) { if (!stopped) field.innerHTML = html + caret; }
-    function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+    function wait(ms) { return new Promise(function (r) { setTimeout(r, reduced ? Math.min(ms, 45) : ms); }); }
 
     async function play(ex) {
       caption.innerHTML = "<span>" + ex.what + "</span><span>" + ex.typed + "</span>";
