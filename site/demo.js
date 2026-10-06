@@ -102,16 +102,28 @@
     async function play(ex) {
       caption.innerHTML = "<span>" + ex.what + "</span><span>" + ex.typed + "</span>";
       show("");
-      await wait(500);
-      for (var i = 1; i <= ex.keys.length && !stopped; i++) {
-        show('<span class="composing">' + ex.keys.slice(0, i).join("") + "</span>");
-        await wait(110 + Math.random() * 70);
+      await wait(850);
+      var chars = Array.from(ex.got);
+      var keys = ex.keys;
+      for (var i = 0; i < chars.length && !stopped; i++) {
+        // The landing animation mirrors the interaction model: one syllable
+        // is composed, committed, then the next syllable starts. The fixture
+        // only stores the complete key stream, so divide it at stable visual
+        // boundaries for the demo; the real editor uses the decoder's spans.
+        var from = Math.round(i * keys.length / chars.length);
+        var to = Math.max(from + 1, Math.round((i + 1) * keys.length / chars.length));
+        var syllable = keys.slice(from, to).join("");
+        var committed = chars.slice(0, i).join("");
+        for (var j = 1; j <= syllable.length && !stopped; j++) {
+          show('<span class="done">' + committed + '</span><span class="composing">' + syllable.slice(0, j) + '</span>');
+          await wait(260 + Math.random() * 100);
+        }
+        await wait(500);
+        show('<span class="done">' + chars.slice(0, i + 1).join("") + '</span>');
+        await wait(620);
       }
-      await wait(350);
-      show('<span class="composing">' + ex.got + "</span>");
-      await wait(900);
       show('<span class="done">' + ex.got + "</span>");
-      await wait(2200);
+      await wait(2600);
     }
 
     (async function () {
