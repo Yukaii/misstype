@@ -318,6 +318,17 @@ final class InputSessionTests: XCTestCase {
         XCTAssertEqual(session.view.preedit, "你hi...")
     }
 
+    func testCommaAndFriendsInsideLatinRunStayLiteral() {
+        let session = makeSession()
+        // `,` is ㄝ (誒) in Zhuyin; mid-run it is the comma of the sentence.
+        type("su3`hi, a-b/c;", into: session)
+        XCTAssertEqual(session.view.preedit, "你hi, a-b/c;")
+        XCTAssertTrue(session.latinActive)
+        // Shift+, is still the full-width comma and ends the run.
+        session.handle(key(.character(","), [.shift], text: "<"))
+        XCTAssertEqual(session.view.preedit, "你hi, a-b/c;，")
+    }
+
     func testBackspaceInsideLatinRunKeepsTheRun() {
         let session = makeSession()
         type("su3`hx", into: session)
