@@ -70,6 +70,7 @@ public func misstype_wasm_init(
             print("[MisstypeWasm] \(msg)")
         }
     )
+    engine.shiftTap.tapTimeLimit = 0.35
 
     let session = InputSession(engine: engine)
     session.host = wasmHost
@@ -204,6 +205,29 @@ public func misstype_wasm_reset() {
 @_cdecl("misstype_wasm_clear_committed")
 public func misstype_wasm_clear_committed() {
     lastCommittedText = nil
+}
+
+@_cdecl("misstype_wasm_toggle_english")
+public func misstype_wasm_toggle_english() -> Int32 {
+    guard let session = globalSession, let engine = globalEngine else { return 0 }
+    if let commit = session.commit() {
+        lastCommittedText = (lastCommittedText ?? "") + commit
+    }
+    engine.english.toggle()
+    return engine.english ? 1 : 0
+}
+
+@_cdecl("misstype_wasm_set_english")
+public func misstype_wasm_set_english(_ enabled: Int32) -> Int32 {
+    guard let session = globalSession, let engine = globalEngine else { return 0 }
+    let target = (enabled != 0)
+    if engine.english != target {
+        if let commit = session.commit() {
+            lastCommittedText = (lastCommittedText ?? "") + commit
+        }
+        engine.english = target
+    }
+    return engine.english ? 1 : 0
 }
 
 @_cdecl("misstype_wasm_set_setting")

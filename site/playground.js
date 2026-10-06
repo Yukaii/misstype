@@ -1,80 +1,32 @@
 import { WASI } from "@bjorn3/browser_wasi_shim";
 
 /**
- * Misstype WebAssembly IME Playground Engine & UI Controller
+ * Misstype WebAssembly Interactive Playground Controller
  */
 export class MisstypePlayground {
   constructor(options = {}) {
-    this.container = options.container || document.querySelector(".playground-container");
+    this.container = options.container;
     this.wasmUrl = options.wasmUrl || "misstype.wasm";
     this.lexiconUrl = options.lexiconUrl || "lexicon.tsv";
     this.tonelessUrl = options.tonelessUrl || "toneless.tsv";
+    this.onStateChange = options.onStateChange || null;
 
+    this.wasi = null;
     this.instance = null;
     this.exports = null;
     this.memory = null;
-    this.wasi = null;
+
     this.ready = false;
-
-    this.committedText = "";
     this.state = null;
+    this.committedText = "";
+    this.candidateOrientation = options.candidateOrientation || "vertical"; // 'vertical' | 'horizontal'
 
-    // DOM Elements
-    this.boxEl = null;
-    this.preeditEl = null;
-    this.committedEl = null;
-    this.caretEl = null;
-    this.candidatePanel = null;
-    this.modeBtn = null;
-    this.loadingMask = null;
-    this.loadingText = null;
-  }
-
-  async init() {
     this.setupDOM();
-    this.showLoading("正在載入 WebAssembly 核心與詞庫...");
-
-    try {
-      this.wasi = new WASI([], [], []);
-      const wasiImport = { wasi_snapshot_preview1: this.wasi.wasiImport };
-
-      // Load WASM and dictionary files concurrently
-      this.showLoading("下載組件 (WASM & 15萬詞庫)...");
-      const [wasmResponse, lexiconText, tonelessText] = await Promise.all([
-        fetch(this.wasmUrl),
-        fetch(this.lexiconUrl).then(r => r.text()),
-        fetch(this.tonelessUrl).then(r => r.text()).catch(() => "")
-      ]);
-
-      this.showLoading("編譯 WebAssembly 模組...");
-      const wasmBytes = await wasmResponse.arrayBuffer();
-      const { instance } = await WebAssembly.instantiate(wasmBytes, wasiImport);
-      this.instance = instance;
-      this.exports = instance.exports;
-      this.memory = instance.exports.memory;
-      this.wasi.start(instance);
-
-      this.showLoading("載入注音聲調與語言模型...");
-      const lexBuf = this.writeString(lexiconText);
-      const toneBuf = this.writeString(tonelessText);
-
-      this.exports.misstype_wasm_init(lexBuf.ptr, lexBuf.len, toneBuf.ptr, toneBuf.len);
-      this.exports.misstype_wasm_free(lexBuf.ptr);
-      this.exports.misstype_wasm_free(toneBuf.ptr);
-
-      this.ready = true;
-      this.hideLoading();
-
-      this.updateState();
-      this.render();
-      this.bindEvents();
-    } catch (err) {
-      console.error("[MisstypePlayground] Initialization failed:", err);
-      this.showLoading(`載入失敗: ${err.message}`);
-    }
+    this.bindEvents();
   }
 
   writeString(str) {
+    if (!this.exports) return { ptr: 0, len: 0 };
     const enc = new TextEncoder();
     const bytes = enc.encode(str);
     const ptr = this.exports.misstype_wasm_alloc(bytes.length);
@@ -82,16 +34,86 @@ export class MisstypePlayground {
     return { ptr, len: bytes.length };
   }
 
-  updateState() {
-    if (!this.ready) return;
-    const ptr = this.exports.misstype_wasm_get_state_json();
+  readString(ptr) {
+    if (!ptr || !this.memory) return "";
     const u8 = new Uint8Array(this.memory.buffer);
     let end = ptr;
     while (u8[end] !== 0) end++;
-    const jsonStr = new TextDecoder().decode(u8.subarray(ptr, end));
-    this.state = JSON.parse(jsonStr);
+    return new TextDecoder().decode(u8.subarray(ptr, end));
+  }
 
-    if (this.state.lastCommit) {
+  getState() {
+    if (!this.exports) return null;
+    const ptr = this.exports.misstype_wasm_get_state_json();
+    const jsonStr = this.readString(ptr);
+    try {
+      return JSON.parse(jsonStr);
+    } catch (e) {
+      console.error("Failed to parse state JSON:", jsonStr, e);
+      return null;
+    }
+  }
+
+  async init() {
+    this.showLoading("正在下載隨打注音 Wasm 引擎及詞庫...");
+
+    try {
+      this.wasi = new WASI([], [], []);
+      const wasiImport = { wasi_snapshot_preview1: this.wasi.wasiImport };
+
+      // Fetch wasm module and lexicons in parallel
+      const [wasmResponse, lexResponse, toneResponse] = await Promise.all([
+        fetch(this.wasmUrl),
+        fetch(this.lexiconUrl),
+        fetch(this.tonelessUrl).catch(() => ({ ok: false }))
+      ]);
+
+      if (!wasmResponse.ok) throw new Error(`載入 wasm 失敗: HTTP ${wasmResponse.status}`);
+      if (!lexResponse.ok) throw new Error(`載入詞庫失敗: HTTP ${lexResponse.status}`);
+
+      this.showLoading("載入 Wasm 模組中...");
+      const wasmBytes = await wasmResponse.arrayBuffer();
+      const { instance } = await WebAssembly.instantiate(wasmBytes, wasiImport);
+      this.instance = instance;
+      this.exports = instance.exports;
+      this.memory = instance.exports.memory;
+      this.wasi.start(instance);
+
+      this.showLoading("解析詞庫索引中（約 15 萬詞）...");
+      const [lexText, toneText] = await Promise.all([
+        lexResponse.text(),
+        toneResponse.ok ? toneResponse.text() : Promise.resolve("")
+      ]);
+
+      const lexBuf = this.writeString(lexText);
+      const toneBuf = this.writeString(toneText);
+
+      const res = this.exports.misstype_wasm_init(
+        lexBuf.ptr, lexBuf.len,
+        toneBuf.ptr, toneBuf.len
+      );
+
+      this.exports.misstype_wasm_free(lexBuf.ptr);
+      this.exports.misstype_wasm_free(toneBuf.ptr);
+
+      if (res !== 1) {
+        throw new Error("Wasm 初始化失敗");
+      }
+
+      this.ready = true;
+      this.hideLoading();
+      this.updateState();
+      this.render();
+      console.log("[MisstypePlayground] Wasm IME 就緒！");
+    } catch (err) {
+      console.error(err);
+      this.showLoading(`初始化失敗: ${err.message}`);
+    }
+  }
+
+  updateState() {
+    this.state = this.getState();
+    if (this.state && this.state.lastCommit) {
       this.committedText += this.state.lastCommit;
       this.exports.misstype_wasm_clear_committed();
     }
@@ -112,6 +134,15 @@ export class MisstypePlayground {
     this.updateState();
     this.render();
     return consumed !== 0;
+  }
+
+  toggleEnglish() {
+    if (!this.ready) return;
+    if (this.exports.misstype_wasm_toggle_english) {
+      this.exports.misstype_wasm_toggle_english();
+    }
+    this.updateState();
+    this.render();
   }
 
   pickCandidate(index) {
@@ -148,46 +179,41 @@ export class MisstypePlayground {
 
         <div class="playground-box" tabindex="0" id="pg-box" role="textbox" aria-label="隨打注音試打區">
           <span class="text-committed" id="pg-committed"></span><span class="text-preedit" id="pg-preedit"></span><span class="playground-caret" id="pg-caret"></span>
-          <span class="playground-placeholder" id="pg-placeholder">請在此點擊並以鍵盤直接打字（免打聲調、打錯字試試看）...</span>
+          <span class="playground-placeholder" id="pg-placeholder">點這裡開始試打...（例：輸入 su3cl3 打「你好」，或 sucl 免聲調打「你好」）</span>
         </div>
 
-        <!-- Floating candidate panel (選字介面) -->
-        <div class="candidate-panel hidden" id="pg-cand-panel">
-          <ul class="candidate-list" id="pg-cand-list"></ul>
-          <div class="candidate-footer">
-            <span id="pg-cand-page">1 / 1</span>
-            <div class="candidate-page-nav">
-              <button class="candidate-nav-btn" id="pg-cand-prev" title="上一頁 (PageUp 或 [)">‹</button>
-              <button class="candidate-nav-btn" id="pg-cand-next" title="下一頁 (PageDown 或 ])">›</button>
+        <div class="playground-candidate-panel ${this.candidateOrientation}" id="pg-cand-panel" style="display: none;">
+          <div class="candidate-header">
+            <span class="cand-title">候選字</span>
+            <div class="cand-pagination">
+              <button class="cand-page-btn" id="pg-cand-prev" title="上一頁 (PageUp)">‹</button>
+              <span id="pg-cand-page">1/1</span>
+              <button class="cand-page-btn" id="pg-cand-next" title="下一頁 (PageDown)">›</button>
             </div>
           </div>
+          <div class="candidate-list" id="pg-cand-list"></div>
         </div>
 
         <div class="playground-footer">
-          <div class="playground-tips">
-            <span>提示：</span>
-            <span><kbd>↓</kbd> 展開選字</span>
-            <span><kbd>A</kbd>~<kbd>K</kbd> 直接選字</span>
-            <span><kbd>Space</kbd> / <kbd>Return</kbd> 上字</span>
-            <span><kbd>Shift</kbd> 切換中英</span>
+          <div class="tips-row">
+            <span><kbd>↓</kbd> / <kbd>↑</kbd> 展開與瀏覽候選字</span>
+            <span><kbd>A</kbd>~<kbd>K</kbd> / 點擊選字</span>
+            <span><kbd>Shift</kbd> 輕按切換中/英</span>
+            <span><kbd>Enter</kbd> 送字</span>
           </div>
-          <div class="playground-actions">
-            <span style="font-size: 12px; color: var(--muted);">純本地 WebAssembly 運算</span>
+          <div class="quick-examples">
+            <span class="example-label">試試看點擊打字：</span>
+            <button class="preset-chip" data-keys="sucl">你好 (免聲調)</button>
+            <button class="preset-chip" data-keys="ru0tu8">今天 (免聲調)</button>
+            <button class="preset-chip" data-keys="u;jp6">ㄧㄐㄢ (順序打反)</button>
+            <button class="preset-chip" data-keys="h0ru0x;3">ㄘㄐㄧㄣˇ (按到隔壁)</button>
           </div>
         </div>
 
         <div class="playground-loading-mask" id="pg-loading">
-          <div class="playground-spinner"></div>
-          <div class="playground-loading-text" id="pg-loading-text">正在初始化...</div>
+          <div class="loading-spinner"></div>
+          <div class="loading-text" id="pg-loading-text">正在載入 WebAssembly 核心...</div>
         </div>
-      </div>
-
-      <div class="playground-presets">
-        <span class="presets-label">快速體驗：</span>
-        <button class="preset-chip" data-keys="ru0tu8tu8gu;c0cj">免打聲調（今天天氣很好）</button>
-        <button class="preset-chip" data-keys="u;ru0tu8tu8gu;c0cj">順序打反（ㄧㄐㄢ 今天天氣很好）</button>
-        <button class="preset-chip" data-keys="1ejiu8h0d3r/628u.3">漏打符號（明天早上九點開會）</button>
-        <button class="preset-chip" data-keys="xuxudub/b/">按到隔壁鍵（謝謝你幫忙）</button>
       </div>
     `;
 
@@ -229,8 +255,18 @@ export class MisstypePlayground {
       this.boxEl.focus();
     });
 
+    let shiftDownTime = 0;
+    let shiftInterrupted = false;
+
     // Keydown handler
     this.boxEl.addEventListener("keydown", (e) => {
+      if (e.code === "ShiftLeft" || e.code === "ShiftRight") {
+        shiftDownTime = performance.now();
+        shiftInterrupted = false;
+      } else {
+        shiftInterrupted = true;
+      }
+
       const modifiers = (e.shiftKey ? 1 : 0) |
                         (e.ctrlKey ? 2 : 0) |
                         (e.altKey ? 4 : 0) |
@@ -246,6 +282,26 @@ export class MisstypePlayground {
       const consumed = this.sendKey(e.code, e.key, modifiers, 0);
       if (consumed) {
         e.preventDefault();
+      } else {
+        // When unconsumed (e.g. in English mode or pass-through keys):
+        // Simulate text typing into the committed buffer
+        if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+          if (e.key.length === 1) {
+            this.committedText += e.key;
+            this.render();
+            e.preventDefault();
+          } else if (e.key === "Backspace") {
+            if (this.committedText.length > 0) {
+              this.committedText = this.committedText.slice(0, -1);
+              this.render();
+            }
+            e.preventDefault();
+          } else if (e.key === "Enter") {
+            this.committedText += "\n";
+            this.render();
+            e.preventDefault();
+          }
+        }
       }
     });
 
@@ -260,14 +316,26 @@ export class MisstypePlayground {
       if (e.code === "ShiftLeft" || e.code === "ShiftRight") {
         const consumed = this.sendKey(e.code, e.key, modifiers, 1);
         if (consumed) e.preventDefault();
+
+        // If user tapped Shift quickly (< 450ms) with no intervening keys,
+        // and WASM hasn't already toggled it:
+        if (!shiftInterrupted && shiftDownTime > 0) {
+          const tapDuration = performance.now() - shiftDownTime;
+          if (tapDuration > 10 && tapDuration < 450) {
+            if (!this.state?.modeChanged && !this.state?.latinToggled) {
+              this.toggleEnglish();
+            }
+          }
+        }
+        shiftDownTime = 0;
+        shiftInterrupted = false;
       }
     });
 
     // Mode toggle button click
     this.modeBtn?.addEventListener("click", (e) => {
       e.stopPropagation();
-      this.sendKey("ShiftLeft", "Shift", 0, 0);
-      this.sendKey("ShiftLeft", "Shift", 0, 1);
+      this.toggleEnglish();
       this.boxEl.focus();
     });
 
@@ -341,149 +409,94 @@ export class MisstypePlayground {
     }
 
     if (preedit.length > 0) {
-      // Build segmented spans
+      // Render segments
       const segments = this.state.segments || [];
       const focus = this.state.focus;
 
       if (segments.length > 0) {
         let segHtml = "";
-        let cursorInserted = false;
-
-        for (let i = 0; i < segments.length; i++) {
-          const [start, end] = segments[i];
-          const isFocused = focus && focus[0] === start && focus[1] === end;
-          const segClass = isFocused ? "text-segment focused" : "text-segment";
-          const segText = preedit.substring(start, end);
-
-          // If caret falls within this segment
-          if (!cursorInserted && caretPos >= start && caretPos <= end) {
-            const before = segText.substring(0, caretPos - start);
-            const after = segText.substring(caretPos - start);
-            segHtml += `<span class="${segClass}">${escapeHtml(before)}</span>`;
-            segHtml += `<span class="playground-caret"></span>`;
-            segHtml += `<span class="${segClass}">${escapeHtml(after)}</span>`;
-            cursorInserted = true;
-          } else {
-            segHtml += `<span class="${segClass}">${escapeHtml(segText)}</span>`;
-          }
-        }
-
-        if (!cursorInserted) {
-          segHtml += `<span class="playground-caret"></span>`;
+        for (const [start, end] of segments) {
+          const text = preedit.substring(start, end);
+          const isFocused = focus && start === focus[0] && end === focus[1];
+          segHtml += `<span class="text-segment ${isFocused ? "focused" : ""}">${escapeHtml(text)}</span>`;
         }
         this.preeditEl.innerHTML = segHtml;
-        this.caretEl.style.display = "none";
       } else {
-        const before = preedit.substring(0, caretPos);
-        const after = preedit.substring(caretPos);
-        this.preeditEl.innerHTML = `<span class="text-segment">${escapeHtml(before)}</span><span class="playground-caret"></span><span class="text-segment">${escapeHtml(after)}</span>`;
-        this.caretEl.style.display = "none";
+        this.preeditEl.textContent = preedit;
       }
     } else {
       this.preeditEl.innerHTML = "";
-      this.caretEl.style.display = "inline-block";
     }
 
-    // Mode button
+    // Candidate window rendering
+    if (this.state.showsCandidates && this.state.candidates.length > 0) {
+      this.candidatePanel.style.display = "flex";
+      this.candidatePageEl.textContent = `${this.state.page + 1}/${this.state.pageCount}`;
+
+      const pageCandidates = this.state.pageCandidates || [];
+      const selectionKeys = this.state.selectionKeys || [];
+      const selectedIndex = this.state.pageSelected;
+
+      let html = "";
+      pageCandidates.forEach((cand, idx) => {
+        const isSelected = idx === selectedIndex;
+        const keyLabel = selectionKeys[idx] ? selectionKeys[idx].toUpperCase() : `${idx + 1}`;
+        html += `
+          <div class="candidate-item ${isSelected ? "selected" : ""}" data-index="${this.state.page * this.state.pageSize + idx}">
+            <span class="cand-key">${keyLabel}</span>
+            <span class="cand-text">${escapeHtml(cand)}</span>
+          </div>
+        `;
+      });
+      this.candidateList.innerHTML = html;
+
+      // Bind candidate item clicks
+      this.candidateList.querySelectorAll(".candidate-item").forEach((item) => {
+        item.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const idx = parseInt(item.dataset.index, 10);
+          if (!isNaN(idx)) {
+            this.pickCandidate(idx);
+          }
+        });
+      });
+
+      this.positionCandidatePanel();
+    } else {
+      this.candidatePanel.style.display = "none";
+    }
+
+    // Mode button label update
     if (this.modeBtn) {
       if (this.state.english) {
         this.modeBtn.textContent = "英";
         this.modeBtn.className = "mode-toggle-btn english";
       } else {
-        this.modeBtn.textContent = this.state.latinActive ? "英(暫)" : "中";
+        this.modeBtn.textContent = "中";
         this.modeBtn.className = this.state.latinActive ? "mode-toggle-btn english" : "mode-toggle-btn";
       }
     }
 
-    // Candidate Window (選字介面)
-    this.renderCandidatePanel();
+    if (typeof this.onStateChange === "function") {
+      this.onStateChange(this.state);
+    }
   }
 
-  renderCandidatePanel() {
-    if (!this.candidatePanel) return;
-
-    const showsCandidates = this.state.showsCandidates &&
-                            this.state.candidates &&
-                            this.state.candidates.length > 0;
-
-    if (!showsCandidates) {
-      this.candidatePanel.classList.add("hidden");
-      return;
-    }
-
-    this.candidatePanel.classList.remove("hidden");
-
-    // Position the panel relative to the preedit / box
+  positionCandidatePanel() {
+    if (!this.caretEl || !this.candidatePanel) return;
+    const caretRect = this.caretEl.getBoundingClientRect();
     const boxRect = this.boxEl.getBoundingClientRect();
-    const containerRect = this.container.getBoundingClientRect();
 
-    // Find the caret element or preedit element to anchor to
-    const activeCaret = this.container.querySelector(".playground-caret") || this.caretEl;
-    let top = 140;
-    let left = 24;
+    const left = caretRect.left - boxRect.left;
+    const top = caretRect.bottom - boxRect.top + 8;
 
-    if (activeCaret) {
-      const caretRect = activeCaret.getBoundingClientRect();
-      top = caretRect.bottom - containerRect.top + 8;
-      left = Math.max(12, caretRect.left - containerRect.left);
-    } else {
-      top = boxRect.bottom - containerRect.top + 8;
-    }
-
-    // Keep panel within right edge
-    const maxLeft = containerRect.width - 240;
-    if (left > maxLeft && maxLeft > 12) {
-      left = maxLeft;
-    }
-
+    this.candidatePanel.style.left = `${Math.max(0, left)}px`;
     this.candidatePanel.style.top = `${top}px`;
-    this.candidatePanel.style.left = `${left}px`;
-
-    // Render candidate rows
-    const pageCandidates = this.state.pageCandidates || [];
-    const selectionKeys = this.state.selectionKeys || [];
-    const pageSelected = this.state.pageSelected;
-    const page = this.state.page;
-    const pageSize = this.state.pageSize;
-
-    this.candidateList.innerHTML = pageCandidates.map((cand, i) => {
-      const isSelected = (i === pageSelected);
-      const selClass = isSelected ? "candidate-item selected" : "candidate-item";
-      const keyLabel = selectionKeys[i] ? selectionKeys[i].toUpperCase() : `${i + 1}`;
-      const globalIdx = page * pageSize + i;
-
-      return `
-        <li class="${selClass}" data-index="${globalIdx}">
-          <span class="candidate-text">${escapeHtml(cand)}</span>
-          <span class="candidate-key">${escapeHtml(keyLabel)}</span>
-        </li>
-      `;
-    }).join("");
-
-    // Add click listeners to candidate rows
-    this.candidateList.querySelectorAll(".candidate-item").forEach(item => {
-      item.addEventListener("click", (e) => {
-        e.stopPropagation();
-        const idx = parseInt(item.dataset.index, 10);
-        this.pickCandidate(idx);
-      });
-    });
-
-    // Page indicator and navigation
-    if (this.candidatePageEl) {
-      this.candidatePageEl.textContent = `${this.state.page + 1} / ${this.state.pageCount}`;
-    }
-    if (this.candPrevBtn) {
-      this.candPrevBtn.disabled = (this.state.page <= 0);
-    }
-    if (this.candNextBtn) {
-      this.candNextBtn.disabled = (this.state.page >= this.state.pageCount - 1);
-    }
   }
 }
 
 function escapeHtml(str) {
-  return (str || "")
+  return str
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
