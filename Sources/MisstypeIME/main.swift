@@ -143,6 +143,9 @@ final class MisstypeInputController: IMKInputController, InputSessionHost {
     private let missingRange = NSRange(location: NSNotFound, length: 0)
     /// The composition is drawn in the floating window (client cannot show it).
     private var popupActive = false
+    /// Bundle ID of the focused client, cached from live calls (handle,
+    /// activateServer) so menu() never has to query a possibly dead client.
+    private var clientBundleID: String?
 
     /// Raw event inlet (vChewing parity): this controller deliberately does
     /// NOT implement `inputText:key:modifiers:client:` — when it does, the
@@ -160,6 +163,7 @@ final class MisstypeInputController: IMKInputController, InputSessionHost {
         default: return false
         }
         lastClient = client
+        if clientBundleID == nil { clientBundleID = client.bundleIdentifier() }
         activeController = self
         UpdateController.noteKey(composing: !rendered.preedit.isEmpty)
         let keyCode = Int(event.keyCode)
@@ -335,7 +339,10 @@ final class MisstypeInputController: IMKInputController, InputSessionHost {
         menu.addItem(mode)
         // Per-app fallback for clients that draw no marked text (terminals in
         // Electron): the signal cannot be detected, so the user decides.
-        if let id = lastClient?.bundleIdentifier(), !id.isEmpty {
+        // The bundle ID is cached while the client is live: asking a stale
+        // client from menu() can raise an ObjC exception, which silently
+        // dropped the whole menu.
+        if let id = clientBundleID, !id.isEmpty {
             let popup = NSMenuItem(title: L("Floating composition in this app"),
                                    action: #selector(togglePopupComposition(_:)), keyEquivalent: "")
             popup.target = self
@@ -351,7 +358,7 @@ final class MisstypeInputController: IMKInputController, InputSessionHost {
     }
 
     @objc func togglePopupComposition(_ sender: Any?) {
-        guard let client = lastClient, let id = client.bundleIdentifier(), !id.isEmpty else { return }
+        guard let client = lastClient, let id = clientBundleID, !id.isEmpty else { return }
         ClientMitigation.togglePopup(bundleID: id)
         // Redraw under the new mode: end the composition so no stale marked
         // text stays in a client that will not show it (or the popup stays).
@@ -380,6 +387,7 @@ final class MisstypeInputController: IMKInputController, InputSessionHost {
         activeController = self
         if let client = sender as? IMKTextInput {
             lastClient = client
+            clientBundleID = client.bundleIdentifier()
         }
         session.resetModifierState()
         Runtime.debugLog("[ime] activateServer")
