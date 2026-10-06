@@ -394,7 +394,7 @@ public final class InputSession {
         let shift = mods.contains(.shift)
         let chord = !mods.isDisjoint(with: [.command, .control, .option])
         // Key trace for routing diagnosis (codes only, never text content).
-        engine.log("key=\(event.nativeCode ?? -1) flags=\(mods.rawValue) comp=\(composition.isEmpty ? 0 : 1) sel=\(selected) n=\(candidates.count) cur=\(cursor ?? -1) seg=\(segmentTexts == nil ? 0 : 1)")
+        engine.log("key=\(event.nativeCode ?? -1) flags=\(mods.rawValue) en=\(engine.english ? 1 : 0) latin=\(latinMode ? 1 : 0) comp=\(composition.isEmpty ? 0 : 1) sel=\(selected) n=\(candidates.count) cur=\(cursor ?? -1) seg=\(segmentTexts == nil ? 0 : 1)")
         // A mark survives only its own gestures: Shift+arrows move it, Return
         // files it, Escape drops it. Any other key abandons it first.
         let markGesture = (shift && (key == .left || key == .right)) || key == .escape || (key == .enter && !shift)
