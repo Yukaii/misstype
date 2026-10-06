@@ -90,9 +90,15 @@ final class CompositionPopup: NSPanel {
     func show(preedit: String, caret: Int, mark: SessionView.Mark?, anchor: NSRect?) {
         let fontSize = max(PanelStyle.defaultFontSize, 16)
         let font = NSFont.systemFont(ofSize: fontSize)
+        // Single line that never wraps: an attributed string carries its own
+        // paragraph style, which beat the label's lineBreakMode and wrapped
+        // the tail (last character, end caret) onto a hidden second line.
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineBreakMode = .byTruncatingHead
         let text = NSMutableAttributedString(string: preedit, attributes: [
             .font: font, .foregroundColor: NSColor.labelColor,
             .underlineStyle: NSUnderlineStyle.single.rawValue,
+            .paragraphStyle: paragraph,
         ])
         if let mark {
             let range = NSRange(location: mark.range.lowerBound, length: mark.range.count)
@@ -108,12 +114,16 @@ final class CompositionPopup: NSPanel {
             .font: NSFont.systemFont(ofSize: fontSize, weight: .light),
             .foregroundColor: NSColor.controlAccentColor,
             .underlineStyle: 0,
+            .paragraphStyle: paragraph,
         ]), at: at)
         label.attributedStringValue = text
         let textSize = text.size()
-        let width = min(ceil(textSize.width) + 20, 420)
+        // NSTextField's cell insets the text a few points per side: size the
+        // label from its own cell so the last glyph always fits.
+        let labelWidth = min(ceil(label.cell?.cellSize(forBounds: NSRect(x: 0, y: 0, width: 10_000, height: 1_000)).width ?? textSize.width) + 4, 400)
+        let width = labelWidth + 20
         let height = ceil(textSize.height) + 10
-        label.frame = NSRect(x: 10, y: 5, width: width - 20, height: ceil(textSize.height))
+        label.frame = NSRect(x: 10, y: 5, width: labelWidth, height: ceil(textSize.height) + 2)
         (contentView as? NSView)?.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
         let frame = Self.frame(width: width, height: height, anchor: anchor, sessionX: &sessionX)
         setFrame(frame, display: true)
