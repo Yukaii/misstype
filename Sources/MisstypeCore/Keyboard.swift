@@ -301,6 +301,25 @@ public struct Composition {
         rawKeys.append("L:\(char)")
         return true
     }
+    /// Re-read the trailing Zhuyin keys (everything after the last latin
+    /// letter or punctuation) as the Latin letters they physically were:
+    /// English typed in Zhuyin mode becomes the text it meant. Tone keys
+    /// become digits, Space stays the separator. False when there is no such
+    /// tail. Case is not recoverable from keys (Shift-typed letters were
+    /// already latin).
+    @discardableResult public mutating func convertTailToLatin() -> Bool {
+        var start = rawKeys.endIndex
+        while start > rawKeys.startIndex {
+            let key = rawKeys[start - 1]
+            guard !Composition.isLatinKey(key), !Punctuation.literals.contains(key) else { break }
+            start -= 1
+        }
+        guard start < rawKeys.endIndex else { return false }
+        for index in start..<rawKeys.endIndex where rawKeys[index] != " " {
+            rawKeys[index] = "L:\(rawKeys[index])"
+        }
+        return true
+    }
     /// Erase the last user-perceived unit: a whole converted syllable when
     /// nothing is pending (completed characters go one char per press),
     /// else the last raw key of the unfinished syllable. Tone fixes inside

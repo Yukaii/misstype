@@ -248,9 +248,18 @@ public final class InputSession {
             // Mid-composition a lone Shift tap opens/closes a latin run (same
             // as backtick) instead of committing: English joins the phrase and
             // one Return decodes the whole thing. The global 中/英 flip only
-            // happens with nothing being composed.
-            if !engine.english && !composition.isEmpty {
-                latinMode.toggle()
+            // happens with nothing being composed and no run open (a run
+            // outlives Esc/delete-all, so the tap that ends it is its own).
+            if !engine.english && (!composition.isEmpty || latinMode) {
+                if !latinMode && looksLikeMistypedEnglish && composition.convertTailToLatin() {
+                    // English typed in Zhuyin mode: the tap re-reads the
+                    // stranded keys as the letters they were, no retyping.
+                    resetPicks()
+                    refresh()
+                    latinMode = true
+                } else {
+                    latinMode.toggle()
+                }
                 engine.log("latin=\(latinMode ? 1 : 0) via=shift")
                 return KeyResult(consumed: true, latinToggled: true)
             }
@@ -412,7 +421,7 @@ public final class InputSession {
         // tone keys or Zhuyin ㄅㄉ…; Shift+digit is still the symbol layer.
         let latinLetter = latinMode && !chord
             && (key.letterLabel != nil || (!shift && key.digitLabel != nil) || (!shift && key == .character(".")))
-        if !latinLetter && key != .character("`") && key != .space && key != .backspace {
+        if !latinLetter && key != .character("`") && key != .space && key != .backspace && key != .escape {
             latinMode = false
         }
         if var menu = symbolMenu {
@@ -469,10 +478,7 @@ public final class InputSession {
         // commit-passthrough further below, so deleting phonetic evidence
         // never commits the composition first.
         if key == .backspace {
-            guard !composition.isEmpty else {
-                latinMode = false
-                return pass(committing: false)
-            }
+            guard !composition.isEmpty else { return pass(committing: false) }
             if retypeBefore == nil { retypeBefore = composition.rawKeys }
             selected = 0
             // Separator/punctuation pinning (and the settled pins derived
@@ -482,7 +488,7 @@ public final class InputSession {
             settledPins = UserLexicon()
             if !explicitPick { pinnedPick = nil }
             if mods.contains(.command) {
-                clear()
+                clear(keepLatin: true)
             } else if mods.contains(.option) {
                 composition.deleteLastSyllable()
                 refresh()
@@ -564,7 +570,7 @@ public final class InputSession {
                 clearSegment()
                 return .handled
             }
-            clear()
+            clear(keepLatin: true)
             return .handled
         }
         if chord { return pass() }
@@ -885,12 +891,26 @@ public final class InputSession {
     }
 
     /// Drop the composition and every pick (commit, Esc, Cmd+Backspace).
-    private func clear() {
+    /// An open latin run survives Esc and delete-all (`keepLatin`): the user
+    /// chose English, and wiping the text says nothing against it. Only the
+    /// toggle that opened it (or a commit key) closes it.
+    private func clear(keepLatin: Bool = false) {
         _ = nextJevID()
         composition.clear()
         candidates = []
         rawTail = []
         completeTexts = []
+        resetPicks()
+        selected = 0
+        if !keepLatin { latinMode = false }
+        retypeBefore = nil
+        retypes = []
+        unpickedTop = nil
+    }
+
+    /// Forget every pick, pin, selection and mark (the decode state that a
+    /// rewritten composition must not inherit).
+    private func resetPicks() {
         settledPins = UserLexicon()
         selecting = false
         symbolMenu = nil
@@ -902,10 +922,13 @@ public final class InputSession {
         sessionPins = UserLexicon()
         learnPins = UserLexicon()
         selected = 0
-        latinMode = false
-        retypeBefore = nil
-        retypes = []
-        unpickedTop = nil
+    }
+
+    /// The shown text is stranded Zhuyin, not Chinese: the decoder left a
+    /// syllable unresolved, or more raw keys than one syllable can hold
+    /// (a still-typed syllable is normal; four-plus keys never are).
+    private var looksLikeMistypedEnglish: Bool {
+        rawTail.count > 3 || (candidates.indices.contains(selected) && candidates[selected].unresolved > 0)
     }
 
     // MARK: - Syllable cursor (go back and pick a word, no modifiers)
