@@ -40,6 +40,8 @@ enum MisstypePrefs {
             "MisstypeUILanguage": "",
             "MisstypeCustomTheme": CustomTheme.defaultText,
             "MisstypeCandidateGrid": false,
+            "MisstypePopupCompositionForElectron": true,
+            "MisstypePopupCompositionClients": [String](),
         ])
     }
 
@@ -82,6 +84,18 @@ enum MisstypePrefs {
 
     /// Lone-Shift-tap toggles 中/英 (default on; Shift+Space always works).
     /// Kill-switch for clients that misdeliver modifier events.
+    /// Electron/WebView clients get a floating composition window instead of
+    /// marked text (default on; `defaults write` only, like vChewing's
+    /// AlwaysUsePCBWithElectronBasedClients).
+    static var popupCompositionForElectron: Bool {
+        UserDefaults.standard.bool(forKey: "MisstypePopupCompositionForElectron")
+    }
+
+    /// Extra bundle IDs that always use the floating composition window.
+    static var popupCompositionClients: Set<String> {
+        Set(UserDefaults.standard.stringArray(forKey: "MisstypePopupCompositionClients") ?? [])
+    }
+
     static var shiftToggle: Bool {
         get { UserDefaults.standard.bool(forKey: "MisstypeShiftToggle") }
         set { UserDefaults.standard.set(newValue, forKey: "MisstypeShiftToggle") }

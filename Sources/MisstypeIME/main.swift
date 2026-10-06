@@ -141,6 +141,8 @@ final class MisstypeInputController: IMKInputController, InputSessionHost {
     /// What the client and panel show now; `render` pushes only differences.
     private var rendered = SessionView.empty
     private let missingRange = NSRange(location: NSNotFound, length: 0)
+    /// The composition is drawn in the floating window (client cannot show it).
+    private var popupActive = false
 
     /// Raw event inlet (vChewing parity): this controller deliberately does
     /// NOT implement `inputText:key:modifiers:client:` — when it does, the
@@ -231,12 +233,23 @@ final class MisstypeInputController: IMKInputController, InputSessionHost {
             // String some clients treat the text as plain and never draw the
             // caret or the selection inside it, which is what the removed
             // self-drawn "|" header was papering over.
-            let marked = NSAttributedString(string: view.preedit, attributes: [
+            let popup = !view.preedit.isEmpty && ClientMitigation.needsPopup(bundleID: client.bundleIdentifier())
+            // Clients that cannot show marked text get a one-space
+            // placeholder (the composition stays alive for IMK) and the
+            // real text in a floating window.
+            let marked = NSAttributedString(string: popup ? " " : view.preedit, attributes: [
                 .underlineStyle: NSUnderlineStyle.single.rawValue,
                 .markedClauseSegment: 0,
             ])
-            client.setMarkedText(marked, selectionRange: selection,
+            client.setMarkedText(marked, selectionRange: popup ? NSRange(location: 0, length: 0) : selection,
                                  replacementRange: missingRange)
+            popupActive = popup
+        }
+        if popupActive, !view.preedit.isEmpty {
+            CompositionPopup.shared.show(preedit: view.preedit, caret: view.caret, mark: view.mark,
+                                         anchor: caretAnchor(client, length: view.preedit.utf16.count))
+        } else {
+            CompositionPopup.shared.hidePopup()
         }
         rendered = view
         UpdateController.setComposing(!view.preedit.isEmpty)
