@@ -126,6 +126,19 @@ int32_t misstype_engine_is_english(const misstype_engine *engine);
  * made outside are picked up when the next composition starts. */
 void misstype_engine_set_user_dictionary_path(misstype_engine *engine, const char *path);
 
+/* Personal channel model (learned typing slips; docs/project-outline.md,
+ * Personal channel model). Appended functions, the settings struct is
+ * unchanged. Path: NULL = ChannelLearner.defaultURL
+ * ($XDG_DATA_HOME/misstype/channel_model.json), "" = memory only (the
+ * default after misstype_engine_new). Learning is off until enabled, and
+ * also needs user_learning; misstype_engine_set_settings keeps the flag. */
+void misstype_engine_set_channel_path(misstype_engine *engine, const char *path);
+void misstype_engine_set_channel_learning(misstype_engine *engine, int32_t enabled);
+/* Forgets every learned slip, on disk too. */
+void misstype_engine_clear_channel(misstype_engine *engine);
+/* Number of learned pairs the decoder currently uses. */
+int32_t misstype_engine_channel_pair_count(const misstype_engine *engine);
+
 misstype_session *misstype_session_new(misstype_engine *engine);
 void misstype_session_free(misstype_session *session);
 misstype_key_result misstype_session_handle(misstype_session *session, const misstype_key_event *event);

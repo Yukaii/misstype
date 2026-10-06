@@ -132,6 +132,12 @@ public:
             misstype_settings settings = misstype_settings_default();
             settings.shift_toggle = 0;
             misstype_engine_set_settings(engine_, &settings);
+            // Learned typing slips: $XDG_DATA_HOME/misstype/channel_model.json.
+            // Experimental and off unless MISSTYPE_CHANNEL_LEARNING=1 (no
+            // fcitx5 config page yet).
+            misstype_engine_set_channel_path(engine_, nullptr);
+            const char *channel = std::getenv("MISSTYPE_CHANNEL_LEARNING");
+            misstype_engine_set_channel_learning(engine_, channel && std::string(channel) == "1");
         } else {
             // Never crash and never filter: every key passes through.
             FCITX_ERROR() << "Misstype: cannot load lexicon.tsv from " << resources;

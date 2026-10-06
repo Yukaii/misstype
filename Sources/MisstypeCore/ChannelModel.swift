@@ -164,13 +164,32 @@ public struct ChannelLearner: Codable, Equatable {
         reverts = reverts.filter { !$0.value.isEmpty }
     }
 
-    public static func load(from url: URL) -> ChannelLearner {
+    /// Learned pairs as (typed symbol, intended symbol, cost), cheapest
+    /// first: what a settings pane lists.
+    public var learnedPairs: [(typed: String, intended: String, cost: Double)] {
+        var pairs: [(typed: String, intended: String, cost: Double)] = []
+        for (typed, row) in model?.substitutions ?? [:] {
+            for (intended, cost) in row {
+                pairs.append((ZhuyinKeyboard.symbols[typed] ?? typed, ZhuyinKeyboard.symbols[intended] ?? intended, cost))
+            }
+        }
+        return pairs.sorted { a, b in
+            a.cost == b.cost ? a.typed + a.intended < b.typed + b.intended : a.cost < b.cost
+        }
+    }
+
+    /// `channel_model.json` beside the learned phrases.
+    public static var defaultURL: URL {
+        UserLexicon.defaultURL.deletingLastPathComponent().appendingPathComponent("channel_model.json")
+    }
+
+    public static func load(from url: URL = defaultURL) -> ChannelLearner {
         guard let data = try? Data(contentsOf: url),
               let learner = try? JSONDecoder().decode(ChannelLearner.self, from: data) else { return ChannelLearner() }
         return learner
     }
 
-    public func save(to url: URL) {
+    public func save(to url: URL = defaultURL) {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         guard let data = try? encoder.encode(self) else { return }

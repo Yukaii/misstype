@@ -21,6 +21,7 @@ enum MisstypePrefs {
             "MisstypeToneTolerance": true,
             "MisstypeCandidateKeys": "asdfghjkl;",
             "MisstypeUserLearning": true,
+            "MisstypeChannelLearning": false,
             "MisstypeJevEnabled": false,
             "MisstypeJevRichContext": false,
             "MisstypeJevApiKey": "",
@@ -145,6 +146,15 @@ enum MisstypePrefs {
         set { UserDefaults.standard.set(newValue, forKey: "MisstypeUserLearning") }
     }
 
+    /// Personal channel model (experimental, default off): learns which
+    /// keys this user swaps (Backspace re-types, picks, reverted repairs)
+    /// and cheapens exactly those repairs. Needs userLearning; stored as
+    /// keys and counts in `ChannelLearner.defaultURL`, never text.
+    static var channelLearning: Bool {
+        get { UserDefaults.standard.bool(forKey: "MisstypeChannelLearning") }
+        set { UserDefaults.standard.set(newValue, forKey: "MisstypeChannelLearning") }
+    }
+
     static var jevEnabled: Bool {
         get { UserDefaults.standard.bool(forKey: "MisstypeJevEnabled") }
         set { UserDefaults.standard.set(newValue, forKey: "MisstypeJevEnabled") }
@@ -179,7 +189,8 @@ enum MisstypePrefs {
                         mixedEnglish: mixedEnglish,
                         pageSize: candidatesPerPage,
                         keyBindings: keyBindings,
-                        cursorCandidates: cursorCandidates)
+                        cursorCandidates: cursorCandidates,
+                        channelLearning: channelLearning)
     }
 
     /// Live adapter config: explicit enable + key presence gate the attempt;
