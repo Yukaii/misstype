@@ -120,7 +120,7 @@ final class CompositionPopup: NSPanel {
         let textSize = text.size()
         // NSTextField's cell insets the text a few points per side: size the
         // label from its own cell so the last glyph always fits.
-        let labelWidth = min(ceil(label.cell?.cellSize(forBounds: NSRect(x: 0, y: 0, width: 10_000, height: 1_000)).width ?? textSize.width) + 4, 400)
+        let labelWidth = min(ceil(label.cell?.cellSize(forBounds: NSRect(x: 0, y: 0, width: 10_000, height: 1_000)).width ?? textSize.width), 400)
         let width = labelWidth + 20
         let height = ceil(textSize.height) + 10
         label.frame = NSRect(x: 10, y: 5, width: labelWidth, height: ceil(textSize.height) + 2)
