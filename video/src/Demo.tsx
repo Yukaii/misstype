@@ -8,6 +8,8 @@ import { KeyStrip } from "./KeyStrip";
 import type { Snapshot } from "./decoder";
 import { FPS, type TimedBeat } from "./timeline";
 
+const BIG_KEYS = new Set(["Enter", "Space"]);
+
 export type DemoProps = {
   beats: TimedBeat[];
   snapshots: Snapshot[][];
@@ -30,8 +32,11 @@ export const Demo: React.FC<DemoProps> = ({ beats, snapshots, music }) => {
           <Caption timed={b} />
           {b.voice && <Html5Audio src={staticFile(`voice/${b.voice.file}`)} />}
           {b.strokes.map((s, j) => (
-            <Sequence key={j} from={s.frame} durationInFrames={8} layout="none">
-              <Html5Audio src={staticFile("sfx/key.wav")} volume={s.label === "Enter" ? 0.5 : 0.3} />
+            <Sequence key={j} from={s.frame} durationInFrames={6} layout="none">
+              <Html5Audio
+                src={staticFile(BIG_KEYS.has(s.label) ? "sfx/key-big.wav" : `sfx/key-${j % 4}.wav`)}
+                volume={BIG_KEYS.has(s.label) ? 0.45 : 0.3}
+              />
             </Sequence>
           ))}
         </Sequence>

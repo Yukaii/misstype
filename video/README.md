@@ -30,6 +30,11 @@ Everything is in `story.json`. A beat either shows a title card (`title`,
 Typing pace is fixed, with deterministic jitter (`src/timeline.ts`), so every
 render is identical.
 
+`keySound` picks the synthesized switch sound (`scripts/keysound.mjs`):
+`blue` (clicky), `brown` (tactile), `clacky` (linear, bright) or `thock`
+(lubed linear, deeper). `node scripts/keysound.mjs --samples` writes a short
+typing phrase for each to `out/samples/`.
+
 ## Voiceover and captions
 
 `npm run voiceover` sends **only the `narration` lines in story.json** to
