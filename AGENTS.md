@@ -100,6 +100,12 @@ script/linux/dev.sh 'bash script/linux/test_all.sh'
 bash script/linux/test_all.sh   # on a provisioned Linux box
 ```
 
+Linux also ships `misstypectl` (Swift, `Sources/MisstypeCtl`: `dict` and
+`config` subcommands) and a GTK4 dictionary editor over it; the fcitx5
+settings page and `misstypectl config` edit the same `conf/misstype.conf`
+(`docs/linux-port.md`, L7). Keep the key list in `ConfigCommand.settings` in
+step with `MisstypeConfig` in `linux/fcitx5/src/engine.cpp`.
+
 Editing rules live in `MisstypeCore`'s `InputSession`; platform adapters
 only translate key events and draw `SessionView` (see
 `docs/architecture.md`, Platform boundary). `swift test` also runs on Linux,

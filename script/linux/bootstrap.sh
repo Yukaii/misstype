@@ -21,7 +21,7 @@ TOOLCHAIN_ROOT="${SWIFT_TOOLCHAIN_ROOT:-$HOME/swift-toolchain}"
 # release .so links libcurl via FoundationNetworking.
 APT_PKGS="cmake make g++ pkg-config extra-cmake-modules gettext python3 \
     fcitx5 libfcitx5core-dev libfcitx5config-dev libfcitx5utils-dev \
-    fcitx5-modules-dev libcurl4-openssl-dev"
+    fcitx5-modules-dev libgtk-4-dev libcurl4-openssl-dev"
 
 # Another apt user (unattended-upgrades, a provisioner) may hold the lock.
 for i in $(seq 1 30); do

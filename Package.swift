@@ -7,6 +7,7 @@ import PackageDescription
 var products: [Product] = [
     .library(name: "MisstypeCAPI", type: .dynamic, targets: ["MisstypeCAPI"]),
     .executable(name: "MisstypeWasm", targets: ["MisstypeWasm"]),
+    .executable(name: "misstypectl", targets: ["misstypectl"]),
 ]
 
 var targets: [Target] = [
@@ -17,6 +18,10 @@ var targets: [Target] = [
         name: "MisstypeWasm",
         dependencies: ["MisstypeCore"]
     ),
+    .target(name: "MisstypeCtl", dependencies: ["MisstypeCore"]),
+    .executableTarget(name: "misstypectl", dependencies: ["MisstypeCtl"]),
+    .testTarget(name: "MisstypeCtlTests", dependencies: ["MisstypeCtl", "MisstypeCore"],
+                path: "tests/MisstypeCtlTests"),
     .testTarget(name: "MisstypeCoreTests", dependencies: ["MisstypeCore"],
                 path: "tests/MisstypeCoreTests"),
 ]

@@ -100,12 +100,26 @@ typedef struct misstype_view {
     char *mark_reading;         /* hyphen-joined toned Zhuyin, "" when none */
 } misstype_view;
 
+/* Which words the syllable cursor (Left/Right) lists (CursorCandidates). */
+typedef enum misstype_cursor_candidates {
+    MISSTYPE_CURSOR_COVERING = 0,     /* every word covering the cursor syllable */
+    MISSTYPE_CURSOR_ENDING_AT = 1,    /* words ending at the cursor syllable, caret after it */
+    MISSTYPE_CURSOR_BEGINNING_AT = 2  /* words starting at the cursor syllable, caret before it */
+} misstype_cursor_candidates;
+
 typedef struct misstype_settings {
     int32_t fuzzy_repair;       /* default 1 */
     int32_t tone_tolerance;     /* default 1 */
     int32_t user_learning;      /* default 1 */
     int32_t shift_toggle;       /* default 1; fcitx5 sets 0 (AltTriggerKeys owns Shift_L) */
     const char *candidate_keys; /* NULL = "asdfghjkl;"; sanitized like SelectionKeys.sanitize */
+    /* Appended fields. misstype_settings_default() keeps the core's behavior. */
+    int32_t auto_show_candidates;       /* default 1; 0 = panel opens on Tab/arrows only */
+    int32_t return_confirms_selection;  /* default 0; 1 = Return confirms a pick, the next Return sends */
+    int32_t mixed_english;              /* default 1; needs english.tsv, else no effect */
+    int32_t auto_commit_syllables;      /* default 24; 0 = never commit in chunks */
+    int32_t page_size;                  /* default 8; candidates per page, clamped to 4...10 */
+    int32_t cursor_candidates;          /* misstype_cursor_candidates; default COVERING */
 } misstype_settings;
 
 misstype_settings misstype_settings_default(void);
