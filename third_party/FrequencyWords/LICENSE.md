@@ -6,12 +6,13 @@ Code: MIT License. Content: **CC BY-SA 4.0**
 (https://creativecommons.org/licenses/by-sa/4.0/legalcode), derived from
 OpenSubtitles 2018 (http://opus.nlpl.eu/OpenSubtitles2018.php).
 
-Used only to recognize English words typed without a mode switch and to rank
-them (`word<SPACE>count` -> natural-log probability). `script/prepare_lexicon.py`
-writes `.cache/frequencywords/english.tsv`; nothing is committed.
+Changes made by Misstype: retain lowercase ASCII alphabetic words, normalize
+their counts over the retained entries, and write six-decimal natural-log
+probabilities (`word<TAB>ln p`). `script/prepare_lexicon.py` writes
+`.cache/frequencywords/english.tsv`; the generated data is not committed.
 
-ShareAlike note: the derived `english.tsv` is an adaptation of CC BY-SA
-content. It stays in the (uncommitted) cache during development. If an
-installer or app bundle ever ships it, that file must be offered under
-CC BY-SA 4.0 with this attribution, or the source swapped for a permissively
-licensed list (SCOWL is the candidate). Decision recorded 2026-10-04.
+The derived `english.tsv` is offered under **CC BY-SA 4.0** wherever it is
+distributed: the macOS app/installer, Linux data directory, and website's
+downloadable demo assets. Retain this attribution, the license link, and the
+change description when sharing it. This data license is separate from
+Misstype's MIT-licensed code.

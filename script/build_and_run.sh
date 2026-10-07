@@ -4,12 +4,15 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT_DIR"
 APP_NAME="MisstypeIME"
 APP_DIR="$ROOT_DIR/dist/$APP_NAME.app"
-if pgrep -x "$APP_NAME" >/dev/null 2>&1; then killall "$APP_NAME" || true; fi
+if [[ "${1:-}" != "--build-only" ]] && pgrep -x "$APP_NAME" >/dev/null 2>&1; then killall "$APP_NAME" || true; fi
 python3 script/prepare_lexicon.py
 # SWIFT_BUILD_FLAGS lets release packaging add e.g. "--arch arm64 --arch x86_64".
 BUILD_FLAGS=(-c release ${=SWIFT_BUILD_FLAGS:-})
 swift build "${BUILD_FLAGS[@]}"
 BIN_DIR="$(swift build "${BUILD_FLAGS[@]}" --show-bin-path)"
+# Keep the complete Sparkle notices (including its bundled components) in
+# sync with the resolved binary artifact before packaging anything.
+cmp third_party/Sparkle/LICENSE .build/artifacts/sparkle/Sparkle/LICENSE
 rm -rf "$APP_DIR"
 mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
 cp "$BIN_DIR/$APP_NAME" "$APP_DIR/Contents/MacOS/$APP_NAME"

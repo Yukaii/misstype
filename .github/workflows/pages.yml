@@ -15,6 +15,9 @@ on:
       - "Resources/**"
       - "script/prepare_lexicon.py"
       - "script/build_site_assets.sh"
+      - "script/prepare_site_notices.mjs"
+      - "LICENSE"
+      - "THIRD_PARTY_NOTICES.md"
       - "third_party/**"
       - ".github/workflows/pages.yml"
   pull_request:
@@ -25,6 +28,9 @@ on:
       - "Resources/**"
       - "script/prepare_lexicon.py"
       - "script/build_site_assets.sh"
+      - "script/prepare_site_notices.mjs"
+      - "LICENSE"
+      - "THIRD_PARTY_NOTICES.md"
       - "third_party/**"
       - ".github/workflows/pages.yml"
   workflow_dispatch:

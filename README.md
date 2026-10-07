@@ -64,5 +64,5 @@
 
 ## 授權條款
 
-本專案採用 **MIT 授權條款**（詳見 [`LICENSE`](LICENSE)）。
-隨附之詞庫資料衍生自小麥注音（MIT 授權） 與 libtabe（BSD 風格授權）；詳見 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。
+Misstype 自有程式碼採用 **MIT 授權條款**（詳見 [`LICENSE`](LICENSE)）。
+第三方程式碼與詞庫依各自授權：小麥注音為 MIT、libtabe 為 BSD 風格授權、國家教育研究院詞頻資料為 CC BY 4.0、英文詞表為 CC BY-SA 4.0；macOS 使用 Sparkle，Linux 連結 fcitx5。完整來源、授權及適用範圍見 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。
