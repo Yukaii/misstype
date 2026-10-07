@@ -25,6 +25,8 @@ on:
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 jobs:
   release:
@@ -35,14 +37,26 @@ jobs:
       HAS_NOTARY: ${{ secrets.NOTARY_KEY_ID != '' }}
       HAS_SPARKLE: ${{ secrets.SPARKLE_ED_PRIVATE_KEY != '' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          # Dispatched by Tag release: build the exact newly pushed tag. Normal
-          # tag pushes and artifact-only dispatches use their triggering ref.
-          ref: ${{ inputs.publish && inputs.version || github.ref }}
+          # Match the source SHA in the OIDC certificate, even if the ref moves.
+          ref: ${{ github.sha }}
+
+      - name: Verify build source
+        env:
+          PUBLISH: ${{ github.event_name == 'push' || inputs.publish }}
+        run: |
+          if [[ "$(git rev-parse HEAD)" != "$GITHUB_SHA" ]]; then
+            echo '::error::Checkout does not match the attested source commit.'
+            exit 1
+          fi
+          if [[ "$PUBLISH" == 'true' && "$GITHUB_REF" != "refs/tags/$VERSION" ]]; then
+            echo '::error::Publishing requires dispatching at the version tag (--ref <tag> -f version=<tag>), not a branch.'
+            exit 1
+          fi
 
       # Pinned public dictionary sources only (checksum-verified).
-      - uses: actions/cache@v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: .cache
           key: lexicon-${{ hashFiles('third_party/*/sources.json') }}
@@ -92,13 +106,30 @@ jobs:
           NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
         run: ./script/package_release.sh "$VERSION"
 
-      - uses: actions/upload-artifact@v4
+      # Package includes signing, notarization/stapling, and final checksums.
+      # Attest these exact downloadable bytes; no packaging runs afterwards.
+      - name: Attest final release artifacts
+        id: attest
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          subject-path: |
+            dist/Misstype-*.dmg*
+            dist/MisstypeIME-*.zip*
+            dist/appcast.xml
+
+      - name: Include verification bundle
+        env:
+          BUNDLE_PATH: ${{ steps.attest.outputs.bundle-path }}
+        run: cp "$BUNDLE_PATH" dist/build-provenance.sigstore.json
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: Misstype-${{ env.VERSION }}
           path: |
             dist/Misstype-*.dmg*
             dist/MisstypeIME-*.zip*
             dist/appcast.xml
+            dist/build-provenance.sigstore.json
 
       - name: Publish release
         if: github.event_name == 'push' || inputs.publish
@@ -107,10 +138,12 @@ jobs:
         run: |
           PRERELEASE=""
           [[ "$VERSION" == *-* ]] && PRERELEASE="--prerelease"
-          ASSETS=(dist/Misstype-*.dmg dist/Misstype-*.dmg.sha256 dist/MisstypeIME-*.zip dist/MisstypeIME-*.zip.sha256)
+          ASSETS=(dist/Misstype-*.dmg dist/Misstype-*.dmg.sha256 dist/MisstypeIME-*.zip dist/MisstypeIME-*.zip.sha256 dist/build-provenance.sigstore.json)
           [[ -f dist/appcast.xml ]] && ASSETS+=(dist/appcast.xml)
+          # Upload every asset before publication locks an immutable release.
           gh release create "$VERSION" "${ASSETS[@]}" \
-            --verify-tag --title "Misstype ${VERSION#v}" --generate-notes $PRERELEASE
+            --draft --verify-tag --title "Misstype ${VERSION#v}" --generate-notes $PRERELEASE
+          gh release edit "$VERSION" --draft=false
 
       - name: Clean up signing material
         if: always()

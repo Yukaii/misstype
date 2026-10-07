@@ -47,6 +47,8 @@
 
 到 [GitHub Releases](https://github.com/Yukaii/misstype/releases/latest) 下載 `Misstype-<版本>.dmg`，開啟後執行 **Install Misstype**。輸入法安裝在你的使用者資料夾，不需要管理者密碼，之後會透過內建的 Sparkle 自動更新。第一次安裝後，登出再登入，即可在 macOS 選單列的輸入法選單或「系統設定 → 鍵盤 → 輸入方式」中選擇 **隨打注音**（英文系統顯示為 `Misstype Bopomofo`）。
 
+新版發布流程會附上 GitHub Actions 建置來源證明（attestation），供使用者核對下載檔、建置 workflow 與來源 commit；[驗證方式與適用版本](docs/release.md#verify-build-provenance)列在發布文件中。
+
 ### Linux
 
 以 fcitx5 外掛支援 Linux，與 macOS 版共用同一個核心。安裝與進度見 [Linux 移植說明](docs/linux-port.md)。

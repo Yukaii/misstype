@@ -131,6 +131,11 @@ Use scripts under `tools/` for deterministic replay and measurement rather than 
   signs/notarizes when the configured secrets exist, and publishes the GitHub
   Release, checksums, and Sparkle appcast. No local packaging is needed just
   to cut a release. See `docs/release.md` for signing prerequisites.
+- Release also attests the final DMG, update ZIP, checksums, and optional
+  appcast with GitHub/Sigstore build provenance, and includes
+  `build-provenance.sigstore.json` for verification. All assets are uploaded
+  to a draft before publishing locks the immutable release. Never overwrite
+  published assets or move a release tag; fixes need a new version.
 - For the normal automated path, run **Actions → Tag release → Run workflow**
   and select `major`, `minor`, or `patch` (default `patch`), or use
   `gh workflow run tag-release.yml --ref main -f bump=minor`.
@@ -143,7 +148,9 @@ Use scripts under `tools/` for deterministic replay and measurement rather than 
   Release workflow at the new tag with `publish=true`; no additional PAT is
   needed. Keeping builds in Release preserves its increasing run number for
   Sparkle. Direct manual dispatch of **Release** is artifact-only by default;
-  publishing requires its `publish` checkbox and an existing version tag.
+  publishing requires its `publish` checkbox, dispatching at the existing
+  version tag (`--ref <tag>`), and `version=<tag>`. Checkout must match
+  `github.sha` so the attestation identifies the actual build source.
 - Treat this flow as the documented contract rather than rediscovering it
   for every release. Check that the requested version is unused and verify
   the resulting workflow status; inspect workflow internals when changing

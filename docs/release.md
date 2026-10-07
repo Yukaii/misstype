@@ -108,12 +108,22 @@ stay in the original Release workflow to preserve its increasing run number
 for Sparkle's `CFBundleVersion`.
 Direct user tag pushes still trigger Release normally. Direct manual
 dispatch of Release builds artifacts without publishing by default; its
-optional `publish` checkbox requires an existing version tag.
+optional `publish` checkbox requires dispatching at the existing version tag
+(`--ref <tag>`) with `version=<tag>`. Publishing from a branch while specifying
+a different tag is rejected. Every build checks out `github.sha`, and verifies
+that HEAD matches the source commit recorded in its attestation certificate.
 Publishing requires an existing remote tag (`gh release create --verify-tag`).
 If tagging succeeds but the release build fails, rerun the failed jobs in
 the Release run. If its dispatch fails, use the existing tag with
 `gh workflow run release.yml --ref <tag> -f version=<tag> -f publish=true`.
 Starting a new Tag release dispatch calculates another version.
+
+Release immutability is enabled for future releases. CI creates a draft,
+uploads **all** assets (including the provenance bundle), then publishes the
+draft. Publication locks the assets and tag. If an upload fails leaving a
+draft, remove only that unpublished draft before rerunning the failed job;
+never replace published assets or move their tag. A correction to a published
+release needs a new version.
 
 Hypothesis (2026-10-07): creating a tag with the built-in token alone will
 leave a release unbuilt. The smallest check is that the tag job dispatches
@@ -129,8 +139,66 @@ The preceding direct tag-push release `v0.2.0` completed successfully. The new
 Tag release dispatch has not been run to avoid creating an additional release.
 
 Artifacts: `Misstype-<v>.dmg`, `MisstypeIME-<v>.zip` (the Sparkle archive),
-`appcast.xml`, `.sha256` files. Tags containing `-` are prereleases and are
+`appcast.xml`, `.sha256` files, `build-provenance.sigstore.json`.
+Tags containing `-` are prereleases and are
 skipped by `latest`, so they never reach existing installs.
+
+## Verify build provenance
+
+建置來源證明（build attestation）適用於加入此流程後建置的成品；既有的
+v0.2.0 未附上此證明。Release workflow 在簽章、公證、stapling 與 checksum
+完成後，使用固定 commit 的 `actions/attest`，對最終 DMG、更新 ZIP、checksum
+和有提供時的 appcast 產生 GitHub/Sigstore 證明。Artifact-only dispatch 也會
+產生證明，方便驗證流程而不建立公開 release。證明失敗就不會發布。
+
+下載後可用新版 [GitHub CLI](https://cli.github.com/) 核對成品雜湊、repository、
+release workflow、來源 tag，以及是否由 GitHub-hosted runner 建置。
+以下 `v0.2.1` 是範例，請改成實際附有證明的版本：
+
+```sh
+RELEASE_TAG=v0.2.1
+gh release download "$RELEASE_TAG" --repo Yukaii/misstype \
+  --pattern 'Misstype-*.dmg' --pattern 'build-provenance.sigstore.json'
+gh attestation verify "Misstype-${RELEASE_TAG#v}.dmg" \
+  --repo Yukaii/misstype \
+  --signer-workflow Yukaii/misstype/.github/workflows/release.yml \
+  --source-ref "refs/tags/$RELEASE_TAG" \
+  --deny-self-hosted-runners
+```
+
+若已核對原始碼 commit，可再加上 `--source-digest <完整 commit SHA>`。
+同一個指令也適用於更新 ZIP、checksum 和 appcast，替換檔名即可。
+若要使用 release 附的證明檔而非向 API 取得證明，加上
+`--bundle build-provenance.sigstore.json`。
+詳見 [GitHub CLI 驗證參數](https://cli.github.com/manual/gh_attestation_verify)。
+
+Immutable release 本身另有 GitHub 的 release attestation，可驗證下載檔
+仍是該版本正式發布時的附件：
+
+```sh
+gh release verify-asset "$RELEASE_TAG" "Misstype-${RELEASE_TAG#v}.dmg" \
+  --repo Yukaii/misstype
+```
+
+建置證明記錄成品來源，不保證程式行為安全，也不代表已通過獨立重建。
+Sparkle 自動更新仍使用既有的 EdDSA 驗證，不會自動執行上述 provenance
+檢查。[GitHub attestation 說明](https://docs.github.com/en/actions/concepts/security/artifact-attestations)
+與 [immutable release 說明](https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases)。
+
+Hypothesis (2026-10-07): the final downloaded files can be bound to the
+workflow's actual source commit without publishing a new version. The smallest
+experiment is an artifact-only Release dispatch at the implementation commit,
+then download its artifacts and verify their attestations with the expected
+workflow and source SHA. A modified copy must fail verification. Source/ref
+guards and draft-before-publication are also checked before pushing.
+
+Verified locally 2026-10-07: actionlint 1.7.12 validated all workflows;
+241 Swift tests (8 skipped) and 73 Python tests passed. Manual execution of
+the workflow's shell steps passed five source/ref cases (including mismatched
+SHA, branch publication, and a different tag) and four mocked publication
+cases (stable/prerelease, optional appcast, and upload failure preventing
+publication). An actual immutable publication is checked on the next
+requested release.
 
 ## Verification status
 
