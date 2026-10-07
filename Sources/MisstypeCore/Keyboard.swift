@@ -114,6 +114,51 @@ public enum ZhuyinKeyboard {
         }
         return table
     }()
+    /// Zhuyin slot of a symbol key: 0 initial (ㄅ–ㄙ), 1 medial (ㄧㄨㄩ),
+    /// 2 final (ㄚ–ㄦ); nil for non-symbol keys.
+    static func slot(of key: String) -> Int? {
+        guard let symbol = symbols[key]?.unicodeScalars.first?.value else { return nil }
+        switch symbol {
+        case 0x3105...0x3119: return 0
+        case 0x3127...0x3129: return 1
+        default: return 2
+        }
+    }
+
+    /// The keys in slot order (initial, medial, final) when they are typed
+    /// out of it, at most one per slot — the reading a slot-based editor
+    /// (libchewing's Dachen) would build from the same keys. nil when already
+    /// in order or not one syllable's worth of keys.
+    static func slotOrdered(_ keys: [String]) -> [String]? {
+        let slots = keys.compactMap(slot(of:))
+        guard slots.count == keys.count, Set(slots).count == slots.count,
+              slots != slots.sorted() else { return nil }
+        return zip(slots, keys).sorted { $0.0 < $1.0 }.map(\.1)
+    }
+
+    private static let keysBySlot: [[String]] = (0..<3).map { slot in
+        symbols.keys.filter { ZhuyinKeyboard.slot(of: $0) == slot }.sorted()
+    }
+
+    /// One key added in a slot the keys leave empty, at its slot position
+    /// (ㄍㄨ → ㄍㄨㄥ, ㄕ → ㄕㄥ): the readings a dropped key may have come
+    /// from. Empty unless the keys are one syllable in slot order.
+    static func slotCompletions(_ keys: [String]) -> [[String]] {
+        let slots = keys.compactMap(slot(of:))
+        guard !keys.isEmpty, slots.count == keys.count, slots == slots.sorted(),
+              Set(slots).count == slots.count else { return [] }
+        var out: [[String]] = []
+        for missing in 0..<3 where !slots.contains(missing) {
+            let position = slots.firstIndex { $0 > missing } ?? keys.count
+            for key in keysBySlot[missing] {
+                var completed = keys
+                completed.insert(key, at: position)
+                out.append(completed)
+            }
+        }
+        return out
+    }
+
     public static func neighbors(of key: String) -> [String] {
         let rows = [Array("1234567890-"), Array("qwertyuiop"), Array("asdfghjkl;"), Array("zxcvbnm,./")]
         var positions: [String: (Double, Double)] = [:]

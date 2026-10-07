@@ -154,13 +154,41 @@ What it says about Misstype (the tuning targets):
    ㄧㄊㄢ gives 一嘆, ㄍㄨㄥ as ㄨㄍㄥ gives 無耕: splitting off a toneless
    ㄧ/ㄨ/ㄛ syllable is cheaper than the transposition repair. libchewing's
    slot editor makes these slips free.
-2. **A dropped key that leaves only an initial** — 9 losses, all to the
-   `fuzzy` engine. 週 typed as ㄓ decodes as 字/之, 書 as ㄕ gives 師, 今 as ㄐ
-   gives 機: Misstype reads the bare initial as a complete syllable, the
-   prefix lookup finds 週末, 書, 今天 within the phrase.
+   **Addressed** (branch `decoder/syllable-order-slips`): a toned syllable
+   whose keys spell a valid reading in slot order (initial, medial, final)
+   stays an option next to its clean splits, priced as a transposition (4),
+   so words decide (方便 beats 方一半; a lone 一 + 半ˋ stays 一半). Toned
+   syllables only. Rerun: swap-5 0.43 / 1.55 → 0.53 / 1.11 (libchewing
+   0.52 / 1.37), 81 inputs better, 0 worse, every other config unchanged;
+   ~1 ms more per swap-5 input. `RepairStrengthSweepTests` (real lexicon,
+   toned, standard): 37.3% → 42.5% top-1 at 10% slips, no clean losses.
+2. **A dropped key that leaves a shorter valid reading** — 9 losses, all to
+   the `fuzzy` engine. 工 typed ㄍㄨ decodes as 估, 冬 as ㄉㄨ gives 都, 今 as
+   ㄐㄧ gives 機, 生 as ㄕ gives 師: the reading is valid, so insertion repair
+   (gated on invalid readings) never ran; the prefix lookup finds 工作, 冬天,
+   今天, 學生 within the phrase.
+   **Addressed** (same branch): a valid toned syllable also offers one key
+   added in each empty slot (initial, medial or final, at its slot
+   position), insertion cost (6), word-only: it can complete a
+   multi-syllable word but never replaces an exactly typed single char
+   (lone 估 stays, 老師 stays). Rerun after fix 1: drop-key-5 0.54 / 0.81 →
+   0.71 / 0.47, swap-5 0.53 / 1.11 → 0.60 / 0.94, 148 inputs better, 4
+   worse (all already wrong, one more char off), clean and toneless rows
+   unchanged. Real-lexicon sweep, toned standard: 65.6/42.5/29.6% →
+   68.1/46.0/34.4% at 5/10/15% slips, no clean losses. Per-key latency
+   (`tools/session_latency.py`, both fixes, alternating runs vs main): toned
+   2.9 → 3.3 ms mean, 6.6 → 7.5 ms p95; toneless unchanged.
 3. **Clean-input misses only Misstype has** — 很晚才睡 → 很晚財稅, 手機快沒電
    → 手機快沒店 (libchewing gets both). Lexicon/scoring, not repair.
    Shared misses (要交 → 要教, 預訂 → 預定) are homophone preferences.
+   **Addressed** (same branch): libchewing lists both as words; a unigram
+   cannot (by NAER standalone counts P(財稅) > P(才)·P(睡)), and n-gram
+   tables were falsified earlier (`docs/project-outline.md`). 沒電 and 才睡
+   join `Resources/local_phrases.tsv` at sibling scores. Common Voice
+   held-out gate (`tools/bigram_eval.py --set cv`): 480 → 480/800, 0 broken;
+   synthetic dev/holdout unchanged. Baseline: 85 inputs better, 0 worse;
+   late now passes clean on every engine (kept probes 31 → 32), phone stays
+   excluded because libchewing misses it (手雞塊沒電).
 
 ## Subjective (manual, macOS)
 

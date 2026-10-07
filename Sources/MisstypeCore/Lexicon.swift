@@ -228,6 +228,15 @@ public final class LexiconDecoder {
         }
         if cleanEmpty || repairValidReadings {
             let wordOnly = !cleanEmpty
+            // Slot-order slip (ㄧㄅㄢ for ㄅㄧㄢ, ㄤㄕ for ㄕㄤ): priced as a
+            // transposition, but also reaches three-key misorders. Toned
+            // syllables only: a tone key fixes the syllable's end, while in a
+            // toneless run the same keys are just another split, and the extra
+            // options crowded true repairs out of the repair track (harsh
+            // battery, 2026-10-07: 我是學生 -> 我十四學生).
+            if !tonelessProbe, let ordered = ZhuyinKeyboard.slotOrdered(base) {
+                consider(keys: ordered, cost: 4, wordOnly: wordOnly)
+            }
             for index in base.indices {
                 for replacement in ZhuyinKeyboard.neighbors(of: base[index]) {
                     var keys = base
@@ -244,6 +253,16 @@ public final class LexiconDecoder {
                     keys.remove(at: index)
                     consider(keys: keys, cost: 6, wordOnly: wordOnly)
                 }
+            }
+        }
+        // Dropped key that still spells a valid reading (ㄍㄨ for ㄍㄨㄥ in
+        // 工作, ㄕ for ㄕㄥ in 學生): the clean reading hid it from the gated
+        // insertion below. Only the empty slots are filled, word-only, so an
+        // exactly typed single char is never rewritten, and toned only, for
+        // the same reason as the slot-order repair above.
+        if !cleanEmpty, !tonelessProbe {
+            for completed in ZhuyinKeyboard.slotCompletions(base) {
+                consider(keys: completed, cost: 6, wordOnly: true)
             }
         }
         // Insertion scans 37 symbols per gap — the most speculative class,
@@ -379,10 +398,16 @@ public final class LexiconDecoder {
         // final syllable (ㄉㄨㄟ) was never decoded — toneless runs ended in
         // 大都欸 / 一誒 / 主恩 (tools/cursor_replay.py, 2026-09-27).
         var out: [[Syllable]] = []
-        for rank in 0..<6 {
+        // Keys typed out of slot order (ㄧㄅㄢˋ for 便) also split cleanly
+        // (ㄧ|ㄅㄢˋ, 一半), and a clean split used to hide the whole syllable
+        // from repair. Keep it as an option so decode weighs the reordered
+        // reading against the split with word scores.
+        let reordered = slotReorderable(syllable, toneTolerance: toneTolerance)
+        let cap = reordered ? 11 : 12
+        ranks: for rank in 0..<6 {
             for options in byTail where rank < options.count {
                 out.append(options[rank])
-                if out.count >= 12 { return out }
+                if out.count >= cap { break ranks }
             }
         }
         // No valid tail (a typo, or an initial alone: 眼睛ㄐ + Space): keep
@@ -403,8 +428,16 @@ public final class LexiconDecoder {
                 out.append(lead + [Syllable(keys: Array(syllable.keys.suffix(tailLen)), tone: syllable.tone)])
             }
         }
+        if reordered, !out.contains([syllable]) { out.append([syllable]) }
         return out
     }
+    /// Whether the syllable's keys, put in slot order, spell a valid reading.
+    func slotReorderable(_ syllable: Syllable, toneTolerance: Bool = true) -> Bool {
+        guard let ordered = ZhuyinKeyboard.slotOrdered(syllable.keys) else { return false }
+        return !alternatives(Syllable(keys: ordered, tone: syllable.tone), fuzzy: false,
+                             toneTolerance: toneTolerance).isEmpty
+    }
+
     /// Decode tone-terminated syllables plus an unsegmented pending key run.
     /// Covers all three styles: toneless-continuous, space-separated, toned.
     /// Complete runs fused by a mid-sentence tone key are repaired first.
@@ -419,8 +452,10 @@ public final class LexiconDecoder {
         // sentence (user report 2026-10-06). Ties keep repairComplete order.
         func splitCost(_ option: [Syllable]) -> Double {
             option.reduce(0) { total, syllable in
-                // An invalid tail (no clean reading) ranks behind every clean split.
-                total + (alternatives(syllable, fuzzy: false, toneTolerance: toneTolerance).map(\.1).min() ?? 6)
+                // An invalid tail (no clean reading) ranks behind every clean
+                // split; a slot-order slip at its repair cost, ahead of junk.
+                total + (alternatives(syllable, fuzzy: false, toneTolerance: toneTolerance).map(\.1).min()
+                         ?? (slotReorderable(syllable, toneTolerance: toneTolerance) ? 4 : 6))
             }
         }
         var expandedComplete: [[Syllable]] = [[]]

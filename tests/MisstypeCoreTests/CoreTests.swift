@@ -215,6 +215,83 @@ final class CoreTests: XCTestCase {
         XCTAssertEqual(result.first?.text, "你")
         XCTAssertEqual(result.first?.repairs, 1)
     }
+    /// Real McBopomofo scores for the slot-order cases below.
+    private var slotDecoder: LexiconDecoder {
+        LexiconDecoder(tsv: """
+            ㄈㄤ\t方\t-6.372478
+            ㄅㄧㄢˋ\t便\t-7.765845
+            ㄅㄢˋ\t半\t-8.107199
+            ㄧ\t一\t-4.670826
+            ㄈㄤ-ㄅㄧㄢˋ\t方便\t-9.858953
+            ㄧ-ㄅㄢˋ\t一半\t-10.181407
+            """)
+    }
+    func testSlotOrderSlipBeatsCleanSplitInsideWord() {
+        // 方便 with ㄅㄧㄢˋ typed ㄧㄅㄢˋ (z; u104): the keys also split
+        // cleanly as ㄧ|ㄅㄢˋ, which used to hide the repair (方一半).
+        let result = slotDecoder.decodeComposition(
+            complete: [Syllable(keys: ["z", ";"], tone: ""), Syllable(keys: ["u", "1", "0"], tone: "ˋ")],
+            pendingKeys: [])
+        XCTAssertEqual(result.first?.text, "方便")
+        XCTAssertEqual(result.first?.repairs, 1)
+    }
+    func testSlotOrderRepairKeepsGenuineSplit() {
+        // The same keys alone are a real toneless 一 + 半ˋ: no word pulls
+        // toward 便, so the clean split must win.
+        let result = slotDecoder.decodeComposition(
+            complete: [Syllable(keys: ["u", "1", "0"], tone: "ˋ")], pendingKeys: [])
+        XCTAssertEqual(result.first?.text, "一半")
+        XCTAssertEqual(result.first?.repairs, 0)
+    }
+    func testThreeKeySlotMisorderRepairs() {
+        // ㄢㄅㄧˋ is no adjacent swap away from ㄅㄧㄢˋ; slot order still is.
+        XCTAssertEqual(ZhuyinKeyboard.slotOrdered(["0", "1", "u"]), ["1", "u", "0"])
+        XCTAssertNil(ZhuyinKeyboard.slotOrdered(["1", "u", "0"]))
+        XCTAssertNil(ZhuyinKeyboard.slotOrdered(["1", "q"]))  // two initials: not one syllable
+        let result = slotDecoder.decodeComposition(
+            complete: [Syllable(keys: ["z", ";"], tone: ""), Syllable(keys: ["0", "1", "u"], tone: "ˋ")],
+            pendingKeys: [])
+        XCTAssertEqual(result.first?.text, "方便")
+    }
+    /// Real McBopomofo scores for the dropped-key cases below.
+    private var completionDecoder: LexiconDecoder {
+        LexiconDecoder(tsv: """
+            ㄍㄨㄥ\t工\t-6.589448
+            ㄍㄨ\t估\t-9.096421
+            ㄗㄨㄛˋ\t作\t-6.873654
+            ㄗㄨㄛˋ\t做\t-6.225733
+            ㄍㄨㄥ-ㄗㄨㄛˋ\t工作\t-7.607396
+            ㄌㄠˇ\t老\t-7.109853
+            ㄕ\t師\t-7.328932
+            ㄕㄥ\t生\t-5.906531
+            ㄌㄠˇ-ㄕ\t老師\t-8.458474
+            ㄌㄠˇ-ㄕㄥ\t老生\t-13.762608
+            """)
+    }
+    func testDroppedKeyLeavingValidReadingCompletesWord() {
+        // 工作 with ㄥ dropped: ㄍㄨ is a valid reading (估), which used to
+        // keep insertion repair from running (估做).
+        let result = completionDecoder.decodeComposition(
+            complete: [Syllable(keys: ["e", "j"], tone: ""), Syllable(keys: ["y", "j", "i"], tone: "ˋ")],
+            pendingKeys: [])
+        XCTAssertEqual(result.first?.text, "工作")
+        XCTAssertEqual(result.first?.repairs, 1)
+    }
+    func testSlotCompletionNeverRewritesExactInput() {
+        // Word-only: a lone exact 估 stays, and exact 老師 is not "completed"
+        // into 老生.
+        let alone = completionDecoder.decodeComposition(
+            complete: [Syllable(keys: ["e", "j"], tone: "")], pendingKeys: [])
+        XCTAssertEqual(alone.first?.text, "估")
+        let word = completionDecoder.decodeComposition(
+            complete: [Syllable(keys: ["x", "l"], tone: "ˇ"), Syllable(keys: ["g"], tone: "")],
+            pendingKeys: [])
+        XCTAssertEqual(word.first?.text, "老師")
+        XCTAssertEqual(word.first?.repairs, 0)
+        XCTAssertTrue(ZhuyinKeyboard.slotCompletions(["e", "j"]).contains(["e", "j", "/"]))
+        XCTAssertTrue(ZhuyinKeyboard.slotCompletions(["j", "/"]).contains(["e", "j", "/"]))
+        XCTAssertEqual(ZhuyinKeyboard.slotCompletions(["e", "j", "/"]), [])
+    }
     func testExtraKeyDeletionRepair() {
         // "gsu3" has a stray ㄕ key; dropping it gives 你.
         let result = decoder.decodeComposition(

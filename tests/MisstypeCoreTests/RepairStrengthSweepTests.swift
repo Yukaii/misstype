@@ -18,6 +18,10 @@ import XCTest
 /// p=10%: 37.3% → 42.5%). Offset -1 adds ~2 pp but changes 8 of 1000
 /// exactly typed frequent chars (屋→一), so strong keeps 0. See
 /// `RepairStrength`.
+/// Slot-order repair (2026-10-07, tools/baseline libchewing comparison):
+/// toned standard 63.1/37.3/24.8% → 65.6/42.5/29.6% at p=5/10/15%,
+/// toneless and clean rows unchanged. Plus slot completion of valid
+/// readings (same day): 68.1/46.0/34.4%, still no clean losses.
 /// Synthetic typist: the cursor_replay sentences, toned and toneless; each
 /// symbol key slips with probability p into one of neighbor substitution,
 /// transposition with the next key of its syllable, a dropped key, or a

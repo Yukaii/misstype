@@ -25,3 +25,11 @@
 ㄙㄠˇ-ㄇㄚˇ	掃碼	-11.8
 ㄒㄧㄥˊ-ㄉㄨㄥˋ-ㄓ-ㄈㄨˋ	行動支付	-12.4
 ㄅㄧㄠˇ-ㄑㄧㄥˊ-ㄈㄨˊ-ㄏㄠˋ	表情符號	-12.4
+# 2026-10-07 everyday collocations hit by the cross-IME probes
+# (tools/baseline: 很晚才睡 -> 財稅, 手機快沒電 -> 沒店; libchewing lists
+# both as words). Unigram scores alone cannot pick them: 才+睡 loses to the
+# rarer word 財稅, and standalone 店 outranks 電 (reading_order.tsv). Scores
+# sit among siblings (才是 -10.43, 入睡 -13.18; 沒事 -12.00, 停電 -12.29,
+# 沒錢 -12.55). Common Voice held-out gate: 480 -> 480/800, 0 broken.
+ㄇㄟˊ-ㄉㄧㄢˋ	沒電	-12.4
+ㄘㄞˊ-ㄕㄨㄟˋ	才睡	-12.6
