@@ -22,6 +22,11 @@ Tones are optional and typos are repaired by default; turn that off if you want 
 
 ## How it compares
 
+> [!NOTE]
+> Comparison tables like this inherently skew toward "features we built, so our product always wins"—take it with a grain of salt XD.
+>
+> This is not an IME scorecard or feature-matrix contest. Mature projects (such as vChewing, McBopomofo, Rime, ChiaKey, etc.) each excel in daily stability, deep feature sets, diverse layout support, or cross-platform maturity. This table serves strictly as a design baseline and reference coordinate for Misstype's experimental directions (toneless continuous typing, fuzzy typo correction, and unswitched mixed Chinese/English).
+
 Based on each project's public description (snapshot 2026-10-04, not hands-on tested). `-` means no public mention was found, not that the feature is absent.
 
 | | Misstype | ChiaKey | vChewing | McBopomofo | Rime (Squirrel etc.) |
