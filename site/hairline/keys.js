@@ -56,6 +56,26 @@ function mount({ stage, svg, read }, value) {
   let R = value * U, over = null;
   const held = new Set();
   let last = null;
+  // RGB-keyboard colour: a press sends a ring of hue outward across the keys.
+  // Each key's hue follows its column, so the same key is always the same
+  // colour, and the ring drifts a little further round the wheel as it grows.
+  const waves = [];
+  const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const WAVE_LIFE = 1.15, WAVE_SPEED = 7.5 * U, WAVE_WIDTH = 1.7 * U;
+  const centre = (k) => [(k.x0 + k.x1) / 2, (k.y0 + k.y1) / 2];
+  const hueOf = (k) => (centre(k)[0] / X1) * 300;
+  /** Where a key's top sits on the page, for the glow behind the page. */
+  function onScreen(k) {
+    const [cx, cy] = centre(k), q = P(cx, cy, KH), m = svg.getScreenCTM();
+    return m ? { x: m.a * q[0] + m.c * q[1] + m.e, y: m.b * q[0] + m.d * q[1] + m.f } : null;
+  }
+  function spawn(k) {
+    const [x, y] = centre(k), hue = hueOf(k);
+    if (!calm) waves.push({ x, y, hue, age: 0 });
+    const at = onScreen(k);
+    if (at) document.dispatchEvent(new CustomEvent("misstype:pulse", { detail: { ...at, hue, calm } }));
+  }
+  const dark = () => document.documentElement.dataset.scheme === "dark";
 
   const g = mk("g", {}, svg), keys = [];
   const [cr, ci] = [rrect(-M, -M, X1 + M, Y1 + M, 9, 14), rrect(-M + 2, -M + 2, X1 + M - 2, Y1 + M - 2, 7, 14)];
@@ -69,7 +89,7 @@ function mount({ stage, svg, read }, value) {
     const top = rrect(x0 + 2.2, y0 + 2.2, x1 - 2.2, y1 - 2.2, 2, 4);
     const inner = rrect(x0 + 3, y0 + 3, x1 - 3, y1 - 3, 1.4, 4);
     const d0 = (TRAIL[id] ?? 0) * DEPTH;
-    const k = { x0, y0, x1, y1, name, code, foot, top, inner, d0, sp: spring(d0, { eps: 0.02 }), el: solid(g), drawn: NaN };
+    const k = { x0, y0, x1, y1, name, code, foot, top, inner, d0, sp: spring(d0, { eps: 0.02 }), el: solid(g), drawn: NaN, glow: 0 };
     if (HOME.includes(id)) k.bar = mk("path", { class: "nf lo" }, k.el.g);
     keys.push(k);
     return k;
@@ -102,9 +122,33 @@ function mount({ stage, svg, read }, value) {
     k.el.sil.classList.toggle("hi", k === want);
   }
 
+  /** Tint a key from the waves passing it and from its own depth; clear it when it fades. */
+  function glowKey(k) {
+    const [cx, cy] = centre(k);
+    let g = Math.max(0, k.sp.x) / DEPTH * 0.9, hue = hueOf(k);
+    for (const w of waves) {
+      const d = Math.hypot(cx - w.x, cy - w.y), a = w.age / WAVE_LIFE;
+      const ring = Math.exp(-(((d - WAVE_SPEED * w.age) / WAVE_WIDTH) ** 2)) * (1 - a) ** 1.4;
+      if (ring > g) { g = ring; hue = w.hue + (d / U) * 11; }
+    }
+    g = g < 0.02 ? 0 : Math.min(1, g);
+    const key = g === 0 ? 0 : Math.round(g * 40) * 1000 + Math.round(hue);
+    if (key === k.glow) return;
+    k.glow = key;
+    const { sil, cr } = k.el;
+    if (!g) { sil.style.cssText = cr.style.cssText = ""; return; }
+    const lit = dark() ? 62 : 46, c = `hsl(${hue.toFixed(0)} 95% ${lit}%)`;
+    sil.style.stroke = cr.style.stroke = c;
+    sil.style.strokeWidth = `calc(var(--hl-sw) * ${(1 + g * 0.9).toFixed(2)})`;
+    sil.style.fill = `color-mix(in srgb, var(--hl-plate), ${c} ${Math.round(g * (dark() ? 46 : 30))}%)`;
+  }
+
   const B = register(stage, (dt) => {
     let m = false;
-    for (const k of keys) { if (stepS(k.sp, dt)) m = true; drawKey(k); }
+    for (const w of waves) w.age += dt;
+    for (let i = waves.length - 1; i >= 0; i--) if (waves[i].age > WAVE_LIFE) waves.splice(i, 1);
+    if (waves.length) m = true;
+    for (const k of keys) { if (stepS(k.sp, dt)) m = true; drawKey(k); glowKey(k); }
     return m;
   });
   bag.add(B.unregister);
@@ -153,6 +197,7 @@ function mount({ stage, svg, read }, value) {
     press: (key) => {
       const k = find(key);
       if (!k) return;
+      if (!held.has(k)) spawn(k);
       held.add(k); last = want = k; read.textContent = k.name;
       typed();
     },

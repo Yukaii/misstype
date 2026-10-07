@@ -9,9 +9,33 @@
   --mark: #b5462f;
   --mark-bg: #f6e3dc;
   --ok: #2f6b4f;
+  --btn-bg: #262c34;
+  --btn-fg: #fff;
+  --btn-edge: #1d2229;
+  --btn-lip: #11151a;
+  --btn-hover: #3a424d;
   --radius: 10px;
+  color-scheme: light;
   --sans: -apple-system, BlinkMacSystemFont, "PingFang TC", "Noto Sans TC",
     "Microsoft JhengHei", "Segoe UI", sans-serif;
+}
+
+/* Lights off. data-scheme is set by theme.js (and a snippet in <head>). */
+:root[data-scheme="dark"] {
+  --paper: #0d0f14;
+  --card: #151821;
+  --ink: #e8eaf0;
+  --muted: #9aa1b0;
+  --line: #262b38;
+  --mark: #ff8a6b;
+  --mark-bg: #3a2018;
+  --ok: #6fd1a0;
+  --btn-bg: #e8eaf0;
+  --btn-fg: #0d0f14;
+  --btn-edge: #ffffff;
+  --btn-lip: #6b7080;
+  --btn-hover: #ffffff;
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
@@ -51,6 +75,34 @@ a:hover { color: var(--mark); }
 .top nav { display: flex; gap: 20px; font-size: 15px; }
 .top nav a { text-decoration: none; color: var(--muted); }
 .top nav a:hover { color: var(--ink); }
+.theme-toggle {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.theme-toggle:hover { color: var(--ink); border-color: var(--muted); }
+.theme-toggle svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.theme-toggle svg > * { display: none; }
+.theme-toggle[data-mode="auto"] .i-auto, .theme-toggle[data-mode="light"] .i-light, .theme-toggle[data-mode="dark"] .i-dark { display: inline; }
+
+/* The glow behind the page in the dark (hero-figure.js); canvas is drawn small and stretched. */
+.page-glow {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: -1;
+  pointer-events: none;
+  display: none;
+}
+:root[data-scheme="dark"] .page-glow { display: block; }
 
 /* Hero */
 
@@ -74,6 +126,11 @@ a:hover { color: var(--mark); }
   --hairline-mid: #c4bfb3;
   --hairline-lo: #e2ddd2;
   --hairline-stroke: 1;
+}
+:root[data-scheme="dark"] .hero-figure {
+  --hairline-edge: #5d6577;
+  --hairline-mid: #3a4152;
+  --hairline-lo: #272c3a;
 }
 .hero-figure .read {
   position: absolute;
@@ -109,17 +166,17 @@ a:hover { color: var(--mark); }
   display: inline-block;
   padding: 12px 22px;
   border-radius: 8px;
-  background: var(--ink);
-  color: #fff;
+  background: var(--btn-bg);
+  color: var(--btn-fg);
   font-weight: 600;
   text-decoration: none;
-  border: 1px solid #1d2229;
-  box-shadow: 0 4px 0 #11151a, 0 8px 16px rgba(38, 44, 52, .16);
+  border: 1px solid var(--btn-edge);
+  box-shadow: 0 4px 0 var(--btn-lip), 0 8px 16px rgba(38, 44, 52, .16);
   transform: translateY(-1px);
   transition: transform .16s ease, box-shadow .16s ease, background .16s ease;
 }
-.button:hover { color: #fff; background: #3a424d; transform: translateY(-3px); box-shadow: 0 6px 0 #11151a, 0 12px 20px rgba(38, 44, 52, .18); }
-.button:active { transform: translateY(2px); box-shadow: 0 1px 0 #11151a, 0 3px 8px rgba(38, 44, 52, .14); }
+.button:hover { color: var(--btn-fg); background: var(--btn-hover); transform: translateY(-3px); box-shadow: 0 6px 0 var(--btn-lip), 0 12px 20px rgba(38, 44, 52, .18); }
+.button:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--btn-lip), 0 3px 8px rgba(38, 44, 52, .14); }
 .button:focus-visible { outline: 3px solid var(--mark-bg); outline-offset: 3px; }
 .cta .note { color: var(--muted); font-size: 15px; }
 
