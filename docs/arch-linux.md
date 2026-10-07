@@ -21,8 +21,10 @@ script/linux/install_ime.sh            # add --check to run the test suites too
 
 It builds a package from the checked-out commit with the recipe below
 (uncommitted edits are not included), installs it with `sudo pacman -U`,
-restarts a running fcitx5 with its current flags, and adds Misstype to the
-current input-method group if it is missing. The build directory
+restarts fcitx5 (through its systemd user unit when one runs it, such as
+Omarchy's `omarchy-fcitx5.service`; otherwise with its current flags), warns if
+more than one fcitx5 is left running, and adds Misstype to the current
+input-method group if it is missing. The build directory
 `.cache/aur-build` is kept, so later runs rebuild incrementally. On other
 distributions the same script runs `script/linux/build.sh` and
 `sudo cmake --install build/fcitx5`.

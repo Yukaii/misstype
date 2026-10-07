@@ -4,7 +4,7 @@
 #   Arch:      a pacman package from linux/aur/PKGBUILD at the checked-out
 #              commit (committed code only), installed with pacman -U.
 #   elsewhere: script/linux/build.sh, then cmake --install to /usr.
-# Then restarts a running fcitx5 (same flags) and adds Misstype to the current
+# Then restarts fcitx5 (its systemd unit if one runs it, else same flags) and adds Misstype to the current
 # input-method group if it is missing.
 #
 #   script/linux/install_ime.sh [--check] [--build-only]
@@ -60,11 +60,20 @@ if [[ -z $pid ]]; then
     echo "Installed Misstype. fcitx5 is not running: start it (or log in again), then add Misstype in fcitx5-configtool."
     exit 0
 fi
-args=()
-while IFS= read -r -d '' a; do
-    case $a in -r | --replace | -d) ;; *) args+=("$a") ;; esac
-done < <(tail -z -n +2 "/proc/$pid/cmdline")
-setsid -f fcitx5 -r -d "${args[@]}" >/dev/null 2>&1
+# A systemd user unit (Omarchy: omarchy-fcitx5.service, Restart=always) must
+# restart it: a second fcitx5 started beside it makes the unit's copy exit and
+# respawn, and the two fight over the keyboard.
+unit=$(sed -n 's#^0::.*/\([^/]*\.service\)$#\1#p' "/proc/$pid/cgroup")
+if [[ -n $unit && $unit != user@*.service ]]; then
+    echo "Restarting $unit"
+    systemctl --user restart "$unit"
+else
+    args=()
+    while IFS= read -r -d '' a; do
+        case $a in -r | --replace | -d) ;; *) args+=("$a") ;; esac
+    done < <(tail -z -n +2 "/proc/$pid/cmdline")
+    setsid -f fcitx5 -r -d "${args[@]}" >/dev/null 2>&1
+fi
 for _ in $(seq 40); do
     sleep 0.25
     # The restarted instance answers once its addons are loaded.
@@ -75,6 +84,13 @@ done
 if ! "${FCITX[@]}" AvailableInputMethods 2>/dev/null | grep -q '"misstype"'; then
     echo "fcitx5 restarted but does not list Misstype; check: fcitx5-diagnose" >&2
     exit 1
+fi
+# A hung old instance can survive the restart and keep the keyboard.
+pids=$(pgrep -u "$(id -u)" -x fcitx5 | tr '\n' ' ')
+if [[ $(wc -w <<<"$pids") -gt 1 ]]; then
+    owner=$(busctl --user status org.fcitx.Fcitx5 2>/dev/null | sed -n 's/^PID=//p')
+    echo "warning: several fcitx5 processes are running ($pids); the live one is $owner." >&2
+    echo "         Stop the others (kill <pid>, or kill -9 if hung), or keys may not reach Misstype." >&2
 fi
 
 # Add Misstype to the current group (kept in order, appended last) if missing.
