@@ -6,7 +6,7 @@ import { C, SANS } from "./theme";
 import { Field } from "./Field";
 import { KeyStrip } from "./KeyStrip";
 import type { Snapshot } from "./decoder";
-import { FPS, type Lang, type TimedBeat } from "./timeline";
+import { END_BLANK, END_FADE, FPS, type Lang, type TimedBeat } from "./timeline";
 
 const BIG_KEYS = new Set(["Enter", "Space"]);
 
@@ -30,7 +30,7 @@ export const Demo: React.FC<DemoProps> = ({ beats, snapshots, music, captions = 
     <AbsoluteFill style={{ background: C.paper, fontFamily: SANS, color: C.ink }}>
       {beats.map((b, i) => (
         <Sequence key={b.beat.id} from={b.from} durationInFrames={b.durationInFrames} name={b.beat.id}>
-          {b.beat.keys ? <TypingScene timed={b} snaps={snapshots[i]} /> : <TitleCard timed={b} />}
+          {b.beat.keys ? <TypingScene timed={b} snaps={snapshots[i]} /> : <TitleCard timed={b} last={i === beats.length - 1} />}
           {captions && <Caption timed={b} />}
           {b.voice && <Html5Audio src={staticFile(b.voice.file)} />}
           {b.strokes.map((s, j) => (
@@ -48,11 +48,14 @@ export const Demo: React.FC<DemoProps> = ({ beats, snapshots, music, captions = 
   );
 };
 
-const TitleCard: React.FC<{ timed: TimedBeat }> = ({ timed }) => {
+const TitleCard: React.FC<{ timed: TimedBeat; last: boolean }> = ({ timed, last }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const enter = spring({ frame, fps, config: { damping: 18 } });
-  const exit = interpolate(frame, [timed.durationInFrames - 10, timed.durationInFrames], [1, 0], {
+  // The closing card fades slowly and reaches 0 before the end, leaving a
+  // moment of empty paper instead of cutting off mid-fade.
+  const end = last ? timed.durationInFrames - Math.round(END_BLANK * fps) : timed.durationInFrames;
+  const exit = interpolate(frame, [end - (last ? Math.round(END_FADE * fps) : 10), end], [1, 0], {
     extrapolateLeft: "clamp", extrapolateRight: "clamp",
   });
   return (

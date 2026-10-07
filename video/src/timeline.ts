@@ -38,6 +38,11 @@ export type TimedBeat = {
 
 const LEAD_IN = 0.5; // seconds before the first key of a beat
 const KEY_GAP = 0.13;
+// The last beat lingers after its narration so the closing title can be read,
+// then fades out fully (see TitleCard) before the video ends.
+export const END_HOLD = 1.4;
+export const END_FADE = 1.0;
+export const END_BLANK = 0.5;
 
 // Deterministic jitter so typing does not look metronomic but every render
 // (and every render worker) sees the same timing.
@@ -69,7 +74,8 @@ export function localize(lang: Lang): Beat[] {
 export function buildTimeline(lang: Lang, voices: VoiceManifest = {}) {
   let from = 0;
   let n = 0;
-  const beats: TimedBeat[] = localize(lang).map((beat) => {
+  const all = localize(lang);
+  const beats: TimedBeat[] = all.map((beat, i) => {
     let t = beat.keys ? LEAD_IN : 0;
     const strokes = beat.keys
       ? parseKeys(beat.keys).map((s) => {
@@ -81,7 +87,8 @@ export function buildTimeline(lang: Lang, voices: VoiceManifest = {}) {
       : [];
     const line = voices[beat.id];
     const voice = line && { ...line, file: `voice/${lang}/${line.file}` };
-    const seconds = Math.max(t + beat.holdSec, (voice?.durationSec ?? 0) + 0.4);
+    const tail = i === all.length - 1 ? END_HOLD + END_FADE + END_BLANK : 0;
+    const seconds = Math.max(t + beat.holdSec, (voice?.durationSec ?? 0) + 0.4) + tail;
     const timed = { beat, from, durationInFrames: Math.ceil(seconds * FPS), strokes, voice };
     from += timed.durationInFrames;
     return timed;
