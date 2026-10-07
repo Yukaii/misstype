@@ -131,11 +131,15 @@ Use scripts under `tools/` for deterministic replay and measurement rather than 
   signs/notarizes when the configured secrets exist, and publishes the GitHub
   Release, checksums, and Sparkle appcast. No local packaging is needed just
   to cut a release. See `docs/release.md` for signing prerequisites.
-- Release also attests the final DMG, update ZIP, checksums, and optional
-  appcast with GitHub/Sigstore build provenance, and includes
+- Once the repository is public, Release also attests the final DMG, update
+  ZIP, checksums, and optional appcast with GitHub/Sigstore build provenance, and includes
   `build-provenance.sigstore.json` for verification. All assets are uploaded
   to a draft before publishing locks the immutable release. Never overwrite
   published assets or move a release tag; fixes need a new version.
+  Native attestations are unavailable for this user-owned private repository:
+  while private, CI skips attestation and notes this in its summary. Keep the
+  repository private until the maintainer explicitly requests publication;
+  attestation enables automatically on new runs after it becomes public.
 - For the normal automated path, run **Actions → Tag release → Run workflow**
   and select `major`, `minor`, or `patch` (default `patch`), or use
   `gh workflow run tag-release.yml --ref main -f bump=minor`.

@@ -139,17 +139,23 @@ The preceding direct tag-push release `v0.2.0` completed successfully. The new
 Tag release dispatch has not been run to avoid creating an additional release.
 
 Artifacts: `Misstype-<v>.dmg`, `MisstypeIME-<v>.zip` (the Sparkle archive),
-`appcast.xml`, `.sha256` files, `build-provenance.sigstore.json`.
+`appcast.xml`, `.sha256` files, and (when public)
+`build-provenance.sigstore.json`.
 Tags containing `-` are prereleases and are
 skipped by `latest`, so they never reach existing installs.
 
 ## Verify build provenance
 
-建置來源證明（build attestation）適用於加入此流程後建置的成品；既有的
-v0.2.0 未附上此證明。Release workflow 在簽章、公證、stapling 與 checksum
+目前 repository 保留 private。GitHub 原生 attestation 不支援個人帳號的
+private repo，因此 private 期間略過此步驟，CI 摘要會明確註記未產生證明；
+repository 公開後的新建置會自動啟用。既有成品不會因此補上證明，v0.2.0
+也未附上此證明。限制見 [GitHub 支援範圍](https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations)。
+
+Release workflow 在簽章、公證、stapling 與 checksum
 完成後，使用固定 commit 的 `actions/attest`，對最終 DMG、更新 ZIP、checksum
 和有提供時的 appcast 產生 GitHub/Sigstore 證明。Artifact-only dispatch 也會
-產生證明，方便驗證流程而不建立公開 release。證明失敗就不會發布。
+產生證明，方便驗證流程而不建立公開 release。公開後證明失敗就不會發布，
+不會默默退回沒有證明的版本。
 
 下載後可用新版 [GitHub CLI](https://cli.github.com/) 核對成品雜湊、repository、
 release workflow、來源 tag，以及是否由 GitHub-hosted runner 建置。
@@ -199,6 +205,15 @@ SHA, branch publication, and a different tag) and four mocked publication
 cases (stable/prerelease, optional appcast, and upload failure preventing
 publication). An actual immutable publication is checked on the next
 requested release.
+
+CI check 2026-10-07: [run 37619947915](https://github.com/Yukaii/misstype/actions/runs/37619947915)
+passed tests, signing, and notarization, but GitHub rejected native attestation
+storage because the repository is user-owned and private. Nothing was published.
+The maintainer chose to keep it private and enable attestation after publication;
+the workflow now gates attestation and its bundle on public visibility. Signed
+bundle verification and the tampered-file rejection experiment remain pending
+until a new run after the repository becomes public (do not rerun an old private
+event, whose visibility payload is unchanged).
 
 ## Verification status
 
