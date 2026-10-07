@@ -114,6 +114,28 @@ public enum ZhuyinKeyboard {
         }
         return table
     }()
+    /// Zhuyin slot of a symbol key: 0 initial (ㄅ–ㄙ), 1 medial (ㄧㄨㄩ),
+    /// 2 final (ㄚ–ㄦ); nil for non-symbol keys.
+    static func slot(of key: String) -> Int? {
+        guard let symbol = symbols[key]?.unicodeScalars.first?.value else { return nil }
+        switch symbol {
+        case 0x3105...0x3119: return 0
+        case 0x3127...0x3129: return 1
+        default: return 2
+        }
+    }
+
+    /// The keys in slot order (initial, medial, final) when they are typed
+    /// out of it, at most one per slot — the reading a slot-based editor
+    /// (libchewing's Dachen) would build from the same keys. nil when already
+    /// in order or not one syllable's worth of keys.
+    static func slotOrdered(_ keys: [String]) -> [String]? {
+        let slots = keys.compactMap(slot(of:))
+        guard slots.count == keys.count, Set(slots).count == slots.count,
+              slots != slots.sorted() else { return nil }
+        return zip(slots, keys).sorted { $0.0 < $1.0 }.map(\.1)
+    }
+
     public static func neighbors(of key: String) -> [String] {
         let rows = [Array("1234567890-"), Array("qwertyuiop"), Array("asdfghjkl;"), Array("zxcvbnm,./")]
         var positions: [String: (Double, Double)] = [:]

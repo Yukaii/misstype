@@ -154,6 +154,14 @@ What it says about Misstype (the tuning targets):
    ㄧㄊㄢ gives 一嘆, ㄍㄨㄥ as ㄨㄍㄥ gives 無耕: splitting off a toneless
    ㄧ/ㄨ/ㄛ syllable is cheaper than the transposition repair. libchewing's
    slot editor makes these slips free.
+   **Addressed** (branch `decoder/syllable-order-slips`): a toned syllable
+   whose keys spell a valid reading in slot order (initial, medial, final)
+   stays an option next to its clean splits, priced as a transposition (4),
+   so words decide (方便 beats 方一半; a lone 一 + 半ˋ stays 一半). Toned
+   syllables only. Rerun: swap-5 0.43 / 1.55 → 0.53 / 1.11 (libchewing
+   0.52 / 1.37), 81 inputs better, 0 worse, every other config unchanged;
+   ~1 ms more per swap-5 input. `RepairStrengthSweepTests` (real lexicon,
+   toned, standard): 37.3% → 42.5% top-1 at 10% slips, no clean losses.
 2. **A dropped key that leaves only an initial** — 9 losses, all to the
    `fuzzy` engine. 週 typed as ㄓ decodes as 字/之, 書 as ㄕ gives 師, 今 as ㄐ
    gives 機: Misstype reads the bare initial as a complete syllable, the
