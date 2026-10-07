@@ -4,8 +4,8 @@
 #   Arch:      a pacman package from linux/aur/PKGBUILD at the checked-out
 #              commit (committed code only), installed with pacman -U.
 #   elsewhere: script/linux/build.sh, then cmake --install to /usr.
-# Then restarts fcitx5 (its systemd unit if one runs it, else same flags) and adds Misstype to the current
-# input-method group if it is missing.
+# Then restarts fcitx5 (through its systemd unit if one runs it, else with the
+# same flags) and adds Misstype to the current input-method group if missing.
 #
 #   script/linux/install_ime.sh [--check] [--build-only]
 #     --check       also run the test suites (makepkg check / test_all.sh)
