@@ -20,7 +20,8 @@ import XCTest
 /// `RepairStrength`.
 /// Slot-order repair (2026-10-07, tools/baseline libchewing comparison):
 /// toned standard 63.1/37.3/24.8% → 65.6/42.5/29.6% at p=5/10/15%,
-/// toneless and clean rows unchanged.
+/// toneless and clean rows unchanged. Plus slot completion of valid
+/// readings (same day): 68.1/46.0/34.4%, still no clean losses.
 /// Synthetic typist: the cursor_replay sentences, toned and toneless; each
 /// symbol key slips with probability p into one of neighbor substitution,
 /// transposition with the next key of its syllable, a dropped key, or a

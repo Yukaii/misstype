@@ -136,6 +136,29 @@ public enum ZhuyinKeyboard {
         return zip(slots, keys).sorted { $0.0 < $1.0 }.map(\.1)
     }
 
+    private static let keysBySlot: [[String]] = (0..<3).map { slot in
+        symbols.keys.filter { ZhuyinKeyboard.slot(of: $0) == slot }.sorted()
+    }
+
+    /// One key added in a slot the keys leave empty, at its slot position
+    /// (ㄍㄨ → ㄍㄨㄥ, ㄕ → ㄕㄥ): the readings a dropped key may have come
+    /// from. Empty unless the keys are one syllable in slot order.
+    static func slotCompletions(_ keys: [String]) -> [[String]] {
+        let slots = keys.compactMap(slot(of:))
+        guard !keys.isEmpty, slots.count == keys.count, slots == slots.sorted(),
+              Set(slots).count == slots.count else { return [] }
+        var out: [[String]] = []
+        for missing in 0..<3 where !slots.contains(missing) {
+            let position = slots.firstIndex { $0 > missing } ?? keys.count
+            for key in keysBySlot[missing] {
+                var completed = keys
+                completed.insert(key, at: position)
+                out.append(completed)
+            }
+        }
+        return out
+    }
+
     public static func neighbors(of key: String) -> [String] {
         let rows = [Array("1234567890-"), Array("qwertyuiop"), Array("asdfghjkl;"), Array("zxcvbnm,./")]
         var positions: [String: (Double, Double)] = [:]

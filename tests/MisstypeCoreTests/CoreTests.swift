@@ -253,6 +253,45 @@ final class CoreTests: XCTestCase {
             pendingKeys: [])
         XCTAssertEqual(result.first?.text, "方便")
     }
+    /// Real McBopomofo scores for the dropped-key cases below.
+    private var completionDecoder: LexiconDecoder {
+        LexiconDecoder(tsv: """
+            ㄍㄨㄥ\t工\t-6.589448
+            ㄍㄨ\t估\t-9.096421
+            ㄗㄨㄛˋ\t作\t-6.873654
+            ㄗㄨㄛˋ\t做\t-6.225733
+            ㄍㄨㄥ-ㄗㄨㄛˋ\t工作\t-7.607396
+            ㄌㄠˇ\t老\t-7.109853
+            ㄕ\t師\t-7.328932
+            ㄕㄥ\t生\t-5.906531
+            ㄌㄠˇ-ㄕ\t老師\t-8.458474
+            ㄌㄠˇ-ㄕㄥ\t老生\t-13.762608
+            """)
+    }
+    func testDroppedKeyLeavingValidReadingCompletesWord() {
+        // 工作 with ㄥ dropped: ㄍㄨ is a valid reading (估), which used to
+        // keep insertion repair from running (估做).
+        let result = completionDecoder.decodeComposition(
+            complete: [Syllable(keys: ["e", "j"], tone: ""), Syllable(keys: ["y", "j", "i"], tone: "ˋ")],
+            pendingKeys: [])
+        XCTAssertEqual(result.first?.text, "工作")
+        XCTAssertEqual(result.first?.repairs, 1)
+    }
+    func testSlotCompletionNeverRewritesExactInput() {
+        // Word-only: a lone exact 估 stays, and exact 老師 is not "completed"
+        // into 老生.
+        let alone = completionDecoder.decodeComposition(
+            complete: [Syllable(keys: ["e", "j"], tone: "")], pendingKeys: [])
+        XCTAssertEqual(alone.first?.text, "估")
+        let word = completionDecoder.decodeComposition(
+            complete: [Syllable(keys: ["x", "l"], tone: "ˇ"), Syllable(keys: ["g"], tone: "")],
+            pendingKeys: [])
+        XCTAssertEqual(word.first?.text, "老師")
+        XCTAssertEqual(word.first?.repairs, 0)
+        XCTAssertTrue(ZhuyinKeyboard.slotCompletions(["e", "j"]).contains(["e", "j", "/"]))
+        XCTAssertTrue(ZhuyinKeyboard.slotCompletions(["j", "/"]).contains(["e", "j", "/"]))
+        XCTAssertEqual(ZhuyinKeyboard.slotCompletions(["e", "j", "/"]), [])
+    }
     func testExtraKeyDeletionRepair() {
         // "gsu3" has a stray ㄕ key; dropping it gives 你.
         let result = decoder.decodeComposition(

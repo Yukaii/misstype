@@ -255,6 +255,16 @@ public final class LexiconDecoder {
                 }
             }
         }
+        // Dropped key that still spells a valid reading (ㄍㄨ for ㄍㄨㄥ in
+        // 工作, ㄕ for ㄕㄥ in 學生): the clean reading hid it from the gated
+        // insertion below. Only the empty slots are filled, word-only, so an
+        // exactly typed single char is never rewritten, and toned only, for
+        // the same reason as the slot-order repair above.
+        if !cleanEmpty, !tonelessProbe {
+            for completed in ZhuyinKeyboard.slotCompletions(base) {
+                consider(keys: completed, cost: 6, wordOnly: true)
+            }
+        }
         // Insertion scans 37 symbols per gap — the most speculative class,
         // so it runs only on no-clean-reading like the rest (s3→你).
         if cleanEmpty, base.count < Self.maxSyllableKeys {
