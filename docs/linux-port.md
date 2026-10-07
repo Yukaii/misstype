@@ -488,9 +488,20 @@ install section of `README`/this file.
 
 **Spec:** keep the `core-linux` job. Add a `fcitx5-linux` job on
 `ubuntu-latest` (Docker is available there) that runs
-`script/linux/dev.sh script/linux/test_capi.sh` and
-`script/linux/dev.sh script/linux/test_fcitx5.sh`. Tests only, no
+`script/linux/dev.sh 'script/linux/test_capi.sh && script/linux/test_fcitx5.sh'`.
+Both checks share one container working copy, so the addon reuses the C ABI's
+Swift release build. Buildx loads `linux/Dockerfile` with a GitHub Actions
+layer cache (`linux-dev`); `MISSTYPE_LINUX_PREBUILT=1` tells the wrapper to use
+that loaded image. Local runs still build the image by default. Tests only, no
 `build.sh`: CI must not download the lexicon.
+
+CI cancels superseded runs on the same ref. The Linux image and Pages asset
+job use HTTPS Ubuntu package sources to avoid the HTTP mirror timeouts seen
+on PR #26 (Pages package installation: 6m17s; Linux C ABI step including image
+setup: 7m04s). Hypothesis: eliminating those timeouts and the second clean
+Swift release build shortens feedback without reducing test coverage. Check
+the Actions step durations on the first cold run and a subsequent cache hit;
+the cache is optional and a miss must still build and run all checks.
 
 **Done when:** after the change is pushed,
 `gh run list --workflow ci.yml --limit 1` shows `success`, and

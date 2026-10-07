@@ -6,6 +6,10 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 IMAGE="${MISSTYPE_LINUX_IMAGE:-misstype-linux-dev}"
-docker build -q -t "$IMAGE" -f "$ROOT/linux/Dockerfile" "$ROOT/linux" >/dev/null
+# CI loads a Buildx image with cached layers before calling this wrapper.
+# Local development still builds by default, so Dockerfile edits take effect.
+if [ "${MISSTYPE_LINUX_PREBUILT:-0}" != "1" ]; then
+  docker build -q -t "$IMAGE" -f "$ROOT/linux/Dockerfile" "$ROOT/linux" >/dev/null
+fi
 exec docker run --rm -v "$ROOT":/src:ro "$IMAGE" bash -euo pipefail -c \
   'mkdir -p /w && tar -C /src --exclude=./.build --exclude=./dist --exclude=./build -cf - . | tar -C /w -xf - && cd /w && '"$*"
