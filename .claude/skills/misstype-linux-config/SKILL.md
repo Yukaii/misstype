@@ -83,12 +83,19 @@ its own settings decide orientation.
 
 Read: `busctl --user --json=short call org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1 GetConfig s fcitx://config/global`
 (values under `data[0].data.Hotkey.data`). Write a partial config; omitted
-keys keep their values. Clear AltTriggerKeys (needed for `ShiftTogglesEnglish`):
+keys keep their values. Disable AltTriggerKeys (needed for `ShiftTogglesEnglish`)
+with one **empty entry**, then save:
 
 ```sh
 busctl --user call org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1 SetConfig sv \
-  fcitx://config/global 'a{sv}' 1 Hotkey 'a{sv}' 1 AltTriggerKeys 'a{sv}' 0
+  fcitx://config/global 'a{sv}' 1 Hotkey 'a{sv}' 1 AltTriggerKeys 'a{sv}' 1 0 s ""
+busctl --user call org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1 Save
 ```
+
+Do not clear it to an empty list (`'a{sv}' 0`): fcitx5 saves an empty list
+as nothing, which reads back as the default `Shift_L` after the next
+restart. Confirm with `grep -A1 '^\[Hotkey/AltTriggerKeys\]' ~/.config/fcitx5/config`
+→ `0=`.
 
 Restore it: `… AltTriggerKeys 'a{sv}' 1 0 s Shift_L`. Other lists work the
 same way: `TriggerKeys` (default Control+space), `EnumerateForwardKeys`.
@@ -122,5 +129,8 @@ and orientation of the candidate list.
 
 - Do not edit `~/.config/fcitx5/profile` or `config` while fcitx5 runs and
   leave it at that; use the D-Bus calls above (or reload immediately).
+- Do not start a second fcitx5 by hand when a systemd user unit runs it
+  (Omarchy: `omarchy-fcitx5.service`, `Restart=always`); restart the unit.
+  Check `cat /proc/$(pgrep -x fcitx5)/cgroup`.
 - Do not log or quote what the user types; `~/.local/share/misstype/` holds
   their dictionary and learning data — read it only when asked.

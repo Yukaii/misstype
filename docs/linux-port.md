@@ -591,9 +591,11 @@ Backlog (not scheduled):
   Alternative: remove `Shift_L` from `AltTriggerKeys` and let the session
   toggle its own English mode (matches macOS exactly, but needs a user-side
   fcitx5 config change). Available as the opt-in `ShiftTogglesEnglish`
-  setting (2026-10-07, headless LR7); the user still clears fcitx5's
+  setting (2026-10-07, headless LR7); the user still disables fcitx5's
   "Temporarily Toggle Input Method" key, because fcitx5 handles that key
-  before the input method sees it.
+  before the input method sees it. Disable it with one empty entry
+  (`[Hotkey/AltTriggerKeys]` `0=`): an empty list is saved as nothing and
+  comes back as `Shift_L` after a restart (verified on fcitx5 5.1.23).
 - **D2 Editing chords.** macOS Cmd+Backspace (clear) and Option+Backspace
   (delete syllable) map literally to Super/Alt+Backspace on Linux, where
   users expect Ctrl+Backspace. The plan keeps the literal mapping; decide

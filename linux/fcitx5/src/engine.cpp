@@ -61,7 +61,7 @@ FCITX_CONFIGURATION(
         fcitx::IntConstrain(0, 64)};
     fcitx::Option<bool> shiftTogglesEnglish{
         this, "ShiftTogglesEnglish",
-        "Lone Shift switches 中/英 in Misstype (clear fcitx5's Temporarily Toggle Input Method key)", false};
+        "Lone Shift switches 中/英 in Misstype (disable fcitx5's Temporarily Toggle Input Method key)", false};
     fcitx::ExternalOption myDictionary{this, "MyDictionary", "My Dictionary", "misstype-dictionary-editor"};);
 
 /// Owned copy of a misstype_view; comparable so unchanged views are not redrawn.

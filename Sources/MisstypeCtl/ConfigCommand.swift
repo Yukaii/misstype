@@ -37,7 +37,7 @@ struct ConfigCommand {
         .init(key: "AutoCommitSyllables", kind: .int(0...64), fallback: "24",
               summary: "Commit long input in chunks after N syllables (0 = never)"),
         .init(key: "ShiftTogglesEnglish", kind: .bool, fallback: "False",
-              summary: "Lone Shift switches 中/英 in Misstype (clear fcitx5's Temporarily Toggle Input Method key)"),
+              summary: "Lone Shift switches 中/英 in Misstype (disable fcitx5's Temporarily Toggle Input Method key)"),
     ]
 
     func run(_ args: [String]) -> Int32 {
