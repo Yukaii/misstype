@@ -11,6 +11,22 @@ smoke test, fcitx5 headless conformance), followed by the real-lexicon smoke
 check and desktop checks below. Decode is offline; packaging changes no
 candidate scoring or per-keystroke latency.
 
+## Quick install from a checkout
+
+For testing a branch on your own desktop, from the repository root:
+
+```sh
+script/linux/install_ime.sh            # add --check to run the test suites too
+```
+
+It builds a package from the checked-out commit with the recipe below
+(uncommitted edits are not included), installs it with `sudo pacman -U`,
+restarts a running fcitx5 with its current flags, and adds Misstype to the
+current input-method group if it is missing. The build directory
+`.cache/aur-build` is kept, so later runs rebuild incrementally. On other
+distributions the same script runs `script/linux/build.sh` and
+`sudo cmake --install build/fcitx5`.
+
 ## Build a package
 
 Install `base-devel`, `cmake`, `ninja`, and `git` plus the AUR `swift-bin`

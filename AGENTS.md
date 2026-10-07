@@ -98,6 +98,7 @@ Docker or bare-metal:
 ```sh
 script/linux/dev.sh 'bash script/linux/test_all.sh'
 bash script/linux/test_all.sh   # on a provisioned Linux box
+script/linux/install_ime.sh     # build + install on this desktop, restart fcitx5
 ```
 
 Linux also ships `misstypectl` (Swift, `Sources/MisstypeCtl`: `dict` and
