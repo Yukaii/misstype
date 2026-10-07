@@ -101,6 +101,8 @@ const Caption: React.FC<{ timed: TimedBeat }> = ({ timed }) => {
     ? timed.voice.captions.find((c) => t >= c.startSec && t < c.endSec + 0.25)?.text
     : timed.beat.narration;
   if (!text) return null;
+  // Subtitles drop phrase-final punctuation, as Chinese subtitles usually do.
+  const shown = text.replace(/[，。、；：,.;:]+$/, "");
   return (
     <AbsoluteFill style={{ justifyContent: "flex-end", alignItems: "center", paddingBottom: height > width ? 360 : 72 }}>
       <div
@@ -109,7 +111,7 @@ const Caption: React.FC<{ timed: TimedBeat }> = ({ timed }) => {
           padding: "10px 28px", borderRadius: 12, maxWidth: "86%", textAlign: "center",
         }}
       >
-        {text}
+        {shown}
       </div>
     </AbsoluteFill>
   );
