@@ -184,7 +184,7 @@ export class MisstypePlayground {
   setupDOM() {
     if (!this.container) return;
     this.container.innerHTML = `
-      <div class="pg">
+      <div class="pg" data-theme="system">
         <div class="field pg-box" id="pg-box" role="textbox" aria-multiline="true" aria-label="隨打注音試打區" spellcheck="false"></div>
 
         <div class="pg-ime-note" id="pg-ime-note" role="status" hidden></div>

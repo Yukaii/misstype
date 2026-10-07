@@ -60,9 +60,10 @@
   box-shadow: 0 2px 0 color-mix(in srgb, var(--line) 75%, #000 25%);
   transition: transform .14s ease, box-shadow .14s ease, background .14s ease;
 }
-.pg-btn:hover { background: #ede9e0; transform: translateY(-1px); box-shadow: 0 3px 0 color-mix(in srgb, var(--line) 75%, #000 25%); }
+.pg-btn:hover { background: color-mix(in srgb, var(--card) 88%, var(--ink)); transform: translateY(-1px); box-shadow: 0 3px 0 color-mix(in srgb, var(--line) 75%, #000 25%); }
 .pg-btn:active { transform: translateY(1px); box-shadow: 0 0 0 transparent; }
 .pg-btn.english { background: #e8ecf4; color: #1a4f8b; border-color: #cad6ea; }
+:root[data-scheme="dark"] .pg-btn.english { background: #1d2a40; color: #8fb8f0; border-color: #2f4468; }
 
 /* Floating candidate panel (選字介面) */
 .candidate-panel {
