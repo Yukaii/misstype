@@ -4,7 +4,8 @@
 // static first example.
 //
 // Clicking the field swaps it for the real decoder (WebAssembly, downloaded
-// on demand). If that is unavailable or fails, the animation just carries on.
+// on demand) on desktop. If that is unavailable or fails, or on mobile devices,
+// the animation just carries on.
 (function () {
   var demo = document.querySelector(".demo");
   var field = document.querySelector(".field");
@@ -17,15 +18,23 @@
 
   if (items.length) animate();
   if (hint && typeof WebAssembly === "object") {
-    hint.hidden = false;
+    var mobileQuery = typeof window.matchMedia === "function"
+      ? window.matchMedia("(max-width: 768px), (hover: none) and (pointer: coarse)")
+      : null;
+    function isMobile() {
+      return !!mobileQuery && mobileQuery.matches;
+    }
+
     var requested = false;
     var playground = null;
     var host = document.createElement("div");
     host.hidden = true;
     demo.insertBefore(host, field);
 
+    var label = field.getAttribute("aria-label") || field.dataset.label || "";
+
     function reveal() {
-      if (!requested || !playground?.ready) return;
+      if (isMobile() || !requested || !playground?.ready) return;
       // Let the browser paint the completed loading state before revealing the
       // editor; WASM initialization can otherwise make this transition feel frozen.
       requestAnimationFrame(function () {
@@ -52,7 +61,33 @@
       }
       return loadingPromise;
     }
+
+    var preloadScheduled = false;
+    function schedulePreload() {
+      if (isMobile() || preloadScheduled) return;
+      preloadScheduled = true;
+      if ("requestIdleCallback" in window) window.requestIdleCallback(preload, { timeout: 1500 });
+      else setTimeout(preload, 0);
+    }
+
+    function updateAvailability() {
+      if (stopped) return;
+      if (isMobile()) {
+        hint.hidden = true;
+        field.removeAttribute("role");
+        field.removeAttribute("tabindex");
+        field.removeAttribute("aria-label");
+      } else {
+        hint.hidden = false;
+        field.setAttribute("role", "button");
+        field.setAttribute("tabindex", "0");
+        if (label) field.setAttribute("aria-label", label);
+        schedulePreload();
+      }
+    }
+
     var start = function () {
+      if (isMobile()) return;
       requested = true;
       if (!playground?.ready) {
         hint.textContent = hint.dataset.loading;
@@ -60,15 +95,25 @@
       }
       preload().then(reveal);
     };
+
     field.addEventListener("click", start);
     field.addEventListener("keydown", function (event) {
+      if (isMobile()) return;
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
         start();
       }
     });
-    if ("requestIdleCallback" in window) window.requestIdleCallback(preload, { timeout: 1500 });
-    else setTimeout(preload, 0);
+
+    if (mobileQuery) {
+      if (mobileQuery.addEventListener) {
+        mobileQuery.addEventListener("change", updateAvailability);
+      } else if (mobileQuery.addListener) {
+        mobileQuery.addListener(updateAvailability);
+      }
+    }
+
+    updateAvailability();
 
     async function load() {
       var mod = await import("./playground.js");
