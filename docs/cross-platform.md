@@ -64,7 +64,7 @@ In this order, for every press:
    fcitx5 has none — ignore).
 5. If `modeChanged`: show the 中/英 indicator.
    If `latinToggled` (a latin run opened/closed mid-composition; macOS shows it,
-   fcitx5 may ignore it): flash the same indicator, 英 while `latinActive`, 中 once closed.
+   fcitx5 reads `misstype_session_latin_active` before and after the key): flash the same indicator, 英 while `latinActive`, 中 once closed.
 6. Report the key as handled iff `consumed`, subject to the platform delivery
    rules below.
 

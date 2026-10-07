@@ -73,6 +73,7 @@ struct ViewSnapshot {
     std::vector<std::string> selectionKeys;
     bool keysActive = false;
     bool showsCandidates = false;
+    bool latinActive = false; // English run open mid-composition: 英 above the preedit
     // Phrase mark (C13); markAction == MISSTYPE_MARK_NONE when not marking.
     int markAction = MISSTYPE_MARK_NONE;
     int markStartBytes = -1;
@@ -83,7 +84,8 @@ struct ViewSnapshot {
     bool operator==(const ViewSnapshot &o) const {
         return preedit == o.preedit && caretBytes == o.caretBytes && candidates == o.candidates &&
                selected == o.selected && selectionKeys == o.selectionKeys && keysActive == o.keysActive &&
-               showsCandidates == o.showsCandidates && markAction == o.markAction &&
+               showsCandidates == o.showsCandidates && latinActive == o.latinActive &&
+               markAction == o.markAction &&
                markStartBytes == o.markStartBytes && markEndBytes == o.markEndBytes && markText == o.markText &&
                markReading == o.markReading;
     }
@@ -106,6 +108,7 @@ bool snapshot(misstype_session *session, ViewSnapshot &out) {
     }
     out.keysActive = view->keys_active != 0;
     out.showsCandidates = view->shows_candidates != 0;
+    out.latinActive = misstype_session_latin_active(session) != 0;
     out.markAction = view->mark_action;
     out.markStartBytes = view->mark_start_bytes;
     out.markEndBytes = view->mark_end_bytes;
@@ -188,7 +191,9 @@ public:
             return;
         }
         misstype_key_event keyEvent = buildKeyEvent(event);
+        const bool latinBefore = misstype_session_latin_active(state->session()) != 0;
         misstype_key_result result = misstype_session_handle(state->session(), &keyEvent);
+        const bool latinClosed = latinBefore && !misstype_session_latin_active(state->session());
 
         // Contract §2: commit, then render, then the mode indicator.
         if (result.commit) {
@@ -196,9 +201,11 @@ public:
             misstype_string_free(result.commit);
             state->last.reset();
         }
-        render(ic, state, /*force=*/result.mode_changed || state->auxShown);
-        if (result.mode_changed) {
-            const bool english = misstype_engine_is_english(engine_) != 0;
+        render(ic, state, /*force=*/result.mode_changed || latinClosed || state->auxShown);
+        // An open English run keeps 英 up through render; closing one flashes
+        // 中 once, like a mode change (contract §2 latinToggled).
+        if (result.mode_changed || latinClosed) {
+            const bool english = !latinClosed && misstype_engine_is_english(engine_) != 0;
             ic->inputPanel().setAuxUp(fcitx::Text(english ? "英" : "中"));
             state->auxShown = true;
             ic->updateUserInterface(fcitx::UserInterfaceComponent::InputPanel);
@@ -403,6 +410,9 @@ private:
 
         auto &panel = ic->inputPanel();
         panel.reset(); // also clears the 中/英 indicator
+        if (view.latinActive) {
+            panel.setAuxUp(fcitx::Text("英"));
+        }
 
         fcitx::Text preedit;
         const bool marking = view.markAction != MISSTYPE_MARK_NONE && view.markStartBytes >= 0 &&

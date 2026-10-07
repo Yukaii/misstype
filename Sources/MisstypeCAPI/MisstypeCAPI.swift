@@ -428,6 +428,12 @@ public func misstype_session_raw_phonetic(_ session: OpaquePointer?) -> UnsafeMu
     return strdupOptional(handle?.session.rawPhonetic)
 }
 
+@_cdecl("misstype_session_latin_active")
+public func misstype_session_latin_active(_ session: OpaquePointer?) -> Int32 {
+    guard let session = session else { return 0 }
+    return getSession(session)?.session.latinActive == true ? 1 : 0
+}
+
 @_cdecl("misstype_session_view")
 public func misstype_session_view(_ session: OpaquePointer?) -> UnsafeMutablePointer<misstype_view>? {
     guard let session = session else { return nil }

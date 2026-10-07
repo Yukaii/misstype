@@ -1,5 +1,5 @@
 // Headless conformance tests for the fcitx5 adapter: docs/cross-platform.md
-// scenarios C1-C15 plus the Linux delivery rules LR1-LR7, driven through
+// scenarios C1-C15 plus the Linux delivery rules LR1-LR8, driven through
 // fcitx5's in-process test frontend. A wrong commit aborts inside
 // pushCommitExpectation; every other check is FCITX_ASSERT.
 #include <fcitx-utils/eventdispatcher.h>
@@ -444,6 +444,20 @@ void runAll(Instance &instance) {
         FCITX_ASSERT(s.aux() == "英") << "Shift release reported as Caps_Lock: " << s.aux();
         tapShift(FcitxKey_Caps_Lock);
         FCITX_ASSERT(s.aux() == "中") << s.aux();
+        // LR8: mid-composition a lone Shift opens an English run: 英 stays up
+        // while it is open (also as its letters are typed), 中 when it closes.
+        s.type("su3");
+        tapShift();
+        FCITX_ASSERT(s.aux() == "英") << "English run open: " << s.aux();
+        s.type("ok");
+        FCITX_ASSERT(s.preedit() == "你ok") << s.preedit();
+        FCITX_ASSERT(s.aux() == "英") << "still in the English run: " << s.aux();
+        tapShift();
+        FCITX_ASSERT(s.aux() == "中") << "English run closed: " << s.aux();
+        s.type("cl3");
+        FCITX_ASSERT(s.aux().empty()) << "the 中 flash clears on the next key: " << s.aux();
+        s.clear();
+        pass("LR8");
         raw.setValueByPath("ShiftTogglesEnglish", "False");
         addon->setConfig(raw);
         hotkeys.setValueByPath("Hotkey/AltTriggerKeys/0", "Shift_L");

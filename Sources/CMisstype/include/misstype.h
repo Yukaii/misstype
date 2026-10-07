@@ -165,6 +165,10 @@ char *misstype_session_commit(misstype_session *session); /* NULL = nothing to i
 void misstype_session_pick(misstype_session *session, int32_t index);
 void misstype_session_reset_modifiers(misstype_session *session);
 char *misstype_session_raw_phonetic(misstype_session *session);
+/* 1 while an English (latin) run is open mid-composition (Shift tap or
+ * backtick; InputSession.latinActive), else 0. Appended 2026-10-07: the host
+ * compares it across misstype_session_handle to show 英/中 (contract §2). */
+int32_t misstype_session_latin_active(misstype_session *session);
 misstype_view *misstype_session_view(misstype_session *session);
 
 /* Keymap (tables live in MisstypeCore). label receives a static string for
