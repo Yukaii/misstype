@@ -36,6 +36,8 @@ struct ConfigCommand {
               summary: "Words listed at the syllable cursor"),
         .init(key: "AutoCommitSyllables", kind: .int(0...64), fallback: "24",
               summary: "Commit long input in chunks after N syllables (0 = never)"),
+        .init(key: "ShiftTogglesEnglish", kind: .bool, fallback: "False",
+              summary: "Lone Shift switches 中/英 in Misstype (clear fcitx5's Temporarily Toggle Input Method key)"),
     ]
 
     func run(_ args: [String]) -> Int32 {
@@ -119,10 +121,12 @@ struct ConfigCommand {
             }
             return name
         case .string:
-            let keys = SelectionKeys.sanitize(input)
+            // Up to the largest page; CandidatesPerPage picks how many are used.
+            let keys = SelectionKeys.sanitize(input, pageSize: SelectionKeys.pageSizes.upperBound)
             if keys != input {
-                env.err("misstypectl config: selection keys must be distinct characters "
-                        + "that are not Zhuyin keys; the engine would use “\(keys)” instead")
+                env.err("misstypectl config: selection keys must be distinct keys of the Zhuyin layout "
+                        + "(lowercase, no space, at most \(SelectionKeys.pageSizes.upperBound)); "
+                        + "the engine would use “\(keys)” instead")
                 return nil
             }
             return keys
@@ -167,6 +171,11 @@ struct ConfigCommand {
         return "\"" + value.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"") + "\""
     }
 
+    static let reloadArguments = [
+        "--session", "--print-reply", "--dest=org.fcitx.Fcitx5", "/controller",
+        "org.fcitx.Fcitx.Controller1.ReloadAddonConfig", "string:misstype",
+    ]
+
     /// Sets (or, with nil, removes) one key, keeping every other line as is.
     private func write(_ url: URL, key: String, value: String?, reload: Bool) -> Int32 {
         var lines = ((try? String(contentsOf: url, encoding: .utf8)) ?? "")
@@ -187,8 +196,10 @@ struct ConfigCommand {
             return 1
         }
         env.out(value.map { "\(key)=\($0)" } ?? "\(key) reset to default")
-        // fcitx5-remote exits non-zero (or is missing) when fcitx5 is not running.
-        if reload, env.run("fcitx5-remote", ["-r"], true) != 0 {
+        // `fcitx5-remote -r` reloads only the global config, not addons, so
+        // ask fcitx5 to reload this addon. dbus-send fails (or is missing)
+        // when fcitx5 is not running.
+        if reload, env.run("dbus-send", Self.reloadArguments, true) != 0 {
             env.err("note: could not ask fcitx5 to reload; the change applies when fcitx5 next starts")
         }
         return 0

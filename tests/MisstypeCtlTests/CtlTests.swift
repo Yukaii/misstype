@@ -76,9 +76,10 @@ final class CtlTests: XCTestCase {
         try! "# keep\nOther=1\nAutoShowCandidates=True\n".write(toFile: conf, atomically: true, encoding: .utf8)
         XCTAssertEqual(ctl("config", "set", "autoshowcandidates", "off", "--file", conf), 0)
         XCTAssertEqual(read(conf), "# keep\nOther=1\nAutoShowCandidates=False\n")
-        XCTAssertEqual(ran.last?.0, "fcitx5-remote")
+        XCTAssertEqual(ran.last?.0, "dbus-send")
+        XCTAssertEqual(ran.last?.1.last, "string:misstype", "reloads the addon, not just the global config")
         XCTAssertEqual(ctl("config", "set", "AutoCommitSyllables", "12", "--file", conf, "--no-reload"), 0)
-        XCTAssertEqual(ran.count, 1, "--no-reload does not call fcitx5-remote")
+        XCTAssertEqual(ran.count, 1, "--no-reload does not ask fcitx5 to reload")
         lines = []
         XCTAssertEqual(ctl("config", "get", "AutoCommitSyllables", "--file", conf), 0)
         XCTAssertEqual(lines, ["12"])
@@ -94,6 +95,16 @@ final class CtlTests: XCTestCase {
         XCTAssertEqual(ctl("config", "list", "--file", conf), 0)
         XCTAssertTrue(lines.contains("MixedEnglish=False  (default)"), "defaults follow macOS")
         XCTAssertTrue(lines.contains("CandidatesPerPage=8  (default)"))
+    }
+
+    func testConfigAcceptsTenNumberKeys() {
+        XCTAssertEqual(ctl("config", "set", "CandidateKeys", "1234567890", "--file", conf, "--no-reload"), 0,
+                       "a full ten-key page is valid")
+        XCTAssertEqual(ctl("config", "set", "ShiftTogglesEnglish", "on", "--file", conf, "--no-reload"), 0)
+        let text = (try? String(contentsOfFile: conf, encoding: .utf8)) ?? ""
+        XCTAssertTrue(text.contains("CandidateKeys=1234567890"), text)
+        XCTAssertTrue(text.contains("ShiftTogglesEnglish=True"), text)
+        XCTAssertEqual(ctl("config", "set", "CandidateKeys", "1234567890-", "--file", conf), 1, "eleven keys")
     }
 
     func testConfigRejectsBadValues() {
