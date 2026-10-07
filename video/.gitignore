@@ -2,6 +2,6 @@
 # committed: it costs API credits and is published with the video.
 public/decoder/
 public/sfx/
-# Licensed music is added locally; record its source in README.md.
-public/music/
+# Music candidates (npm run music); the chosen public/music/bed.mp3 is committed.
+public/music/candidates/
 out/

@@ -1,5 +1,9 @@
 {
   "keySound": "brown",
+  "music": {
+    "lengthSec": 26,
+    "prompt": "Light, relaxed instrumental background music for a short, friendly software demo. Soft Rhodes electric piano, gentle brushed drums, warm round bass, a little acoustic guitar. Around 90 BPM, cheerful and calm, unobtrusive, sits quietly under a voice-over. Steady groove throughout with no big build-ups or drops. Ends gently on a soft resolved chord that rings out over the last two seconds."
+  },
   "voices": {
     "zh": {
       "voiceId": "XXxvxx0YUt8icTEFE3c6",

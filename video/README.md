@@ -61,6 +61,11 @@ and model (default `eleven_v4`). Unchanged lines are cached;
 
 ## Music
 
-Put a licensed track at `public/music/bed.mp3` (gitignored); it is picked up
-automatically and ducked under the narration. Record its source and licence
-here before publishing a video that uses it.
+`npm run music [-- --count 3]` generates instrumental candidates from
+story.json `music` (prompt and length) with ElevenLabs Music into
+`public/music/candidates/` (gitignored), loudness-normalized to -16 LUFS.
+Copy the chosen one to `public/music/bed.mp3`, which is committed like the
+narration; it is picked up automatically, ducked under the narration and faded
+out with the closing title. Eleven Music output may be used commercially on a
+paid ElevenLabs plan; a track from elsewhere needs its source and licence
+recorded here.

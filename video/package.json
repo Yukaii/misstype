@@ -5,6 +5,7 @@
   "scripts": {
     "prepare-assets": "node scripts/prepare-assets.mjs",
     "voiceover": "node --env-file-if-exists=../.env scripts/voiceover.mjs",
+    "music": "node --env-file-if-exists=../.env scripts/music.mjs",
     "dev": "npm run prepare-assets && remotion studio src/index.ts",
     "render": "npm run prepare-assets && remotion render src/index.ts Demo out/demo.mp4",
     "render:vertical": "npm run prepare-assets && remotion render src/index.ts DemoVertical out/demo-vertical.mp4",

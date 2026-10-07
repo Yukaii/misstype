@@ -19,11 +19,17 @@ export type DemoProps = {
 };
 
 export const Demo: React.FC<DemoProps> = ({ beats, snapshots, music, captions = true }) => {
+  const { durationInFrames } = useVideoConfig();
   const voiced = beats.filter((b) => b.voice);
   // Music sits under the narration: duck it while a line is being spoken.
   const musicVolume = (f: number) => {
     const speaking = voiced.some((b) => f >= b.from && f < b.from + b.voice!.durationSec * FPS);
-    return speaking ? 0.08 : 0.22;
+    // Fade out with the closing title, silent over the final blank paper.
+    const end = durationInFrames - END_BLANK * FPS;
+    const out = interpolate(f, [end - END_FADE * FPS, end], [1, 0], {
+      extrapolateLeft: "clamp", extrapolateRight: "clamp",
+    });
+    return (speaking ? 0.08 : 0.22) * out;
   };
 
   return (
