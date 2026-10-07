@@ -120,6 +120,34 @@ void runAll(Instance &instance) {
     Session s(instance);
     auto &ic = *s.ic();
     const KeyStates shift(KeyState::Shift), ctrl(KeyState::Ctrl);
+    auto *addon = instance.addonManager().addon("misstype");
+    FCITX_ASSERT(addon && addon->getConfig()) << "addon exposes a config";
+
+    // LR6: the settings page defaults follow macOS (MisstypePrefs).
+    {
+        RawConfig defaults;
+        addon->getConfig()->save(defaults);
+        auto expect = [&](const char *key, const char *value) {
+            const auto *stored = defaults.valueByPath(key);
+            FCITX_ASSERT(stored && *stored == value) << key << " defaults to " << (stored ? *stored : "(none)");
+        };
+        expect("RepairStrength", "Standard");
+        expect("ChannelLearning", "False");
+        expect("MixedEnglish", "False");
+        expect("AutoShowCandidates", "False");
+        expect("ReturnConfirmsSelection", "True");
+        expect("CandidatesPerPage", "8");
+        expect("CursorCandidates", "Covering");
+        pass("LR6");
+    }
+    // The conformance scenarios assume the core's defaults, not the page's.
+    {
+        RawConfig core;
+        core.setValueByPath("MixedEnglish", "True");
+        core.setValueByPath("AutoShowCandidates", "True");
+        core.setValueByPath("ReturnConfirmsSelection", "False");
+        addon->setConfig(core);
+    }
 
     // C1: su3cl3, then Enter commits the preview.
     s.type("su3cl3");
@@ -321,8 +349,6 @@ void runAll(Instance &instance) {
     // LR5: the settings page (setConfig) reaches live sessions.
     // Showing candidates automatically off: the panel stays empty until Tab.
     {
-        auto *addon = instance.addonManager().addon("misstype");
-        FCITX_ASSERT(addon && addon->getConfig()) << "addon exposes a config";
         RawConfig raw;
         raw.setValueByPath("AutoShowCandidates", "False");
         addon->setConfig(raw);
@@ -337,6 +363,18 @@ void runAll(Instance &instance) {
         const auto *value = current.valueByPath("AutoShowCandidates");
         FCITX_ASSERT(value && *value == "False") << "getConfig reflects the page";
         raw.setValueByPath("AutoShowCandidates", "True");
+        // Candidates per page reaches both the core and the fcitx5 list.
+        raw.setValueByPath("CandidatesPerPage", "5");
+        addon->setConfig(raw);
+        s.type("su3cl3");
+        {
+            auto *list = s.candidates();
+            FCITX_ASSERT(list && list->pageSize() == 5 && list->totalPages() == 2) << "5 rows per page";
+        }
+        FCITX_ASSERT(s.key(FcitxKey_Tab, kTab));
+        FCITX_ASSERT(s.candidates()->label(4).toString() == "g") << "five selection keys";
+        s.clear();
+        raw.setValueByPath("CandidatesPerPage", "8");
         addon->setConfig(raw);
         pass("LR5");
     }
@@ -387,7 +425,7 @@ int main() {
     dispatcher.attach(&instance.eventLoop());
     dispatcher.schedule([&instance]() {
         runAll(instance);
-        FCITX_INFO() << "All 18 scenarios passed";
+        FCITX_INFO() << "All 19 scenarios passed";
         instance.exit();
     });
     instance.exec();

@@ -29,23 +29,33 @@
 
 namespace {
 
-constexpr int kPageSize = 8;
+/// Order matches the C ABI levels (misstype_engine_set_repair_strength).
+FCITX_CONFIG_ENUM(RepairStrength, Off, Light, Standard, Strong);
+/// Order matches misstype_cursor_candidates.
+FCITX_CONFIG_ENUM(CursorCandidates, Covering, EndingAt, BeginningAt);
 
 /// Settings page (fcitx5-configtool, KDE/GNOME input-method settings), stored
-/// in ~/.config/fcitx5/conf/misstype.conf. Keys mirror macOS's MisstypePrefs and
-/// map onto misstype_settings; `misstypectl config` edits the same file.
-/// Defaults are the core's (what the conformance scenarios assume), so an
-/// absent file changes nothing.
+/// in ~/.config/fcitx5/conf/misstype.conf. Keys and defaults mirror macOS's
+/// MisstypePrefs (the conformance scenarios set what they need explicitly);
+/// `misstypectl config` edits the same file.
 FCITX_CONFIGURATION(
     MisstypeConfig,
-    fcitx::Option<bool> fuzzyRepair{this, "FuzzyRepair", "Repair typing mistakes", true};
+    fcitx::Option<RepairStrength> repairStrength{this, "RepairStrength", "Repair typing mistakes",
+                                                 RepairStrength::Standard};
     fcitx::Option<bool> toneTolerance{this, "ToneTolerance", "Tolerate wrong tones", true};
     fcitx::Option<bool> userLearning{this, "UserLearning", "Learn phrases you type", true};
-    fcitx::Option<bool> mixedEnglish{this, "MixedEnglish", "Recognize English words while typing", true};
-    fcitx::Option<bool> autoShowCandidates{this, "AutoShowCandidates", "Show candidates automatically", true};
+    fcitx::Option<bool> channelLearning{this, "ChannelLearning",
+                                        "Learn your typing slips (experimental, needs phrase learning)", false};
+    fcitx::Option<bool> mixedEnglish{this, "MixedEnglish", "Recognize English words while typing", false};
+    fcitx::Option<bool> autoShowCandidates{this, "AutoShowCandidates", "Show candidates automatically", false};
     fcitx::Option<bool> returnConfirmsSelection{this, "ReturnConfirmsSelection",
-                                                "Return confirms the selected candidate", false};
+                                                "Return confirms the selected candidate", true};
     fcitx::Option<std::string> candidateKeys{this, "CandidateKeys", "Selection keys", "asdfghjkl;"};
+    fcitx::Option<int, fcitx::IntConstrain> candidatesPerPage{this, "CandidatesPerPage", "Candidates per page", 8,
+                                                              fcitx::IntConstrain(4, 10)};
+    fcitx::Option<CursorCandidates> cursorCandidates{this, "CursorCandidates",
+                                                     "Words listed at the syllable cursor",
+                                                     CursorCandidates::Covering};
     fcitx::Option<int, fcitx::IntConstrain> autoCommitSyllables{
         this, "AutoCommitSyllables", "Commit long input in chunks after N syllables (0 = never)", 24,
         fcitx::IntConstrain(0, 64)};
@@ -151,21 +161,9 @@ public:
         if (engine_) {
             // My words: $XDG_DATA_HOME/misstype/user_dictionary.tsv.
             misstype_engine_set_user_dictionary_path(engine_, nullptr);
-            applySettings();
             // Learned typing slips: $XDG_DATA_HOME/misstype/channel_model.json.
-            // Experimental and off unless MISSTYPE_CHANNEL_LEARNING=1 (no
-            // fcitx5 config page yet).
             misstype_engine_set_channel_path(engine_, nullptr);
-            const char *channel = std::getenv("MISSTYPE_CHANNEL_LEARNING");
-            misstype_engine_set_channel_learning(engine_, channel && std::string(channel) == "1");
-            // Repair strength: MISSTYPE_REPAIR_STRENGTH=off|light|standard|strong
-            // (default standard; no config page yet).
-            if (const char *strength = std::getenv("MISSTYPE_REPAIR_STRENGTH")) {
-                const std::string levels[] = {"off", "light", "standard", "strong"};
-                for (int level = 0; level < 4; ++level) {
-                    if (levels[level] == strength) misstype_engine_set_repair_strength(engine_, level);
-                }
-            }
+            applySettings();
         } else {
             // Never crash and never filter: every key passes through.
             FCITX_ERROR() << "Misstype: cannot load lexicon.tsv from " << resources;
@@ -261,16 +259,21 @@ private:
         // also toggle 中/英 on a Shift tap.
         misstype_settings settings = misstype_settings_default();
         settings.shift_toggle = 0;
-        settings.fuzzy_repair = *config_.fuzzyRepair;
+        const int strength = static_cast<int>(*config_.repairStrength);
+        settings.fuzzy_repair = strength != 0;
         settings.tone_tolerance = *config_.toneTolerance;
         settings.user_learning = *config_.userLearning;
         settings.mixed_english = *config_.mixedEnglish;
         settings.auto_show_candidates = *config_.autoShowCandidates;
         settings.return_confirms_selection = *config_.returnConfirmsSelection;
         settings.auto_commit_syllables = *config_.autoCommitSyllables;
+        settings.page_size = *config_.candidatesPerPage;
+        settings.cursor_candidates = static_cast<int32_t>(*config_.cursorCandidates);
         const std::string keys = *config_.candidateKeys; // copied by the engine during the call
         settings.candidate_keys = keys.c_str();
         misstype_engine_set_settings(engine_, &settings);
+        misstype_engine_set_repair_strength(engine_, strength);
+        misstype_engine_set_channel_learning(engine_, *config_.channelLearning);
     }
 
     static std::string resourcesDir() {
@@ -415,7 +418,7 @@ private:
 
         if (view.showsCandidates && !view.candidates.empty()) {
             auto list = std::make_unique<fcitx::CommonCandidateList>();
-            list->setPageSize(kPageSize);
+            list->setPageSize(*config_.candidatesPerPage);
             for (size_t i = 0; i < view.candidates.size(); ++i) {
                 list->append<MisstypeCandidate>(this, static_cast<int>(i), view.candidates[i]);
             }

@@ -8,7 +8,7 @@ import MisstypeCore
 struct ConfigCommand {
     let env: CtlEnvironment
 
-    enum Kind { case bool, string, int(ClosedRange<Int>) }
+    enum Kind { case bool, string, int(ClosedRange<Int>), choice([String]) }
 
     struct Setting {
         let key: String
@@ -19,14 +19,21 @@ struct ConfigCommand {
 
     /// Mirrors `MisstypeConfig` in linux/fcitx5/src/engine.cpp (keep in step).
     static let settings: [Setting] = [
-        .init(key: "FuzzyRepair", kind: .bool, fallback: "True", summary: "Repair typing mistakes"),
+        .init(key: "RepairStrength", kind: .choice(["Off", "Light", "Standard", "Strong"]), fallback: "Standard",
+              summary: "Repair typing mistakes"),
         .init(key: "ToneTolerance", kind: .bool, fallback: "True", summary: "Tolerate wrong tones"),
         .init(key: "UserLearning", kind: .bool, fallback: "True", summary: "Learn phrases you type"),
-        .init(key: "MixedEnglish", kind: .bool, fallback: "True", summary: "Recognize English words while typing"),
-        .init(key: "AutoShowCandidates", kind: .bool, fallback: "True", summary: "Show candidates automatically"),
-        .init(key: "ReturnConfirmsSelection", kind: .bool, fallback: "False",
+        .init(key: "ChannelLearning", kind: .bool, fallback: "False",
+              summary: "Learn your typing slips (experimental, needs phrase learning)"),
+        .init(key: "MixedEnglish", kind: .bool, fallback: "False", summary: "Recognize English words while typing"),
+        .init(key: "AutoShowCandidates", kind: .bool, fallback: "False", summary: "Show candidates automatically"),
+        .init(key: "ReturnConfirmsSelection", kind: .bool, fallback: "True",
               summary: "Return confirms the selected candidate"),
         .init(key: "CandidateKeys", kind: .string, fallback: SelectionKeys.defaultKeys, summary: "Selection keys"),
+        .init(key: "CandidatesPerPage", kind: .int(SelectionKeys.pageSizes), fallback: "8",
+              summary: "Candidates per page"),
+        .init(key: "CursorCandidates", kind: .choice(["Covering", "EndingAt", "BeginningAt"]), fallback: "Covering",
+              summary: "Words listed at the syllable cursor"),
         .init(key: "AutoCommitSyllables", kind: .int(0...64), fallback: "24",
               summary: "Commit long input in chunks after N syllables (0 = never)"),
     ]
@@ -105,6 +112,12 @@ struct ConfigCommand {
                 return nil
             }
             return String(value)
+        case .choice(let names):
+            guard let name = names.first(where: { $0.lowercased() == input.lowercased() }) else {
+                env.err("misstypectl config: \(setting.key) takes one of " + names.joined(separator: ", "))
+                return nil
+            }
+            return name
         case .string:
             let keys = SelectionKeys.sanitize(input)
             if keys != input {

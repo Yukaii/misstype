@@ -213,7 +213,9 @@ public func misstype_settings_default() -> misstype_settings {
         auto_show_candidates: 1,
         return_confirms_selection: 0,
         mixed_english: 1,
-        auto_commit_syllables: 24
+        auto_commit_syllables: 24,
+        page_size: Int32(SelectionKeys.defaultPageSize),
+        cursor_candidates: Int32(MISSTYPE_CURSOR_COVERING.rawValue)
     )
 }
 
@@ -282,8 +284,19 @@ public func misstype_engine_set_settings(
         autoShowCandidates: settings.pointee.auto_show_candidates != 0,
         returnConfirmsSelection: settings.pointee.return_confirms_selection != 0,
         mixedEnglish: settings.pointee.mixed_english != 0,
+        pageSize: Int(settings.pointee.page_size),
+        cursorCandidates: cursorCandidates(settings.pointee.cursor_candidates),
         channelLearning: handle?.settings.value.channelLearning ?? false
     )
+}
+
+/// `misstype_cursor_candidates` → `CursorCandidates`; unknown values keep the default.
+private func cursorCandidates(_ value: Int32) -> CursorCandidates {
+    switch UInt32(bitPattern: value) {
+    case MISSTYPE_CURSOR_ENDING_AT.rawValue: return .endingAt
+    case MISSTYPE_CURSOR_BEGINNING_AT.rawValue: return .beginningAt
+    default: return .covering
+    }
 }
 
 /// 0 off, 1 light, 2 standard, 3 strong (`RepairStrength`); out of range

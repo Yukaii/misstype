@@ -458,6 +458,7 @@ void run_settings(const char *res) {
     ASSERT(st.auto_show_candidates == 1 && st.return_confirms_selection == 0 && st.mixed_english == 1 &&
                st.auto_commit_syllables == 24,
            "default settings keep the core's behavior");
+    ASSERT(st.page_size == 8 && st.cursor_candidates == MISSTYPE_CURSOR_COVERING, "default page and cursor");
     st.shift_toggle = 0;
     misstype_engine_set_settings(eng, &st);
     shift_tap(s, MISSTYPE_KEY_SHIFT_LEFT, 0, 101.0);
@@ -528,6 +529,29 @@ void run_repair_strength(const char *res) {
     misstype_engine_free(eng);
 }
 
+/* page_size reaches the session: an open candidate list labels that many rows. */
+void run_page_size(const char *res) {
+    misstype_engine *eng = misstype_engine_new(res, "");
+    misstype_settings st = misstype_settings_default();
+    st.page_size = 5;
+    misstype_engine_set_settings(eng, &st);
+    misstype_session *s = misstype_session_new(eng);
+    misstype_string_free(send(s, MISSTYPE_KEY_CHARACTER, "s", 0).commit);
+    misstype_string_free(send(s, MISSTYPE_KEY_CHARACTER, "u", 0).commit);
+    misstype_string_free(send(s, MISSTYPE_KEY_CHARACTER, "3", 0).commit);
+    misstype_string_free(send(s, MISSTYPE_KEY_CHARACTER, "c", 0).commit);
+    misstype_string_free(send(s, MISSTYPE_KEY_CHARACTER, "l", 0).commit);
+    misstype_string_free(send(s, MISSTYPE_KEY_CHARACTER, "3", 0).commit);
+    misstype_string_free(send(s, MISSTYPE_KEY_TAB, NULL, 0).commit);
+    misstype_view *v = misstype_session_view(s);
+    ASSERT(v && v->shows_candidates && v->candidate_count > 5, "page_size: list open");
+    ASSERT(v->selection_key_count == 5, "page_size=5: five selection keys");
+    printf("page_size=5 keys=%d\n", v->selection_key_count);
+    misstype_view_free(v);
+    misstype_session_free(s);
+    misstype_engine_free(eng);
+}
+
 int main(int argc, char **argv) {
     if (argc < 2) {
         fprintf(stderr, "usage: %s <resource_dir> [keys]\n", argv[0]);
@@ -550,6 +574,7 @@ int main(int argc, char **argv) {
         run_settings(res);
         run_channel(res);
         run_repair_strength(res);
+        run_page_size(res);
         test_keymap();
         printf("DONE\n");
         return 0;

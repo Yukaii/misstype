@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # L3 fcitx5 addon check (runs inside the container): builds libMisstypeCAPI.so and
-# the addon, then runs the headless conformance tests (C1-C13, LR1-LR5) against
+# the addon, then runs the headless conformance tests (C1-C13, LR1-LR6) against
 # the 7-line fixture lexicon. Needs no network and no display.
 set -euo pipefail
 cd "$(dirname "$0")/../.."

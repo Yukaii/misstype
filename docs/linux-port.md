@@ -220,13 +220,13 @@ minus space) is in `EvdevKeyCode.labels.values`;
     `misstype_engine_set_channel_learning` (default 0; kept across
     `misstype_engine_set_settings`, still needs `user_learning`),
     `misstype_engine_clear_channel`, `misstype_engine_channel_pair_count`.
-    The fcitx5 addon sets the default path and enables learning only when
-    `MISSTYPE_CHANNEL_LEARNING=1` (there is no config page yet).
+    The fcitx5 addon sets the default path; the `ChannelLearning` setting
+    (default off) turns learning on.
   - Repair strength (appended 2026-10-06, settings struct unchanged):
     `misstype_engine_set_repair_strength` (0 off, 1 light, 2 standard =
     default, 3 strong; out of range ignored; kept across
     `misstype_engine_set_settings` while `fuzzy_repair` is 1). The fcitx5
-    addon reads `MISSTYPE_REPAIR_STRENGTH=off|light|standard|strong`.
+    addon sets it from the `RepairStrength` setting.
   - `user_lexicon_path`: `NULL` → `UserLexicon.load()` with
     `userLexiconURL = UserLexicon.defaultURL`; `""` → empty lexicon, no URL
     (never touches disk); otherwise load/save at that path.
@@ -353,7 +353,7 @@ Negative check (do it, then revert): change `C1 commit=你好` in
     client preedit, else the panel preedit (`inputPanel().setPreedit`), as a
     `fcitx::Text` with `TextFormatFlag::Underline` and
     `setCursor(caret_bytes)`. Candidates: when `shows_candidates`, a
-    `CommonCandidateList` with page size 8, one `CandidateWord` per entry
+    `CommonCandidateList` with the `CandidatesPerPage` page size (default 8), one `CandidateWord` per entry
     whose `select()` calls `misstype_session_pick(index)` and re-renders, the
     global cursor on `selected` (its page current), labels =
     `selection_keys` when `keys_active` else empty labels. Otherwise clear
@@ -530,13 +530,18 @@ Landed 2026-10-04 (macOS Settings parity, except Jev and About):
 
 - **Settings page**: the addon is `Configurable=True` and exposes
   `MisstypeConfig` (`engine.cpp`), so fcitx5-configtool and the KDE/GNOME
-  input-method settings draw the page. Keys: `FuzzyRepair`, `ToneTolerance`,
-  `UserLearning`, `MixedEnglish`, `AutoShowCandidates`,
-  `ReturnConfirmsSelection`, `CandidateKeys`, `AutoCommitSyllables`; stored in
-  `~/.config/fcitx5/conf/misstype.conf`, applied to live sessions through
-  `misstype_engine_set_settings` (ABI v1 gained four appended
-  `misstype_settings` fields). Lone Shift stays with fcitx5 (`AltTriggerKeys`).
-  Covered by headless scenario LR5. The "My Dictionary" button is an
+  input-method settings draw the page. Keys: `RepairStrength`
+  (Off/Light/Standard/Strong), `ToneTolerance`, `UserLearning`,
+  `ChannelLearning`, `MixedEnglish`, `AutoShowCandidates`,
+  `ReturnConfirmsSelection`, `CandidateKeys`, `CandidatesPerPage` (4–10),
+  `CursorCandidates` (Covering/EndingAt/BeginningAt), `AutoCommitSyllables`;
+  stored in `~/.config/fcitx5/conf/misstype.conf`, applied to live sessions
+  through `misstype_engine_set_settings` (ABI v1 gained six appended
+  `misstype_settings` fields), `misstype_engine_set_repair_strength` and
+  `misstype_engine_set_channel_learning`. These replace the
+  `MISSTYPE_CHANNEL_LEARNING` / `MISSTYPE_REPAIR_STRENGTH` environment
+  variables. Lone Shift stays with fcitx5 (`AltTriggerKeys`). Covered by
+  headless scenarios LR5 (live settings, page size) and LR6 (defaults). The "My Dictionary" button is an
   `ExternalOption` pointing at `misstype-dictionary-editor`; whether a given
   configtool build launches a bare program name is **not verified** (open the
   editor from the app menu or `misstypectl dict gui` otherwise).
@@ -553,9 +558,13 @@ Landed 2026-10-04 (macOS Settings parity, except Jev and About):
   Misstype itself would produce hanzi); marking a phrase in the IME
   (Shift+←/→, Return) remains the easy way to add words. Built only when
   GTK4 dev files are present; the IME needs neither tool.
-- Defaults match the core (and the conformance scenarios), not macOS's
-  `MisstypePrefs`: auto-show candidates on, Return sends at once, mixed
-  English on. Open: decide whether Linux should adopt macOS's defaults.
+- Defaults match macOS's `MisstypePrefs` (decided 2026-10-07): auto-show
+  candidates off, Return confirms a pick, mixed English off, repair
+  Standard, channel learning off. The core's own defaults are unchanged, and
+  the headless suite sets them explicitly before C1–C13. Not on the page
+  yet: custom key bindings (`KeyBindings`, macOS Shortcuts pane) and
+  clearing learned slips (`misstype_engine_clear_channel` exists; no button
+  or `misstypectl` command calls it).
 
 Backlog (not scheduled):
 

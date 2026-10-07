@@ -86,8 +86,21 @@ final class CtlTests: XCTestCase {
         XCTAssertEqual(read(conf), "# keep\nOther=1\nAutoShowCandidates=False\n")
     }
 
+    func testConfigChoicesStoreTheCanonicalName() {
+        XCTAssertEqual(ctl("config", "set", "repairstrength", "light", "--file", conf, "--no-reload"), 0)
+        XCTAssertEqual(ctl("config", "set", "CursorCandidates", "endingat", "--file", conf, "--no-reload"), 0)
+        XCTAssertEqual(read(conf), "RepairStrength=Light\nCursorCandidates=EndingAt\n")
+        lines = []
+        XCTAssertEqual(ctl("config", "list", "--file", conf), 0)
+        XCTAssertTrue(lines.contains("MixedEnglish=False  (default)"), "defaults follow macOS")
+        XCTAssertTrue(lines.contains("CandidatesPerPage=8  (default)"))
+    }
+
     func testConfigRejectsBadValues() {
-        XCTAssertEqual(ctl("config", "set", "FuzzyRepair", "maybe", "--file", conf), 1)
+        XCTAssertEqual(ctl("config", "set", "ToneTolerance", "maybe", "--file", conf), 1)
+        XCTAssertEqual(ctl("config", "set", "RepairStrength", "max", "--file", conf), 1)
+        XCTAssertEqual(ctl("config", "set", "CandidatesPerPage", "3", "--file", conf), 1)
+        XCTAssertEqual(ctl("config", "set", "FuzzyRepair", "on", "--file", conf), 2, "replaced by RepairStrength")
         XCTAssertEqual(ctl("config", "set", "AutoCommitSyllables", "999", "--file", conf), 1)
         XCTAssertEqual(ctl("config", "set", "CandidateKeys", "aab", "--file", conf), 1)
         XCTAssertEqual(ctl("config", "set", "Nope", "1", "--file", conf), 2)
