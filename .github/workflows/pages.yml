@@ -10,10 +10,22 @@ on:
     branches: [main]
     paths:
       - "site/**"
+      - "Sources/**"
+      - "Package.swift"
+      - "Resources/**"
+      - "script/prepare_lexicon.py"
+      - "script/build_site_assets.sh"
+      - "third_party/**"
       - ".github/workflows/pages.yml"
   pull_request:
     paths:
       - "site/**"
+      - "Sources/**"
+      - "Package.swift"
+      - "Resources/**"
+      - "script/prepare_lexicon.py"
+      - "script/build_site_assets.sh"
+      - "third_party/**"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -22,7 +34,25 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # The demo's wasm decoder and lexicons are generated, not committed
+  # (site/public/ is gitignored); without them the live demo 404s.
+  assets:
+    runs-on: ubuntu-latest
+    container: swift:6.0
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - run: apt-get update && apt-get install -y python3 unzip curl
+      - run: script/build_site_assets.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: site-assets
+          path: site/public
+          retention-days: 1
+
   build:
+    needs: assets
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -33,6 +63,10 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: site/package-lock.json
+      - uses: actions/download-artifact@v4
+        with:
+          name: site-assets
+          path: site/public
       - run: npm ci && npm run build
         working-directory: site
       - uses: actions/upload-pages-artifact@v3

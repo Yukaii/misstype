@@ -2,8 +2,11 @@
 
 Two plain HTML pages built with Vite (no framework, no web fonts, no
 trackers). `index.html` is Traditional Chinese, `en/index.html` English; both
-share `style.css` and `demo.js`. Files in `public/` are copied as-is. The
-keyboard beside the hero is a Hairline line figure; see `hairline/README.md`.
+share `style.css` and `demo.js`. Files in `public/` are copied as-is; the live
+demo's `misstype.wasm` and lexicons there are generated (gitignored) by
+`script/build_site_assets.sh`, which Pages runs before building. Run it once
+before `npm run dev` if you want the demo to load locally. The keyboard beside
+the hero is a Hairline line figure; see `hairline/README.md`.
 
 ```sh
 cd site
