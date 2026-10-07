@@ -15,8 +15,13 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version (e.g. 0.2.0-rc1); builds an artifact, no release"
+        description: "Version (e.g. 0.2.0-rc1); artifact-only unless publish is enabled"
+        type: string
         required: true
+      publish:
+        description: "Publish a GitHub Release for an existing version tag"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -31,6 +36,10 @@ jobs:
       HAS_SPARKLE: ${{ secrets.SPARKLE_ED_PRIVATE_KEY != '' }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Dispatched by Tag release: build the exact newly pushed tag. Normal
+          # tag pushes and artifact-only dispatches use their triggering ref.
+          ref: ${{ inputs.publish && inputs.version || github.ref }}
 
       # Pinned public dictionary sources only (checksum-verified).
       - uses: actions/cache@v4
@@ -92,7 +101,7 @@ jobs:
             dist/appcast.xml
 
       - name: Publish release
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' || inputs.publish
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -101,7 +110,7 @@ jobs:
           ASSETS=(dist/Misstype-*.dmg dist/Misstype-*.dmg.sha256 dist/MisstypeIME-*.zip dist/MisstypeIME-*.zip.sha256)
           [[ -f dist/appcast.xml ]] && ASSETS+=(dist/appcast.xml)
           gh release create "$VERSION" "${ASSETS[@]}" \
-            --title "Misstype ${VERSION#v}" --generate-notes $PRERELEASE
+            --verify-tag --title "Misstype ${VERSION#v}" --generate-notes $PRERELEASE
 
       - name: Clean up signing material
         if: always()

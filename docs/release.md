@@ -85,10 +85,48 @@ Linux data moves from `~/.local/share/mistype` to `~/.local/share/misstype`.
 
 ## Cutting a release
 
+Commit and push changes first. The normal path is **Actions → Tag release →
+Run workflow**, selecting `major`, `minor`, or `patch` (default `patch`).
+It creates an annotated tag at the current remote `main` HEAD, then invokes
+the release build for that exact tag. The version is calculated from the
+numerically highest stable `vMAJOR.MINOR.PATCH` tag; prerelease and unrelated
+tags are ignored. A major/minor bump resets the lower components. Dispatches
+are serialized, and existing tags are never overwritten.
+
 ```sh
-git tag v0.2.0 && git push origin v0.2.0      # CI: test, package, publish
-./script/package_release.sh 0.2.0             # same thing locally, into dist/
+gh workflow run tag-release.yml --ref main -f bump=minor
+# Or choose an explicit version and tag the intended local HEAD:
+git tag -a v0.3.0 -m 'Misstype 0.3.0'
+git push origin v0.3.0                       # CI: test, package, publish
+./script/package_release.sh 0.3.0            # local packaging into dist/
 ```
+
+`Tag release` uses the built-in `GITHUB_TOKEN`. GitHub suppresses tag-push
+workflow triggers for that token, so it explicitly dispatches `release.yml`
+at the new tag with `publish=true`. No additional PAT is necessary. Builds
+stay in the original Release workflow to preserve its increasing run number
+for Sparkle's `CFBundleVersion`.
+Direct user tag pushes still trigger Release normally. Direct manual
+dispatch of Release builds artifacts without publishing by default; its
+optional `publish` checkbox requires an existing version tag.
+Publishing requires an existing remote tag (`gh release create --verify-tag`).
+If tagging succeeds but the release build fails, rerun the failed jobs in
+the Release run. If its dispatch fails, use the existing tag with
+`gh workflow run release.yml --ref <tag> -f version=<tag> -f publish=true`.
+Starting a new Tag release dispatch calculates another version.
+
+Hypothesis (2026-10-07): creating a tag with the built-in token alone will
+leave a release unbuilt. The smallest check is that the tag job dispatches
+Release at its new version tag, which checks out that tag and publishes.
+Version calculation is covered by `tests/test_release.py`; workflow syntax
+and the dispatch inputs should be validated before pushing. End-to-end
+publication is checked on the next explicitly requested release, since
+running Tag release creates and publishes a new version.
+
+Verified 2026-10-07: actionlint 1.7.12 validated all repository workflows,
+and all 73 Python tests passed, including the five version-calculation tests.
+The preceding direct tag-push release `v0.2.0` completed successfully. The new
+Tag release dispatch has not been run to avoid creating an additional release.
 
 Artifacts: `Misstype-<v>.dmg`, `MisstypeIME-<v>.zip` (the Sparkle archive),
 `appcast.xml`, `.sha256` files. Tags containing `-` are prereleases and are

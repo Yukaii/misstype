@@ -1,0 +1,63 @@
+name: Tag release
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "版本遞增 / Version bump (tags main HEAD and publishes a release)"
+        type: choice
+        required: true
+        default: patch
+        options:
+          - major
+          - minor
+          - patch
+
+permissions:
+  contents: write
+  actions: write
+
+# Serialize the tag calculation and push so two dispatches cannot
+# select the same next version. Existing tags are never overwritten.
+concurrency:
+  group: tag-release
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Test version calculation
+        run: python3 -m unittest discover -s tests -p test_release.py -v
+      - name: Calculate next stable version
+        id: version
+        env:
+          BUMP: ${{ inputs.bump }}
+        run: |
+          release_tag=$(python3 script/next_release_tag.py "$BUMP")
+          echo "tag=$release_tag" >> "$GITHUB_OUTPUT"
+      - name: Tag main HEAD and push
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Misstype ${TAG#v}"
+          git push origin "refs/tags/$TAG"
+          printf 'Created **%s** at `%s`.\n' "$TAG" "$(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
+      # GITHUB_TOKEN tag pushes do not trigger Release. Explicit dispatch
+      # does, and keeps github.run_number in the original Release workflow
+      # so Sparkle's CFBundleVersion continues to increase across releases.
+      - name: Start release build and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          gh workflow run release.yml --repo "$GITHUB_REPOSITORY" --ref "$TAG" \
+            -f version="$TAG" -f publish=true
+          printf '\nRelease build dispatched for **%s**. [Follow the build](https://github.com/%s/actions/workflows/release.yml).\n' \
+            "$TAG" "$GITHUB_REPOSITORY" >> "$GITHUB_STEP_SUMMARY"
