@@ -12,7 +12,7 @@ npm run dev       # local preview with reload
 npm run build     # writes site/dist (what Pages publishes)
 ```
 
-The examples under "打錯了，它幫你猜回來" are real decoder output (default
+The examples under "打錯了沒關係，幫你修回來" are real decoder output (default
 settings, no tones, Enter to commit), checked through the C ABI with
 `tools/baseline/compare.py drive-misstype` on 2026-10-05. If the decoder or
 lexicon changes, re-run them before editing the page; `demo.js` replays the
