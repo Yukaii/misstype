@@ -327,7 +327,7 @@ Negative check (do it, then revert): change `C1 commit=你好` in
   `[Addon] Name=Misstype, Category=InputMethod, Version=<project version>,
   Library=libmisstype-fcitx5, Type=SharedLibrary, OnDemand=True,
   Configurable=False`. `data/inputmethod/misstype.conf`:
-  `[InputMethod] Name=Misstype, Label=注, LangCode=zh_TW, Addon=misstype,
+  `[InputMethod] Name=Misstype, Label=隨, LangCode=zh_TW, Addon=misstype,
   Configurable=False`. The addon's name is the file's basename (`misstype`).
 - Engine (`fcitx::InputMethodEngineV2`, registered with
   `FCITX_ADDON_FACTORY`):
