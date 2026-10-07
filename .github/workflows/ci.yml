@@ -19,6 +19,10 @@ on:
       - "docs/**"
       - "**/*.md"
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   core-linux:
     runs-on: ubuntu-latest
@@ -34,7 +38,19 @@ jobs:
       - uses: actions/checkout@v4
       # Same image as local development (linux/Dockerfile); tests only, so CI
       # never downloads the lexicon.
-      - name: C ABI
-        run: script/linux/dev.sh script/linux/test_capi.sh
-      - name: fcitx5 addon
-        run: script/linux/dev.sh script/linux/test_fcitx5.sh
+      - uses: docker/setup-buildx-action@v3
+      - name: Linux test image
+        uses: docker/build-push-action@v6
+        with:
+          context: linux
+          file: linux/Dockerfile
+          tags: misstype-linux-dev:latest
+          load: true
+          cache-from: type=gha,scope=linux-dev
+          cache-to: type=gha,scope=linux-dev,mode=max
+      # A single working copy preserves Swift's incremental release build
+      # between the C ABI and addon checks.
+      - name: C ABI and fcitx5 addon
+        env:
+          MISSTYPE_LINUX_PREBUILT: "1"
+        run: script/linux/dev.sh 'script/linux/test_capi.sh && script/linux/test_fcitx5.sh'
