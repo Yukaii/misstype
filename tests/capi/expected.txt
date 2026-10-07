@@ -6,7 +6,7 @@ C2 space consumed=1 commit=[ ]
 C4 tab selected=0 keys_active=1 shows=1 count=5
 C4 pick preedit=尼 keys_active=0
 C4 commit=[尼]
-C8 left caret_bytes=3 caret_utf16=1 first=你好 keys_active=1
+C8 left caret_bytes=3 caret_utf16=1 first=你好 keys_active=0, tab=1
 C9 ctrl-c consumed=0 commit=[你]
 C10 shift-space consumed=1 commit=[你] mode_changed=1 english=1
 C10 s consumed=0 commit=(null)

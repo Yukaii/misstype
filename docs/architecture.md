@@ -81,8 +81,8 @@ phonetic-confusion substitute 5.0 — ㄧㄨㄩ / 捲平舌 / n-l / nasals ride
 along even on valid bases, cost-capped so exact input keeps winning;
 insert/delete 6.0 stay gated on no-clean-reading), and destructive editing
 (plain Backspace erases one converted syllable when nothing is pending,
-else one raw key; Option+Backspace one syllable; Cmd+Backspace clears)
-never commits first. An explicitly picked candidate pins by text (Tab/arrows/
+else one raw key; Option+Backspace one syllable, or a whole Latin word with
+the spaces after it; Cmd+Backspace clears) never commits first. An explicitly picked candidate pins by text (Tab/arrows/
 digit/click set `pinnedPick`): continued typing keeps the exact match, else
 the first candidate extending it; only unmatched fresh evidence clears the
 pin. A syllable cursor replaces the old Opt+Right segment lock (retired:
@@ -94,6 +94,30 @@ query); Tab/digit/click/Return pin the choice into session-only `locked`
 pins (reading-keyed decisive bonus, held till commit/clear/Escape, never
 disk) and advance the cursor, Up/Down only move the highlight. Any
 composition edit returns the cursor to end; pins survive tail typing.
+Insertion caret (decision 2026-10-07, issues #32/#33): the cursor also sets
+`Composition.caret`, a raw-key index, and typing goes there
+(McBopomofo-style): the cursor shows its focused list but never arms the
+selection keys, so home-row Zhuyin keys type at the caret; Tab/Down/Up arm
+them, Esc disarms (cursor stays), a second Esc returns the caret to the end.
+Edits run through `Composition.atCaret`, which applies the ordinary
+end-of-composition rule to the keys before the caret and re-attaches the
+rest, and a mid-composition caret is a toneless syllable boundary in
+`segments`/`parsed`, so keys typed there fuse backwards (toneless typing as
+usual) but never into the syllable after. `CompositionLayout` maps raw keys
+to preview UTF-16 offsets and decoded syllables (a body's keys handed out by
+each syllable's key count) and gives the word stops: Option+Left/Right jump
+to the previous word start / next word end (decoded words, Latin words,
+single marks) and resume the Latin run when the caret lands after Latin
+text. Mid-composition Backspace erases the decoded syllable before the
+caret (Latin: one letter), Forward Delete the one after; Right past the
+last syllable or Esc returns to the end. While the caret is mid-composition
+the English pass, settled pins, chunked auto-commit and the re-type channel
+heuristic are skipped (they read from the end); returning re-decodes. Known
+limits: an English reading of the mixed pass has no layout, so Option+arrows
+over it still commit and pass; explicit pins after the caret in the same
+run stop matching once an insertion shifts their offset; a lone initial
+typed mid-composition can be absorbed by delete repair until its syllable
+is complete (at the end it would stay raw as `pending`).
 `SentenceCandidate.alignment` (syllable ↔ UTF-16 char ranges, rebased across
 runs in `decodeSegments`) is the single source for caret placement and span
 lookup; the cursor indexes the candidate's own decoded `syllables` (a toneless run is one fused syllable in the composition, so a rebuilt list never matched). Surrounding-text lookup (`stringFromRange:` on the client) runs only when a Jev request will genuinely be attempted, never on the hot decode path: eager per-keystroke lookup segfaulted inside Chromium/Electron legacy client wrappers, and offline decoding never needs it. Lexicon data: `script/prepare_lexicon.py` builds `lexicon.tsv` from pinned McBopomofo sources, then applies `Resources/reading_order.tsv` (hand-reviewed single-syllable top-1 swaps; stale rows fail the build); it also writes `toneless.tsv`, where single chars that share a toneless base swap score slots by NAER standalone frequency. `LexiconDecoder(tsv:toneless:)` reads those scores only for a one-syllable span typed without a tone, so toned input and words never see them; `LexiconDecoder.wordPenalty` (0.5 via `LexiconLoader`, 0 in a bare `LexiconDecoder`) charges each dictionary word on a path, rebalancing word vs split-into-chars against McBopomofo's inflated single-char scores; `Resources/local_phrases.tsv` is concatenated at load. The IME binary is launched and supervised by TIS on demand — installers and scripts must never start it by hand, or the stray copy squats the `InputMethodConnectionName` Mach service and the TIS-launched instance fails to bind. Panel echoes are muted 150 ms around our own data-set/drive, and

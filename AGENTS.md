@@ -9,7 +9,7 @@ This repository is an experimental input device and decoder. The current goal is
   a user dictionary (Shift+←/→ marks a phrase, Return files it;
   `user_dictionary.tsv`, Settings editor on macOS), chunked auto-commit. The
   Linux fcitx5 port is actively maintained and held to the same conformance
-  scenarios (C1–C13, `docs/cross-platform.md`); a behavior change in the core
+  scenarios (C1–C15, `docs/cross-platform.md`); a behavior change in the core
   is not done until Linux still passes.
 - Keyboard fuzzy matching exists in Swift only as edit repair (transpose,
   neighbor/phonetic substitution, insert/delete, tone tolerance), costed
@@ -106,7 +106,7 @@ only translate key events and draw `SessionView` (see
 where `Package.swift` declares only the core and its tests (CI `core-linux`).
 
 Platform adapters follow `docs/cross-platform.md` (contract + conformance
-scenarios C1–C12). Linux work follows `docs/linux-port.md`; run Linux
+scenarios C1–C15). Linux work follows `docs/linux-port.md`; run Linux
 commands through `script/linux/dev.sh '<cmd>'` (Docker, `linux/Dockerfile`).
 
 Adapter lessons that cost time once (keep them): send marked text to IMK as

@@ -446,14 +446,17 @@ if let traceIndex = CommandLine.arguments.firstIndex(of: "--session-trace"),
         let label = String(char)
         // Editing keys as glyphs, so a debug-log key sequence replays verbatim.
         let named: [String: KeyEvent.Key] = ["⌫": .backspace, "⏎": .enter, "←": .left, "→": .right,
-                                             "↑": .up, "↓": .down, "⇥": .tab, "⎋": .escape]
+                                             "↑": .up, "↓": .down, "⇥": .tab, "⎋": .escape, "⌦": .forwardDelete]
+        // Option word editing: ⇠ ⇢ Option+Left/Right, ⌧ Option+Backspace.
+        let option: [String: KeyEvent.Key] = ["⇠": .left, "⇢": .right, "⌧": .backspace]
         let event = label == " " ? KeyEvent(.space, text: " ")
-            : named[label].map { KeyEvent($0) } ?? KeyEvent(.character(label), text: label)
+            : option[label].map { KeyEvent($0, modifiers: .option) }
+            ?? named[label].map { KeyEvent($0) } ?? KeyEvent(.character(label), text: label)
         let started = Date()
         let result = session.handle(event)
         let ms = Date().timeIntervalSince(started) * 1000
         print("time\t\(count + 1)\t\(String(format: "%.1f", ms))")
-        if CommandLine.arguments.contains("--show") { print("view\t\(count + 1)\t\(session.view.preedit)") }
+        if CommandLine.arguments.contains("--show") { print("view\t\(count + 1)\t\(preeditWithCursor(session.view.preedit, caretUTF16: session.view.caret))") }
         if let text = result.commit {
             committed += text
             print("chunk\t\(count + 1)\t\(text)\tpreedit=\(session.view.preedit)")

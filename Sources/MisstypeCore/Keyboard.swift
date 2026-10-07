@@ -183,9 +183,44 @@ public struct Syllable: Sendable, Equatable {
 }
 
 public struct Composition {
-    public private(set) var rawKeys: [String] = []
+    public private(set) var rawKeys: [String] = [] {
+        didSet { if let at = caret, at >= rawKeys.count { caret = nil } }
+    }
+    /// Insertion point (raw key index) for edits made through `atCaret`;
+    /// nil = the end. Every other mutator works at the end as before.
+    public private(set) var caret: Int?
     public init() {}
     public var isEmpty: Bool { rawKeys.isEmpty }
+
+    /// Put the insertion point before raw key `index` (nil or past the last
+    /// key = the end).
+    public mutating func moveCaret(to index: Int?) {
+        guard let index, index < rawKeys.count else { caret = nil; return }
+        caret = max(0, index)
+    }
+
+    /// The keys before the caret, as a composition of their own.
+    public var beforeCaret: Composition {
+        guard let at = caret else { return self }
+        var head = Composition()
+        head.rawKeys = Array(rawKeys[..<at])
+        return head
+    }
+
+    /// Run an edit on the keys before the caret and keep the keys after it:
+    /// typing, Backspace and tone rules behave exactly as at the end of a
+    /// composition that stopped at the caret. The caret follows the edit.
+    @discardableResult
+    public mutating func atCaret<Result>(_ edit: (inout Composition) -> Result) -> Result {
+        guard let at = caret else { return edit(&self) }
+        var head = beforeCaret
+        let result = edit(&head)
+        let tail = rawKeys[at...]
+        let end = head.rawKeys.count
+        rawKeys = head.rawKeys + tail
+        caret = tail.isEmpty ? nil : end
+        return result
+    }
     public var rawPhonetic: String {
         rawKeys.map {
             if Composition.isLatinKey($0) { return Composition.latinChar($0) }
@@ -214,7 +249,12 @@ public struct Composition {
 
     public var parsed: (complete: [Syllable], pending: [String]) {
         var complete: [Syllable] = [], pending: [String] = []
-        for key in rawKeys {
+        for (index, key) in rawKeys.enumerated() {
+            if index == caret, !pending.isEmpty {
+                // A mid-composition caret is a syllable boundary (see segments).
+                complete.append(Syllable(keys: pending, tone: nil))
+                pending = []
+            }
             if Composition.isLatinKey(key) || Punctuation.literals.contains(key) {
                 // Latin runs and punctuation stay inside the composition (no
                 // commit): they flush pending keys as a toneless tail.
@@ -253,7 +293,12 @@ public struct Composition {
                 latin = ""
             }
         }
-        for key in rawKeys {
+        for (index, key) in rawKeys.enumerated() {
+            // A mid-composition caret ends the syllable before it: keys typed
+            // there never fuse with the syllable after (a half-typed ㄑ before
+            // ㄒㄩㄝˊ read as one unresolvable body). They still fuse backwards,
+            // like toneless typing at the end.
+            if index == caret { flushPending() }
             if Composition.isLatinKey(key) {
                 flushPending()
                 latin += Composition.latinChar(key)
@@ -457,6 +502,32 @@ public struct Composition {
               ZhuyinKeyboard.tones[last] == nil,
               !Punctuation.literals.contains(last),
               !Composition.isLatinKey(last) { rawKeys.removeLast() }
+    }
+    /// Drop raw keys `range` (Forward Delete at the caret); the caret stays
+    /// before whatever followed them.
+    public mutating func removeKeys(_ range: Range<Int>) {
+        let range = range.clamped(to: rawKeys.indices)
+        guard !range.isEmpty else { return }
+        let at = caret
+        rawKeys.removeSubrange(range)
+        if let at { moveCaret(to: at > range.lowerBound ? max(range.lowerBound, at - range.count) : at) }
+    }
+    /// Option+Backspace: a Latin word with the spaces after it (the macOS
+    /// word delete), else the last syllable (`deleteLastSyllable`).
+    public mutating func deleteLastWord() {
+        var start = rawKeys.endIndex
+        while start > 0, rawKeys[start - 1] == " " { start -= 1 }
+        guard start > 0, Composition.isLatinWordKey(rawKeys[start - 1]) else {
+            deleteLastSyllable()
+            return
+        }
+        while start > 0, Composition.isLatinWordKey(rawKeys[start - 1]) { start -= 1 }
+        rawKeys.removeSubrange(start...)
+    }
+    /// A Latin letter or digit (not Latin punctuation): part of a word.
+    static func isLatinWordKey(_ key: String) -> Bool {
+        guard isLatinKey(key), let char = latinChar(key).first else { return false }
+        return char.isLetter || char.isNumber
     }
     /// Drop the first `count` raw keys (a head that was committed).
     public mutating func dropHead(keys count: Int) {

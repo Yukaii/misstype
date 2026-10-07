@@ -281,9 +281,18 @@ void run_c8(const char *res) {
     misstype_string_free(r.commit);
     
     misstype_view *v = misstype_session_view(s);
-    ASSERT(v->caret_bytes == 3 && v->caret_utf16 == 1 && v->keys_active == 1, "C8 cursor");
+    // The cursor types where it stands (issue #32): Tab arms the keys.
+    ASSERT(v->caret_bytes == 3 && v->caret_utf16 == 1 && v->keys_active == 0, "C8 cursor");
     ASSERT(v->candidates && strcmp(v->candidates[0], "你好") == 0, "C8 first candidate");
-    printf("C8 left caret_bytes=3 caret_utf16=1 first=你好 keys_active=1\n");
+    misstype_view_free(v);
+    ev.kind = MISSTYPE_KEY_TAB;
+    ev.text = "\t";
+    r = misstype_session_handle(s, &ev);
+    ASSERT(r.consumed == 1, "C8 tab");
+    misstype_string_free(r.commit);
+    v = misstype_session_view(s);
+    ASSERT(v->keys_active == 1, "C8 tab arms");
+    printf("C8 left caret_bytes=3 caret_utf16=1 first=你好 keys_active=0, tab=1\n");
     misstype_view_free(v);
     
     misstype_session_free(s);

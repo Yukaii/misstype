@@ -168,13 +168,15 @@ public final class InputSession {
     private var showingComplete: Bool {
         candidates.indices.contains(selected) && completeTexts.contains(candidates[selected].text)
     }
-    /// Selection mode (end-of-span list): entered with Down/Up/Tab. The
-    /// cursor's focused list is selection mode too (`inSelection`). Only in
-    /// it do the selection keys (`SessionSettings.candidateKeys`, home row by
-    /// default) pick — they are Zhuyin keys everywhere else. Any other
-    /// typing leaves the mode; Esc leaves it without touching the text.
+    /// Selection mode: entered with Down/Up/Tab, over the end-of-span list
+    /// or the cursor's focused list. Only in it do the selection keys
+    /// (`SessionSettings.candidateKeys`, home row by default) pick — they
+    /// are Zhuyin keys everywhere else, so the cursor alone never arms them:
+    /// typing at the cursor inserts there (McBopomofo-style, issue #32).
+    /// Any other typing leaves the mode; Esc leaves it without touching the
+    /// text.
     private var selecting = false
-    private var inSelection: Bool { selecting || segmentTexts != nil }
+    private var inSelection: Bool { selecting }
     /// Symbol menu: the mark just typed, with its alternatives shown in the
     /// candidate list. Tab/arrows step (the mark is swapped live), selection
     /// keys pick once stepping began, Esc or any other key accepts what shows.
@@ -288,7 +290,8 @@ public final class InputSession {
             // happens with nothing being composed and no run open (a run
             // outlives Esc/delete-all, so the tap that ends it is its own).
             if !engine.english && (!composition.isEmpty || latinMode) {
-                if !latinMode && looksLikeMistypedEnglish && composition.convertTailToLatin() {
+                if !latinMode && composition.caret == nil && looksLikeMistypedEnglish
+                    && composition.convertTailToLatin() {
                     // English typed in Zhuyin mode: the tap re-reads the
                     // stranded keys as the letters they were, no retyping.
                     resetPicks()
@@ -339,7 +342,7 @@ public final class InputSession {
     /// of the head are consumed with it.
     private func commitSettledHead() -> String? {
         let limit = settings.autoCommitSyllables
-        guard limit > 0, !composition.isEmpty, cursor == nil, !inSelection, symbolMenu == nil, sessionPins.isEmpty,
+        guard limit > 0, !composition.isEmpty, cursor == nil, composition.caret == nil, !inSelection, symbolMenu == nil, sessionPins.isEmpty,
               !explicitPick, candidates.indices.contains(selected), !showingComplete else { return nil }
         let shown = candidates[selected]
         let total = shown.syllables.count
@@ -517,7 +520,12 @@ public final class InputSession {
         // never commits the composition first.
         if key == .backspace {
             guard !composition.isEmpty else { return pass(committing: false) }
-            if retypeBefore == nil { retypeBefore = composition.rawKeys }
+            // Mid-composition (syllable cursor, word jump) Backspace deletes
+            // before the caret; the re-type heuristic only reads the end.
+            let midCaret = composition.caret != nil
+            if midCaret { retypeBefore = nil } else if retypeBefore == nil { retypeBefore = composition.rawKeys }
+            let last = candidates.indices.contains(selected) ? candidates[selected].syllables.last : nil
+            let before = syllableBeforeCaret()
             selected = 0
             // Separator/punctuation pinning (and the settled pins derived
             // from it) must not outlive the key that created it: erasing a
@@ -525,17 +533,30 @@ public final class InputSession {
             // one-item list that Up/Down cannot open.
             settledPins = UserLexicon()
             if !explicitPick { pinnedPick = nil }
-            if mods.contains(.command) {
+            if mods.contains(.command) && !midCaret {
                 clear(keepLatin: true)
+            } else if mods.contains(.command) {
+                composition.atCaret { $0.clear() } // everything before the caret
+                refresh()
             } else if mods.contains(.option) {
-                composition.deleteLastSyllable()
+                // A Latin word goes whole (issue #33), Zhuyin a syllable.
+                composition.atCaret { $0.deleteLastWord() }
+                refresh()
+            } else if midCaret {
+                // Converted text deletes a char per press: the decoded
+                // syllable before the caret, never one key of it (which
+                // re-read the rest: 今天| -> 近替|).
+                if let keys = before {
+                    composition.removeKeys(keys)
+                } else {
+                    composition.atCaret { $0.erase() }
+                }
                 refresh()
             } else {
                 // A tone closing a fused toneless body erases one decoded
                 // syllable, not the whole run (which read as "Backspace ate
                 // the sentence").
-                if let last = candidates.indices.contains(selected) ? candidates[selected].syllables.last : nil,
-                   composition.trailingBody.suffix(last.keys.count) == last.keys[...] {
+                if let last, composition.trailingBody.suffix(last.keys.count) == last.keys[...] {
                     composition.eraseTailSyllable(symbolCount: last.keys.count)
                     if composition.parsed.pending.isEmpty { composition.erase() }
                 } else {
@@ -545,12 +566,21 @@ public final class InputSession {
             }
             // Editing into a latin tail resumes that run; an open run stays
             // open even when the whole word is deleted (retyping it).
-            if !composition.trailingLatin.isEmpty { latinMode = true }
+            if !composition.beforeCaret.trailingLatin.isEmpty { latinMode = true }
             return .handled
         }
-        if key == .forwardDelete { // caret sits after marked text
+        if key == .forwardDelete {
             guard !composition.isEmpty else { return pass(committing: false) }
-            return pass()
+            // At the end the caret sits after the marked text: the app's own
+            // delete. Mid-composition it deletes the syllable (or Latin
+            // letter, mark, space) after the caret.
+            guard let at = composition.caret, !chord else { return pass() }
+            let syllable = layout()?.syllableKeys.first { $0.lowerBound == at }
+            composition.removeKeys(syllable ?? (at..<at + 1))
+            settledPins = UserLexicon()
+            retypeBefore = nil
+            refresh()
+            return .handled
         }
         if key == .down || key == .up { // step candidates
             guard !composition.isEmpty else { return pass(committing: false) }
@@ -559,6 +589,7 @@ public final class InputSession {
                 // pins until Tab/digit/click/Return confirms. Consumed even
                 // for a single option so the preview never jumps invisibly.
                 segmentSelected = (segmentSelected + (key == .down ? 1 : texts.count - 1)) % texts.count
+                selecting = true
                 return .handled
             }
             if candidates.count > 1 {
@@ -573,10 +604,16 @@ public final class InputSession {
             if chord { return pass() }
             return page(forward: key == .pageDown)
         }
-        // Modified arrows never edit the composition: commit first, then let
-        // the app move its caret (word jump, line start, selection). Plain
+        // Option+arrows jump by word inside the composition (issue #33).
+        // Other modified arrows never edit it: commit first, then let the app
+        // move its caret (line start, selection) — as Option+arrows also do
+        // over an English reading from the mixed pass (no layout). Plain
         // arrows below drive the syllable cursor / candidate list instead.
         if (key == .left || key == .right) && chord {
+            if mods.isDisjoint(with: [.command, .control]), !composition.isEmpty,
+               let moved = moveWord(forward: key == .right) {
+                return moved ? .handled : .beeped
+            }
             return pass()
         }
         if (key == .left || key == .right) && shift { // mark a phrase
@@ -600,12 +637,19 @@ public final class InputSession {
                 mark = nil
                 if visible { return .handled } // a collapsed mark shows nothing: Esc goes on
             }
-            if inSelection {
-                // First Esc only leaves selection mode (and the cursor);
-                // the text and any picks stay. A second Esc clears.
+            if selecting && segmentTexts != nil {
+                // Armed focused list: Esc disarms, the cursor stays (type there).
+                selecting = false
+                return .handled
+            }
+            if selecting || segmentTexts != nil || composition.caret != nil {
+                // First Esc only leaves selection mode (and the cursor, the
+                // caret returns to the end); the text and any picks stay.
+                // A second Esc clears.
                 selecting = false
                 cursor = nil
                 clearSegment()
+                returnCaretToEnd()
                 return .handled
             }
             clear(keepLatin: true)
@@ -620,7 +664,7 @@ public final class InputSession {
                 // syllable is valid (a lone ㄗ is 資 to the decoder).
                 return KeyResult(consumed: true, commit: commitText(raw: true))
             }
-            if settings.returnConfirmsSelection, inSelection {
+            if settings.returnConfirmsSelection, inSelection || segmentTexts != nil {
                 // Confirm only: the highlighted candidate is already the
                 // pick (stepping pins it); a focused word pins and advances.
                 if let texts = segmentTexts, texts.indices.contains(segmentSelected) {
@@ -681,12 +725,12 @@ public final class InputSession {
         // unreachable — as it was in the pre-extraction controller.
         if case .character(let label) = key,
            let punct = Punctuation.smartQuote(label: label, shift: shift, ctrl: mods.contains(.control),
-                                              in: composition.rawKeys)
+                                              in: composition.beforeCaret.rawKeys)
                 ?? Punctuation.output(label: label, shift: shift, ctrl: mods.contains(.control)) {
             if candidates.indices.contains(selected) {
                 pinnedPick = candidates[selected].text
             }
-            guard composition.appendLiteral(punct) else { return .beeped }
+            guard composition.atCaret({ $0.appendLiteral(punct) }) else { return .beeped }
             refresh()
             let choices = Punctuation.choices(for: punct)
             symbolMenu = choices.count > 1 ? SymbolMenu(choices: choices) : nil
@@ -698,7 +742,7 @@ public final class InputSession {
         // chopping the sentence. No commit, no mode toggle either way.
         if (latinLetter || (shift && key.letterLabel != nil)),
            text.count == 1, let char = text.first, char.isASCII, char.isLetter || (latinLetter && (char.isNumber || Composition.latinPunctuation.contains(String(char)))) {
-            guard composition.appendLatin(String(char)) else { return .beeped }
+            guard composition.atCaret({ $0.appendLatin(String(char)) }) else { return .beeped }
             refresh()
             return .handled
         }
@@ -712,20 +756,20 @@ public final class InputSession {
                 // literal separator — commit is Return's job. Empty
                 // composition inserts the space itself.
                 guard !composition.isEmpty else { return KeyResult(consumed: true, commit: " ") }
-                if composition.parsed.pending.isEmpty, candidates.indices.contains(selected) {
+                if composition.beforeCaret.parsed.pending.isEmpty, candidates.indices.contains(selected) {
                     pinnedPick = candidates[selected].text
                 }
-                guard composition.appendSpace() else { return .beeped }
+                guard composition.atCaret({ $0.appendSpace() }) else { return .beeped }
                 refresh()
                 return .handled
             }
-            if composition.append(label) {
+            if composition.atCaret({ $0.append(label) }) {
                 refresh()
                 return .handled
             }
             // A tone with no pending syllable is a late or corrected tone:
             // attach it to the last boundary instead of swallowing it.
-            if ZhuyinKeyboard.tones[label] != nil, composition.retoneLast(label) {
+            if ZhuyinKeyboard.tones[label] != nil, composition.atCaret({ $0.retoneLast(label) }) {
                 refresh()
                 return .handled
             }
@@ -736,7 +780,7 @@ public final class InputSession {
 
     private func applyMenuChoice(_ index: Int) {
         guard let menu = symbolMenu, menu.choices.indices.contains(index) else { return }
-        _ = composition.replaceLastLiteral(menu.choices[index])
+        composition.atCaret { _ = $0.replaceLastLiteral(menu.choices[index]) }
         refresh()
     }
 
@@ -756,8 +800,14 @@ public final class InputSession {
     /// the selection keys pick; after that it beeps.
     private func page(forward: Bool) -> KeyResult {
         if let texts = segmentTexts {
-            guard let index = pageTarget(segmentSelected, count: texts.count, forward: forward) else { return .beeped }
+            guard let index = pageTarget(segmentSelected, count: texts.count, forward: forward) else {
+                // One page: the first page key arms the selection keys.
+                guard !selecting else { return .beeped }
+                selecting = true
+                return .handled
+            }
             segmentSelected = index
+            selecting = true
             return .handled
         }
         guard let index = pageTarget(selected, count: candidates.count, forward: forward) else {
@@ -790,6 +840,7 @@ public final class InputSession {
     private var caretOffset: Int {
         let len = previewText.utf16.count
         if let focused = segmentCaret { return min(focused, len) }
+        if let at = composition.caret, let layout = layout() { return min(layout.offsets[at], len) }
         return len
     }
 
@@ -827,7 +878,10 @@ public final class InputSession {
         rawTail = live.rawTail
         candidates = live.candidates
         completeTexts = []
-        if settings.mixedEnglish, let english = engine.englishLexicon,
+        // Mid-composition edits skip the English pass: its readings carry no
+        // layout, so the caret would have nowhere to show. Returning the
+        // caret to the end re-runs it (`returnCaretToEnd`).
+        if settings.mixedEnglish, composition.caret == nil, let english = engine.englishLexicon,
            let mixed = engine.decoder.applyEnglish(to: live, composition: composition, english: english,
                                                    fuzzy: settings.fuzzyRepair,
                                                    toneTolerance: settings.toneTolerance,
@@ -836,7 +890,11 @@ public final class InputSession {
             completeTexts = mixed.completeTexts
             engine.log("mixed adopted=\(mixed.adopted ? 1 : 0) n=\(mixed.completeTexts.count)")
         }
-        if let top = candidates.first, !completeTexts.contains(top.text) {
+        if composition.caret != nil {
+            // Settling is measured from the end; editing mid-way must be
+            // free to re-segment the words around the caret.
+            settledPins = UserLexicon()
+        } else if let top = candidates.first, !completeTexts.contains(top.text) {
             settledPins = UserLexicon.settled(from: top, keep: Self.settleDistance)
         } else if completeTexts.contains(candidates.first?.text ?? "") {
             settledPins = UserLexicon()
@@ -873,6 +931,7 @@ public final class InputSession {
     /// changed symbol key is a re-type; anything else is a rewrite.
     private func noteRetype() {
         guard let before = retypeBefore else { return }
+        guard composition.caret == nil else { retypeBefore = nil; return }
         let now = composition.rawKeys
         if now.isEmpty { retypeBefore = nil; return }
         guard now.count >= before.count else { return }
@@ -1036,6 +1095,7 @@ public final class InputSession {
               let caret = cursorCaret(c, in: frame.top) else {
             engine.log("focus noframe")
             cursor = nil
+            composition.moveCaret(to: nil)
             return
         }
         var options = engine.decoder.cursorOptions(
@@ -1057,6 +1117,7 @@ public final class InputSession {
                 ?? options.firstIndex(where: { $0.span == c..<c + 1 && $0.text == shownChar }) else {
             engine.log("focus noword")
             cursor = nil
+            composition.moveCaret(to: nil)
             return
         }
         engine.log("focus ok s=\(c) n=\(options.count) cur=\(current)")
@@ -1064,6 +1125,8 @@ public final class InputSession {
         segmentTexts = options.map(\.text)
         segmentSelected = current
         segmentCaret = caret
+        // Typing goes where the caret shows (issue #32).
+        composition.moveCaret(to: layout()?.keyIndex(ofBoundary: cursorBoundary(c)))
     }
 
     /// Caret for cursor syllable `c`: before it, or after it when the
@@ -1080,20 +1143,96 @@ public final class InputSession {
         settings.cursorCandidates == .endingAt ? c + 1 : c
     }
 
+    /// Left from the end or a mid-composition caret at boundary b focuses
+    /// syllable b - 1, as Left from the end always did. The arrows never
+    /// arm the selection keys: Tab/Down do.
     private func moveCursorBack() -> Bool {
         guard let frame = focusFrame(),
               let end = frame.top.alignment.last?.syllables.upperBound, end > 0 else { return false }
-        cursor = max((cursor ?? end) - 1, 0)
+        cursor = max((cursor ?? caretBoundary() ?? end) - 1, 0)
+        selecting = false
         focusSegment()
         return true
     }
 
     private func moveCursorForward() -> Bool {
-        guard let current = cursor, let frame = focusFrame(),
+        guard let frame = focusFrame(),
               let end = frame.top.alignment.last?.syllables.upperBound else { return false }
-        cursor = current + 1 >= end ? nil : current + 1
+        let current: Int
+        if let c = cursor {
+            current = c
+        } else if let b = caretBoundary() {
+            // The cursor whose caret sits at b.
+            current = settings.cursorCandidates == .endingAt ? b - 1 : b
+        } else {
+            return false
+        }
+        selecting = false
+        guard current + 1 < end else {
+            cursor = nil
+            clearSegment()
+            returnCaretToEnd()
+            return true
+        }
+        cursor = current + 1
         focusSegment()
         return true
+    }
+
+    // MARK: - Insertion caret (issues #32, #33)
+
+    /// Raw keys ↔ preview offsets ↔ syllables of the shown candidate.
+    private func layout() -> CompositionLayout? {
+        guard candidates.indices.contains(selected), !showingComplete else { return nil }
+        return CompositionLayout(keys: composition.rawKeys, caret: composition.caret,
+                                 shown: candidates[selected], rawTail: rawTail.count)
+    }
+
+    /// Syllable boundary of a mid-composition caret; nil at the end.
+    private func caretBoundary() -> Int? {
+        guard let at = composition.caret, let layout = layout() else { return nil }
+        return layout.boundary(atKey: at)
+    }
+
+    /// Raw keys of the decoded syllable ending right at a mid-composition
+    /// caret (what Backspace erases there); nil at the end, or when the key
+    /// before the caret is no syllable's last (Latin, punctuation, space).
+    private func syllableBeforeCaret() -> Range<Int>? {
+        guard let at = composition.caret, let layout = layout() else { return nil }
+        let b = layout.boundary(atKey: at)
+        guard b > 0, layout.syllableKeys[b - 1].upperBound == at else { return nil }
+        return layout.syllableKeys[b - 1]
+    }
+
+    /// Option+Left / Option+Right: the caret jumps to the previous word
+    /// start / next word end inside the composition. Next to a Latin word
+    /// the Latin run resumes, so letters type as text there. Nil = no
+    /// layout (an English reading of the mixed pass): pass the key on.
+    private func moveWord(forward: Bool) -> Bool? {
+        guard let layout = layout() else { return nil }
+        let at = composition.caret ?? composition.rawKeys.count
+        guard let target = forward ? layout.wordEnds.first(where: { $0 > at })
+                                   : layout.wordStarts.last(where: { $0 < at }) else { return false }
+        cursor = nil
+        selecting = false
+        clearSegment()
+        if target >= composition.rawKeys.count {
+            returnCaretToEnd()
+        } else {
+            composition.moveCaret(to: target)
+        }
+        let lastKey = composition.beforeCaret.rawKeys.last { $0 != " " }
+        latinMode = lastKey.map(Composition.isLatinKey) ?? false
+        engine.log("word caret=\(composition.caret ?? -1) of=\(composition.rawKeys.count)")
+        return true
+    }
+
+    /// Back to typing at the end; re-decodes so what was skipped mid-way
+    /// (English pass, settled pins) applies again.
+    private func returnCaretToEnd() {
+        guard composition.caret != nil else { return }
+        composition.moveCaret(to: nil)
+        refresh()
     }
 
     /// Pin a focused option: session-scoped decisive bonus (never disk) that
@@ -1126,7 +1265,10 @@ public final class InputSession {
     private func extendMark(forward: Bool) -> Bool {
         guard let frame = focusFrame(),
               let end = frame.top.alignment.last?.syllables.upperBound, end > 0 else { return false }
-        var next = mark ?? { let start = cursor.map(cursorBoundary) ?? end; return (start, start) }()
+        var next = mark ?? {
+            let start = cursor.map(cursorBoundary) ?? caretBoundary() ?? end
+            return (start, start)
+        }()
         let head = next.head + (forward ? 1 : -1)
         guard (0...end).contains(head) else { return false }
         next.head = head
