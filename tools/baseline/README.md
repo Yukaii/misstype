@@ -181,6 +181,14 @@ What it says about Misstype (the tuning targets):
 3. **Clean-input misses only Misstype has** — 很晚才睡 → 很晚財稅, 手機快沒電
    → 手機快沒店 (libchewing gets both). Lexicon/scoring, not repair.
    Shared misses (要交 → 要教, 預訂 → 預定) are homophone preferences.
+   **Addressed** (same branch): libchewing lists both as words; a unigram
+   cannot (by NAER standalone counts P(財稅) > P(才)·P(睡)), and n-gram
+   tables were falsified earlier (`docs/project-outline.md`). 沒電 and 才睡
+   join `Resources/local_phrases.tsv` at sibling scores. Common Voice
+   held-out gate (`tools/bigram_eval.py --set cv`): 480 → 480/800, 0 broken;
+   synthetic dev/holdout unchanged. Baseline: 85 inputs better, 0 worse;
+   late now passes clean on every engine (kept probes 31 → 32), phone stays
+   excluded because libchewing misses it (手雞塊沒電).
 
 ## Subjective (manual, macOS)
 
