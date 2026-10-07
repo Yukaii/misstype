@@ -1,0 +1,87 @@
+{
+  "intro": {
+    "file": "intro.mp3",
+    "hash": "4e6af990265f52cb",
+    "durationSec": 4.48,
+    "captions": [
+      {
+        "text": "這是隨打注音，",
+        "startSec": 0,
+        "endSec": 1.6
+      },
+      {
+        "text": "一個打錯了也沒關係的注音輸入法。",
+        "startSec": 1.6,
+        "endSec": 4.48
+      }
+    ]
+  },
+  "toneless": {
+    "file": "toneless.mp3",
+    "hash": "160f905a0fff9ac9",
+    "durationSec": 2.88,
+    "captions": [
+      {
+        "text": "不用打聲調，",
+        "startSec": 0,
+        "endSec": 1.48
+      },
+      {
+        "text": "直接打注音就好。",
+        "startSec": 1.48,
+        "endSec": 2.88
+      }
+    ]
+  },
+  "order": {
+    "file": "order.mp3",
+    "hash": "c2e8e7fcc9b17ce1",
+    "durationSec": 3.36,
+    "captions": [
+      {
+        "text": "注音順序打反了，",
+        "startSec": 0,
+        "endSec": 1.92
+      },
+      {
+        "text": "它會幫你換回來。",
+        "startSec": 1.92,
+        "endSec": 3.36
+      }
+    ]
+  },
+  "neighbor": {
+    "file": "neighbor.mp3",
+    "hash": "2fb94c5d5e0696d4",
+    "durationSec": 3.68,
+    "captions": [
+      {
+        "text": "手滑按到隔壁的鍵，",
+        "startSec": 0,
+        "endSec": 1.92
+      },
+      {
+        "text": "也猜得出你想打什麼。",
+        "startSec": 1.92,
+        "endSec": 3.68
+      }
+    ]
+  },
+  "outro": {
+    "file": "outro.mp3",
+    "hash": "3b10ce814209b78b",
+    "durationSec": 3.92,
+    "captions": [
+      {
+        "text": "全部在你的電腦上運算，",
+        "startSec": 0,
+        "endSec": 2.16
+      },
+      {
+        "text": "打的字不會傳出去。",
+        "startSec": 2.16,
+        "endSec": 3.92
+      }
+    ]
+  }
+}

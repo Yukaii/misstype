@@ -12,7 +12,12 @@ npm run dev               # Remotion Studio (preview, scrubbing)
 npm run render            # out/demo.mp4, 1920×1080
 npm run render:vertical   # out/demo-vertical.mp4, 1080×1920 (Shorts/Reels)
 npm run voiceover         # narration + captions via ElevenLabs (optional)
+npm run render:site       # site/media/demo.mp4 + demo-poster.jpg (committed)
 ```
+
+The landing page embeds `site/media/demo.mp4`; re-run `render:site` and
+commit both files when the story, voice or decoder output changes. The
+poster is the `DemoPoster` still (the neighbor-key beat, without captions).
 
 `site/public` must be built first (wasm and lexicon, see `site/README.md`);
 `npm run prepare-assets` copies what the video needs and synthesizes the
@@ -39,7 +44,8 @@ typing phrase for each to `out/samples/`.
 
 `npm run voiceover` sends **only the `narration` lines in story.json** to
 ElevenLabs (logged per request) and writes `public/voice/*.mp3` plus
-`manifest.json` with phrase timings from the character alignment. Beats then
+`manifest.json` with phrase timings from the character alignment. These are
+committed, so renders do not need an API key. Beats then
 stretch to fit their line, and captions follow the speech. Without a
 manifest, each beat shows its narration as a plain caption.
 
