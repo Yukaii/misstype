@@ -1,4 +1,4 @@
-# Cross-IME baseline: Misstype vs vChewing
+# Cross-IME baseline: Misstype vs vChewing and libchewing
 
 Question: on the same noisy keystrokes, how many characters does the user have
 to fix, and how does it *feel*? This directory holds the quantitative harness
@@ -94,6 +94,73 @@ vChewing's code is LGPL-3.0-or-later. It is fetched into `.cache/baseline/`
 (gitignored) at pinned commits and only the harness test file we wrote
 (`vchewing/BaselineHarness.swift`, MIT) is copied into that checkout. Nothing
 of vChewing is vendored or linked into Misstype.
+
+## libchewing (headless, native macOS or Linux)
+
+```sh
+PYTHONPATH=src python tools/baseline/compare.py gen --seeds 10 --out /tmp/inputs.tsv
+tools/baseline/run_libchewing.sh /tmp/inputs.tsv /tmp/lc.tsv chewing,fuzzy
+
+# Misstype on macOS: the C ABI builds as a dylib, resources from the app build
+swift build -c release --product MisstypeCAPI
+./script/build_and_run.sh --build-only
+python tools/baseline/compare.py drive-misstype --lib .build/release/libMisstypeCAPI.dylib \
+    --resources dist/MisstypeIME.app/Contents/Resources --inputs /tmp/inputs.tsv --out /tmp/mt.tsv
+
+python tools/baseline/compare.py report --losses misstype /tmp/mt.tsv /tmp/lc.tsv
+```
+
+`run_libchewing.sh` builds libchewing v0.13.1 from Codeberg (upstream; the
+GitHub mirror stops at 0.12) with its libchewing-data submodule into
+`.cache/baseline/`. Needs cmake, ninja and Rust. libchewing is
+LGPL-2.1-or-later and is only driven through ctypes from that cache; nothing
+is vendored or linked into Misstype.
+
+Driver settings: Dachen layout, Space is the first tone (not selection),
+auto-learn off and a throwaway user dictionary, so no probe biases the next,
+auto-commit threshold at the 39-syllable maximum, Enter commits. Engines:
+`chewing` (the default `ChewingEngine`: DAG shortest path over phrase
+log-probabilities plus a length prior) and `fuzzy` (`FuzzyChewingEngine`: the
+same, with partial-syllable prefix lookup). libchewing's Zhuyin editor is
+slot-based: the initial, medial and final go to fixed slots whatever order
+they are typed in.
+
+`--losses ENGINE` lists every input ENGINE gets wrong while another engine is
+exact; those are the cases to turn into fixtures.
+
+Run 2026-10-07, 42 probes x 10 seeds, Misstype at 47a1a2c+ (macOS, release
+dylib) vs libchewing v0.13.1 (`f071d2e`, data `bfba418`). 11 probes are
+excluded as not clean-correct on every engine (31 kept). Perfect / mean
+characters to fix:
+
+| config | Misstype | chewing | fuzzy |
+| --- | --- | --- | --- |
+| clean | 1.00 / 0.00 | 1.00 / 0.00 | 1.00 / 0.00 |
+| no-tones | 0.94 / 0.10 | 0.00 / 7.48 | 0.00 / 7.48 |
+| drop-key-5 | 0.54 / 0.81 | 0.33 / 1.87 | 0.47 / 1.44 |
+| swap-5 | 0.43 / 1.55 | 0.52 / 1.37 | 0.34 / 2.10 |
+| sub-5+wrongtone-10 | 0.46 / 1.08 | 0.20 / 1.88 | 0.23 / 1.78 |
+| harsh | 0.16 / 4.26 | 0.00 / 7.48 | 0.00 / 7.47 |
+
+As with vChewing, libchewing's `no-tones` and `harsh` rows are not results: a
+syllable not closed by a tone is never committed on Enter. Median time per
+input (typing + Enter): Misstype 7–12 ms toned, ~50 ms toneless; libchewing
+under 1.5 ms.
+
+What it says about Misstype (the tuning targets):
+
+1. **Initial/medial order slips inside a syllable** — 32 of the 42 losses
+   (swap-5). ㄅㄧㄢ typed as ㄧㄅㄢ decodes as 一 + 半 (方一半), ㄊㄧㄢ as
+   ㄧㄊㄢ gives 一嘆, ㄍㄨㄥ as ㄨㄍㄥ gives 無耕: splitting off a toneless
+   ㄧ/ㄨ/ㄛ syllable is cheaper than the transposition repair. libchewing's
+   slot editor makes these slips free.
+2. **A dropped key that leaves only an initial** — 9 losses, all to the
+   `fuzzy` engine. 週 typed as ㄓ decodes as 字/之, 書 as ㄕ gives 師, 今 as ㄐ
+   gives 機: Misstype reads the bare initial as a complete syllable, the
+   prefix lookup finds 週末, 書, 今天 within the phrase.
+3. **Clean-input misses only Misstype has** — 很晚才睡 → 很晚財稅, 手機快沒電
+   → 手機快沒店 (libchewing gets both). Lexicon/scoring, not repair.
+   Shared misses (要交 → 要教, 預訂 → 預定) are homophone preferences.
 
 ## Subjective (manual, macOS)
 

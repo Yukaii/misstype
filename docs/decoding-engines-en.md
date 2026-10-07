@@ -53,7 +53,7 @@ Existing Zhuyin input method engines can be categorized into six major architect
 ---
 
 ### Paradigm 4: Classic Backward Maximum Matching
-- **Representative Projects**: libchewing, Ari IME
+- **Representative Projects**: Ari IME; early libchewing. Current libchewing (Rust rewrite, checked against v0.13.1 `src/conversion/chewing.rs`, 2026-10-07) is a DAG shortest path instead: phrase log-probability plus a phrase-length prior, with Yen's algorithm for the K best alternatives, i.e. Paradigm 1.
 - **Core Algorithm**:
   - Scans backwards from the end of the input buffer to match the longest lexicon entries, aided by part-of-speech tagging or heuristic rules.
 - **Strengths**:
@@ -89,11 +89,11 @@ Existing Zhuyin input method engines can be categorized into six major architect
 
 ## 2. Comparative Matrix
 
-| Dimension | Unigram DAG (vChewing) | Bigram Markov (ChiaKey) | Spelling Algebra (Rime) | Max Matching (libchewing) | Neural LM (ZingIME) | Misstype |
+| Dimension | Unigram DAG (vChewing) | Bigram Markov (ChiaKey) | Spelling Algebra (Rime) | DAG (libchewing 0.13) | Neural LM (ZingIME) | Misstype |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Primary Scoring** | Unigram + Length Bias | Unigram + Bigram Transitions | Unigram + Rule Expansion | Greedy Backward Match | Neural Context Probabilities | Lexicon Unigram − Penalty Costs ＋ Local Boosts |
-| **Toneless Support** | None (Tones required) | Yes (Cross-tone drift observed) | Yes (Static rule derivation) | Weak (Biased to complete tones) | Yes (Model disambiguation) | Native (Scored as soft penalty in DP) |
-| **Typo Tolerance** | None | None | Pre-defined fuzzy sounds only | None | None | Native (Edit distance + Touch coordinates) |
+| **Primary Scoring** | Unigram + Length Bias | Unigram + Bigram Transitions | Unigram + Rule Expansion | Phrase Log-Prob + Length Prior | Neural Context Probabilities | Lexicon Unigram − Penalty Costs ＋ Local Boosts |
+| **Toneless Support** | None (Tones required) | Yes (Cross-tone drift observed) | Yes (Static rule derivation) | None (a syllable not closed by a tone is not committed) | Yes (Model disambiguation) | Native (Scored as soft penalty in DP) |
+| **Typo Tolerance** | None | None | Pre-defined fuzzy sounds only | Key order inside a syllable is free (slot-based Zhuyin editor); optional fuzzy engine matches partial-syllable prefixes | None | Native (Edit distance + Touch coordinates) |
 | **Decode Latency** | < 1 ms | ≈ 25～55 ms | < 5 ms | < 1 ms | Tens to hundreds of ms | 1～5 ms |
 | **Package / Data Size** | Lightweight (few MB) | Large (30–50 MB) | Medium (10–30 MB) | Minimal (few MB) | Very Large (200 MB+) | Minimal (~6 MB) |
 | **Context Adaptation** | User Dictionary | Static Bigram + User Lexicon | Frecency Decay | Phrase Weighting | Pretrained Weights | Local Context-Keyed Learning |
