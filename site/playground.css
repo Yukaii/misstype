@@ -261,3 +261,6 @@
   background: var(--mark-bg);
   color: var(--ink);
 }
+.pg-box.ime-warning, .pg-box.ime-warning:focus { border-color: var(--mark); }
+.pg-ime-note { margin: 6px 4px 0; color: var(--mark); font-size: 14px; }
+.pg-ime-note[hidden] { display: none; }
