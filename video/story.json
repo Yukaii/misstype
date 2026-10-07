@@ -1,0 +1,44 @@
+{
+  "voice": {
+    "voiceId": "",
+    "modelId": "eleven_v4",
+    "languageCode": "zh"
+  },
+  "beats": [
+    {
+      "id": "intro",
+      "title": "Misstype 隨打注音",
+      "subtitle": "打錯了也沒關係的注音輸入法",
+      "holdSec": 2.4,
+      "narration": "這是 Misstype，一個打錯了也沒關係的注音輸入法。"
+    },
+    {
+      "id": "toneless",
+      "label": "免打聲調",
+      "keys": "ㄐㄧㄣㄊㄧㄢㄊㄧㄢㄑㄧㄏㄣㄏㄠ{Enter}",
+      "holdSec": 1.2,
+      "narration": "不用打聲調，直接打注音就好。"
+    },
+    {
+      "id": "order",
+      "label": "順序打反",
+      "keys": "[ㄧㄐ]ㄣㄊㄧㄢㄊㄧㄢㄑㄧㄏㄣㄏㄠ{Enter}",
+      "holdSec": 1.2,
+      "narration": "注音順序打反了，它會幫你換回來。"
+    },
+    {
+      "id": "neighbor",
+      "label": "按到隔壁鍵",
+      "keys": "ㄒㄧㄝㄒㄧㄝ[ㄎ]ㄧㄅㄤㄇㄤ{Enter}",
+      "holdSec": 1.2,
+      "narration": "手滑按到隔壁的鍵，也猜得出你想打什麼。"
+    },
+    {
+      "id": "outro",
+      "title": "Misstype",
+      "subtitle": "純本機運算 · 不需網路",
+      "holdSec": 2.6,
+      "narration": "全部在你的電腦上運算，打的字不會傳出去。"
+    }
+  ]
+}
