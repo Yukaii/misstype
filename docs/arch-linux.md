@@ -206,3 +206,25 @@ CC-BY-SA-4.0 for the bundled English word list.
 - Pacman upgrade completed; package integrity reports 63 files, 0 altered.
 - Restarted fcitx5 recognizes `misstype`; the installed C library and
   dictionaries return `commit=你好` for `su3cl3`.
+
+## Combined preferences branch verification (2026-10-08)
+
+Temporary branch `tmp/aur-linux-preferences` combines
+`feat/arch-aur-packaging` and `t3code/align-linux-preferences-window`.
+Source `9bf71a2` adds the packaging integration for the CLI and editor.
+
+- Clean native `MISSTYPE_SOURCE_URL=file:///path/to/mistype makepkg -CL`
+  completed: 246 core tests (8 optional measurements skipped), 10 CLI tests,
+  0 failures; C ABI smoke checks and all 19 fcitx5 scenarios passed.
+- Artifact: `fcitx5-misstype-git-0.1.r218.g9bf71a2-1-x86_64.pkg.tar.zst`,
+  43.47 MiB compressed / 119.45 MiB installed. The additional static-runtime
+  CLI accounts for most of the size increase.
+- Package contains `misstypectl`, `misstype-dictionary-editor`, and the
+  dictionary editor desktop entry. Their dynamic dependencies resolve, and
+  the CLI has no dynamic Swift runtime dependency.
+- Packaged CLI help works; `config get MixedEnglish` with an absent isolated
+  config file reports the default `False`.
+- Packaged core library and dictionaries decode `su3cl3` → `commit=你好`.
+
+This combined artifact was built and checked, but not installed. GUI
+preferences and dictionary-editor interaction remain manual checks.

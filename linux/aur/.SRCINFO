@@ -1,6 +1,6 @@
 pkgbase = fcitx5-misstype-git
 	pkgdesc = Offline, fuzzy Zhuyin input method for fcitx5
-	pkgver = 0.1.r212.g5135a1f
+	pkgver = 0.1.r218.g9bf71a2
 	pkgrel = 1
 	url = https://github.com/Yukaii/misstype
 	arch = x86_64
