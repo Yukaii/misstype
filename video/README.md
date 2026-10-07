@@ -66,6 +66,12 @@ story.json `music` (prompt and length) with ElevenLabs Music into
 `public/music/candidates/` (gitignored), loudness-normalized to -16 LUFS.
 Copy the chosen one to `public/music/bed.mp3`, which is committed like the
 narration; it is picked up automatically, ducked under the narration and faded
-out with the closing title. Eleven Music output may be used commercially on a
-paid ElevenLabs plan; a track from elsewhere needs its source and licence
-recorded here.
+out with the closing title. A track from elsewhere needs its source and
+licence recorded here.
+
+Licence: narration and music come from a free ElevenLabs plan, which allows
+non-commercial publishing only and requires credit wherever the video is
+shown ("elevenlabs.io" for the voice; "Created in collaboration with
+ElevenLabs" / Eleven Music for the music). The landing pages carry it under
+the video; keep it next to any other place the video is posted, e.g. a
+YouTube description. Commercial use would need a paid plan.
