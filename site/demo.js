@@ -148,6 +148,14 @@
 
     function show(html) { if (!stopped) field.innerHTML = html + caret; }
     function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+    // Tell the keyboard figure beside the hero (hero-figure.js) which key was hit.
+    function tap(key) {
+      var send = function (down) {
+        document.dispatchEvent(new CustomEvent("misstype:key", { detail: { key: key, down: down } }));
+      };
+      send(true);
+      setTimeout(function () { send(false); }, 120);
+    }
 
     async function play(ex) {
       caption.innerHTML = "<span>" + ex.what + "</span><span>" + ex.typed + "</span>";
@@ -165,6 +173,7 @@
         var syllable = keys.slice(from, to).join("");
         var committed = chars.slice(0, i).join("");
         for (var j = 1; j <= syllable.length && !stopped; j++) {
+          tap(syllable[j - 1]);
           var lastKey = j === syllable.length;
           if (lastKey) {
             // In Zhuyin the final rime key completes the syllable immediately.
