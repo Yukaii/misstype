@@ -201,8 +201,8 @@ guards and draft-before-publication are also checked before pushing.
 Verified locally 2026-10-07: actionlint 1.7.12 validated all workflows;
 241 Swift tests (8 skipped) and 73 Python tests passed. Manual execution of
 the workflow's shell steps passed five source/ref cases (including mismatched
-SHA, branch publication, and a different tag) and four mocked publication
-cases (stable/prerelease, optional appcast, and upload failure preventing
+SHA, branch publication, and a different tag) and eight mocked publication
+cases (stable/prerelease, optional provenance bundle/appcast, and upload failure preventing
 publication). An actual immutable publication is checked on the next
 requested release.
 
@@ -214,6 +214,14 @@ the workflow now gates attestation and its bundle on public visibility. Signed
 bundle verification and the tampered-file rejection experiment remain pending
 until a new run after the repository becomes public (do not rerun an old private
 event, whose visibility payload is unchanged).
+
+Verified private mode 2026-10-07: [run 37620748448](https://github.com/Yukaii/misstype/actions/runs/37620748448)
+at `705c09756fc2c831143bf5e368fa4bab117522d6` passed tests, signed/notarized
+packaging, the deferred-attestation notice, and artifact upload. Attestation,
+bundle generation, and release publication were skipped as intended. The five
+downloaded files included no provenance bundle; the DMG and update ZIP matched
+their SHA256 files. No release or tag was created, and the repository remained
+private.
 
 ## Verification status
 
