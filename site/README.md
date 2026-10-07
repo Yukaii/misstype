@@ -7,7 +7,9 @@ demo's `misstype.wasm` and lexicons there are generated (gitignored) by
 `script/build_site_assets.sh`, which Pages runs before building. Run it once
 before `npm run dev` if you want the demo to load locally. `media/` holds the
 demo videos (Chinese and English) and their posters, rendered by `video/` (`npm run render:site` there)
-and committed, since Pages does not render video. The keyboard beside
+and committed, since Pages does not render video. `video.js` replaces the
+browser controls with a player in the page style (native controls remain
+without JS). The keyboard beside
 the hero is a Hairline line figure; see `hairline/README.md`.
 
 ```sh
