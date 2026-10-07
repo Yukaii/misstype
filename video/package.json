@@ -8,6 +8,9 @@
     "dev": "npm run prepare-assets && remotion studio src/index.ts",
     "render": "npm run prepare-assets && remotion render src/index.ts Demo out/demo.mp4",
     "render:vertical": "npm run prepare-assets && remotion render src/index.ts DemoVertical out/demo-vertical.mp4",
+    "render:en": "npm run prepare-assets && remotion render src/index.ts DemoEn out/demo-en.mp4",
+    "render:en:vertical": "npm run prepare-assets && remotion render src/index.ts DemoEnVertical out/demo-en-vertical.mp4",
+    "render:site": "npm run prepare-assets && node scripts/publish-site.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

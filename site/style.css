@@ -236,6 +236,12 @@ a:hover { color: var(--mark); }
 /* Sections */
 
 section { padding: 48px 0; border-top: 1px solid var(--line); }
+
+/* Demo video (rendered by video/, see video/README.md). */
+.video {
+  display: block; width: 100%; aspect-ratio: 16 / 9; margin: 16px 0 0;
+  border: 1px solid var(--line); border-radius: var(--radius); background: #f7f5f0;
+}
 section h2 { margin: 0 0 8px; font-size: 26px; line-height: 1.4; }
 section > .wrap > p.intro { margin: 0 0 28px; color: var(--muted); max-width: 42em; }
 

@@ -1,8 +1,16 @@
 {
-  "voice": {
-    "voiceId": "XXxvxx0YUt8icTEFE3c6",
-    "modelId": "eleven_v4",
-    "languageCode": "zh"
+  "keySound": "brown",
+  "voices": {
+    "zh": {
+      "voiceId": "XXxvxx0YUt8icTEFE3c6",
+      "modelId": "eleven_v4",
+      "languageCode": "zh"
+    },
+    "en": {
+      "voiceId": "XXxvxx0YUt8icTEFE3c6",
+      "modelId": "eleven_v4",
+      "languageCode": ""
+    }
   },
   "beats": [
     {
@@ -10,35 +18,57 @@
       "title": "隨打注音",
       "subtitle": "Misstype · 打錯了也沒關係的注音輸入法",
       "holdSec": 2.4,
-      "narration": "這是隨打注音，一個打錯了也沒關係的注音輸入法。"
+      "narration": "這是隨打注音，一個打錯了也沒關係的注音輸入法。",
+      "en": {
+        "title": "Misstype",
+        "subtitle": "隨打注音 · Zhuyin input that forgives typos",
+        "narration": "This is Misstype, a Zhuyin input method that doesn't mind your typos."
+      }
     },
     {
       "id": "toneless",
       "label": "免打聲調",
       "keys": "ㄐㄧㄣㄊㄧㄢㄊㄧㄢㄑㄧㄏㄣㄏㄠ{Enter}",
       "holdSec": 1.2,
-      "narration": "不用打聲調，直接打注音就好。"
+      "narration": "不用打聲調，直接打注音就好。",
+      "en": {
+        "label": "No tones",
+        "narration": "Skip the tones. Just type the Zhuyin."
+      }
     },
     {
       "id": "order",
       "label": "順序打反",
       "keys": "[ㄧㄐ]ㄣㄊㄧㄢㄊㄧㄢㄑㄧㄏㄣㄏㄠ{Enter}",
       "holdSec": 1.2,
-      "narration": "注音順序打反了，它會幫你換回來。"
+      "narration": "注音順序打反了，它會幫你換回來。",
+      "en": {
+        "label": "Swapped",
+        "narration": "Typed the symbols out of order? It puts them back."
+      }
     },
     {
       "id": "neighbor",
       "label": "按到隔壁鍵",
       "keys": "ㄒㄧㄝㄒㄧㄝ[ㄎ]ㄧㄅㄤㄇㄤ{Enter}",
       "holdSec": 1.2,
-      "narration": "手滑按到隔壁的鍵，也猜得出你想打什麼。"
+      "narration": "手滑按到隔壁的鍵，也猜得出你想打什麼。",
+      "en": {
+        "label": "Next key over",
+        "narration": "Hit the key next to the one you meant, and it still knows."
+      }
     },
     {
       "id": "outro",
       "title": "隨打注音",
       "subtitle": "Misstype · 純本機運算 · 不需網路",
       "holdSec": 2.6,
-      "narration": "全部在你的電腦上運算，打的字不會傳出去。"
+      "narration": "全部在你的電腦上運算，打的字不會傳出去。",
+      "en": {
+        "title": "Misstype",
+        "subtitle": "Runs on your computer · No network",
+        "narration": "Everything runs on your computer. What you type never leaves it."
+      }
     }
   ]
 }

@@ -6,15 +6,19 @@ import { C, SANS } from "./theme";
 import { Field } from "./Field";
 import { KeyStrip } from "./KeyStrip";
 import type { Snapshot } from "./decoder";
-import { FPS, type TimedBeat } from "./timeline";
+import { FPS, type Lang, type TimedBeat } from "./timeline";
+
+const BIG_KEYS = new Set(["Enter", "Space"]);
 
 export type DemoProps = {
+  lang: Lang;
   beats: TimedBeat[];
   snapshots: Snapshot[][];
   music: string | null;
+  captions?: boolean;
 };
 
-export const Demo: React.FC<DemoProps> = ({ beats, snapshots, music }) => {
+export const Demo: React.FC<DemoProps> = ({ beats, snapshots, music, captions = true }) => {
   const voiced = beats.filter((b) => b.voice);
   // Music sits under the narration: duck it while a line is being spoken.
   const musicVolume = (f: number) => {
@@ -27,11 +31,14 @@ export const Demo: React.FC<DemoProps> = ({ beats, snapshots, music }) => {
       {beats.map((b, i) => (
         <Sequence key={b.beat.id} from={b.from} durationInFrames={b.durationInFrames} name={b.beat.id}>
           {b.beat.keys ? <TypingScene timed={b} snaps={snapshots[i]} /> : <TitleCard timed={b} />}
-          <Caption timed={b} />
-          {b.voice && <Html5Audio src={staticFile(`voice/${b.voice.file}`)} />}
+          {captions && <Caption timed={b} />}
+          {b.voice && <Html5Audio src={staticFile(b.voice.file)} />}
           {b.strokes.map((s, j) => (
-            <Sequence key={j} from={s.frame} durationInFrames={8} layout="none">
-              <Html5Audio src={staticFile("sfx/key.wav")} volume={s.label === "Enter" ? 0.5 : 0.3} />
+            <Sequence key={j} from={s.frame} durationInFrames={6} layout="none">
+              <Html5Audio
+                src={staticFile(BIG_KEYS.has(s.label) ? "sfx/key-big.wav" : `sfx/key-${j % 4}.wav`)}
+                volume={BIG_KEYS.has(s.label) ? 0.45 : 0.3}
+              />
             </Sequence>
           ))}
         </Sequence>
