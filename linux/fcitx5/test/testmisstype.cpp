@@ -1,5 +1,5 @@
 // Headless conformance tests for the fcitx5 adapter: docs/cross-platform.md
-// scenarios C1-C13 plus the Linux delivery rules LR1-LR7, driven through
+// scenarios C1-C15 plus the Linux delivery rules LR1-LR7, driven through
 // fcitx5's in-process test frontend. A wrong commit aborts inside
 // pushCommitExpectation; every other check is FCITX_ASSERT.
 #include <fcitx-utils/eventdispatcher.h>
@@ -121,7 +121,7 @@ void pass(const char *id) { FCITX_INFO() << "PASS " << id; }
 void runAll(Instance &instance) {
     Session s(instance);
     auto &ic = *s.ic();
-    const KeyStates shift(KeyState::Shift), ctrl(KeyState::Ctrl);
+    const KeyStates shift(KeyState::Shift), ctrl(KeyState::Ctrl), alt(KeyState::Alt);
     auto *addon = instance.addonManager().addon("misstype");
     FCITX_ASSERT(addon && addon->getConfig()) << "addon exposes a config";
 
@@ -215,7 +215,8 @@ void runAll(Instance &instance) {
     s.type("`");
     pass("C7");
 
-    // C8: Right at the end beeps (consumed, no change); Left focuses a word.
+    // C8: Right at the end beeps (consumed, no change); Left focuses a word
+    // without arming the selection keys (they type at the cursor); Tab arms.
     s.type("su3cl3");
     FCITX_ASSERT(s.key(FcitxKey_Right, kRight));
     FCITX_ASSERT(s.preedit() == "你好");
@@ -224,10 +225,41 @@ void runAll(Instance &instance) {
     {
         auto *list = s.candidates();
         FCITX_ASSERT(list && list->candidateFromAll(0).text().toString() == "你好");
-        FCITX_ASSERT(list->label(0).toString() == "a") << "selection keys active in cursor mode";
+        FCITX_ASSERT(list->label(0).toString().empty()) << "selection keys type at the cursor";
+    }
+    FCITX_ASSERT(s.key(FcitxKey_Tab, kTab));
+    {
+        auto *list = s.candidates();
+        FCITX_ASSERT(list && list->label(0).toString() == "a") << "Tab arms the selection keys";
     }
     s.clear();
     pass("C8");
+
+    // C14: typing at the syllable cursor inserts there.
+    s.type("su3a87");
+    FCITX_ASSERT(s.preedit() == "你嗎") << s.preedit();
+    FCITX_ASSERT(s.key(FcitxKey_Left, kLeft));
+    s.type("cl3");
+    FCITX_ASSERT(s.preedit() == "你好嗎" && s.caretBytes() == 6) << s.preedit() << " " << s.caretBytes();
+    s.clear();
+    pass("C14");
+
+    // C15: in a Latin run Alt+Backspace deletes a word, Alt+Left jumps one
+    // and typing follows the caret.
+    s.type("su3`hello");
+    FCITX_ASSERT(s.key(FcitxKey_space, kSpace));
+    s.type("world");
+    FCITX_ASSERT(s.key(FcitxKey_BackSpace, kBackspace, alt));
+    FCITX_ASSERT(s.preedit() == "你hello ") << s.preedit();
+    s.type("world");
+    FCITX_ASSERT(s.key(FcitxKey_Left, kLeft, alt));
+    FCITX_ASSERT(s.caretBytes() == 9) << s.caretBytes();
+    s.type("big");
+    FCITX_ASSERT(s.key(FcitxKey_space, kSpace));
+    FCITX_ASSERT(s.preedit() == "你hello big world" && s.caretBytes() == 13) << s.preedit();
+    s.clear();
+    s.type("`"); // close the run (it survives Escape)
+    pass("C15");
 
     // C9: Ctrl+c commits the preview, then the shortcut reaches the application.
     s.type("su3");

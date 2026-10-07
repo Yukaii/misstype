@@ -9,9 +9,33 @@
   --mark: #b5462f;
   --mark-bg: #f6e3dc;
   --ok: #2f6b4f;
+  --btn-bg: #262c34;
+  --btn-fg: #fff;
+  --btn-edge: #1d2229;
+  --btn-lip: #11151a;
+  --btn-hover: #3a424d;
   --radius: 10px;
+  color-scheme: light;
   --sans: -apple-system, BlinkMacSystemFont, "PingFang TC", "Noto Sans TC",
     "Microsoft JhengHei", "Segoe UI", sans-serif;
+}
+
+/* Lights off. data-scheme is set by theme.js (and a snippet in <head>). */
+:root[data-scheme="dark"] {
+  --paper: #0d0f14;
+  --card: #151821;
+  --ink: #e8eaf0;
+  --muted: #9aa1b0;
+  --line: #262b38;
+  --mark: #ff8a6b;
+  --mark-bg: #3a2018;
+  --ok: #6fd1a0;
+  --btn-bg: #e8eaf0;
+  --btn-fg: #0d0f14;
+  --btn-edge: #ffffff;
+  --btn-lip: #6b7080;
+  --btn-hover: #ffffff;
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
@@ -51,6 +75,34 @@ a:hover { color: var(--mark); }
 .top nav { display: flex; gap: 20px; font-size: 15px; }
 .top nav a { text-decoration: none; color: var(--muted); }
 .top nav a:hover { color: var(--ink); }
+.theme-toggle {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.theme-toggle:hover { color: var(--ink); border-color: var(--muted); }
+.theme-toggle svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.theme-toggle svg > * { display: none; }
+.theme-toggle[data-mode="auto"] .i-auto, .theme-toggle[data-mode="light"] .i-light, .theme-toggle[data-mode="dark"] .i-dark { display: inline; }
+
+/* The glow behind the page in the dark (hero-figure.js); canvas is drawn small and stretched. */
+.page-glow {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: -1;
+  pointer-events: none;
+  display: none;
+}
+:root[data-scheme="dark"] .page-glow { display: block; }
 
 /* Hero */
 
@@ -74,6 +126,11 @@ a:hover { color: var(--mark); }
   --hairline-mid: #c4bfb3;
   --hairline-lo: #e2ddd2;
   --hairline-stroke: 1;
+}
+:root[data-scheme="dark"] .hero-figure {
+  --hairline-edge: #5d6577;
+  --hairline-mid: #3a4152;
+  --hairline-lo: #272c3a;
 }
 .hero-figure .read {
   position: absolute;
@@ -109,17 +166,17 @@ a:hover { color: var(--mark); }
   display: inline-block;
   padding: 12px 22px;
   border-radius: 8px;
-  background: var(--ink);
-  color: #fff;
+  background: var(--btn-bg);
+  color: var(--btn-fg);
   font-weight: 600;
   text-decoration: none;
-  border: 1px solid #1d2229;
-  box-shadow: 0 4px 0 #11151a, 0 8px 16px rgba(38, 44, 52, .16);
+  border: 1px solid var(--btn-edge);
+  box-shadow: 0 4px 0 var(--btn-lip), 0 8px 16px rgba(38, 44, 52, .16);
   transform: translateY(-1px);
   transition: transform .16s ease, box-shadow .16s ease, background .16s ease;
 }
-.button:hover { color: #fff; background: #3a424d; transform: translateY(-3px); box-shadow: 0 6px 0 #11151a, 0 12px 20px rgba(38, 44, 52, .18); }
-.button:active { transform: translateY(2px); box-shadow: 0 1px 0 #11151a, 0 3px 8px rgba(38, 44, 52, .14); }
+.button:hover { color: var(--btn-fg); background: var(--btn-hover); transform: translateY(-3px); box-shadow: 0 6px 0 var(--btn-lip), 0 12px 20px rgba(38, 44, 52, .18); }
+.button:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--btn-lip), 0 3px 8px rgba(38, 44, 52, .14); }
 .button:focus-visible { outline: 3px solid var(--mark-bg); outline-offset: 3px; }
 .cta .note { color: var(--muted); font-size: 15px; }
 
@@ -179,8 +236,84 @@ a:hover { color: var(--mark); }
 /* Sections */
 
 section { padding: 48px 0; border-top: 1px solid var(--line); }
-section h2 { margin: 0 0 8px; font-size: 26px; line-height: 1.4; }
-section > .wrap > p.intro { margin: 0 0 28px; color: var(--muted); max-width: 42em; }
+
+/* Demo video (rendered by video/, see video/README.md). */
+.video {
+  display: block; width: 100%; aspect-ratio: 16 / 9; margin: 16px 0 0;
+  border: 1px solid var(--line); border-radius: var(--radius); background: #f7f5f0;
+}
+
+/* Player chrome from video.js: a big play button over the poster, then a
+   control strip under the picture (overlaid it would cover the captions). */
+.player {
+  margin: 16px 0 0; overflow: hidden;
+  border: 1px solid var(--line); border-radius: var(--radius); background: var(--card);
+}
+.player .video { margin: 0; border: 0; border-radius: 0; cursor: pointer; }
+.player-stage { position: relative; }
+.player:fullscreen { display: flex; flex-direction: column; border: 0; border-radius: 0; }
+.player:fullscreen .player-stage { flex: 1; min-height: 0; background: #f7f5f0; }
+.player:fullscreen .video { height: 100%; object-fit: contain; }
+.player button {
+  display: inline-grid; place-items: center; padding: 0;
+  border: 0; background: none; color: inherit; cursor: pointer;
+}
+.player svg { width: 16px; height: 16px; fill: currentColor; }
+.player svg .o {
+  fill: none; stroke: currentColor; stroke-width: 1.6;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+
+/* Same raised-key look as .button. It sits on the light video in both
+   schemes, so its colours are fixed. */
+.player .player-big {
+  position: absolute; left: 50%; top: 50%;
+  width: 76px; height: 76px; margin: -38px 0 0 -38px; border-radius: 50%;
+  background: #262c34; color: #fff;
+  box-shadow: 0 4px 0 #11151a, 0 10px 24px rgba(38, 44, 52, 0.22);
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+}
+.player-big svg { width: 30px; height: 30px; margin-left: 4px; }
+.player .player-big:hover { transform: translateY(-2px); box-shadow: 0 6px 0 #11151a, 0 14px 28px rgba(38, 44, 52, 0.26); }
+.player .player-big:active { transform: translateY(3px); box-shadow: 0 1px 0 #11151a, 0 4px 10px rgba(38, 44, 52, 0.2); }
+.player:not([data-state="idle"]) .player-big { display: none; }
+
+.player-bar {
+  display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+  border-top: 1px solid var(--line);
+  font-size: 13px; line-height: 1; font-variant-numeric: tabular-nums;
+}
+.player-btn { width: 30px; height: 30px; border-radius: 50%; color: var(--ink); }
+.player-btn:hover { background: var(--paper); }
+.player button:focus-visible,
+.player-seek:focus-visible { outline: 2px solid var(--mark); outline-offset: 2px; }
+.player-time { white-space: nowrap; color: var(--muted); }
+
+.player-seek {
+  flex: 1; min-width: 0; height: 18px; margin: 0 4px;
+  -webkit-appearance: none; appearance: none; background: none; cursor: pointer;
+}
+.player-seek::-webkit-slider-runnable-track {
+  height: 4px; border-radius: 2px;
+  background: linear-gradient(to right, var(--mark) var(--p, 0%), var(--line) var(--p, 0%));
+}
+.player-seek::-moz-range-track { height: 4px; border-radius: 2px; background: var(--line); }
+.player-seek::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--mark); }
+.player-seek::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 12px; height: 12px; margin-top: -4px;
+  border: 0; border-radius: 50%; background: var(--ink);
+}
+.player-seek::-moz-range-thumb { width: 12px; height: 12px; border: 0; border-radius: 50%; background: var(--ink); }
+
+@media (max-width: 520px) {
+  .player .player-big { width: 60px; height: 60px; margin: -30px 0 0 -30px; }
+  .player-big svg { width: 24px; height: 24px; }
+  .player-bar { gap: 6px; padding: 6px 8px; }
+  .player-time { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .player .player-big { transition: none; }
+}
 
 /* Before/after examples */
 

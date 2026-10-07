@@ -22,6 +22,11 @@
 
 ## 和其他注音輸入法比較
 
+> [!NOTE]
+> 這種比較表本質上都是「挑自己有做的比，怎麼比都是我家最贏」的那種，**僅供參考 XD**。
+>
+> 這並非各輸入法的優劣評比，其他成熟產品（如唯音、小麥注音、Rime、ChiaKey 等）在日常穩定度、龐大功能面、鍵盤排列支援或多元平台上都各自有極強大好用的地方。這裡僅作為專案開發時的設計基準與參考坐標（Misstype 專注於驗證免聲調連打、模糊容錯與中英混打等實驗性設計），並非功能數量的競賽。
+
 以下依各專案公開說明整理（2026-10-04 快照，未實測）；`-` 表示沒找到公開說明，不代表一定沒有。
 
 | | 隨打注音 | ChiaKey | 唯音（vChewing） | 小麥注音 | Rime（鼠鬚管等） |
@@ -42,9 +47,13 @@
 
 到 [GitHub Releases](https://github.com/Yukaii/misstype/releases/latest) 下載 `Misstype-<版本>.dmg`，開啟後執行 **Install Misstype**。輸入法安裝在你的使用者資料夾，不需要管理者密碼，之後會透過內建的 Sparkle 自動更新。第一次安裝後，登出再登入，即可在 macOS 選單列的輸入法選單或「系統設定 → 鍵盤 → 輸入方式」中選擇 **隨打注音**（英文系統顯示為 `Misstype Bopomofo`）。
 
+專案公開後，發布流程會自動附上 GitHub Actions 建置來源證明（attestation），供使用者核對下載檔、建置 workflow 與來源 commit；[驗證方式與適用版本](docs/release.md#verify-build-provenance)列在發布文件中。
+
 ### Linux
 
 以 fcitx5 外掛支援 Linux，與 macOS 版共用同一個核心。安裝與進度見 [Linux 移植說明](docs/linux-port.md)。
+
+Arch Linux / Omarchy 的套件建置、安裝與移除方式請參閱 [安裝說明](docs/arch-linux.md)。AUR 投稿用的套件配方位於 `linux/aur/PKGBUILD`（尚未發布至 AUR）。
 
 從原始碼建置請見[開發、建置與發布](docs/development.md)。
 
@@ -59,5 +68,5 @@
 
 ## 授權條款
 
-本專案採用 **MIT 授權條款**（詳見 [`LICENSE`](LICENSE)）。
-隨附之詞庫資料衍生自小麥注音（MIT 授權） 與 libtabe（BSD 風格授權）；詳見 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。
+Misstype 自有程式碼採用 **MIT 授權條款**（詳見 [`LICENSE`](LICENSE)）。
+第三方程式碼與詞庫依各自授權：小麥注音為 MIT、libtabe 為 BSD 風格授權、國家教育研究院詞頻資料為 CC BY 4.0、英文詞表為 CC BY-SA 4.0；macOS 使用 Sparkle，Linux 連結 fcitx5。完整來源、授權及適用範圍見 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。

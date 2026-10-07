@@ -1,0 +1,87 @@
+{
+  "intro": {
+    "file": "intro.mp3",
+    "hash": "b15f0de7997637da",
+    "durationSec": 4.72,
+    "captions": [
+      {
+        "text": "This is Misstype,",
+        "startSec": 0,
+        "endSec": 1.44
+      },
+      {
+        "text": "a Zhuyin input method that doesn't mind your typos.",
+        "startSec": 1.52,
+        "endSec": 4.72
+      }
+    ]
+  },
+  "toneless": {
+    "file": "toneless.mp3",
+    "hash": "7ba3d6a4154f94e3",
+    "durationSec": 2.88,
+    "captions": [
+      {
+        "text": "Skip the tones.",
+        "startSec": 0,
+        "endSec": 1.24
+      },
+      {
+        "text": "Just type the Zhuyin.",
+        "startSec": 1.44,
+        "endSec": 2.88
+      }
+    ]
+  },
+  "order": {
+    "file": "order.mp3",
+    "hash": "b3529e214f838d5d",
+    "durationSec": 3.2,
+    "captions": [
+      {
+        "text": "Typed the symbols out of order?",
+        "startSec": 0,
+        "endSec": 1.84
+      },
+      {
+        "text": "It puts them back.",
+        "startSec": 2.08,
+        "endSec": 3.2
+      }
+    ]
+  },
+  "neighbor": {
+    "file": "neighbor.mp3",
+    "hash": "bccfe15fe88da1bf",
+    "durationSec": 3.6,
+    "captions": [
+      {
+        "text": "Hit the key next to the one you meant,",
+        "startSec": 0,
+        "endSec": 2.16
+      },
+      {
+        "text": "and it still knows.",
+        "startSec": 2.24,
+        "endSec": 3.6
+      }
+    ]
+  },
+  "outro": {
+    "file": "outro.mp3",
+    "hash": "dca6af8c08ec0e8b",
+    "durationSec": 4.48,
+    "captions": [
+      {
+        "text": "Everything runs on your computer.",
+        "startSec": 0,
+        "endSec": 2.32
+      },
+      {
+        "text": "What you type never leaves it.",
+        "startSec": 2.4,
+        "endSec": 4.48
+      }
+    ]
+  }
+}

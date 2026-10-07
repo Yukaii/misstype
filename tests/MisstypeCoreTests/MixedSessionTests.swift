@@ -89,6 +89,23 @@ final class MixedSessionTests: XCTestCase {
         XCTAssertEqual(session.view.preedit, "你好python")
     }
 
+    func testOptionBackspaceDeletesAnEnglishWordReadFromBareKeys() {
+        // Issue #33: the word goes whole, not one letter per press.
+        let session = makeSession()
+        type("su3cl3python", into: session)
+        session.handle(KeyEvent(.backspace, modifiers: .option, text: "\u{7f}"))
+        XCTAssertEqual(session.view.preedit, "你好")
+    }
+
+    func testOptionArrowsOverAnEnglishReadingStillCommitAndPass() {
+        // No layout for the English reading (its syllables belong to a
+        // rewritten composition): the pre-#33 behavior stays.
+        let session = makeSession()
+        type("su3cl3python", into: session)
+        XCTAssertEqual(session.handle(KeyEvent(.left, modifiers: .option)),
+                       KeyResult(consumed: false, commit: "你好python"))
+    }
+
     func testSyllableCursorAndLearningStayOutOfEnglishReadings() {
         let session = makeSession()
         type("su3cl3python", into: session)

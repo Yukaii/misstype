@@ -125,6 +125,7 @@
           lexiconUrl: assets + "lexicon.tsv",
           tonelessUrl: assets + "toneless.tsv",
           englishUrl: assets + "english.tsv",
+          imeNote: hint.dataset.ime || "",
           onReady: resolve,
           onError: reject
         });

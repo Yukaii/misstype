@@ -10,6 +10,7 @@
 <meta property="og:image" content="../icon.png">
 <link rel="icon" href="../icon.svg" type="image/svg+xml">
 <link rel="alternate" hreflang="zh-Hant" href="../" vite-ignore>
+<script>(function(){try{var m=localStorage.getItem("misstype-theme");document.documentElement.dataset.scheme=m==="dark"||m==="light"?m:matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"}catch(e){}})()</script>
 <link rel="stylesheet" href="../style.css">
 </head>
 <body>
@@ -20,6 +21,9 @@
     <a href="#install">Download</a>
     <a href="https://github.com/Yukaii/misstype">GitHub</a>
     <a href="../" lang="zh-Hant" hreflang="zh-Hant">中文</a>
+    <button class="theme-toggle" type="button" data-label-auto="Match system" data-label-light="Light" data-label-dark="Dark" aria-label="Toggle light / dark">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><g class="i-auto"><circle cx="8" cy="8" r="5.5"/><path d="M8 2.5v11"/></g><g class="i-light"><circle cx="8" cy="8" r="2.8"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1"/></g><path class="i-dark" d="M13.2 9.6A5.6 5.6 0 0 1 6.4 2.8a5.6 5.6 0 1 0 6.8 6.8z"/></svg>
+    </button>
   </nav>
 </header>
 
@@ -41,7 +45,7 @@
     <div class="demo" data-assets="../">
       <div class="field" data-label="Try typing"><span class="done">今天天氣很好</span><span class="caret"></span></div>
       <div class="keys"><span>No tones</span><span>ㄐㄧㄣㄊㄧㄢㄊㄧㄢㄑㄧㄏㄣㄏㄠ</span></div>
-      <p class="try" hidden data-loading="Loading…" data-failed="This browser can’t run the live demo; the animation above shows it.">Click the box above to try typing →</p>
+      <p class="try" hidden data-ime="A system input method is on and is taking the keys. Switch to English input and try again." data-loading="Loading…" data-failed="This browser can’t run the live demo; the animation above shows it.">Click the box above to try typing →</p>
     </div>
   </div>
 
@@ -76,6 +80,15 @@
         </li>
       </ul>
       <p class="fine">If it guesses wrong, press <kbd>↓</kbd> and pick another character.</p>
+    </div>
+  </section>
+
+  <section id="video">
+    <div class="wrap">
+      <h2>See it typing</h2>
+      <video class="video" src="../media/demo-en.mp4" poster="../media/demo-en-poster.jpg" controls preload="none" playsinline aria-label="Misstype demo video, with narration and captions"></video>
+      <p class="fine">Every character in the video is real output from the input method, not an edit.</p>
+      <p class="fine">Narration by <a href="https://elevenlabs.io">elevenlabs.io</a>. Music created in collaboration with ElevenLabs (Eleven Music).</p>
     </div>
   </section>
 
@@ -117,12 +130,14 @@
 
 <footer>
   <div class="wrap">
-    <p>Open source, MIT. Dictionary from McBopomofo and libtabe.</p>
-    <p><a href="https://github.com/Yukaii/misstype">Source code</a> · <a href="../" lang="zh-Hant" hreflang="zh-Hant">中文</a></p>
+    <p>Misstype's own code is MIT licensed. Third-party code and dictionaries retain their respective licenses.</p>
+    <p><a href="https://github.com/Yukaii/misstype">Source code</a> · <a href="../licenses.html">Licenses and third-party notices</a> · <a href="../" lang="zh-Hant" hreflang="zh-Hant">中文</a></p>
   </div>
 </footer>
 
 <script type="module" src="../demo.js"></script>
 <script type="module" src="../hero-figure.js"></script>
+<script type="module" src="../video.js"></script>
+<script type="module" src="../theme.js"></script>
 </body>
 </html>

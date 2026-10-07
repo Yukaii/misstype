@@ -2,8 +2,15 @@
 
 Two plain HTML pages built with Vite (no framework, no web fonts, no
 trackers). `index.html` is Traditional Chinese, `en/index.html` English; both
-share `style.css` and `demo.js`. Files in `public/` are copied as-is. The
-keyboard beside the hero is a Hairline line figure; see `hairline/README.md`.
+share `style.css` and `demo.js`. Files in `public/` are copied as-is; the live
+demo's `misstype.wasm` and lexicons there are generated (gitignored) by
+`script/build_site_assets.sh`, which Pages runs before building. Run it once
+before `npm run dev` if you want the demo to load locally. `media/` holds the
+demo videos (Chinese and English) and their posters, rendered by `video/` (`npm run render:site` there)
+and committed, since Pages does not render video. `video.js` replaces the
+browser controls with a player in the page style (native controls remain
+without JS). The keyboard beside
+the hero is a Hairline line figure; see `hairline/README.md`.
 
 ```sh
 cd site
@@ -12,7 +19,7 @@ npm run dev       # local preview with reload
 npm run build     # writes site/dist (what Pages publishes)
 ```
 
-The examples under "打錯了，它幫你猜回來" are real decoder output (default
+The examples under "打錯了沒關係，幫你修回來" are real decoder output (default
 settings, no tones, Enter to commit), checked through the C ABI with
 `tools/baseline/compare.py drive-misstype` on 2026-10-05. If the decoder or
 lexicon changes, re-run them before editing the page; `demo.js` replays the

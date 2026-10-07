@@ -466,10 +466,14 @@ final class InputSessionTests: XCTestCase {
         type("su3cl3", into: session)
         XCTAssertEqual(session.handle(key(.right, text: "\u{F703}")), KeyResult(consumed: true, beep: true))
         XCTAssertEqual(session.handle(key(.left, text: "\u{F702}")), KeyResult(consumed: true))
-        XCTAssertTrue(session.view.keysActive)
+        // The cursor shows the focused list but types there (issue #32);
+        // Tab arms the selection keys.
+        XCTAssertFalse(session.view.keysActive)
         XCTAssertTrue(session.view.showsCandidates)
         XCTAssertEqual(session.view.candidates.first, "你好")
         XCTAssertEqual(session.view.caret, 1)
+        XCTAssertEqual(session.handle(key(.tab, text: "\t")), KeyResult(consumed: true))
+        XCTAssertTrue(session.view.keysActive)
         XCTAssertEqual(session.handle(key(.right, text: "\u{F703}")), KeyResult(consumed: true))
         XCTAssertEqual(session.view.caret, 2)
     }
@@ -510,6 +514,7 @@ final class InputSessionTests: XCTestCase {
         type("su3cl3", into: session)
         _ = session.handle(key(.left, text: "\u{F702}"))
         XCTAssertEqual(session.view.candidates, ["你好", "好", "郝"])
+        _ = session.handle(key(.tab, text: "\t"))
         _ = session.handle(key(.character("d"), text: "d")) // row 3: 郝
         XCTAssertEqual(session.view.preedit, "你郝")
         XCTAssertEqual(session.handle(key(.enter, text: "\r")).commit, "你郝")
@@ -531,6 +536,7 @@ final class InputSessionTests: XCTestCase {
         _ = session.handle(key(.left, text: "\u{F702}"))
         XCTAssertEqual(session.view.candidates, ["你", "妳", "尼", "泥"])
         XCTAssertEqual(session.view.caret, 1)
+        _ = session.handle(key(.tab, text: "\t"))
         _ = session.handle(key(.character("d"), text: "d")) // row 3: 尼
         XCTAssertEqual(session.view.preedit, "尼好")
     }

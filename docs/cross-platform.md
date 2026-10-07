@@ -173,14 +173,16 @@ each is the named `InputSessionTests` case.
 | C5 | `s u 3`, `Down`, `Esc`, `Esc` | preedit `妳`; first `Esc` keeps `妳` and leaves selection; second clears with no commit | `testEscapeLeavesSelectionFirstThenClears` |
 | C6 | `s u 3`, Shift+`,`, Shift+`a`, `⏎` | preedit `你，` then `你，A`; commits `你，A` | `testPunctuationAndShiftLatinStayInsideTheComposition` |
 | C7 | `s u 3`, backtick, `h i`; Esc ×3; `o k`; Esc ×3; backtick | preedit `你hi`; after Esc the run is still open (`ok` types as text); the closing backtick returns to Zhuyin | `testBacktickLatinRun` |
-| C8 | `s u 3 c l 3`, `Right`, `Left` | `Right` consumed without change (beep); `Left` enters cursor mode: candidates shown with `你好` first, selection keys active, caret UTF-16 1 / bytes 3 | `testSyllableCursorFocusesAWord` |
+| C8 | `s u 3 c l 3`, `Right`, `Left`, `Tab` | `Right` consumed without change (beep); `Left` enters cursor mode: candidates shown with `你好` first, caret UTF-16 1 / bytes 3, selection keys NOT active (they type at the cursor); `Tab` activates them | `testSyllableCursorFocusesAWord` |
 | C9 | `s u 3`, Ctrl+`c` (macOS: Cmd+`c`) | commits `你`, then the key passes | `testChordsAndCapsLockCommitThenPassThrough` |
 | C10 | `s u 3`, Shift+`Space`, `s` | Shift+Space commits `你` and flips to English (mode indicator); `s` passes | `testShiftSpaceTogglesEnglishCommittingFirst` |
 | C11 | `s u 3`, focus out | commits `你` | `testPanelPickAndHostCommit` (host commit) |
 | C12 | `s u 3`, click row 3 | preedit `泥` | `testPanelPickAndHostCommit` |
+| C14 | `s u 3 a 8 7`, `Left`, `c l 3` | preedit `你嗎`; after `Left` typing inserts at the cursor: preedit `你好嗎`, caret UTF-16 2 / bytes 6 | `testTypingAtTheCursorInsertsThere` |
+| C15 | `s u 3`, backtick, `hello world`, Alt+`Backspace`, `world`, Alt+`Left`, `big ` | Alt+Backspace deletes the Latin word: `你hello `; Alt+Left puts the caret before `world` (bytes 9); typing follows it: `你hello big world`, caret bytes 13 | `testOptionArrowsJumpByWordAndTypingFollowsTheCaret`, `testOptionBackspaceDeletesALatinWord` |
 | C13 | `s u 3 c l 3`, Shift+`Left` ×2, `⏎` | after the arrows `view.mark` = range UTF-16 0..<2, text `你好`, reading `ㄋㄧˇ-ㄏㄠˇ`, action `add`, no candidates but `showsCandidates`; `⏎` is consumed with no commit, the mark clears, preedit stays `你好`, and the user dictionary holds the pair | `testConformanceC13MarkAndFileAPhrase` |
 
-A new adapter is conformant when all thirteen pass headlessly in CI (Linux: the
+A new adapter is conformant when all fifteen pass headlessly in CI (Linux: the
 fcitx5 `testfrontend` harness). Behavior that differs from this table is a
 core bug or an intentional contract change — never an adapter special case.
 
@@ -190,7 +192,7 @@ core bug or an intentional contract change — never an adapter special case.
    `MacKeyCode`, unit-tested).
 2. Adapter over the Swift API (Swift platforms) or `misstype.h` (everything
    else), following §1–§6 and the delivery rules.
-3. Headless integration tests for C1–C13.
+3. Headless integration tests for C1–C15.
 4. Resource/data locations added to the §6 table.
 5. A row in the delivery-rules table if the platform's event model differs.
 

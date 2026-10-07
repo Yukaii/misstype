@@ -11,6 +11,7 @@ export class MisstypePlayground {
     this.lexiconUrl = options.lexiconUrl || "lexicon.tsv";
     this.tonelessUrl = options.tonelessUrl || "toneless.tsv";
     this.englishUrl = options.englishUrl || "english.tsv";
+    this.imeNoteText = options.imeNote || "";
     this.onStateChange = options.onStateChange || null;
     this.onReady = options.onReady;
     this.onError = options.onError;
@@ -183,8 +184,10 @@ export class MisstypePlayground {
   setupDOM() {
     if (!this.container) return;
     this.container.innerHTML = `
-      <div class="pg">
+      <div class="pg" data-theme="system">
         <div class="field pg-box" id="pg-box" role="textbox" aria-multiline="true" aria-label="隨打注音試打區" spellcheck="false"></div>
+
+        <div class="pg-ime-note" id="pg-ime-note" role="status" hidden></div>
 
         <div class="candidate-panel ${this.candidateOrientation}" id="pg-cand-panel" style="display: none;">
           <div class="candidate-list" id="pg-cand-list"></div>
@@ -224,6 +227,8 @@ export class MisstypePlayground {
     this.preeditEl = null;
     this.boxEl.contentEditable = "plaintext-only";
     if (this.boxEl.contentEditable !== "plaintext-only") this.boxEl.contentEditable = "true";
+    this.imeNoteEl = q("#pg-ime-note");
+    this.imeNoteEl.textContent = this.imeNoteText;
     this.candidatePanel = q("#pg-cand-panel");
     this.candidateList = q("#pg-cand-list");
     this.candidatePageEl = q("#pg-cand-page");
@@ -234,6 +239,13 @@ export class MisstypePlayground {
     this.themeTrigger = q("#pg-theme-trigger");
     this.themeMenu = q("#pg-theme-menu");
     this.themeName = "system";
+  }
+
+  setImeWarning(on) {
+    if (!on) this.imeKeys = 0;
+    if (!this.imeNoteText) return;
+    this.boxEl.classList.toggle("ime-warning", on);
+    this.imeNoteEl.hidden = !on;
   }
 
   showLoading(text) {
@@ -346,7 +358,14 @@ export class MisstypePlayground {
 
     // Keydown handler
     this.boxEl.addEventListener("keydown", (e) => {
-      if (e.isComposing || e.keyCode === 229) return;
+      // A system IME (Zhuyin, Pinyin...) takes the key before the decoder
+      // does. The first key can slip through; a second means it is on.
+      if (e.isComposing || e.keyCode === 229) {
+        this.imeKeys = (this.imeKeys || 0) + 1;
+        if (this.imeKeys >= 2) this.setImeWarning(true);
+        return;
+      }
+      this.setImeWarning(false);
       const modifiers = (e.shiftKey ? 1 : 0) |
                         (e.ctrlKey ? 2 : 0) |
                         (e.altKey ? 4 : 0) |
@@ -365,6 +384,8 @@ export class MisstypePlayground {
       // composition) fall through to the browser's own editing.
       if (this.sendKey(e.code, e.key, modifiers, 0)) e.preventDefault();
     });
+
+    this.boxEl.addEventListener("blur", () => this.setImeWarning(false));
 
     // Keyup handler (for Shift tap detection)
     this.boxEl.addEventListener("keyup", (e) => {

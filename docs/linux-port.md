@@ -22,7 +22,7 @@ settings UI, distro packages. See the backlog (L7).
 
 1. `AGENTS.md`: product constraints, privacy rules, definition of done.
 2. `docs/cross-platform.md`: the adapter contract (§1–§6), delivery rules,
-   and conformance scenarios C1–C13. **It is normative; this plan applies it.**
+   and conformance scenarios C1–C15. **It is normative; this plan applies it.**
 3. `docs/architecture.md`, section "Platform boundary: InputSession".
 4. `Sources/MisstypeCore/InputSession.swift`, `KeyEvent.swift`, and
    `tests/MisstypeCoreTests/InputSessionTests.swift`: the reference behavior.
@@ -48,6 +48,10 @@ settings UI, distro packages. See the backlog (L7).
   hand-off note.
 
 ## Bare-metal (no Docker)
+
+For Arch Linux / Omarchy, use the pacman-managed package recipe and desktop
+setup instructions in [docs/arch-linux.md](arch-linux.md). The Ubuntu
+bootstrap script below is not intended for Arch.
 
 The container remains the canonical path, but the Linux layers also run
 directly on an Ubuntu 24.04 host (verified 2026-10-01):
@@ -108,7 +112,7 @@ linux/Dockerfile                      dev/CI image (exists)
 linux/fcitx5/CMakeLists.txt
 linux/fcitx5/src/                     engine + per-IC state + candidate word
 linux/fcitx5/data/addon/misstype.conf.in, data/inputmethod/misstype.conf
-linux/fcitx5/test/testmisstype.cpp     C1–C13 + Linux delivery rules, headless
+linux/fcitx5/test/testmisstype.cpp     C1–C15 + Linux delivery rules, headless
 script/linux/dev.sh                   run a command in the container (exists)
 script/linux/bootstrap.sh           provision a bare-metal Ubuntu 24.04 host (no Docker)
 script/linux/test_all.sh            bare-metal: swift test + C ABI + fcitx5 checks
@@ -575,7 +579,8 @@ Backlog (not scheduled):
   rules from `AGENTS.md` apply.
 - Library size (~56–71 MB): `-Xlinker --gc-sections`, strip at install, or a
   Foundation-free core.
-- Packaging: `.deb`, AUR, Flatpak (fcitx5 addon in a Flatpak runtime needs
+- Packaging: AUR recipe in `linux/aur/PKGBUILD` (publication pending;
+  [Arch guide](arch-linux.md)); `.deb`, Flatpak (fcitx5 addon in a Flatpak runtime needs
   research).
 
 ## Open decisions (owner: user)

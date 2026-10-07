@@ -10,6 +10,7 @@
 <meta property="og:image" content="icon.png">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="alternate" hreflang="en" href="en/" vite-ignore>
+<script>(function(){try{var m=localStorage.getItem("misstype-theme");document.documentElement.dataset.scheme=m==="dark"||m==="light"?m:matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"}catch(e){}})()</script>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -20,6 +21,9 @@
     <a href="#install">下載</a>
     <a href="https://github.com/Yukaii/misstype">GitHub</a>
     <a href="en/" lang="en" hreflang="en">English</a>
+    <button class="theme-toggle" type="button" data-label-auto="跟隨系統" data-label-light="淺色" data-label-dark="深色" aria-label="切換淺色／深色">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><g class="i-auto"><circle cx="8" cy="8" r="5.5"/><path d="M8 2.5v11"/></g><g class="i-light"><circle cx="8" cy="8" r="2.8"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1"/></g><path class="i-dark" d="M13.2 9.6A5.6 5.6 0 0 1 6.4 2.8a5.6 5.6 0 1 0 6.8 6.8z"/></svg>
+    </button>
   </nav>
 </header>
 
@@ -27,7 +31,7 @@
   <div class="wrap hero">
     <div class="hero-text">
       <h1>打注音，不用管聲調。</h1>
-      <p class="lede">順序打反、按到隔壁鍵、漏按符號都沒關係。一路隨便打，打完大多就是你要的那句。</p>
+      <p class="lede">順序打反、按到隔壁鍵、漏按符號都沒關係。一路隨便打，打完大多就是你要的那句。應該啦（？</p>
       <div class="cta">
         <a class="button" href="https://github.com/Yukaii/misstype/releases/latest">下載 macOS 版</a>
         <span class="note">免費開源 · macOS 13 以上 · 也有 <a href="#linux">Linux 版</a></span>
@@ -41,14 +45,14 @@
     <div class="demo" data-assets="./">
       <div class="field" data-label="試打"><span class="done">今天天氣很好</span><span class="caret"></span></div>
       <div class="keys"><span>免打聲調</span><span>ㄐㄧㄣㄊㄧㄢㄊㄧㄢㄑㄧㄏㄣㄏㄠ</span></div>
-      <p class="try" hidden data-loading="載入中⋯" data-failed="這個瀏覽器沒辦法試打，看上面的示範就好。">點一下上面的框框，親自試打 →</p>
+      <p class="try" hidden data-ime="系統輸入法開著，按鍵被它搶走了。請切換成英文輸入再試打。" data-loading="載入中⋯" data-failed="這個瀏覽器沒辦法試打，看上面的示範就好。">點一下上面的框框，親自試打 →</p>
     </div>
   </div>
 
 
   <section>
     <div class="wrap">
-      <h2>打錯了，它幫你猜回來</h2>
+      <h2>打錯了沒關係，幫你修回來</h2>
       <p class="intro">完全沒打聲調，紅色是打錯或漏打的地方：</p>
       <ul class="examples">
         <li data-keys="ㄐㄧㄣㄊㄧㄢㄊㄧㄢㄑㄧㄏㄣㄏㄠ">
@@ -80,6 +84,15 @@
     </div>
   </section>
 
+  <section id="video">
+    <div class="wrap">
+      <h2>來看個介紹影片吧</h2>
+      <video class="video" src="./media/demo.mp4" poster="./media/demo-poster.jpg" controls preload="none" playsinline aria-label="隨打注音示範影片，有旁白與字幕"></video>
+      <p class="fine">影片裡的每個字都是輸入法實際算出來的，不是後製。</p>
+      <p class="fine">旁白由 <a href="https://elevenlabs.io">elevenlabs.io</a> 生成；背景音樂 Created in collaboration with ElevenLabs（Eleven Music）。</p>
+    </div>
+  </section>
+
   <section>
     <div class="wrap">
       <h2>日常好用的細節</h2>
@@ -87,9 +100,10 @@
         <li>標準注音鍵盤排列，想打聲調隨時可以打。</li>
         <li>純本機運算，不需網路，你打的字不會傳出去。</li>
         <li>越用越順手，選過的字詞下次自動排到最前面。</li>
-        <li>自訂詞庫超直覺：按 <kbd>Shift</kbd>+<kbd>←</kbd> 選起來，按 <kbd>Return</kbd> 就記住了。</li>
+        <li>自訂詞庫超直覺：按 <kbd>Shift</kbd>+<kbd>←</kbd> 選起來，按 <kbd>Return</kbd> 就記住了。（絕贊參考唯音）</li>
         <li>輕按一下 <kbd>Shift</kbd> 快速切換中英文。</li>
         <li>內建背景自動更新。</li>
+        <li>作者每日使用，每日折騰改造。</li>
       </ul>
     </div>
   </section>
@@ -118,12 +132,14 @@
 
 <footer>
   <div class="wrap">
-    <p>MIT 授權開源。詞庫來自小麥注音與 libtabe。</p>
-    <p><a href="https://github.com/Yukaii/misstype">原始碼</a> · <a href="en/" lang="en" hreflang="en">English</a></p>
+    <p>自有程式碼採 MIT 授權；第三方程式碼與詞庫依各自授權。</p>
+    <p><a href="https://github.com/Yukaii/misstype">原始碼</a> · <a href="licenses.html">授權與第三方聲明</a> · <a href="en/" lang="en" hreflang="en">English</a></p>
   </div>
 </footer>
 
 <script type="module" src="./demo.js"></script>
 <script type="module" src="./hero-figure.js"></script>
+<script type="module" src="./video.js"></script>
+<script type="module" src="./theme.js"></script>
 </body>
 </html>

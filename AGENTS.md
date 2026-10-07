@@ -9,7 +9,7 @@ This repository is an experimental input device and decoder. The current goal is
   a user dictionary (Shift+←/→ marks a phrase, Return files it;
   `user_dictionary.tsv`, Settings editor on macOS), chunked auto-commit. The
   Linux fcitx5 port is actively maintained and held to the same conformance
-  scenarios (C1–C13, `docs/cross-platform.md`); a behavior change in the core
+  scenarios (C1–C15, `docs/cross-platform.md`); a behavior change in the core
   is not done until Linux still passes.
 - Keyboard fuzzy matching exists in Swift only as edit repair (transpose,
   neighbor/phonetic substitution, insert/delete, tone tolerance), costed
@@ -112,7 +112,7 @@ only translate key events and draw `SessionView` (see
 where `Package.swift` declares only the core and its tests (CI `core-linux`).
 
 Platform adapters follow `docs/cross-platform.md` (contract + conformance
-scenarios C1–C12). Linux work follows `docs/linux-port.md`; run Linux
+scenarios C1–C15). Linux work follows `docs/linux-port.md`; run Linux
 commands through `script/linux/dev.sh '<cmd>'` (Docker, `linux/Dockerfile`).
 
 Adapter lessons that cost time once (keep them): send marked text to IMK as
@@ -127,3 +127,41 @@ listed in `third_party/*/sources.json` (McBopomofo, NAER); it must never
 receive user input. Do not commit `.cache/`, `.build/`, or `dist/` artifacts.
 
 Use scripts under `tools/` for deterministic replay and measurement rather than ad-hoc notebooks. Keep these commands runnable from the repository root when the implementation language changes.
+
+## Releases
+
+- Release tags use `vMAJOR.MINOR.PATCH`. Commit and push the intended changes
+  before tagging; an annotated tag at the intended HEAD followed by
+  `git push origin <tag>` automatically runs `.github/workflows/release.yml`.
+  CI runs `swift test`, packages the universal macOS DMG and update ZIP,
+  signs/notarizes when the configured secrets exist, and publishes the GitHub
+  Release, checksums, and Sparkle appcast. No local packaging is needed just
+  to cut a release. See `docs/release.md` for signing prerequisites.
+- Once the repository is public, Release also attests the final DMG, update
+  ZIP, checksums, and optional appcast with GitHub/Sigstore build provenance, and includes
+  `build-provenance.sigstore.json` for verification. All assets are uploaded
+  to a draft before publishing locks the immutable release. Never overwrite
+  published assets or move a release tag; fixes need a new version.
+  Native attestations are unavailable for this user-owned private repository:
+  while private, CI skips attestation and notes this in its summary. Keep the
+  repository private until the maintainer explicitly requests publication;
+  attestation enables automatically on new runs after it becomes public.
+- For the normal automated path, run **Actions → Tag release → Run workflow**
+  and select `major`, `minor`, or `patch` (default `patch`), or use
+  `gh workflow run tag-release.yml --ref main -f bump=minor`.
+  This tags the current remote `main` HEAD, using the numerically highest
+  stable version tag as its baseline; lower components reset on major/minor
+  bumps, and prerelease tags do not set the baseline. Existing tags are never
+  force-pushed. Publish jobs build the exact new tag.
+- The tag workflow uses `GITHUB_TOKEN`, whose tag pushes do not trigger a
+  second workflow run. It therefore explicitly dispatches the existing
+  Release workflow at the new tag with `publish=true`; no additional PAT is
+  needed. Keeping builds in Release preserves its increasing run number for
+  Sparkle. Direct manual dispatch of **Release** is artifact-only by default;
+  publishing requires its `publish` checkbox, dispatching at the existing
+  version tag (`--ref <tag>`), and `version=<tag>`. Checkout must match
+  `github.sha` so the attestation identifies the actual build source.
+- Treat this flow as the documented contract rather than rediscovering it
+  for every release. Check that the requested version is unused and verify
+  the resulting workflow status; inspect workflow internals when changing
+  them or diagnosing a failure. Report the tag, commit, and Actions URL.

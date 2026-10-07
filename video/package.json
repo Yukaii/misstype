@@ -1,0 +1,29 @@
+{
+  "name": "misstype-video",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "prepare-assets": "node scripts/prepare-assets.mjs",
+    "voiceover": "node --env-file-if-exists=../.env scripts/voiceover.mjs",
+    "music": "node --env-file-if-exists=../.env scripts/music.mjs",
+    "dev": "npm run prepare-assets && remotion studio src/index.ts",
+    "render": "npm run prepare-assets && remotion render src/index.ts Demo out/demo.mp4",
+    "render:vertical": "npm run prepare-assets && remotion render src/index.ts DemoVertical out/demo-vertical.mp4",
+    "render:en": "npm run prepare-assets && remotion render src/index.ts DemoEn out/demo-en.mp4",
+    "render:en:vertical": "npm run prepare-assets && remotion render src/index.ts DemoEnVertical out/demo-en-vertical.mp4",
+    "render:site": "npm run prepare-assets && node scripts/publish-site.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bjorn3/browser_wasi_shim": "0.4.2",
+    "@remotion/cli": "4.0.534",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "remotion": "4.0.534"
+  },
+  "devDependencies": {
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "typescript": "7.0.2"
+  }
+}

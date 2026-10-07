@@ -658,7 +658,7 @@ input must rely on context rules, which need a preceding word.
 ## Next steps (queued 2026-10-02)
 
 State: the macOS Zhuyin IME is close to daily use and the Linux fcitx5 port
-passes the same conformance scenarios (C1–C13). Open work, in the order it
+passes the same conformance scenarios (C1–C15). Open work, in the order it
 should be taken:
 
 1. **Linux desktop acceptance (L6).** Type in a real fcitx5 session (docs/
@@ -715,7 +715,7 @@ toolchain, fast builds, native C ABI) but pre-1.0. Notes for whoever does it:
   run on the real lexicon; require identical top candidates on the fixtures
   and a clear latency win before porting `InputSession`.
 - The contract that makes a port safe already exists: the C ABI
-  (`misstype.h`) and conformance scenarios C1–C13 are language-neutral, and
+  (`misstype.h`) and conformance scenarios C1–C15 are language-neutral, and
   the fcitx5 addon would not change. Alignment, caret and mark ranges are
   UTF-16 offsets (macOS marked text), so a UTF-8 language needs explicit
   conversion at those points.
