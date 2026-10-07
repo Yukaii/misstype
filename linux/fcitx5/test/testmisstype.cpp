@@ -423,11 +423,13 @@ void runAll(Instance &instance) {
         RawConfig raw;
         raw.setValueByPath("ShiftTogglesEnglish", "True");
         addon->setConfig(raw);
-        auto tapShift = [&] {
+        // releaseSym: what the layout calls the key on release. With
+        // shift:both_capslock_cancel (Omarchy) a Shift release is Caps_Lock.
+        auto tapShift = [&](KeySym releaseSym = FcitxKey_Shift_L) {
             // Taps closer than ShiftTapTracker.retriggerGuard (50 ms) count as bounce.
             std::this_thread::sleep_for(std::chrono::milliseconds(60));
             FCITX_ASSERT(!s.key(FcitxKey_Shift_L, kShiftL));
-            FCITX_ASSERT(!s.key(FcitxKey_Shift_L, kShiftL, shift, /*release=*/true));
+            FCITX_ASSERT(!s.key(releaseSym, kShiftL, shift, /*release=*/true));
         };
         tapShift();
         FCITX_ASSERT(instance.inputMethod(&ic) == "misstype") << instance.inputMethod(&ic);
@@ -438,6 +440,10 @@ void runAll(Instance &instance) {
         s.type("su3");
         FCITX_ASSERT(s.preedit() == "你") << s.preedit();
         s.clear();
+        tapShift(FcitxKey_Caps_Lock);
+        FCITX_ASSERT(s.aux() == "英") << "Shift release reported as Caps_Lock: " << s.aux();
+        tapShift(FcitxKey_Caps_Lock);
+        FCITX_ASSERT(s.aux() == "中") << s.aux();
         raw.setValueByPath("ShiftTogglesEnglish", "False");
         addon->setConfig(raw);
         hotkeys.setValueByPath("Hotkey/AltTriggerKeys/0", "Shift_L");

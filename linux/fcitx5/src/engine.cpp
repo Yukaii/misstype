@@ -334,7 +334,11 @@ private:
 
         // fcitx5 reports state BEFORE the event; the contract wants AFTER.
         // A modifier key's own press adds its bit and its release removes it.
-        if (uint32_t own = modifierBit(raw.sym())) {
+        // Shift goes by the physical key: with xkb options such as
+        // shift:both_capslock_cancel (Omarchy's default) a Shift release
+        // arrives as keysym Caps_Lock.
+        const bool shiftKey = out.kind == MISSTYPE_KEY_SHIFT_LEFT || out.kind == MISSTYPE_KEY_SHIFT_RIGHT;
+        if (uint32_t own = shiftKey ? MISSTYPE_MOD_SHIFT : modifierBit(raw.sym())) {
             mods = event.isRelease() ? (mods & ~own) : (mods | own);
         }
 

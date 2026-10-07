@@ -95,6 +95,7 @@ Each was run end to end in the dev container, so tasks can rely on them:
 | fcitx5 `Text::setCursor` counts **UTF-8 bytes** | C ABI exposes `caret_bytes` |
 | fcitx5 `GlobalConfig::altTriggerKeys` defaults to `Shift_L`; in the harness a lone `Shift_L` tap (press `Key(Shift_L, {}, 50)`, release `Key(Shift_L, Shift, 50)`) switched the IC to `keyboard-us` | fcitx5 owns lone-Shift 中/英; the session's `shift_toggle` is 0 on Linux |
 | fcitx5 reports modifier state **before** the event (X11 semantics) | Adapter corrects Shift's own press/release (contract §1) |
+| With xkb `shift:both_capslock_cancel` (Omarchy's default, 2026-10-07 key trace) a Shift **release** arrives as keysym `Caps_Lock` with keycode 50/62 | Recognize Shift by keycode, not keysym, or a lone tap never completes (LR7) |
 | On Docker Desktop for macOS, a file edited on the host can be read stale through the bind mount for a moment | If the container reports impossible errors (e.g. "unterminated #ifdef" in a complete file), rerun |
 
 ## Target layout
