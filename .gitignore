@@ -16,3 +16,16 @@ site/public/
 .env.local
 .env.quiver
 .playwright-mcp/
+# Local makepkg sources and package artifacts (keep PKGBUILD/.SRCINFO).
+linux/aur/src/
+linux/aur/pkg/
+linux/aur/mistype/
+linux/aur/misstype/
+linux/aur/*.pkg.tar.*
+linux/aur/*.log
+linux/aur/*.log.*
+linux/aur/*.txt
+linux/aur/*.tsv
+linux/aur/*.occ
+linux/aur/*.list
+linux/aur/mcbopomofo-README.md

@@ -49,6 +49,10 @@ settings UI, distro packages. See the backlog (L7).
 
 ## Bare-metal (no Docker)
 
+For Arch Linux / Omarchy, use the pacman-managed package recipe and desktop
+setup instructions in [docs/arch-linux.md](arch-linux.md). The Ubuntu
+bootstrap script below is not intended for Arch.
+
 The container remains the canonical path, but the Linux layers also run
 directly on an Ubuntu 24.04 host (verified 2026-10-01):
 
@@ -538,7 +542,8 @@ scripts).
   learning) mapped onto `misstype_settings`.
 - Library size (~56–71 MB): `-Xlinker --gc-sections`, strip at install, or a
   Foundation-free core.
-- Packaging: `.deb`, AUR, Flatpak (fcitx5 addon in a Flatpak runtime needs
+- Packaging: AUR recipe in `linux/aur/PKGBUILD` (publication pending;
+  [Arch guide](arch-linux.md)); `.deb`, Flatpak (fcitx5 addon in a Flatpak runtime needs
   research).
 
 ## Open decisions (owner: user)

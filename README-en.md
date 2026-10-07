@@ -51,6 +51,9 @@ Download `Misstype-<version>.dmg` from [GitHub Releases](https://github.com/Yuka
 
 Supported as an fcitx5 addon sharing the same core as macOS. See the [Linux port](docs/linux-port.md) for install and status.
 
+For Arch Linux / Omarchy, see [package build, installation and removal](docs/arch-linux.md).
+An AUR submission candidate is available in `linux/aur/PKGBUILD`.
+
 To build from source see [Development, build and release](docs/development.md).
 
 ## Usage

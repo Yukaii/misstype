@@ -53,6 +53,8 @@
 
 以 fcitx5 外掛支援 Linux，與 macOS 版共用同一個核心。安裝與進度見 [Linux 移植說明](docs/linux-port.md)。
 
+Arch Linux / Omarchy 的套件建置、安裝與移除方式請參閱 [安裝說明](docs/arch-linux.md)。AUR 投稿用的套件配方位於 `linux/aur/PKGBUILD`（尚未發布至 AUR）。
+
 從原始碼建置請見[開發、建置與發布](docs/development.md)。
 
 ## 打字操作指南
