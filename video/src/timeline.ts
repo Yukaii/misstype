@@ -2,7 +2,13 @@ import story from "../story.json";
 
 export const FPS = 30;
 
-export type Beat = (typeof story.beats)[number] & {
+export type Lang = "zh" | "en";
+
+// A beat's text in one language: `en` fields override the Chinese ones.
+export type Beat = {
+  id: string;
+  holdSec: number;
+  narration: string;
   label?: string;
   keys?: string;
   title?: string;
@@ -13,7 +19,8 @@ export type Beat = (typeof story.beats)[number] & {
 // named key); `typo` marks keys written inside [...] in story.json.
 export type Stroke = { label: string; typo: boolean; frame: number };
 
-// Written by scripts/voiceover.mjs; times are seconds from the line's start.
+// Written by scripts/voiceover.mjs (public/voice/<lang>/manifest.json); times
+// are seconds from the line's start. buildTimeline makes `file` a public path.
 export type VoiceLine = {
   file: string;
   durationSec: number;
@@ -55,10 +62,14 @@ export function parseKeys(keys: string): Omit<Stroke, "frame">[] {
   return out;
 }
 
-export function buildTimeline(voices: VoiceManifest = {}) {
+export function localize(lang: Lang): Beat[] {
+  return story.beats.map(({ en, ...zh }) => (lang === "en" ? { ...zh, ...en } : zh));
+}
+
+export function buildTimeline(lang: Lang, voices: VoiceManifest = {}) {
   let from = 0;
   let n = 0;
-  const beats: TimedBeat[] = story.beats.map((beat: Beat) => {
+  const beats: TimedBeat[] = localize(lang).map((beat) => {
     let t = beat.keys ? LEAD_IN : 0;
     const strokes = beat.keys
       ? parseKeys(beat.keys).map((s) => {
@@ -68,7 +79,8 @@ export function buildTimeline(voices: VoiceManifest = {}) {
           return { ...s, frame: Math.round(t * FPS) };
         })
       : [];
-    const voice = voices[beat.id];
+    const line = voices[beat.id];
+    const voice = line && { ...line, file: `voice/${lang}/${line.file}` };
     const seconds = Math.max(t + beat.holdSec, (voice?.durationSec ?? 0) + 0.4);
     const timed = { beat, from, durationInFrames: Math.ceil(seconds * FPS), strokes, voice };
     from += timed.durationInFrames;

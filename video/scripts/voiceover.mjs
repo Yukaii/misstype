@@ -1,9 +1,11 @@
 // Narration for story.json via ElevenLabs. This sends only the narration
 // lines written in story.json (never decoder input or user text) and logs
-// every request. Output: public/voice/<beat>.mp3 + manifest.json with
+// every request. Output: public/voice/<lang>/<beat>.mp3 + manifest.json with
 // per-phrase caption timings taken from the character alignment.
 //
-//   ELEVENLABS_API_KEY=... [ELEVENLABS_VOICE_ID=...] npm run voiceover [-- --force]
+//   ELEVENLABS_API_KEY=... npm run voiceover [-- --lang en] [--force]
+//
+// The voice is story.json voices.<lang> (ELEVENLABS_VOICE_ID overrides it).
 //
 // Lines whose text, voice and model are unchanged are not re-requested.
 import crypto from "node:crypto";
@@ -12,37 +14,45 @@ import path from "node:path";
 
 const root = path.resolve(import.meta.dirname, "..");
 const story = JSON.parse(fs.readFileSync(path.join(root, "story.json"), "utf8"));
-const outDir = path.join(root, "public/voice");
+const argv = process.argv.slice(2);
+const lang = argv.includes("--lang") ? argv[argv.indexOf("--lang") + 1] : "zh";
+const voice = story.voices[lang];
+if (!voice) {
+  console.error(`no voices.${lang} in story.json`);
+  process.exit(1);
+}
+const outDir = path.join(root, "public/voice", lang);
 const manifestPath = path.join(outDir, "manifest.json");
 
 const apiKey = process.env.ELEVENLABS_API_KEY;
-const voiceId = process.env.ELEVENLABS_VOICE_ID || story.voice.voiceId;
-const modelId = process.env.ELEVENLABS_MODEL_ID || story.voice.modelId;
+const voiceId = process.env.ELEVENLABS_VOICE_ID || voice.voiceId;
+const modelId = process.env.ELEVENLABS_MODEL_ID || voice.modelId;
 if (!apiKey || !voiceId) {
-  console.error("Set ELEVENLABS_API_KEY and a voice (ELEVENLABS_VOICE_ID or story.json voice.voiceId).");
+  console.error(`Set ELEVENLABS_API_KEY and a voice (ELEVENLABS_VOICE_ID or story.json voices.${lang}.voiceId).`);
   process.exit(1);
 }
 
 fs.mkdirSync(outDir, { recursive: true });
 const old = fs.existsSync(manifestPath) ? JSON.parse(fs.readFileSync(manifestPath, "utf8")) : {};
-const force = process.argv.includes("--force");
+const force = argv.includes("--force");
 const manifest = {};
 
-for (const beat of story.beats) {
+for (const base of story.beats) {
+  const beat = lang === "zh" ? base : { ...base, ...base[lang] };
   if (!beat.narration) continue;
   const hash = crypto.createHash("sha256")
-    .update(JSON.stringify([beat.narration, voiceId, modelId, story.voice.languageCode]))
+    .update(JSON.stringify([beat.narration, voiceId, modelId, voice.languageCode]))
     .digest("hex").slice(0, 16);
   const file = `${beat.id}.mp3`;
   if (!force && old[beat.id]?.hash === hash && fs.existsSync(path.join(outDir, file))) {
     manifest[beat.id] = old[beat.id];
-    console.log(`= ${beat.id} (cached)`);
+    console.log(`= ${lang}/${beat.id} (cached)`);
     continue;
   }
 
-  console.log(`→ ElevenLabs ${modelId}: ${beat.id} (${beat.narration.length} chars)`);
+  console.log(`→ ElevenLabs ${modelId}: ${lang}/${beat.id} (${beat.narration.length} chars)`);
   const body = { text: beat.narration, model_id: modelId };
-  if (story.voice.languageCode) body.language_code = story.voice.languageCode;
+  if (voice.languageCode) body.language_code = voice.languageCode;
   const res = await fetch(
     `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/with-timestamps?output_format=mp3_44100_128`,
     {
