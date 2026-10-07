@@ -10,6 +10,11 @@ skill's figure format, so the skill's checks run on it unchanged.
 appended (`export { HL };`) so Vite can import it. `../hero-figure.js` plays the
 part of the skill's bench: it mounts the figure into `.hero-figure`.
 
+Beyond the skill's `{ set, destroy }`, the figure's handle has `press(key)` and
+`release(key)` (a Zhuyin symbol or a `KeyboardEvent.code`). `hero-figure.js`
+calls them for the demo animation (`misstype:key` events from `demo.js`) and
+for keys typed inside `.demo`, which is where the playground lives.
+
 To check the figure after a change, from any scratch directory:
 
 ```sh
