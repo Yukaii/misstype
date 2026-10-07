@@ -2,7 +2,8 @@
 
 Two plain HTML pages built with Vite (no framework, no web fonts, no
 trackers). `index.html` is Traditional Chinese, `en/index.html` English; both
-share `style.css` and `demo.js`. Files in `public/` are copied as-is.
+share `style.css` and `demo.js`. Files in `public/` are copied as-is. The
+keyboard beside the hero is a Hairline line figure; see `hairline/README.md`.
 
 ```sh
 cd site

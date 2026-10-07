@@ -54,7 +54,43 @@ a:hover { color: var(--mark); }
 
 /* Hero */
 
-.hero { padding-top: 56px; padding-bottom: 40px; }
+.hero {
+  padding-top: 56px;
+  padding-bottom: 40px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* The keyboard figure (hairline/keys.js): line drawing in the page's own
+   ink, on the page's paper. Beside the headline on wide screens, under the
+   call to action otherwise. */
+.hero-figure {
+  position: relative;
+  max-width: 460px;
+  margin: -48px -12px -56px;
+  --hairline-plate: var(--paper);
+  --hairline-hi: var(--ink);
+  --hairline-edge: #9f9a8f;
+  --hairline-mid: #c4bfb3;
+  --hairline-lo: #e2ddd2;
+  --hairline-stroke: 1;
+}
+.hero-figure .read {
+  position: absolute;
+  top: 28%;
+  right: 20%;
+  color: var(--mark);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1;
+  pointer-events: none;
+}
+@media (min-width: 860px) {
+  .hero { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 0; align-items: center; }
+  .hero-figure { margin: -72px -64px -64px -24px; max-width: none; }
+  .hero .demo { grid-column: 1 / -1; }
+  .hero .hero-text h1 { font-size: clamp(30px, 3.4vw, 36px); }
+}
 .hero h1 {
   margin: 0 0 16px;
   font-size: clamp(30px, 5.2vw, 46px);
