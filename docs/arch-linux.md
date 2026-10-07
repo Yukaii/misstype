@@ -48,6 +48,12 @@ and headless fcitx5 conformance tests. Swift is required only at build time;
 the packaged library embeds its Swift runtime. `x86_64` and `aarch64` are
 declared; see the verification record for architectures actually tested.
 
+The combined Linux-preferences build also packages `misstypectl`, the GTK4
+dictionary editor, and its desktop entry. GTK4 is a runtime dependency and
+`pkgconf` is needed at build time so CMake discovers the editor dependencies.
+The recipe builds the static-runtime CLI before configuring CMake, which
+installs it alongside the editor.
+
 The addon uses C++20 for current fcitx5 headers (`std::source_location`).
 The recipe carries the matching CMake patch until it is merged upstream.
 Split debug packaging is disabled because Arch's `debugedit` does not handle

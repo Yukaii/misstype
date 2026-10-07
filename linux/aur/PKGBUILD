@@ -6,8 +6,8 @@ pkgdesc='Offline, fuzzy Zhuyin input method for fcitx5'
 arch=('x86_64' 'aarch64')
 url='https://github.com/Yukaii/misstype'
 license=('MIT' 'BSD-3-Clause' 'CC-BY-4.0' 'CC-BY-SA-4.0')
-depends=('fcitx5' 'curl' 'gcc-libs' 'glibc')
-makedepends=('git' 'cmake' 'ninja' 'python' 'swift-language')
+depends=('fcitx5' 'curl' 'gcc-libs' 'glibc' 'gtk4')
+makedepends=('git' 'cmake' 'ninja' 'python' 'swift-language' 'pkgconf')
 optdepends=('fcitx5-configtool: add Misstype to your input methods'
             'fcitx5-gtk: GTK application integration'
             'fcitx5-qt: Qt application integration')
@@ -70,6 +70,7 @@ build() {
     cd "$srcdir/misstype"
     swift build -c release --product MisstypeCAPI -Xswiftc -static-stdlib \
         -Xlinker -soname=libMisstypeCAPI.so
+    swift build -c release --product misstypectl -Xswiftc -static-stdlib
     local capi_dir
     capi_dir=$(swift build -c release --show-bin-path)
     cmake -S linux/fcitx5 -B build/arch -G Ninja \
