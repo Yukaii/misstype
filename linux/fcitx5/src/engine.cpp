@@ -59,6 +59,9 @@ FCITX_CONFIGURATION(
     fcitx::Option<int, fcitx::IntConstrain> autoCommitSyllables{
         this, "AutoCommitSyllables", "Commit long input in chunks after N syllables (0 = never)", 24,
         fcitx::IntConstrain(0, 64)};
+    fcitx::Option<bool> shiftTogglesEnglish{
+        this, "ShiftTogglesEnglish",
+        "Lone Shift switches 中/英 in Misstype (clear fcitx5's Temporarily Toggle Input Method key)", false};
     fcitx::ExternalOption myDictionary{this, "MyDictionary", "My Dictionary", "misstype-dictionary-editor"};);
 
 /// Owned copy of a misstype_view; comparable so unchanged views are not redrawn.
@@ -255,10 +258,11 @@ private:
         if (!engine_) {
             return;
         }
-        // fcitx5 owns lone Shift (AltTriggerKeys), so the session must not
-        // also toggle 中/英 on a Shift tap.
+        // Lone Shift belongs to fcitx5 (AltTriggerKeys) unless the page hands
+        // it to the session (macOS behavior, docs/linux-port.md D1). fcitx5
+        // sees the tap first, so that also needs AltTriggerKeys cleared.
         misstype_settings settings = misstype_settings_default();
-        settings.shift_toggle = 0;
+        settings.shift_toggle = *config_.shiftTogglesEnglish;
         const int strength = static_cast<int>(*config_.repairStrength);
         settings.fuzzy_repair = strength != 0;
         settings.tone_tolerance = *config_.toneTolerance;

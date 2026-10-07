@@ -1,5 +1,5 @@
 // Headless conformance tests for the fcitx5 adapter: docs/cross-platform.md
-// scenarios C1-C13 plus the Linux delivery rules LR1-LR4, driven through
+// scenarios C1-C13 plus the Linux delivery rules LR1-LR7, driven through
 // fcitx5's in-process test frontend. A wrong commit aborts inside
 // pushCommitExpectation; every other check is FCITX_ASSERT.
 #include <fcitx-utils/eventdispatcher.h>
@@ -16,11 +16,13 @@
 #include <fcitx/instance.h>
 #include <testfrontend_public.h>
 
+#include <chrono>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
 #include <string>
+#include <thread>
 
 using namespace fcitx;
 
@@ -377,6 +379,38 @@ void runAll(Instance &instance) {
         raw.setValueByPath("CandidatesPerPage", "8");
         addon->setConfig(raw);
         pass("LR5");
+    }
+
+    // LR7: ShiftTogglesEnglish hands a lone Shift tap to the session (macOS
+    // 中/英); fcitx5's AltTriggerKeys must be empty or it switches first.
+    {
+        RawConfig hotkeys;
+        hotkeys.setValueByPath("Hotkey/AltTriggerKeys", "");
+        instance.globalConfig().load(hotkeys, true);
+        FCITX_ASSERT(instance.globalConfig().altTriggerKeys().empty());
+        RawConfig raw;
+        raw.setValueByPath("ShiftTogglesEnglish", "True");
+        addon->setConfig(raw);
+        auto tapShift = [&] {
+            // Taps closer than ShiftTapTracker.retriggerGuard (50 ms) count as bounce.
+            std::this_thread::sleep_for(std::chrono::milliseconds(60));
+            FCITX_ASSERT(!s.key(FcitxKey_Shift_L, kShiftL));
+            FCITX_ASSERT(!s.key(FcitxKey_Shift_L, kShiftL, shift, /*release=*/true));
+        };
+        tapShift();
+        FCITX_ASSERT(instance.inputMethod(&ic) == "misstype") << instance.inputMethod(&ic);
+        FCITX_ASSERT(s.aux() == "英") << s.aux();
+        FCITX_ASSERT(!s.key(FcitxKey_s, physical('s').evdev)) << "English passes keys through";
+        tapShift();
+        FCITX_ASSERT(s.aux() == "中") << s.aux();
+        s.type("su3");
+        FCITX_ASSERT(s.preedit() == "你") << s.preedit();
+        s.clear();
+        raw.setValueByPath("ShiftTogglesEnglish", "False");
+        addon->setConfig(raw);
+        hotkeys.setValueByPath("Hotkey/AltTriggerKeys/0", "Shift_L");
+        instance.globalConfig().load(hotkeys, true);
+        pass("LR7");
     }
 
     // C4 runs last: committing 尼 teaches the user lexicon, which would

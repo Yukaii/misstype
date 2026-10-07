@@ -534,14 +534,15 @@ Landed 2026-10-04 (macOS Settings parity, except Jev and About):
   (Off/Light/Standard/Strong), `ToneTolerance`, `UserLearning`,
   `ChannelLearning`, `MixedEnglish`, `AutoShowCandidates`,
   `ReturnConfirmsSelection`, `CandidateKeys`, `CandidatesPerPage` (4–10),
-  `CursorCandidates` (Covering/EndingAt/BeginningAt), `AutoCommitSyllables`;
+  `CursorCandidates` (Covering/EndingAt/BeginningAt), `AutoCommitSyllables`,
+  `ShiftTogglesEnglish` (default off, see D1);
   stored in `~/.config/fcitx5/conf/misstype.conf`, applied to live sessions
   through `misstype_engine_set_settings` (ABI v1 gained six appended
   `misstype_settings` fields), `misstype_engine_set_repair_strength` and
   `misstype_engine_set_channel_learning`. These replace the
   `MISSTYPE_CHANNEL_LEARNING` / `MISSTYPE_REPAIR_STRENGTH` environment
   variables. Lone Shift stays with fcitx5 (`AltTriggerKeys`). Covered by
-  headless scenarios LR5 (live settings, page size) and LR6 (defaults). The "My Dictionary" button is an
+  headless scenarios LR5 (live settings, page size) and LR6 (defaults), LR7 (lone Shift to the session). The "My Dictionary" button is an
   `ExternalOption` pointing at `misstype-dictionary-editor`; whether a given
   configtool build launches a bare program name is **not verified** (open the
   editor from the app menu or `misstypectl dict gui` otherwise).
@@ -551,7 +552,7 @@ Landed 2026-10-04 (macOS Settings parity, except Jev and About):
   vChewing-userdata-generator output pastes in) line by line (comments survive) with
   `UserDictionary`'s own validation; `config list|get|set|reset|path` edits
   the same `misstype.conf` the page does (values validated, unknown lines
-  kept, `fcitx5-remote -r` asked to reload unless `--no-reload`).
+  kept, fcitx5 asked over D-Bus to reload the addon unless `--no-reload`; `fcitx5-remote -r` would reload only the global config).
 - **`misstype-dictionary-editor`** (GTK4, `linux/fcitx5/tools`): list, add,
   remove, un-hide. It owns no logic, it shells out to `misstypectl dict`. The
   reading field takes Zhuyin typed with a non-Misstype layout (typing with
@@ -583,7 +584,10 @@ Backlog (not scheduled):
   `AltTriggerKeys` (switches to `keyboard-us`), session `shift_toggle = 0`.
   Alternative: remove `Shift_L` from `AltTriggerKeys` and let the session
   toggle its own English mode (matches macOS exactly, but needs a user-side
-  fcitx5 config change).
+  fcitx5 config change). Available as the opt-in `ShiftTogglesEnglish`
+  setting (2026-10-07, headless LR7); the user still clears fcitx5's
+  "Temporarily Toggle Input Method" key, because fcitx5 handles that key
+  before the input method sees it.
 - **D2 Editing chords.** macOS Cmd+Backspace (clear) and Option+Backspace
   (delete syllable) map literally to Super/Alt+Backspace on Linux, where
   users expect Ctrl+Backspace. The plan keeps the literal mapping; decide
