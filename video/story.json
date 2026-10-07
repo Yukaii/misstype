@@ -7,10 +7,10 @@
   "beats": [
     {
       "id": "intro",
-      "title": "Misstype 隨打注音",
-      "subtitle": "打錯了也沒關係的注音輸入法",
+      "title": "隨打注音",
+      "subtitle": "Misstype · 打錯了也沒關係的注音輸入法",
       "holdSec": 2.4,
-      "narration": "這是 Misstype，一個打錯了也沒關係的注音輸入法。"
+      "narration": "這是隨打注音，一個打錯了也沒關係的注音輸入法。"
     },
     {
       "id": "toneless",
@@ -35,8 +35,8 @@
     },
     {
       "id": "outro",
-      "title": "Misstype",
-      "subtitle": "純本機運算 · 不需網路",
+      "title": "隨打注音",
+      "subtitle": "Misstype · 純本機運算 · 不需網路",
       "holdSec": 2.6,
       "narration": "全部在你的電腦上運算，打的字不會傳出去。"
     }
