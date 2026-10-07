@@ -2,7 +2,8 @@ cmake_minimum_required(VERSION 3.16)
 # The project name sets CMAKE_INSTALL_DOCDIR (share/doc/misstype).
 project(misstype VERSION 0.1 LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 17)
+# Newer fcitx5 headers use std::source_location (C++20).
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include(GNUInstallDirs)
