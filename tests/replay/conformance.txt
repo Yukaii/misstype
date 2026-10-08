@@ -1,0 +1,76 @@
+# Conformance scenarios C1-C15 (docs/cross-platform.md) on the fixture lexicon.
+@engine fixture
+@case C1
+k s u 3 c l 3
+k enter
+@case C2
+k enter
+k bs
+k left
+k space
+@case C3
+k s u 3 c l 3
+k bs
+@case C4
+k s u 3
+k tab
+k d
+k enter
+@case C5
+k s u 3
+k down
+k esc
+k esc
+@case C6
+k s u 3
+k S-,
+k S-a
+k enter
+@case C7
+k s u 3
+k `
+k h i
+k esc
+k esc
+k esc
+k o k
+k esc
+k esc
+k esc
+k `
+@case C8
+k s u 3 c l 3
+k right
+k left
+k tab
+@case C9
+k s u 3
+k C-c
+@case C10
+k s u 3
+k S-space
+k s
+k S-space
+@case C11
+k s u 3
+commit
+@case C12
+k s u 3
+pick 3
+@case C13
+k s u 3 c l 3
+k S-left
+k S-left
+k enter
+@case C14
+k s u 3 a 8 7
+k left
+k c l 3
+@case C15
+k s u 3
+k `
+t hello world
+k A-bs
+t world
+k A-left
+t big 
