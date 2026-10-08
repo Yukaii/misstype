@@ -1,0 +1,86 @@
+# name	kind	syllables (keys; trailing 3/4/6/7 = tone, _ = space tone)
+# Generated from tools/baseline/probes.tsv; synthetic.
+ni-hao	toned	su3 cl3
+ni-hao	toneless	su cl
+zao-shang-hao	toned	yl3 g;4 cl3
+zao-shang-hao	toneless	yl g; cl
+wo-shi-xue-sheng	toned	ji3 g4 vm,6 g/_
+wo-shi-xue-sheng	toneless	ji g vm, g/
+dada	toned	hk4 g4 u6 vu84 cjo4 1j6 cjo4 283 2jo4
+dada	toneless	hk g u vu8 cjo 1j cjo 28 2jo
+weather	toned	rup_ wu0_ wu0_ fu4 cp3 cl3
+weather	toneless	rup wu0 wu0 fu cp cl
+library	toned	ji3 vu;3 fm4 wj6 gj_ ej03
+library	toneless	ji vu; fm wj gj ej0
+station	toned	fu/3 jp4 cji3 tk_ 504 y94 s83 xu3
+station	toneless	fu/ jp cji tk 50 y9 s8 xu
+meeting	toned	au/6 wu0_ yl3 g;4 ru.3 2u03 d9_ cjo4
+meeting	toneless	au/ wu0 yl g; ru. 2u0 d9 cjo
+movie	toned	5k4 ek4 5._ ai4 u4 fu3 fm4 d04 2u04 u/3
+movie	toneless	5k ek 5. ai u fu fm d0 2u0 u/
+thanks	toned	vu,4 vu,4 su3 1;_ a;6
+thanks	toneless	vu, vu, su 1; a;
+coffee	toned	ji3 vu3 cj0_ ck_ d8_ zo_
+coffee	toneless	ji vu cj0 ck d8 zo
+mrt	toned	w96 1o3 ru,6 mp4 cp3 z;_ 1u04
+mrt	toneless	w9 1o ru, mp cp z; 1u0
+dinner	toned	ji3 ap6 u4 fu3 t_ j03 h0_
+dinner	toneless	ji ap u fu t j0 h0
+report	toned	5k4 zp4 1l4 el4 au/6 wu0_ ul4 rul_
+report	toneless	5k zp 1l el au/ wu0 ul rul
+ime	toned	gj_ bj4 z83 dk3 u3 vm,6 vu6 g3 m/4 5k3 vu6 ej04
+ime	toneless	gj bj z8 dk u vm, vu g m/ 5k vu ej0
+typing	toned	283 y4 nj4 2j4 m,4 x96 m,4 dj94
+typing	toneless	28 y nj 2j m, x9 m, dj9
+breakfast	toned	ji3 rup_ wu0_ ao6 u.3 t_ yl3 h0_
+breakfast	toneless	ji rup wu0 ao u. t yl h0
+noodles	toned	5k4 ru8_ h0_ wu/_ su.6 b.4 au04 cp3 cl3 t_
+noodles	toneless	5k ru8 h0 wu/ su. b. au0 cp cl t
+friday	toned	5._ j3 j03 g;4 u.3 dj/4
+friday	toneless	5. j j0 g; u. dj/
+coding	toned	ji3 5/4 y94 vm,6 vu6 vu,3 t/6 g4
+coding	toneless	ji 5/ y9 vm, vu vu, t/ g
+japan	toned	vu84 ek4 m,4 ul4 fm4 b4 1p3 xm3 vu/6
+japan	toneless	vu8 ek m, ul fm b 1p xm vu/
+window	toned	fu/3 183 tj;_ cj4 ej0_ fu3 x96
+window	toneless	fu/ 18 tj; cj ej0 fu x9
+aircon	toned	wu0_ fu4 w94 bk4 nji3 u3 d9_ x/3 fu4
+aircon	toneless	wu0 fu w9 bk nji u d9 x/ fu
+late	toned	w8_ yji6 wu0_ cp3 j03 h96 gjo4
+late	toneless	w8 yji wu0 cp j0 h9 gjo
+book	toned	5k4 1p3 gj_ zo_ t;6 u.3 fm4
+book	toneless	5k 1p gj zo t; u. fm
+policy	toned	5/4 zj3 vm0_ 1j4 vup_ 5/4 hk4
+policy	toneless	5/ zj vm0 1j vup 5/ hk
+economy	toned	ru/_ ru4 t/6 5;3 nj4 2j4 z;4 a04
+economy	toneless	ru/ ru t/ 5; nj 2j z; a0
+prepare	toned	fu/3 y94 cjo4 u4 fu06 5jp3 1o4 cl3 y_ xul4
+prepare	toneless	fu/ y9 cjo u fu0 5jp 1o cl y xul
+rain	toned	5._ ai4 wu0_ fu4 m4 1l4 cjo4 vu84 m3
+rain	toneless	5. ai wu0 fu m 1l cjo vu8 m
+crash	toned	2u04 sl3 wj_ b06 2;_ ru_
+crash	toneless	2u0 sl wj b0 2; ru
+park	toned	vul3 q/6 u.3 y94 ej/_ m06 j06 gj83
+park	toneless	vul q/ u. y9 ej/ m0 j0 gj8
+work	toned	w8_ cp3 sj3 xu4 ej/_ yji4
+work	toneless	w8 cp sj xu ej/ yji
+booking	toned	fu/3 1;_ ji3 m4 2u/4 cjo4 u4 g4
+booking	toneless	fu/ 1; ji m 2u/ cjo u g
+discuss	toned	5k4 ek4 jp4 wu6 vm_ ul4 y3 vu4 wl3 xjp4
+discuss	toneless	5k ek jp wu vm ul y vu wl xjp
+market	toned	ji3 yji6 wu0_ fm4 tl_ g4 a93 h94
+market	toneless	ji yji wu0 fm tl g a9 h9
+beach	toned	vu84 wu0_ c93 1u0_ bp6 cp3 2ji_
+beach	toneless	vu8 wu0 c9 1u0 bp cp 2ji
+boss	toned	xl3 103 rm,6 2u/4 wu6 yl3 vu84 10_
+boss	toneless	xl 10 rm, 2u/ wu yl vu8 10
+phone	toned	g.3 ru_ dj94 ao6 2u04
+phone	toneless	g. ru dj9 ao 2u0
+number	toned	fu/3 el4 nj4 ji3 2u04 cj84 cl4 a83
+number	toneless	fu/ el nj ji 2u0 cj8 cl a8
+quiet	toned	wj6 gj_ ej03 rup4 53 284 g/_ gji_ cj84
+quiet	toneless	wj gj ej0 rup 5 28 g/ gji cj8
+jog	toned	5._ b4 yl3 g;4 fm4 ej/_ m06 ql3 1j4
+jog	toneless	5. b yl g; fm ej/ m0 ql 1j
+winter	toned	rup_ su06 2j/_ wu0_ wk4 1u,6 x/3
+winter	toneless	rup su0 2j/ wu0 wk 1u, x/

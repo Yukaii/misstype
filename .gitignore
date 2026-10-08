@@ -29,3 +29,6 @@ linux/aur/*.tsv
 linux/aur/*.occ
 linux/aur/*.list
 linux/aur/mcbopomofo-README.md
+# Zig port (docs/zig-port.md) build products.
+core-zig/.zig-cache/
+core-zig/zig-out/

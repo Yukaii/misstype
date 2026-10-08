@@ -1,0 +1,7 @@
+.{
+    .name = .misstype_core,
+    .version = "0.0.0",
+    .fingerprint = 0xd365f4bbd22b278b,
+    .minimum_zig_version = "0.17.0",
+    .paths = .{ "build.zig", "build.zig.zon", "src" },
+}

@@ -34,6 +34,13 @@ This repository is an experimental input device and decoder. The current goal is
   keystroke); real-typing quality is unmeasured. Python remains the reference for the touch semantics only; the
   "do not port" rule below applies to everything else.
 
+- A Zig rewrite of the core is being evaluated (`docs/zig-port.md`,
+  `core-zig/`). Step 0 (2026-10-08): the exact-input decoder matches Swift
+  on all 1,344 probe candidates, bit for bit, at 14x lower latency. Until
+  the port reaches parity and a platform switches over, Swift
+  `MisstypeCore` stays the source of truth; Zig follows it through
+  `core-zig/bench/compare.sh`.
+
 - macOS packaging is verified on a Mac (2026-10-04, macOS 27) except a few
   GUI paths: a per-user installer app in a DMG, Sparkle 2 updates from GitHub
   Releases, signed and notarized by `release.yml` (dispatch run, Gatekeeper
