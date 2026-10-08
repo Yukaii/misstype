@@ -1,12 +1,11 @@
 name: CI
 
-# Keeps MisstypeCore (decoder + InputSession) portable: the core and its
-# tests must build and pass on Linux, where only the core target exists
-# (Package.swift gates the macOS adapter). macOS is exercised by release.yml.
+# Keeps the Swift reference and Zig port portable and checks their parity.
+# macOS shipping behavior is exercised by release.yml until its C ABI cutover.
 # Site and docs-only changes skip it (the site has its own build in pages.yml).
 on:
   push:
-    branches: [main]
+    branches: [main, zig-core-spike]
     paths-ignore:
       - "site/**"
       - ".github/workflows/pages.yml"
@@ -18,12 +17,35 @@ on:
       - ".github/workflows/pages.yml"
       - "docs/**"
       - "**/*.md"
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  zig-core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache pinned Zig toolchain and compiler
+        uses: actions/cache@v4
+        with:
+          path: |
+            .cache/zig
+            ~/.cache/zig
+            core-zig/.zig-cache
+          key: zig-core-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('script/zig/bootstrap.sh') }}-${{ hashFiles('core-zig/src/*.zig', 'core-zig/build.zig', 'core-zig/build.zig.zon') }}
+          restore-keys: |
+            zig-core-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('script/zig/bootstrap.sh') }}-
+      - name: Format and test Zig in Debug and ReleaseFast
+        run: |
+          zig=$(script/zig/bootstrap.sh)
+          cd core-zig
+          "$zig" fmt --check build.zig src
+          "$zig" build test
+          "$zig" build test -Doptimize=ReleaseFast
+
   core-linux:
     runs-on: ubuntu-latest
     container: swift:6.0
@@ -34,10 +56,10 @@ jobs:
 
   fcitx5-linux:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
-      # Same image as local development (linux/Dockerfile); tests only, so CI
-      # never downloads the lexicon.
+      # Same image as local development for both C ABI implementations.
       - uses: docker/setup-buildx-action@v3
       - name: Linux test image
         uses: docker/build-push-action@v6
@@ -54,3 +76,51 @@ jobs:
         env:
           MISSTYPE_LINUX_PREBUILT: "1"
         run: script/linux/dev.sh 'script/linux/test_capi.sh && script/linux/test_fcitx5.sh'
+      - name: Cache pinned Zig toolchain and compiler
+        uses: actions/cache@v4
+        with:
+          path: |
+            .cache/zig
+            ~/.cache/zig
+            core-zig/.zig-cache
+          key: zig-linux-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('script/zig/bootstrap.sh') }}-${{ hashFiles('core-zig/src/*.zig', 'core-zig/build.zig', 'core-zig/build.zig.zon') }}
+          restore-keys: |
+            zig-linux-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('script/zig/bootstrap.sh') }}-
+      - name: Zig C ABI and fcitx5 addon
+        env:
+          MISSTYPE_LINUX_PREBUILT: "1"
+        run: script/zig/test_linux.sh
+      - name: Cache public dictionary sources
+        uses: actions/cache@v4
+        with:
+          path: |
+            .cache/mcbopomofo
+            .cache/naer
+            .cache/frequencywords
+          key: zig-lexicon-${{ hashFiles('third_party/*/sources.json', 'script/prepare_lexicon.py', 'Resources/reading_order.tsv') }}
+      - name: Prepare checksum-verified public lexicons
+        run: python3 script/prepare_lexicon.py
+      - name: Exact decoder parity against Swift
+        env:
+          MISSTYPE_LINUX_PREBUILT: "1"
+        run: core-zig/bench/compare.sh 10
+      - name: Debug session parity against Swift
+        env:
+          MISSTYPE_LINUX_PREBUILT: "1"
+        run: core-zig/bench/replay.sh 400 1
+      - name: ReleaseFast session parity against Swift
+        env:
+          MISSTYPE_LINUX_PREBUILT: "1"
+          MISSTYPE_ZIG_OPTIMIZE: ReleaseFast
+        run: core-zig/bench/replay.sh 400 1
+      - name: Upload synthetic replay diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zig-replay-diagnostics
+          path: |
+            build/replay/*.txt
+            build/replay/*.log
+            build/replay/scripts/*.txt
+          retention-days: 7
+          if-no-files-found: ignore

@@ -181,3 +181,40 @@ Swift loads them in the background; the reference replay waits for that
 load. No platform default or installer has switched to Zig. macOS,
 `misstypectl`, Wasm, and running cross-compiled binaries are still later
 milestones.
+
+## CI and remaining cutover work
+
+CI runs on pull requests, pushes to `main` and `zig-core-spike`, and manual
+dispatch. `zig-core` checks formatting and unit tests in Debug and
+ReleaseFast. `fcitx5-linux` retains the Swift checks and also runs the Zig
+C ABI smoke/symbol checks, all addon scenarios, exact candidate parity,
+and 400-session replay parity in both build modes. It downloads only the
+checksum-pinned public dictionaries; toolchain/compiler and source caches
+are separate. Failed replay transcripts are synthetic and retained as CI
+artifacts for seven days. There is no remote decoder in these gates.
+
+Hypothesis for CI integration: the existing local gates run unchanged on a
+fresh x86_64 Linux runner. A branch CI run is the falsifier; successful
+aarch64 local checks alone do not establish hosted-runner portability.
+Latency is reported for observation, without a machine-dependent pass
+threshold. Release and Pages still build their Swift consumers; Zig passing
+CI does not change what either workflow ships.
+
+The complete port has these remaining boundaries, in dependency order:
+
+| Area | Current evidence / gap | Exit check |
+|---|---|---|
+| Keyboard correctness and memory | Synthetic C ABI replay matches; Swift's full test coverage is broader than the 19 Zig unit tests. Unicode, malformed resources, engine/session lifetime, and long compositions need broader coverage. | Replay additional seeds and focused fixtures; check allocations and long-running memory use. Preserve Swift's behavior on every regression. |
+| Persistent user data | Dictionary overlays and learning work in memory; JSON/TSV parsing exists, but file interoperability is unproven. | Round-trip synthetic phrase/channel/dictionary files in both directions, restart engines, test mtime reload, legacy formats, bad files, and failed writes without losing valid data. |
+| Touch | No Zig equivalent of `Touch.swift`'s mapper, beam, or spatial lattice. | Replay the same seeded taps through Swift and Zig, compare hypotheses/candidates/costs and the existing accuracy/latency measurements. Raw coordinates remain evidence. |
+| Linux build and distribution | fcitx5 can use the Zig library in tests. `build_capi.sh`, `build.sh`, desktop installer, and AUR packaging still build Swift. `misstypectl` is also Swift. | Build/install an opt-in Zig backend first, verify dependencies and data paths, run conformance and real desktop typing, then switch the default. Migrating the CLI is needed to remove the distribution's Swift dependency completely. |
+| C ABI and macOS | The current ABI lacks clause segments/focus, the Latin-toggle result flag, custom bindings, host/context callbacks, and dictionary/learning editor operations used through Swift types. | Extend/version the ABI and test ownership/layout compatibility; move the IMK adapter and Settings onto it without changing UI behavior. Verify caret, marked clauses, popup clients, dictionary editing, and sandbox paths on a real Mac. |
+| Optional assistance and diagnostics | Jev's opt-in asynchronous path, context/deadline/revision handling, core logs, and dev-only bigram/lexicon overrides are unported. | Preserve these seams or explicitly decide their future. Network transport can remain in an adapter, but async results must remain revision-safe and offline/default-off behavior unchanged. |
+| Wasm and shipping | The site imports Swift and uses SwiftWasm. Step 0 cross-compilation only established that the smaller decoder built; the expanded C ABI/session has not been validated on each target. | Run the full core on target architectures, migrate browser bindings and Pages assets, check size and latency, then update macOS packaging to link/sign both architectures and test a signed/notarized install and update. |
+| Final removal | All production consumers still depend on Swift `MisstypeCore`. | Remove it only after consumers and regression tools use the replacement; update architecture, cross-platform contracts, commands, licenses, and release docs. Retain replay fixtures and an explicit replacement for the Swift reference gate. |
+
+The next work after CI is persistent-file interoperability, then touch and
+an opt-in Linux build. macOS ABI expansion and consumer migration follow;
+release packaging changes belong with that migration. Product experiments
+(human tap spread and real mixed-language typing quality) remain open
+independently of the language port.
