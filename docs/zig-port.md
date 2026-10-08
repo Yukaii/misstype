@@ -212,7 +212,7 @@ The complete port has these remaining boundaries, in dependency order:
 | C ABI and macOS | The current ABI lacks clause segments/focus, the Latin-toggle result flag, custom bindings, host/context callbacks, and dictionary/learning editor operations used through Swift types. | Extend/version the ABI and test ownership/layout compatibility; move the IMK adapter and Settings onto it without changing UI behavior. Verify caret, marked clauses, popup clients, dictionary editing, and sandbox paths on a real Mac. |
 | Optional assistance and diagnostics | Jev's opt-in asynchronous path, context/deadline/revision handling, core logs, and dev-only bigram/lexicon overrides are unported. | Preserve these seams or explicitly decide their future. Network transport can remain in an adapter, but async results must remain revision-safe and offline/default-off behavior unchanged. |
 | Wasm and shipping | The site imports Swift and uses SwiftWasm. Step 0 cross-compilation only established that the smaller decoder built; the expanded C ABI/session has not been validated on each target. | Run the full core on target architectures, migrate browser bindings and Pages assets, check size and latency, then update macOS packaging to link/sign both architectures and test a signed/notarized install and update. |
-| Final removal | All production consumers still depend on Swift `MisstypeCore`. | Remove it only after consumers and regression tools use the replacement; update architecture, cross-platform contracts, commands, licenses, and release docs. Retain replay fixtures and an explicit replacement for the Swift reference gate. |
+| Final removal | macOS/Wasm production consumers and the behavioral oracle still depend on Swift `MisstypeCore`. | Remove it only after consumers and regression tools use the replacement; update architecture, cross-platform contracts, commands, licenses, and release docs. Retain replay fixtures and an explicit replacement for the Swift reference gate. |
 
 The next migration work is macOS ABI expansion and consumer migration, then
 Wasm and final Swift removal. macOS packaging still links Swift; Release now
@@ -270,3 +270,41 @@ variants at three repair strengths, and two seeded tap sets at radius 0,
 measurement rather than a human typing study. `tools/zig_quality.py` reports
 expected-text top-1/top-5 rates; equality of the full records establishes
 that this port preserves the reference's quality on those inputs.
+
+The final broad comparison matches **43,152 records** in both Debug and
+ReleaseFast, including scores and spatial costs bit for bit. On this
+synthetic corpus, radius-0.08 touch lattice top-1/top-5 is **64.3%/76.2%**
+versus nearest-key **40.5%/44.0%**, identical in Swift and Zig. Exact keyboard
+top-1/top-5 is **95.2%/100%** across the three strengths; the port improves
+neither engine's candidate quality.
+
+Observed ReleaseFast timing on this aarch64 host (882 keyboard and 756
+nearest/beam/lattice touch cases, loading excluded; no remote assistance):
+
+| Mean per case | Swift release | Zig ReleaseFast |
+|---|---:|---:|
+| Keyboard variants | 3,306 µs | 709 µs |
+| Touch variants | 61,066 µs | 13,926 µs |
+
+These include normalization and touch hypothesis work, and exclude candidate
+record serialization. They aggregate long and short phrases and multiple
+repair/algorithm settings, so they are not per-keystroke desktop latency or
+a replacement for the exact-only measurement above. Debug is deliberately
+slower (201 ms mean touch case); latency claims use optimized builds.
+
+Canonical-equivalence checks also cover learned context keys and candidate
+text identity, while preserving the original stored spelling. A synthetic
+restart fixture stores an NFD context key and decodes its NFC equivalent in
+both engines. The common-text fast path is checked against the pinned
+Unicode data for every scalar it admits, using canonical decomposition and
+grapheme boundaries; complex sequences still use utf8proc. This avoids
+normalizing ordinary Chinese/ASCII/Zhuyin candidates on every comparison.
+
+The final session replay matches **48,078 lines / 13,524 events** in Debug
+(seed 1); the additional optimized seed matches **46,490 lines / 13,275
+events** (seed 487). The final exact-only comparison still matches all
+**1,344 candidates**. Its optimized mean is now about **154 µs**, versus
+roughly **580 µs** for Swift on this host: the old 14× spike measurement is
+historical, not the latency of the complete Unicode-aware port. Full
+keyboard/touch variant timings above are about 4–5× lower than Swift;
+candidate quality remains identical on the regression corpus.
