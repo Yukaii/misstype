@@ -51,3 +51,11 @@ using them to generate CSS does not relicense Misstype's own code or output.
 
 The dictionary sources are downloaded at build time (checksum-verified) and
 are not committed; only their manifest and license texts are.
+
+## utf8proc (Zig core)
+
+The Zig core statically links utf8proc 2.12.0 for Unicode grapheme boundaries.
+Its unmodified source snapshot and checksums are in `third_party/utf8proc/`.
+It is licensed under MIT, with the included Unicode data license; see
+`third_party/utf8proc/LICENSE.md` and `vendor.json`. It adds no shared-library
+or network dependency at runtime. Source: https://github.com/JuliaStrings/utf8proc.

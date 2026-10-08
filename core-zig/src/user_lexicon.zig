@@ -20,7 +20,7 @@ pub const Record = struct {
     updated_at: f64,
 };
 
-pub const Texts = std.StringArrayHashMapUnmanaged(Record);
+pub const Texts = std.ArrayHashMapUnmanaged([]const u8, Record, unicode.StringContext, true);
 
 pub const file_version = 2;
 pub const entry_cap = 500;
@@ -315,7 +315,7 @@ pub const UserLexicon = struct {
             if (baseline.utf16_len == picked.utf16_len) {
                 const base = try unicode.utf16Slice(gpa, baseline.text, word.chars.start, word.chars.end);
                 defer if (!isSubslice(base, baseline.text)) gpa.free(base);
-                if (std.mem.eql(u8, base, text)) continue;
+                if (unicode.equal(base, text)) continue;
             }
             try self.pin(.{ .text = text, .span = word.syllables, .score = 0 }, picked);
         }
@@ -484,4 +484,15 @@ test "record, bonus, json" {
     var back = try UserLexicon.decode(testing.allocator, data);
     defer back.deinit();
     try testing.expectEqual(@as(f64, 7), back.bonus("ㄉㄚㄉㄨㄟ", "打對"));
+}
+
+test "learned text uses canonical String equality and preserves stored spelling" {
+    var lex = UserLexicon.init(std.testing.allocator);
+    defer lex.deinit();
+    try lex.record("ㄋㄧ", "e\u{301}", 10);
+    try lex.record("ㄋㄧ", "é", 11);
+    const texts = lex.get("ㄋㄧ").?;
+    try std.testing.expectEqual(@as(usize, 1), texts.count());
+    try std.testing.expectEqual(@as(i64, 2), texts.get("é").?.count);
+    try std.testing.expectEqualStrings("e\u{301}", texts.keys()[0]);
 }

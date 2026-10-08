@@ -499,7 +499,7 @@ pub const Lexicon = struct {
             fn walk(w: @This(), node: u32, index: usize, penalty: f64) void {
                 if (index == w.span.end) {
                     const has = for (w.lexicon.nodes.items[node].entries.items) |e| {
-                        if (std.mem.eql(u8, e.text, w.text)) break true;
+                        if (unicode.equal(e.text, w.text)) break true;
                     } else false;
                     if (has and (w.best.* == null or penalty < w.best.*.?)) {
                         w.best.* = penalty;
@@ -702,7 +702,7 @@ pub const Lexicon = struct {
             for (try m.lexicon.decode(m.arena, syllables, m.opts)) |c| {
                 var skip = false;
                 for (m.merged.items, 0..) |existing, i| {
-                    if (!std.mem.eql(u8, existing.text, c.text)) continue;
+                    if (!unicode.equal(existing.text, c.text)) continue;
                     if (existing.score >= c.score) {
                         skip = true;
                     } else {
@@ -833,7 +833,7 @@ pub const Lexicon = struct {
 
         fn add(beam: *Beam, candidate: Candidate) void {
             for (beam.slice(), 0..) |existing, i| {
-                if (!std.mem.eql(u8, existing.text, candidate.text)) continue;
+                if (!unicode.equal(existing.text, candidate.text)) continue;
                 if (existing.score >= candidate.score) return;
                 std.mem.copyForwards(Candidate, beam.items[i .. beam.len - 1], beam.items[i + 1 .. beam.len]);
                 beam.len -= 1;
@@ -938,7 +938,7 @@ pub const Lexicon = struct {
                                 var contextual: f64 = 0;
                                 if (rules) |list| {
                                     for (list) |rule| {
-                                        if (std.mem.eql(u8, rule.text, entry.text) and std.mem.eql(u8, rule.previous, previous_words[index])) {
+                                        if (unicode.equal(rule.text, entry.text) and std.mem.eql(u8, rule.previous, previous_words[index])) {
                                             contextual = rule.bonus;
                                             break;
                                         }
@@ -1054,7 +1054,7 @@ pub const Lexicon = struct {
             const n = node_id orelse continue;
             const node = &self.nodes.items[n];
             const has = for (node.entries.items) |e| {
-                if (std.mem.eql(u8, e.text, word.text)) break true;
+                if (unicode.equal(e.text, word.text)) break true;
             } else false;
             if (!has) continue;
             try self.touch(&touched, n);

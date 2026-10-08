@@ -2,8 +2,7 @@
 //! UTF-16 offsets (the platform caret contract), Swift's lossy UTF-16
 //! slicing, `Character` counts, and `isWhitespace`.
 //!
-//! Text is compared as UTF-8 bytes. Swift compares canonical equivalents
-//! as equal; the two agree on NFC text, which is all the lexicon holds.
+//! Extended grapheme boundaries and canonical equivalence use pinned utf8proc.
 
 const std = @import("std");
 const Allocator = std.mem.Allocator;
@@ -113,70 +112,41 @@ pub fn scalars(text: []const u8) std.unicode.Utf8Iterator {
     return .{ .bytes = text, .i = 0 };
 }
 
-/// Approximate `String.count` (extended grapheme clusters): scalars that
-/// do not extend the previous one. Covers combining marks, variation
-/// selectors, ZWJ sequences, emoji modifiers and flag pairs; CJK text, the
-/// only text the counts gate, is one scalar per character either way.
+/// Extended grapheme clusters, using the pinned, statically linked utf8proc.
+/// This covers UAX #29 (including Hangul, Indic conjuncts, emoji and controls).
+extern "c" fn utf8proc_grapheme_break_stateful(i32, i32, *i32) bool;
+
 pub fn characterCount(text: []const u8) usize {
     var count: usize = 0;
     var it = scalars(text);
-    var after_zwj = false;
-    var regional_open = false;
+    var previous: ?u21 = null;
+    var state: i32 = 0;
     while (it.nextCodepoint()) |cp| {
-        if (count > 0 and (after_zwj or isExtend(cp))) {
-            after_zwj = cp == 0x200D;
-            continue;
-        }
-        if (cp >= 0x1F1E6 and cp <= 0x1F1FF) {
-            if (regional_open) {
-                regional_open = false;
-                continue;
-            }
-            regional_open = true;
-        } else regional_open = false;
-        after_zwj = false;
-        count += 1;
+        if (previous == null or utf8proc_grapheme_break_stateful(previous.?, cp, &state)) count += 1;
+        previous = cp;
     }
     return count;
 }
 
-/// The characters of `text` (see `characterCount`), as byte slices.
 pub fn characters(gpa: Allocator, text: []const u8) ![][]const u8 {
     var out: std.ArrayList([]const u8) = .empty;
     var it = scalars(text);
     var start: usize = 0;
-    var after_zwj = false;
-    var regional_open = false;
-    var first = true;
+    var previous: ?u21 = null;
+    var state: i32 = 0;
     while (true) {
         const at = it.i;
         const cp = it.nextCodepoint() orelse break;
-        if (!first and (after_zwj or isExtend(cp))) {
-            after_zwj = cp == 0x200D;
-            continue;
-        }
-        if (cp >= 0x1F1E6 and cp <= 0x1F1FF) {
-            if (regional_open) {
-                regional_open = false;
-                continue;
+        if (previous) |last| {
+            if (utf8proc_grapheme_break_stateful(last, cp, &state)) {
+                try out.append(gpa, text[start..at]);
+                start = at;
             }
-            regional_open = true;
-        } else regional_open = false;
-        after_zwj = false;
-        if (!first) try out.append(gpa, text[start..at]);
-        start = at;
-        first = false;
+        }
+        previous = cp;
     }
-    if (!first) try out.append(gpa, text[start..]);
+    if (previous != null) try out.append(gpa, text[start..]);
     return out.toOwnedSlice(gpa);
-}
-
-fn isExtend(cp: u21) bool {
-    return (cp >= 0x0300 and cp <= 0x036F) or (cp >= 0x1AB0 and cp <= 0x1AFF) or
-        (cp >= 0x1DC0 and cp <= 0x1DFF) or (cp >= 0x20D0 and cp <= 0x20FF) or
-        (cp >= 0xFE00 and cp <= 0xFE0F) or (cp >= 0xFE20 and cp <= 0xFE2F) or
-        (cp >= 0x1F3FB and cp <= 0x1F3FF) or (cp >= 0xE0100 and cp <= 0xE01EF) or
-        (cp >= 0xE0020 and cp <= 0xE007F) or cp == 0x200D or cp == 0x3099 or cp == 0x309A;
 }
 
 /// Unicode White_Space (Swift `Character.isWhitespace`).
@@ -223,3 +193,60 @@ test "characters" {
     try testing.expectEqual(@as(usize, 1), characterCount("e\u{301}"));
     try testing.expectEqualStrings("你", trimTrailingWhitespace("你 \u{3000}"));
 }
+
+test "extended grapheme boundaries match control, Hangul, Indic and emoji fixtures" {
+    for ([_][]const u8{ "\r\n", "각", "क्ष", "का", "\u{0600}A", "🇹🇼", "👨‍👩‍👧‍👦", "👍🏽" }) |text| {
+        try testing.expectEqual(@as(usize, 1), characterCount(text));
+        const chars = try characters(testing.allocator, text);
+        defer testing.allocator.free(chars);
+        try testing.expectEqual(@as(usize, 1), chars.len);
+        try testing.expectEqualStrings(text, chars[0]);
+    }
+    try testing.expectEqual(@as(usize, 2), characterCount("a\u{200d}b"));
+}
+
+extern "c" fn utf8proc_map([*]const u8, isize, *?[*]u8, c_int) isize;
+/// Swift String equality without changing either spelling's raw evidence.
+pub fn equal(a: []const u8, b: []const u8) bool {
+    if (std.mem.eql(u8, a, b)) return true;
+    // The shipping lexicon is overwhelmingly ASCII and unified CJK; these
+    // scalars have no canonical decomposition and cannot reorder.
+    if (canonicalStable(a) and canonicalStable(b)) return false;
+    var left: ?[*]u8 = null;
+    var right: ?[*]u8 = null;
+    const options = 2 | 8; // UTF8PROC_STABLE | UTF8PROC_COMPOSE
+    const left_len = utf8proc_map(a.ptr, @intCast(a.len), &left, options);
+    defer if (left) |p| std.c.free(p);
+    const right_len = utf8proc_map(b.ptr, @intCast(b.len), &right, options);
+    defer if (right) |p| std.c.free(p);
+    return left_len >= 0 and left_len == right_len and std.mem.eql(u8, left.?[0..@intCast(left_len)], right.?[0..@intCast(right_len)]);
+}
+test "canonical equality preserves original spelling" {
+    try std.testing.expect(equal("é", "e\u{301}"));
+    try std.testing.expect(equal("각", "각"));
+    try std.testing.expect(!equal("你", "尼"));
+}
+
+fn canonicalStable(text: []const u8) bool {
+    var it = scalars(text);
+    while (it.nextCodepoint()) |cp| {
+        if (cp < 128 or (cp >= 0x3400 and cp <= 0x4dbf) or (cp >= 0x4e00 and cp <= 0x9fff) or (cp >= 0x20000 and cp <= 0x323af and !(cp >= 0x2f800 and cp <= 0x2fa1f))) continue;
+        return false;
+    }
+    return true;
+}
+
+/// Canonical-equivalence hash for learned text, preserving insertion spelling.
+pub const StringContext = struct {
+    pub fn hash(_: @This(), text: []const u8) u32 {
+        if (canonicalStable(text)) return @truncate(std.hash.Wyhash.hash(0, text));
+        var normalized: ?[*]u8 = null;
+        const len = utf8proc_map(text.ptr, @intCast(text.len), &normalized, 2 | 8);
+        defer if (normalized) |p| std.c.free(p);
+        if (len < 0) return @truncate(std.hash.Wyhash.hash(0, text));
+        return @truncate(std.hash.Wyhash.hash(0, normalized.?[0..@intCast(len)]));
+    }
+    pub fn eql(_: @This(), a: []const u8, b: []const u8, _: usize) bool {
+        return equal(a, b);
+    }
+};

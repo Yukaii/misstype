@@ -4,7 +4,7 @@
 #   tests/replay/run_swift.sh <script>...
 set -euo pipefail
 cd "$(dirname "$0")/../.."
-script/linux/build_capi.sh >&2
+MISSTYPE_CORE=swift script/linux/build_capi.sh >&2
 BIN_DIR=$(cat build/capi/libdir)
 mkdir -p build/replay
 cc -std=c11 -O1 -Wall -Wextra -Werror -ISources/CMisstype/include tests/replay/replay.c \

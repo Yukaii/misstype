@@ -63,7 +63,7 @@ endif()
 install(FILES "${MISSTYPE_ROOT}/LICENSE" "${MISSTYPE_ROOT}/THIRD_PARTY_NOTICES.md" DESTINATION "${CMAKE_INSTALL_DOCDIR}")
 install(DIRECTORY "${MISSTYPE_ROOT}/third_party/" DESTINATION "${CMAKE_INSTALL_DOCDIR}/third_party")
 
-# misstypectl (settings + dictionary CLI, Swift: script/linux/build_capi.sh builds it)
+# misstypectl (settings + dictionary CLI, Zig by default: script/linux/build_capi.sh builds it)
 # and the GTK4 dictionary editor on top of it. Both are optional: the IME
 # itself needs neither.
 if(EXISTS "${MISSTYPE_CAPI_DIR}/misstypectl")

@@ -43,7 +43,11 @@ This repository is an experimental input device and decoder. The current goal is
   now match Swift on 13,524 synthetic replay events; the Zig library passes
   the C ABI smoke test and 19 fcitx5 scenarios. Use
   `core-zig/bench/replay.sh` and `script/zig/test_linux.sh` for these gates.
-  Touch, persistent-file parity, and platform cutover remain open.
+  Touch mapper/beam/lattice, persistent-file interoperability, broader Unicode
+  and memory gates, and the Zig CLI are now ported. Linux builds Zig by default
+  (`MISSTYPE_CORE=swift` retains the reference). macOS and Wasm cutover remain
+  open; Swift still defines behavior and every change must pass the differential
+  gates in `docs/zig-port.md`.
 
 - macOS packaging is verified on a Mac (2026-10-04, macOS 27) except a few
   GUI paths: a per-user installer app in a DMG, Sparkle 2 updates from GitHub
@@ -112,10 +116,11 @@ bash script/linux/test_all.sh   # on a provisioned Linux box
 script/linux/install_ime.sh     # build + install on this desktop, restart fcitx5
 ```
 
-Linux also ships `misstypectl` (Swift, `Sources/MisstypeCtl`: `dict` and
+Linux also ships `misstypectl` (Zig, `core-zig/src/ctl.zig`; Swift reference
+`Sources/MisstypeCtl`: `dict` and
 `config` subcommands) and a GTK4 dictionary editor over it; the fcitx5
 settings page and `misstypectl config` edit the same `conf/misstype.conf`
-(`docs/linux-port.md`, L7). Keep the key list in `ConfigCommand.settings` in
+(`docs/linux-port.md`, L7). Keep the key lists in Zig `ctl.settings` and Swift `ConfigCommand.settings` in
 step with `MisstypeConfig` in `linux/fcitx5/src/engine.cpp`.
 
 Editing rules live in `MisstypeCore`'s `InputSession`; platform adapters

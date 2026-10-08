@@ -1,10 +1,10 @@
 # Zig port of MisstypeCore
 
-Status (2026-10-08): step 0 done; step 1's keyboard session and C ABI are
-ported and verified against Swift on synthetic keyboard replays. Touch and the platform cutover
-remain open. Swift `MisstypeCore`
-stays the single source of truth until the Zig engine matches it and a
-platform has switched over.
+Status (2026-10-08): exact decoding, the offline keyboard session/C ABI,
+persistent user files, touch mapper/beam/lattice, and the Linux CLI are ported.
+Linux builds Zig by default; `MISSTYPE_CORE=swift` retains the reference backend.
+Swift remains the behavioral oracle and the macOS/Wasm implementation until
+those consumers migrate. See the verification record below.
 
 ## Why
 
@@ -25,7 +25,7 @@ The Zig rewrite is not mainly about speed. The goals are:
 - fcitx5 uses only the C ABI (`Sources/CMisstype/include/misstype.h`,
   25 functions). A Zig library that exports the same header can replace
   the Swift one without any change on the fcitx5 side.
-- The macOS IME (6 files), `misstypectl` and the Wasm demo import Swift
+- The macOS IME (6 files) and the Wasm demo import Swift
   types directly. They would have to move onto the C ABI, and the ABI
   would have to grow.
 
@@ -35,9 +35,9 @@ The Zig rewrite is not mainly about speed. The goals are:
   around `std.Io`). The version is pinned in `script/zig/bootstrap.sh`, and
   upgrades are deliberate commits.
 - **No Unicode text handling in the standard library.** Swift `Character`
-  and `String` semantics have to be reproduced by hand. So far, comparing
-  bytes in UTF-8 order plus counting UTF-16 lengths for alignment is enough,
-  because the core already orders text by UTF-8 bytes.
+  and canonical `String` equality use statically linked utf8proc 2.12.0,
+  pinned and vendored with its licenses. Candidate ordering still follows
+  the reference’s UTF-8 order; caret ranges remain UTF-16.
 - **Library replacements:** Foundation features (JSON, file access,
   `URLSession` in `JevClient`) need Zig equivalents.
 - **Manual memory management.** The decoder allocates everything for one
@@ -65,7 +65,7 @@ The Zig rewrite is not mainly about speed. The goals are:
      lexicon/pins, mixed English, touch.
    - The fcitx5 C1–C15 suite runs against the Zig `.so`, and Linux
      switches over.
-2. **macOS IME, `misstypectl` and Wasm move onto the C ABI.** The ABI
+2. **macOS IME and Wasm move onto the C ABI.** The ABI
    grows to cover config and user-dictionary editing.
 3. **Remove the Swift core** and update `AGENTS.md`, `architecture.md` and
    `cross-platform.md`.
@@ -171,16 +171,15 @@ were Swift 581.1 µs and Zig 43.3 µs.
 Validation: the Zig library passes the C ABI smoke transcript and exported
 symbol check, plus all 19 headless fcitx5 scenarios. The full Swift/Linux
 suite also passes (270 Swift tests, 9 skipped, C ABI and fcitx5). These checks
-exercise in-memory dictionary and learning behavior; persistent-file parity
-needs a dedicated differential check before cutover.
+exercise in-memory dictionary and learning behavior. The later persistent-file
+gate below checks interoperability before the Linux cutover.
 
-Remaining scope: touch decoding, custom key bindings (not exposed by the
+At this earlier session milestone, scope still included touch decoding, custom key bindings (not exposed by the
 current C ABI), Jev assistance and diagnostic logging, and dev-only bigram
 and lexicon overrides. English resources load synchronously in Zig, while
 Swift loads them in the background; the reference replay waits for that
-load. No platform default or installer has switched to Zig. macOS,
-`misstypectl`, Wasm, and running cross-compiled binaries are still later
-milestones.
+load. Touch, the CLI and Linux default have since moved to Zig (below);
+macOS, Wasm and the wider ABI remain later milestones.
 
 ## CI and remaining cutover work
 
@@ -188,7 +187,9 @@ CI runs on pull requests, pushes to `main` and `zig-core-spike`, and manual
 dispatch. `zig-core` checks formatting and unit tests in Debug and
 ReleaseFast. `fcitx5-linux` retains the Swift checks and also runs the Zig
 C ABI smoke/symbol checks, all addon scenarios, exact candidate parity,
-and 400-session replay parity in both build modes. It downloads only the
+and 400-session replay parity in both build modes, with a second seed in
+ReleaseFast. It also checks persistent files, CLI invocations, full touch
+and Unicode records, and an installed production GTK frontend. It downloads only the
 checksum-pinned public dictionaries; toolchain/compiler and source caches
 are separate. Failed replay transcripts are synthetic and retained as CI
 artifacts for seven days. There is no remote decoder in these gates.
@@ -204,17 +205,44 @@ The complete port has these remaining boundaries, in dependency order:
 
 | Area | Current evidence / gap | Exit check |
 |---|---|---|
-| Keyboard correctness and memory | Synthetic C ABI replay matches; Swift's full test coverage is broader than the 19 Zig unit tests. Unicode, malformed resources, engine/session lifetime, and long compositions need broader coverage. | Replay additional seeds and focused fixtures; check allocations and long-running memory use. Preserve Swift's behavior on every regression. |
-| Persistent user data | Dictionary overlays and learning work in memory; JSON/TSV parsing exists, but file interoperability is unproven. | Round-trip synthetic phrase/channel/dictionary files in both directions, restart engines, test mtime reload, legacy formats, bad files, and failed writes without losing valid data. |
-| Touch | No Zig equivalent of `Touch.swift`'s mapper, beam, or spatial lattice. | Replay the same seeded taps through Swift and Zig, compare hypotheses/candidates/costs and the existing accuracy/latency measurements. Raw coordinates remain evidence. |
-| Linux build and distribution | fcitx5 can use the Zig library in tests. `build_capi.sh`, `build.sh`, desktop installer, and AUR packaging still build Swift. `misstypectl` is also Swift. | Build/install an opt-in Zig backend first, verify dependencies and data paths, run conformance and real desktop typing, then switch the default. Migrating the CLI is needed to remove the distribution's Swift dependency completely. |
+| Keyboard correctness and memory | Completed: full candidate metadata/Unicode fixture comparison, additional seeded session replays, invalid UTF-8 rejection, and 1,000 allocator-checked sessions with cursor edits and repeated commits. | Debug/ReleaseFast unit suites and `core-zig/bench/parity.sh`, plus `core-zig/bench/replay.sh`. |
+| Persistent user data | Completed: bidirectional restart of phrase/channel JSON and dictionary TSV, external edits/deletion, legacy/malformed files, and failed writes preserving in-memory state and existing data. | `script/zig/test_persistence.sh` (synthetic temp files only). |
+| Touch | Completed: `full-split-1` mapper and beam/spatial lattice; exact hypothesis distances/weights, candidates, scores, alignment, and spatial costs match Swift on seeded jitter. | `core-zig/bench/parity.sh`; quality and timings printed. Coordinates remain in the fixtures. Touch-to-session wiring remains the same separate product experiment as in Swift. |
+| Linux build and distribution | Completed: default Zig library/CLI build, installer and AUR recipe with checksum-pinned Zig and no Swift dependency; explicit Swift fallback. | CLI differential, C ABI/export smoke, 19 fcitx5 scenarios, staged install, production GTK composition/cursor/Latin checks under Xvfb. Native Arch desktop packaging remains an environment-specific manual check. |
 | C ABI and macOS | The current ABI lacks clause segments/focus, the Latin-toggle result flag, custom bindings, host/context callbacks, and dictionary/learning editor operations used through Swift types. | Extend/version the ABI and test ownership/layout compatibility; move the IMK adapter and Settings onto it without changing UI behavior. Verify caret, marked clauses, popup clients, dictionary editing, and sandbox paths on a real Mac. |
 | Optional assistance and diagnostics | Jev's opt-in asynchronous path, context/deadline/revision handling, core logs, and dev-only bigram/lexicon overrides are unported. | Preserve these seams or explicitly decide their future. Network transport can remain in an adapter, but async results must remain revision-safe and offline/default-off behavior unchanged. |
 | Wasm and shipping | The site imports Swift and uses SwiftWasm. Step 0 cross-compilation only established that the smaller decoder built; the expanded C ABI/session has not been validated on each target. | Run the full core on target architectures, migrate browser bindings and Pages assets, check size and latency, then update macOS packaging to link/sign both architectures and test a signed/notarized install and update. |
 | Final removal | All production consumers still depend on Swift `MisstypeCore`. | Remove it only after consumers and regression tools use the replacement; update architecture, cross-platform contracts, commands, licenses, and release docs. Retain replay fixtures and an explicit replacement for the Swift reference gate. |
 
-The next work after CI is persistent-file interoperability, then touch and
-an opt-in Linux build. macOS ABI expansion and consumer migration follow;
-release packaging changes belong with that migration. Product experiments
-(human tap spread and real mixed-language typing quality) remain open
-independently of the language port.
+The next migration work is macOS ABI expansion and consumer migration, then
+Wasm and final Swift removal. macOS packaging still links Swift; Release now
+also runs the Zig unit gates before packaging. Product experiments (human tap
+spread and real mixed-language typing quality) remain open independently.
+
+## Linux cutover verification (2026-10-08)
+
+Hypothesis: Linux can replace its core and CLI without changing candidates,
+file formats, settings, or frontend delivery. The smallest falsifiers are
+bidirectional persistent-file restart and full-candidate/touch differential
+checks; the installed GTK entry adds a real frontend boundary check.
+
+Commands from the repository root:
+
+```sh
+script/zig/test_persistence.sh
+script/zig/test_ctl.sh
+core-zig/bench/parity.sh
+MISSTYPE_ZIG_OPTIMIZE=ReleaseFast core-zig/bench/parity.sh
+core-zig/bench/replay.sh 400 1
+MISSTYPE_ZIG_OPTIMIZE=ReleaseFast core-zig/bench/replay.sh 400 487
+script/linux/dev.sh 'script/linux/test_all.sh && script/linux/test_desktop.sh'
+script/linux/dev.sh 'MISSTYPE_CORE=swift script/linux/test_all.sh'
+```
+
+The desktop smoke installs inside a disposable container with isolated XDG
+and D-Bus directories, types only synthetic text through a real GTK entry,
+and verifies the installed CLI and shared-library dependencies. It does not
+alter a maintainer’s desktop. A physical Wayland/Qt or Arch desktop is still
+a documented manual check; headless GTK success does not establish those
+client integrations. CI runs the same automatic gates on x86_64; local work
+runs on aarch64. No network decoder is used.

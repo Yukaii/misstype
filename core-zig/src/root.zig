@@ -13,6 +13,7 @@ pub const lexicon = @import("lexicon.zig");
 pub const english = @import("english.zig");
 pub const layout = @import("layout.zig");
 pub const storage = @import("storage.zig");
+pub const touch = @import("touch.zig");
 pub const session = @import("session.zig");
 pub const Lexicon = lexicon.Lexicon;
 pub const Syllable = keyboard.Syllable;

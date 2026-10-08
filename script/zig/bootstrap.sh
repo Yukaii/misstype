@@ -8,6 +8,11 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 
 ZIG_VERSION=0.17.0
+if [ -n "${MISSTYPE_ZIG:-}" ]; then
+    [ "$("$MISSTYPE_ZIG" version)" = "$ZIG_VERSION" ] || { echo "bootstrap: Zig $ZIG_VERSION required" >&2; exit 1; }
+    echo "$MISSTYPE_ZIG"
+    exit 0
+fi
 case "$(uname -s)-$(uname -m)" in
     Linux-x86_64)  triple=x86_64-linux;  sha=1cbe9df9f27e6b78d14ccbca43b6703a404ef79ef1c463de901d7f088d4e2026 ;;
     Linux-aarch64) triple=aarch64-linux; sha=9e8d11661d4ae3bd57702a3832781e23ad151dde5798e16a5ccd503f65234ff8 ;;

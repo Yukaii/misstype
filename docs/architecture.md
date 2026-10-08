@@ -4,7 +4,7 @@
 
 The system is a pipeline with a stable event log at its center. Capture must remain responsive even when decoding is slow. Every later representation is derived from the raw trace and can be replayed.
 
-Source of truth (decision 2026-09-27): the Swift `MisstypeCore` package is the single source of truth for keyboard parsing, decoding, selection, and learning. The Python package (`src/misstype`) is the M0–M2 capture/touch prototype and is slated for replacement; it already diverges (e.g. it treats Space as a separator/neutral tone, while the IME treats it as a strong first tone) and decoder changes are not ported to it. Tools that measure decoding drive the Swift binary (`--decode`, `--replay`), never the Python decoder.
+Source of truth (decision 2026-09-27; Linux cutover 2026-10-08): the Swift `MisstypeCore` package is the single source of truth for keyboard parsing, decoding, selection, and learning. The Python package (`src/misstype`) is the M0–M2 capture/touch prototype and is slated for replacement; it already diverges (e.g. it treats Space as a separator/neutral tone, while the IME treats it as a strong first tone) and decoder changes are not ported to it. Tools that measure decoding drive the Swift binary (`--decode`, `--replay`), never the Python decoder. Linux now ships `core-zig` behind the unchanged `misstype.h` ABI and a Zig `misstypectl`; Swift remains the oracle for the differential gates and the macOS/Wasm consumers. Persistent files and configuration stay compatible. Pinned utf8proc supplies extended grapheme boundaries and canonical equality; it is statically linked. `MISSTYPE_CORE=swift` selects the Linux reference build. See `docs/zig-port.md` for parity and frontend checks.
 
 ```text
 input surface / keyboard

@@ -1,5 +1,15 @@
 # Linux port (fcitx5): task plan
 
+Current build (2026-10-08): Linux uses the Zig core and Zig `misstypectl` by
+default. `MISSTYPE_CORE=swift` builds the reference implementation. Historical
+Swift implementation notes below remain useful for the adapter contract;
+`docs/zig-port.md` records the cutover gates. Run
+`script/linux/dev.sh 'script/linux/test_all.sh'` for the shipping backend and
+`script/linux/dev.sh 'MISSTYPE_CORE=swift script/linux/test_all.sh'` for the
+reference. `test_desktop.sh` runs only inside a disposable test container and
+checks an installed addon through the production GTK frontend.
+
+
 Status (2026-10-02): the user dictionary (conformance C13: Shift+arrow phrase
 marking, Return files it) is wired through the C ABI and drawn by the fcitx5
 addon; verified in Docker (aarch64): Swift tests, CAPI OK, fcitx5 17/17.

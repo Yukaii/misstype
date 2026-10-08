@@ -8,7 +8,12 @@ const Io = std.Io;
 const Allocator = std.mem.Allocator;
 
 pub fn read(io: Io, gpa: Allocator, path: []const u8) ?[]u8 {
-    return Io.Dir.cwd().readFileAlloc(io, path, gpa, .unlimited) catch null;
+    const data = Io.Dir.cwd().readFileAlloc(io, path, gpa, .unlimited) catch return null;
+    if (!std.unicode.utf8ValidateSlice(data)) {
+        gpa.free(data);
+        return null;
+    }
+    return data;
 }
 
 /// Write via a temporary file and rename, creating the directory first.
@@ -17,6 +22,7 @@ pub fn writeAtomic(io: Io, gpa: Allocator, path: []const u8, data: []const u8) b
     if (std.fs.path.dirname(path)) |dir| cwd.createDirPath(io, dir) catch return false;
     const tmp = std.fmt.allocPrint(gpa, "{s}.misstype-tmp", .{path}) catch return false;
     defer gpa.free(tmp);
+    defer cwd.deleteFile(io, tmp) catch {};
     cwd.writeFile(io, .{ .sub_path = tmp, .data = data }) catch return false;
     Io.Dir.rename(cwd, tmp, cwd, path, io) catch return false;
     return true;

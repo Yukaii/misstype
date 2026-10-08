@@ -1,5 +1,11 @@
 # Cross-platform IME contract
 
+Linux now uses the Zig core and CLI by default (2026-10-08); macOS remains
+on Swift. The C ABI and C1–C15 contract are unchanged. Swift remains the
+behavioral oracle; see `docs/zig-port.md` for persistent, touch, Unicode,
+session, and production GTK cutover gates.
+
+
 How Misstype runs on more than one OS without forking behavior. This is the
 normative contract every platform adapter follows; `docs/linux-port.md` is the
 task plan that applies it to Linux (fcitx5).

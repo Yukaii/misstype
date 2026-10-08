@@ -25,7 +25,7 @@ concurrency:
 
 jobs:
   zig-core:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - name: Cache pinned Zig toolchain and compiler
@@ -35,7 +35,7 @@ jobs:
             .cache/zig
             ~/.cache/zig
             core-zig/.zig-cache
-          key: zig-core-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('script/zig/bootstrap.sh') }}-${{ hashFiles('core-zig/src/*.zig', 'core-zig/build.zig', 'core-zig/build.zig.zon') }}
+          key: zig-core-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('script/zig/bootstrap.sh') }}-${{ hashFiles('third_party/utf8proc/*', 'core-zig/src/*', 'core-zig/build.zig', 'core-zig/build.zig.zon') }}
           restore-keys: |
             zig-core-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('script/zig/bootstrap.sh') }}-
       - name: Format and test Zig in Debug and ReleaseFast
@@ -47,7 +47,7 @@ jobs:
           "$zig" build test -Doptimize=ReleaseFast
 
   core-linux:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     container: swift:6.0
     steps:
       - uses: actions/checkout@v4
@@ -55,7 +55,7 @@ jobs:
         run: swift test
 
   fcitx5-linux:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
@@ -75,7 +75,7 @@ jobs:
       - name: C ABI and fcitx5 addon
         env:
           MISSTYPE_LINUX_PREBUILT: "1"
-        run: script/linux/dev.sh 'script/linux/test_capi.sh && script/linux/test_fcitx5.sh'
+        run: script/linux/dev.sh 'MISSTYPE_CORE=swift script/linux/test_capi.sh && MISSTYPE_CORE=swift script/linux/test_fcitx5.sh'
       - name: Cache pinned Zig toolchain and compiler
         uses: actions/cache@v4
         with:
@@ -83,7 +83,7 @@ jobs:
             .cache/zig
             ~/.cache/zig
             core-zig/.zig-cache
-          key: zig-linux-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('script/zig/bootstrap.sh') }}-${{ hashFiles('core-zig/src/*.zig', 'core-zig/build.zig', 'core-zig/build.zig.zon') }}
+          key: zig-linux-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('script/zig/bootstrap.sh') }}-${{ hashFiles('third_party/utf8proc/*', 'core-zig/src/*', 'core-zig/build.zig', 'core-zig/build.zig.zon') }}
           restore-keys: |
             zig-linux-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('script/zig/bootstrap.sh') }}-
       - name: Zig C ABI and fcitx5 addon
@@ -100,6 +100,21 @@ jobs:
           key: zig-lexicon-${{ hashFiles('third_party/*/sources.json', 'script/prepare_lexicon.py', 'Resources/reading_order.tsv') }}
       - name: Prepare checksum-verified public lexicons
         run: python3 script/prepare_lexicon.py
+      - name: Persistent files and CLI interoperability
+        env:
+          MISSTYPE_LINUX_PREBUILT: "1"
+        run: |
+          script/zig/test_persistence.sh
+          script/zig/test_ctl.sh
+      - name: Installed Zig production GTK desktop
+        env:
+          MISSTYPE_LINUX_PREBUILT: "1"
+        run: script/linux/dev.sh 'script/linux/test_all.sh && script/linux/test_desktop.sh'
+      - name: Full candidates, spatial touch and Unicode parity
+        env:
+          MISSTYPE_LINUX_PREBUILT: "1"
+          MISSTYPE_ZIG_OPTIMIZE: ReleaseFast
+        run: core-zig/bench/parity.sh
       - name: Exact decoder parity against Swift
         env:
           MISSTYPE_LINUX_PREBUILT: "1"
@@ -112,13 +127,16 @@ jobs:
         env:
           MISSTYPE_LINUX_PREBUILT: "1"
           MISSTYPE_ZIG_OPTIMIZE: ReleaseFast
-        run: core-zig/bench/replay.sh 400 1
+        run: |
+          core-zig/bench/replay.sh 400 1
+          core-zig/bench/replay.sh 400 487
       - name: Upload synthetic replay diagnostics on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: zig-replay-diagnostics
           path: |
+            build/parity/*
             build/replay/*.txt
             build/replay/*.log
             build/replay/scripts/*.txt

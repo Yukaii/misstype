@@ -7,11 +7,6 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
-command -v swift >/dev/null 2>&1 || {
-    echo "test_all: swift not in PATH; run script/linux/bootstrap.sh first" >&2
-    exit 1
-}
-
 # Lexicon cache: script/prepare_lexicon.py fetches the pinned sources with
 # urllib, which can time out on flaky networks while curl succeeds. If the
 # first attempt fails, pre-seed the cache with curl and let the script
@@ -41,7 +36,12 @@ EOF
     fi
 fi
 
-swift test
+if [ "${MISSTYPE_CORE:-zig}" = swift ]; then
+    swift test
+else
+    zig=$(script/zig/bootstrap.sh)
+    (cd core-zig && "$zig" build test && "$zig" build test -Doptimize=ReleaseFast)
+fi
 script/linux/test_capi.sh
 script/linux/test_fcitx5.sh
 echo "ALL LINUX TESTS OK"

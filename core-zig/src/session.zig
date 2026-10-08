@@ -205,6 +205,17 @@ pub const CursorCandidates = enum(u8) {
 };
 
 pub const default_keys = "asdfghjkl;";
+
+pub fn sanitizeKeys(a: Allocator, input: []const u8, page_size: usize) ![]const u8 {
+    var out: std.ArrayList(u8) = .empty;
+    for (input) |byte| {
+        const key = std.ascii.toLower(byte);
+        if ((!keyboard.isSymbol(key) and !keyboard.isTone(key)) or key == ' ' or std.mem.indexOfScalar(u8, out.items, key) != null) continue;
+        if (out.items.len == page_size) break;
+        try out.append(a, key);
+    }
+    return if (out.items.len == 0) try a.dupe(u8, default_keys[0..@min(default_keys.len, page_size)]) else out.items;
+}
 pub const default_page_size = 8;
 
 pub fn clampPageSize(size: i64) usize {
@@ -1751,4 +1762,28 @@ test "session retains engine and frees refresh and selection allocations" {
     _ = try session.handle(.{ .kind = .backspace, .timestamp = 1002 });
     _ = try session.commit();
     try std.testing.expectEqualStrings("", (try session.view()).preedit);
+}
+
+test "1000 sessions with cursor edits and commits release all memory" {
+    const a = std.testing.allocator;
+    var threaded: Io.Threaded = .init_single_threaded;
+    const dec = try Lexicon.create(a, &.{"ㄋㄧˇ\t你\t-5\nㄋㄧˇ\t妳\t-6\nㄏㄠˇ\t好\t-4\nㄋㄧˇ-ㄏㄠˇ\t你好\t-6\n"}, "");
+    const engine = try Engine.create(a, threaded.io(), dec);
+    defer engine.release();
+    engine.settings.auto_commit_syllables = 6;
+    for (0..1000) |iteration| {
+        const session = try Session.create(engine);
+        defer session.destroy();
+        const repeats: usize = if (iteration % 100 == 0) 64 else 2;
+        for (0..repeats) |_| for ("su3cl3") |key| {
+            const label = [_]u8{key};
+            _ = try session.handle(.{ .kind = .character, .label = &label, .text = &label, .timestamp = @floatFromInt(iteration + 1000) });
+            _ = try session.view();
+        };
+        _ = try session.handle(.{ .kind = .left, .timestamp = 2001 });
+        try session.pick(0);
+        _ = try session.handle(.{ .kind = .backspace, .timestamp = 2002 });
+        _ = try session.commit();
+        try std.testing.expectEqualStrings("", (try session.view()).preedit);
+    }
 }

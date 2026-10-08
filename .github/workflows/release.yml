@@ -64,6 +64,19 @@ jobs:
       - name: Test
         run: swift test
 
+      # Linux now ships the Zig core; macOS packaging below still uses Swift.
+      - name: Cache pinned Zig toolchain
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .cache/zig
+          key: release-zig-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('script/zig/bootstrap.sh') }}
+      - name: Test Zig core before release
+        run: |
+          zig=$(script/zig/bootstrap.sh)
+          cd core-zig
+          "$zig" build test
+          "$zig" build test -Doptimize=ReleaseFast
+
       - name: Import signing certificate
         if: env.HAS_CERT == 'true'
         env:

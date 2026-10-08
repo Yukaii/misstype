@@ -60,7 +60,7 @@ pub const UserDictionary = struct {
 
     fn find(list: []const Entry, reading: []const u8, text: []const u8) ?usize {
         for (list, 0..) |e, i| {
-            if (std.mem.eql(u8, e.reading, reading) and std.mem.eql(u8, e.text, text)) return i;
+            if (std.mem.eql(u8, e.reading, reading) and unicode.equal(e.text, text)) return i;
         }
         return null;
     }
@@ -228,7 +228,7 @@ fn endsWithToneMark(s: []const u8) bool {
     return b == 0x8A or b == 0x87 or b == 0x8B or b == 0x99;
 }
 
-fn isReadingLike(field: []const u8) bool {
+pub fn isReadingLike(field: []const u8) bool {
     var i: usize = 0;
     while (i < field.len) {
         const w = unicode.seqLen(field[i]);

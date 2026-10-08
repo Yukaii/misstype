@@ -1,0 +1,19 @@
+usage: misstypectl <command>
+
+  dict list [--tsv]                       show my words (and hidden built-ins)
+  dict add <reading> <text> [--weight W]  add a word, e.g. ㄏㄨㄤˊ-ㄩˋ-ㄎㄞˇ 黃昱愷
+  dict remove <reading> <text>            delete a word you added
+  dict exclude <reading> <text>           hide a built-in word
+  dict unexclude <reading> <text>         show it again
+  dict check                              report lines the engine would skip
+  dict edit                               open the file in $VISUAL/$EDITOR, then check
+  dict gui                                open the graphical editor
+  dict path                               print the file location
+
+  config list                             all settings with current values
+  config get <Key>
+  config set <Key> <value>                applies at once (fcitx5 is asked to reload)
+  config reset <Key>
+  config path                             print the fcitx5 config file
+
+Options: --file <path> (dict: other file; config: other file), --no-reload (config)
