@@ -246,3 +246,27 @@ alter a maintainer’s desktop. A physical Wayland/Qt or Arch desktop is still
 a documented manual check; headless GTK success does not establish those
 client integrations. CI runs the same automatic gates on x86_64; local work
 runs on aarch64. No network decoder is used.
+
+Verified locally on Linux aarch64:
+
+- Zig unit suites pass in Debug and ReleaseFast, including 1,000 sessions
+  with repeated views, cursor edits, commits and long auto-commit sequences
+  under the checking allocator.
+- The Swift reference suite passes: 271 tests, 10 optional oracle/measurement
+  tests skipped. Python capture checks pass: 73 tests, one optional skip.
+- Persistent-file interoperability passes in both directions, including
+  malformed and non-finite resource rows, CRLF, invalid UTF-8, external
+  dictionary edits/deletion and failed writes.
+- All 60 CLI invocations match status, stdout/stderr and file bytes,
+  including canonical Unicode spellings and preservation of comments.
+- Both reference and shipping libraries pass the C ABI checks and all 19
+  fcitx5 scenarios. The installed Zig library/CLI pass the production GTK
+  composition, cursor repair and Latin checks, settings/dictionary edits,
+  dependency resolution and the build check that rejects any Swift call.
+
+The deterministic quality corpus is 42 public phrases, seven keyboard
+variants at three repair strengths, and two seeded tap sets at radius 0,
+0.08 and 0.12 with nearest/beam/lattice decoding. It is a port regression
+measurement rather than a human typing study. `tools/zig_quality.py` reports
+expected-text top-1/top-5 rates; equality of the full records establishes
+that this port preserves the reference's quality on those inputs.

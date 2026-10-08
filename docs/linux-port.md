@@ -67,9 +67,12 @@ The container remains the canonical path, but the Linux layers also run
 directly on an Ubuntu 24.04 host (verified 2026-10-01):
 
 ```sh
-script/linux/bootstrap.sh   # Swift 6.0 toolchain + native deps (idempotent)
+script/linux/bootstrap.sh   # pinned Zig + native deps (idempotent)
+script/linux/test_all.sh    # Zig tests + C ABI + fcitx5
+# Optional Swift oracle provisioning:
+MISSTYPE_CORE=swift script/linux/bootstrap.sh
 export PATH="$HOME/swift-toolchain/swift-6.0-RELEASE-ubuntu24.04/usr/bin:$PATH"
-script/linux/test_all.sh    # swift test + test_capi.sh + test_fcitx5.sh
+MISSTYPE_CORE=swift script/linux/test_all.sh
 ```
 
 Notes:
