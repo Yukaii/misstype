@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Misstype Dictionary
+Name[zh_TW]=隨打注音 我的詞典
+Comment=Edit your own words for the Misstype input method
+Comment[zh_TW]=編輯隨打注音輸入法的自訂詞彙
+Exec=misstype-dictionary-editor
+Icon=accessories-dictionary
+Terminal=false
+Categories=Settings;

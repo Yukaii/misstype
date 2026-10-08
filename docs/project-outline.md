@@ -681,8 +681,8 @@ should be taken:
 5. **Personalization from use.** *(Keyboard half started 2026-10-06: the
    decoder takes per-user substitution costs, learned from Backspace re-types,
    picks and reverts. The replay beats generic on unseen sentences. It is off
-   by default: a macOS Settings toggle, and `MISSTYPE_CHANNEL_LEARNING=1` on
-   fcitx5. See "Personal channel model"
+   by default: a macOS Settings toggle, and `ChannelLearning` on the fcitx5
+   settings page. See "Personal channel model"
    below.)* Per-key tap
    distributions learned from confirmed taps (a 2-D Gaussian per key replaces
    the fixed `1 - 1.5d` weight), then per-user repair costs from Backspace

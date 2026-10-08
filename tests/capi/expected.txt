@@ -17,5 +17,6 @@ C13 filed then mark remove
 settings shift_toggle=0 tap ignored
 channel off=0 learned=1 cleared=0
 repair_strength off=ㄋˇ light=你
+page_size=5 keys=5
 keymap evdev31=s evdev57=space evdev42=shift-left A=a+shift !=1+shift
 DONE

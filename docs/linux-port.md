@@ -95,6 +95,7 @@ Each was run end to end in the dev container, so tasks can rely on them:
 | fcitx5 `Text::setCursor` counts **UTF-8 bytes** | C ABI exposes `caret_bytes` |
 | fcitx5 `GlobalConfig::altTriggerKeys` defaults to `Shift_L`; in the harness a lone `Shift_L` tap (press `Key(Shift_L, {}, 50)`, release `Key(Shift_L, Shift, 50)`) switched the IC to `keyboard-us` | fcitx5 owns lone-Shift 中/英; the session's `shift_toggle` is 0 on Linux |
 | fcitx5 reports modifier state **before** the event (X11 semantics) | Adapter corrects Shift's own press/release (contract §1) |
+| With xkb `shift:both_capslock_cancel` (Omarchy's default, 2026-10-07 key trace) a Shift **release** arrives as keysym `Caps_Lock` with keycode 50/62 | Recognize Shift by keycode, not keysym, or a lone tap never completes (LR7) |
 | On Docker Desktop for macOS, a file edited on the host can be read stale through the bind mount for a moment | If the container reports impossible errors (e.g. "unterminated #ifdef" in a complete file), rerun |
 
 ## Target layout
@@ -224,13 +225,13 @@ minus space) is in `EvdevKeyCode.labels.values`;
     `misstype_engine_set_channel_learning` (default 0; kept across
     `misstype_engine_set_settings`, still needs `user_learning`),
     `misstype_engine_clear_channel`, `misstype_engine_channel_pair_count`.
-    The fcitx5 addon sets the default path and enables learning only when
-    `MISSTYPE_CHANNEL_LEARNING=1` (there is no config page yet).
+    The fcitx5 addon sets the default path; the `ChannelLearning` setting
+    (default off) turns learning on.
   - Repair strength (appended 2026-10-06, settings struct unchanged):
     `misstype_engine_set_repair_strength` (0 off, 1 light, 2 standard =
     default, 3 strong; out of range ignored; kept across
     `misstype_engine_set_settings` while `fuzzy_repair` is 1). The fcitx5
-    addon reads `MISSTYPE_REPAIR_STRENGTH=off|light|standard|strong`.
+    addon sets it from the `RepairStrength` setting.
   - `user_lexicon_path`: `NULL` → `UserLexicon.load()` with
     `userLexiconURL = UserLexicon.defaultURL`; `""` → empty lexicon, no URL
     (never touches disk); otherwise load/save at that path.
@@ -327,7 +328,7 @@ Negative check (do it, then revert): change `C1 commit=你好` in
   `[Addon] Name=Misstype, Category=InputMethod, Version=<project version>,
   Library=libmisstype-fcitx5, Type=SharedLibrary, OnDemand=True,
   Configurable=False`. `data/inputmethod/misstype.conf`:
-  `[InputMethod] Name=Misstype, Label=注, LangCode=zh_TW, Addon=misstype,
+  `[InputMethod] Name=Misstype, Label=隨, LangCode=zh_TW, Addon=misstype,
   Configurable=False`. The addon's name is the file's basename (`misstype`).
 - Engine (`fcitx::InputMethodEngineV2`, registered with
   `FCITX_ADDON_FACTORY`):
@@ -357,7 +358,7 @@ Negative check (do it, then revert): change `C1 commit=你好` in
     client preedit, else the panel preedit (`inputPanel().setPreedit`), as a
     `fcitx::Text` with `TextFormatFlag::Underline` and
     `setCursor(caret_bytes)`. Candidates: when `shows_candidates`, a
-    `CommonCandidateList` with page size 8, one `CandidateWord` per entry
+    `CommonCandidateList` with the `CandidatesPerPage` page size (default 8), one `CandidateWord` per entry
     whose `select()` calls `misstype_session_pick(index)` and re-renders, the
     global cursor on `selected` (its page current), labels =
     `selection_keys` when `keys_active` else empty labels. Otherwise clear
@@ -487,9 +488,20 @@ install section of `README`/this file.
 
 **Spec:** keep the `core-linux` job. Add a `fcitx5-linux` job on
 `ubuntu-latest` (Docker is available there) that runs
-`script/linux/dev.sh script/linux/test_capi.sh` and
-`script/linux/dev.sh script/linux/test_fcitx5.sh`. Tests only, no
+`script/linux/dev.sh 'script/linux/test_capi.sh && script/linux/test_fcitx5.sh'`.
+Both checks share one container working copy, so the addon reuses the C ABI's
+Swift release build. Buildx loads `linux/Dockerfile` with a GitHub Actions
+layer cache (`linux-dev`); `MISSTYPE_LINUX_PREBUILT=1` tells the wrapper to use
+that loaded image. Local runs still build the image by default. Tests only, no
 `build.sh`: CI must not download the lexicon.
+
+CI cancels superseded runs on the same ref. The Linux image and Pages asset
+job use HTTPS Ubuntu package sources to avoid the HTTP mirror timeouts seen
+on PR #26 (Pages package installation: 6m17s; Linux C ABI step including image
+setup: 7m04s). Hypothesis: eliminating those timeouts and the second clean
+Swift release build shortens feedback without reducing test coverage. Check
+the Actions step durations on the first cold run and a subsequent cache hit;
+the cache is optional and a miss must still build and run all checks.
 
 **Done when:** after the change is pushed,
 `gh run list --workflow ci.yml --limit 1` shows `success`, and
@@ -528,18 +540,55 @@ scripts).
 
 ---
 
-## L7: Backlog (not scheduled)
+## L7: Settings, dictionary tools, backlog
 
-- User dictionary: no Linux editor yet (macOS has a Settings pane). The file
-  is plain text in vChewing userdata format (`詞語 注音 [權重]`, so vChewing-userdata-generator output pastes in) — edit `$XDG_DATA_HOME/misstype/user_dictionary.tsv` with any
-  editor; changes load when the next composition starts. A fcitx5 config
-  page or `misstype-dict` CLI (list / add / remove) would be the next step.
+Landed 2026-10-04 (macOS Settings parity, except Jev and About):
+
+- **Settings page**: the addon is `Configurable=True` and exposes
+  `MisstypeConfig` (`engine.cpp`), so fcitx5-configtool and the KDE/GNOME
+  input-method settings draw the page. Keys: `RepairStrength`
+  (Off/Light/Standard/Strong), `ToneTolerance`, `UserLearning`,
+  `ChannelLearning`, `MixedEnglish`, `AutoShowCandidates`,
+  `ReturnConfirmsSelection`, `CandidateKeys`, `CandidatesPerPage` (4–10),
+  `CursorCandidates` (Covering/EndingAt/BeginningAt), `AutoCommitSyllables`,
+  `ShiftTogglesEnglish` (default off, see D1);
+  stored in `~/.config/fcitx5/conf/misstype.conf`, applied to live sessions
+  through `misstype_engine_set_settings` (ABI v1 gained six appended
+  `misstype_settings` fields), `misstype_engine_set_repair_strength` and
+  `misstype_engine_set_channel_learning`. These replace the
+  `MISSTYPE_CHANNEL_LEARNING` / `MISSTYPE_REPAIR_STRENGTH` environment
+  variables. Lone Shift stays with fcitx5 (`AltTriggerKeys`). Covered by
+  headless scenarios LR5 (live settings, page size) and LR6 (defaults), LR7 (lone Shift to the session). The "My Dictionary" button is an
+  `ExternalOption` pointing at `misstype-dictionary-editor`; whether a given
+  configtool build launches a bare program name is **not verified** (open the
+  editor from the app menu or `misstypectl dict gui` otherwise).
+- **`misstypectl`** (Swift, `Sources/MisstypeCtl`, tests in
+  `tests/MisstypeCtlTests`): `dict list|add|remove|exclude|unexclude|check|edit|gui|path`
+  edits `user_dictionary.tsv` (vChewing userdata format, `詞語 注音 [權重]`, so
+  vChewing-userdata-generator output pastes in) line by line (comments survive) with
+  `UserDictionary`'s own validation; `config list|get|set|reset|path` edits
+  the same `misstype.conf` the page does (values validated, unknown lines
+  kept, fcitx5 asked over D-Bus to reload the addon unless `--no-reload`; `fcitx5-remote -r` would reload only the global config).
+- **`misstype-dictionary-editor`** (GTK4, `linux/fcitx5/tools`): list, add,
+  remove, un-hide. It owns no logic, it shells out to `misstypectl dict`. The
+  reading field takes Zhuyin typed with a non-Misstype layout (typing with
+  Misstype itself would produce hanzi); marking a phrase in the IME
+  (Shift+←/→, Return) remains the easy way to add words. Built only when
+  GTK4 dev files are present; the IME needs neither tool.
+- Defaults match macOS's `MisstypePrefs` (decided 2026-10-07): auto-show
+  candidates off, Return confirms a pick, mixed English off, repair
+  Standard, channel learning off. The core's own defaults are unchanged, and
+  the headless suite sets them explicitly before C1–C13. Not on the page
+  yet: custom key bindings (`KeyBindings`, macOS Shortcuts pane) and
+  clearing learned slips (`misstype_engine_clear_channel` exists; no button
+  or `misstypectl` command calls it).
+
+Backlog (not scheduled):
+
 - IBus adapter over the same C ABI (GNOME's default IM framework).
 - Jev on Linux: host callbacks in the C ABI (`surrounding_text`,
   `perform`, `session_did_change`), settings, and the consent flow; privacy
   rules from `AGENTS.md` apply.
-- fcitx5 configuration (candidate keys, fuzzy repair, tone tolerance,
-  learning) mapped onto `misstype_settings`.
 - Library size (~56–71 MB): `-Xlinker --gc-sections`, strip at install, or a
   Foundation-free core.
 - Packaging: AUR recipe in `linux/aur/PKGBUILD` (publication pending;
@@ -552,7 +601,12 @@ scripts).
   `AltTriggerKeys` (switches to `keyboard-us`), session `shift_toggle = 0`.
   Alternative: remove `Shift_L` from `AltTriggerKeys` and let the session
   toggle its own English mode (matches macOS exactly, but needs a user-side
-  fcitx5 config change).
+  fcitx5 config change). Available as the opt-in `ShiftTogglesEnglish`
+  setting (2026-10-07, headless LR7); the user still disables fcitx5's
+  "Temporarily Toggle Input Method" key, because fcitx5 handles that key
+  before the input method sees it. Disable it with one empty entry
+  (`[Hotkey/AltTriggerKeys]` `0=`): an empty list is saved as nothing and
+  comes back as `Shift_L` after a restart (verified on fcitx5 5.1.23).
 - **D2 Editing chords.** macOS Cmd+Backspace (clear) and Option+Backspace
   (delete syllable) map literally to Super/Alt+Backspace on Linux, where
   users expect Ctrl+Backspace. The plan keeps the literal mapping; decide
@@ -656,6 +710,11 @@ typedef struct misstype_settings {
     int32_t user_learning;      /* default 1 */
     int32_t shift_toggle;       /* default 1; fcitx5 sets 0 (AltTriggerKeys owns Shift_L) */
     const char *candidate_keys; /* NULL = "asdfghjkl;"; sanitized like SelectionKeys.sanitize */
+    /* Appended fields. misstype_settings_default() keeps the core's behavior. */
+    int32_t auto_show_candidates;       /* default 1; 0 = panel opens on Tab/arrows only */
+    int32_t return_confirms_selection;  /* default 0; 1 = Return confirms a pick, the next Return sends */
+    int32_t mixed_english;              /* default 1; needs english.tsv, else no effect */
+    int32_t auto_commit_syllables;      /* default 24; 0 = never commit in chunks */
 } misstype_settings;
 
 misstype_settings misstype_settings_default(void);
@@ -679,6 +738,10 @@ char *misstype_session_commit(misstype_session *session); /* NULL = nothing to i
 void misstype_session_pick(misstype_session *session, int32_t index);
 void misstype_session_reset_modifiers(misstype_session *session);
 char *misstype_session_raw_phonetic(misstype_session *session);
+/* 1 while an English (latin) run is open mid-composition (Shift tap or
+ * backtick; InputSession.latinActive), else 0. Appended 2026-10-07: the host
+ * compares it across misstype_session_handle to show 英/中 (contract §2). */
+int32_t misstype_session_latin_active(misstype_session *session);
 misstype_view *misstype_session_view(misstype_session *session);
 
 /* Keymap (tables live in MisstypeCore). label receives a static string for

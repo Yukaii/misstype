@@ -1,5 +1,5 @@
 // Headless conformance tests for the fcitx5 adapter: docs/cross-platform.md
-// scenarios C1-C15 plus the Linux delivery rules LR1-LR4, driven through
+// scenarios C1-C15 plus the Linux delivery rules LR1-LR8, driven through
 // fcitx5's in-process test frontend. A wrong commit aborts inside
 // pushCommitExpectation; every other check is FCITX_ASSERT.
 #include <fcitx-utils/eventdispatcher.h>
@@ -16,11 +16,13 @@
 #include <fcitx/instance.h>
 #include <testfrontend_public.h>
 
+#include <chrono>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
 #include <string>
+#include <thread>
 
 using namespace fcitx;
 
@@ -120,6 +122,34 @@ void runAll(Instance &instance) {
     Session s(instance);
     auto &ic = *s.ic();
     const KeyStates shift(KeyState::Shift), ctrl(KeyState::Ctrl), alt(KeyState::Alt);
+    auto *addon = instance.addonManager().addon("misstype");
+    FCITX_ASSERT(addon && addon->getConfig()) << "addon exposes a config";
+
+    // LR6: the settings page defaults follow macOS (MisstypePrefs).
+    {
+        RawConfig defaults;
+        addon->getConfig()->save(defaults);
+        auto expect = [&](const char *key, const char *value) {
+            const auto *stored = defaults.valueByPath(key);
+            FCITX_ASSERT(stored && *stored == value) << key << " defaults to " << (stored ? *stored : "(none)");
+        };
+        expect("RepairStrength", "Standard");
+        expect("ChannelLearning", "False");
+        expect("MixedEnglish", "False");
+        expect("AutoShowCandidates", "False");
+        expect("ReturnConfirmsSelection", "True");
+        expect("CandidatesPerPage", "8");
+        expect("CursorCandidates", "Covering");
+        pass("LR6");
+    }
+    // The conformance scenarios assume the core's defaults, not the page's.
+    {
+        RawConfig core;
+        core.setValueByPath("MixedEnglish", "True");
+        core.setValueByPath("AutoShowCandidates", "True");
+        core.setValueByPath("ReturnConfirmsSelection", "False");
+        addon->setConfig(core);
+    }
 
     // C1: su3cl3, then Enter commits the preview.
     s.type("su3cl3");
@@ -350,6 +380,91 @@ void runAll(Instance &instance) {
     s.clear();
     pass("C13");
 
+    // LR5: the settings page (setConfig) reaches live sessions.
+    // Showing candidates automatically off: the panel stays empty until Tab.
+    {
+        RawConfig raw;
+        raw.setValueByPath("AutoShowCandidates", "False");
+        addon->setConfig(raw);
+        ic.focusIn();
+        s.type("su3");
+        FCITX_ASSERT(!s.candidates()) << "AutoShowCandidates=False hides the list";
+        FCITX_ASSERT(s.key(FcitxKey_Tab, kTab));
+        FCITX_ASSERT(s.candidates()) << "Tab opens it";
+        s.clear();
+        RawConfig current;
+        addon->getConfig()->save(current);
+        const auto *value = current.valueByPath("AutoShowCandidates");
+        FCITX_ASSERT(value && *value == "False") << "getConfig reflects the page";
+        raw.setValueByPath("AutoShowCandidates", "True");
+        // Candidates per page reaches both the core and the fcitx5 list.
+        raw.setValueByPath("CandidatesPerPage", "5");
+        addon->setConfig(raw);
+        s.type("su3cl3");
+        {
+            auto *list = s.candidates();
+            FCITX_ASSERT(list && list->pageSize() == 5 && list->totalPages() == 2) << "5 rows per page";
+        }
+        FCITX_ASSERT(s.key(FcitxKey_Tab, kTab));
+        FCITX_ASSERT(s.candidates()->label(4).toString() == "g") << "five selection keys";
+        s.clear();
+        raw.setValueByPath("CandidatesPerPage", "8");
+        addon->setConfig(raw);
+        pass("LR5");
+    }
+
+    // LR7: ShiftTogglesEnglish hands a lone Shift tap to the session (macOS
+    // 中/英); fcitx5's AltTriggerKeys must be empty or it switches first.
+    {
+        RawConfig hotkeys;
+        hotkeys.setValueByPath("Hotkey/AltTriggerKeys", "");
+        instance.globalConfig().load(hotkeys, true);
+        FCITX_ASSERT(instance.globalConfig().altTriggerKeys().empty());
+        RawConfig raw;
+        raw.setValueByPath("ShiftTogglesEnglish", "True");
+        addon->setConfig(raw);
+        // releaseSym: what the layout calls the key on release. With
+        // shift:both_capslock_cancel (Omarchy) a Shift release is Caps_Lock.
+        auto tapShift = [&](KeySym releaseSym = FcitxKey_Shift_L) {
+            // Taps closer than ShiftTapTracker.retriggerGuard (50 ms) count as bounce.
+            std::this_thread::sleep_for(std::chrono::milliseconds(60));
+            FCITX_ASSERT(!s.key(FcitxKey_Shift_L, kShiftL));
+            FCITX_ASSERT(!s.key(releaseSym, kShiftL, shift, /*release=*/true));
+        };
+        tapShift();
+        FCITX_ASSERT(instance.inputMethod(&ic) == "misstype") << instance.inputMethod(&ic);
+        FCITX_ASSERT(s.aux() == "英") << s.aux();
+        FCITX_ASSERT(!s.key(FcitxKey_s, physical('s').evdev)) << "English passes keys through";
+        tapShift();
+        FCITX_ASSERT(s.aux() == "中") << s.aux();
+        s.type("su3");
+        FCITX_ASSERT(s.preedit() == "你") << s.preedit();
+        s.clear();
+        tapShift(FcitxKey_Caps_Lock);
+        FCITX_ASSERT(s.aux() == "英") << "Shift release reported as Caps_Lock: " << s.aux();
+        tapShift(FcitxKey_Caps_Lock);
+        FCITX_ASSERT(s.aux() == "中") << s.aux();
+        // LR8: mid-composition a lone Shift opens an English run: 英 stays up
+        // while it is open (also as its letters are typed), 中 when it closes.
+        s.type("su3");
+        tapShift();
+        FCITX_ASSERT(s.aux() == "英") << "English run open: " << s.aux();
+        s.type("ok");
+        FCITX_ASSERT(s.preedit() == "你ok") << s.preedit();
+        FCITX_ASSERT(s.aux() == "英") << "still in the English run: " << s.aux();
+        tapShift();
+        FCITX_ASSERT(s.aux() == "中") << "English run closed: " << s.aux();
+        s.type("cl3");
+        FCITX_ASSERT(s.aux().empty()) << "the 中 flash clears on the next key: " << s.aux();
+        s.clear();
+        pass("LR8");
+        raw.setValueByPath("ShiftTogglesEnglish", "False");
+        addon->setConfig(raw);
+        hotkeys.setValueByPath("Hotkey/AltTriggerKeys/0", "Shift_L");
+        instance.globalConfig().load(hotkeys, true);
+        pass("LR7");
+    }
+
     // C4 runs last: committing 尼 teaches the user lexicon, which would
     // reorder the candidates every other scenario expects.
     // C4: Tab (one page: enters selection, highlight stays), a selection key
@@ -396,7 +511,7 @@ int main() {
     dispatcher.attach(&instance.eventLoop());
     dispatcher.schedule([&instance]() {
         runAll(instance);
-        FCITX_INFO() << "All 17 scenarios passed";
+        FCITX_INFO() << "All 19 scenarios passed";
         instance.exit();
     });
     instance.exec();

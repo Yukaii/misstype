@@ -98,7 +98,14 @@ Docker or bare-metal:
 ```sh
 script/linux/dev.sh 'bash script/linux/test_all.sh'
 bash script/linux/test_all.sh   # on a provisioned Linux box
+script/linux/install_ime.sh     # build + install on this desktop, restart fcitx5
 ```
+
+Linux also ships `misstypectl` (Swift, `Sources/MisstypeCtl`: `dict` and
+`config` subcommands) and a GTK4 dictionary editor over it; the fcitx5
+settings page and `misstypectl config` edit the same `conf/misstype.conf`
+(`docs/linux-port.md`, L7). Keep the key list in `ConfigCommand.settings` in
+step with `MisstypeConfig` in `linux/fcitx5/src/engine.cpp`.
 
 Editing rules live in `MisstypeCore`'s `InputSession`; platform adapters
 only translate key events and draw `SessionView` (see
