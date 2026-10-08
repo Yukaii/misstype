@@ -48,6 +48,9 @@ install(TARGETS misstype-fcitx5 LIBRARY DESTINATION "${FCITX_INSTALL_ADDONDIR}")
 install(PROGRAMS "${MISSTYPE_CAPI_DIR}/libMisstypeCAPI.so" DESTINATION "${CMAKE_INSTALL_LIBDIR}/misstype")
 install(FILES "${CMAKE_BINARY_DIR}/data/addon/misstype.conf" DESTINATION "${FCITX_INSTALL_PKGDATADIR}/addon")
 install(FILES "${CMAKE_BINARY_DIR}/data/inputmethod/misstype.conf" DESTINATION "${FCITX_INSTALL_PKGDATADIR}/inputmethod")
+# Tray/IM icon (Icon= in inputmethod/misstype.conf) and the app icon shared with macOS.
+install(FILES data/icons/misstype-symbolic.svg DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/symbolic/apps")
+install(FILES "${MISSTYPE_ROOT}/Resources/MisstypeIcon.svg" DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps" RENAME misstype.svg)
 install(FILES
     "${MISSTYPE_LEXICON_DIR}/lexicon.tsv"
     "${MISSTYPE_LEXICON_DIR}/toneless.tsv"

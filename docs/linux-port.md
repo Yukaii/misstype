@@ -113,6 +113,9 @@ linux/Dockerfile                      dev/CI image (exists)
 linux/fcitx5/CMakeLists.txt
 linux/fcitx5/src/                     engine + per-IC state + candidate word
 linux/fcitx5/data/addon/misstype.conf.in, data/inputmethod/misstype.conf
+linux/fcitx5/data/icons/misstype-symbolic.svg  tray/IM icon (Icon=): white 隨
+                                      badge, recoloured by the host; the app icon
+                                      is Resources/MisstypeIcon.svg (shared with macOS)
 linux/fcitx5/test/testmisstype.cpp     C1–C15 + Linux delivery rules, headless
 script/linux/dev.sh                   run a command in the container (exists)
 script/linux/bootstrap.sh           provision a bare-metal Ubuntu 24.04 host (no Docker)
