@@ -38,7 +38,7 @@ pub const ContextRule = struct {
 
 pub const UserLexicon = struct {
     gpa: Allocator,
-    entries: std.StringArrayHashMapUnmanaged(Texts) = .empty,
+    entries: std.ArrayHashMapUnmanaged([]const u8, Texts, unicode.StringContext, true) = .empty,
 
     pub fn init(gpa: Allocator) UserLexicon {
         return .{ .gpa = gpa };
@@ -444,7 +444,7 @@ pub fn learnedWords(arena: Allocator, committed: Candidate, pins: *const UserLex
         const pinned = if (pin_key) |k| pins.contains(k, text) else false;
         var changed = false;
         if (baseline) |base| if (base.utf16_len == committed.utf16_len) {
-            changed = !std.mem.eql(u8, try unicode.utf16Slice(arena, base.text, word.chars.start, word.chars.end), text);
+            changed = !unicode.equal(try unicode.utf16Slice(arena, base.text, word.chars.start, word.chars.end), text);
         };
         var readings: std.ArrayList(u8) = .empty;
         try candidate_mod.appendKey(&readings, arena, committed.syllables[word.syllables.start..word.syllables.end]);
@@ -495,4 +495,13 @@ test "learned text uses canonical String equality and preserves stored spelling"
     try std.testing.expectEqual(@as(usize, 1), texts.count());
     try std.testing.expectEqual(@as(i64, 2), texts.get("é").?.count);
     try std.testing.expectEqualStrings("e\u{301}", texts.keys()[0]);
+}
+
+test "canonical context keys share one learned entry" {
+    var lex = UserLexicon.init(std.testing.allocator);
+    defer lex.deinit();
+    try lex.record("e\u{301}|ㄋㄧ", "你", 10);
+    try lex.record("é|ㄋㄧ", "你", 11);
+    try std.testing.expectEqual(@as(usize, 1), lex.entries.count());
+    try std.testing.expectEqual(@as(i64, 2), lex.get("é|ㄋㄧ").?.get("你").?.count);
 }

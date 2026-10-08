@@ -217,6 +217,19 @@ def run(paths):
                     engine.close()
             assert views[0] == views[1], ('resource rows', case, views)
         print('PASS malformed/duplicate/non-finite/CRLF resource rows match the Swift fallback')
+        views = []
+        for index, api in enumerate(apis):
+            directory = root / f'canonical-context-{index}'; directory.mkdir()
+            resource = directory / 'resources'; resource.mkdir()
+            (resource / 'lexicon.tsv').write_text('ㄋㄧˇ\té\t-3\nㄏㄠˇ\t好\t-4\nㄏㄠˇ\t豪\t-5\n')
+            (directory / 'user_phrases.json').write_text(json.dumps({'version': 2, 'entries': {'e\u0301|ㄏㄠ': {'豪': {'count': 2, 'updatedAt': 0}}}}))
+            engine = Engine(api, resource, directory)
+            try:
+                views.append(engine.top('su3cl3'))
+            finally:
+                engine.close()
+        assert views == ['é豪', 'é豪'], ('canonical context learning', views)
+        print('PASS canonical Unicode context keys survive restart and score equivalent spellings equally')
 
 if __name__ == '__main__':
     assert len(sys.argv) == 3, 'usage: persistence.py <Swift.so> <Zig.so>'

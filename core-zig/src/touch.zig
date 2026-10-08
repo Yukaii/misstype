@@ -108,7 +108,7 @@ fn extendCombos(a: A, combos: []const Combo, options: []const KeyOption, cap: us
     return out.items[0..@min(out.items.len, cap)];
 }
 fn merge(a: A, list: *std.ArrayList(TouchCandidate), value: TouchCandidate) !void {
-    for (list.items) |*old| if (std.mem.eql(u8, old.sentence.text, value.sentence.text)) {
+    for (list.items) |*old| if (@import("unicode.zig").equal(old.sentence.text, value.sentence.text)) {
         if (old.score() < value.score()) old.* = value;
         return;
     };

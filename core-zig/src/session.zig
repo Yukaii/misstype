@@ -590,7 +590,7 @@ pub const Session = struct {
     }
 
     fn isComplete(self: *const Session, text: []const u8) bool {
-        for (self.complete_texts) |t| if (std.mem.eql(u8, t, text)) return true;
+        for (self.complete_texts) |t| if (unicode.equal(t, text)) return true;
         return false;
     }
 
@@ -1166,7 +1166,7 @@ pub const Session = struct {
             var exact: ?usize = null;
             var extended: ?usize = null;
             for (self.candidates, 0..) |c, i| {
-                if (exact == null and std.mem.eql(u8, c.text, pin)) exact = i;
+                if (exact == null and unicode.equal(c.text, pin)) exact = i;
                 if (extended == null and std.mem.startsWith(u8, c.text, pin)) extended = i;
             }
             if (exact) |e| {
@@ -1192,7 +1192,7 @@ pub const Session = struct {
 
     fn sameTexts(a: []const Candidate, b: []const Candidate) bool {
         if (a.len != b.len) return false;
-        for (a, b) |x, y| if (!std.mem.eql(u8, x.text, y.text)) return false;
+        for (a, b) |x, y| if (!unicode.equal(x.text, y.text)) return false;
         return true;
     }
 
@@ -1371,7 +1371,7 @@ pub const Session = struct {
             try evidence.intended.appendSlice(a, keys);
             if (channel_mod.substitution(committed.syllables[index].keys, keys)) |pair| try evidence.repaired.append(a, pair);
         }
-        if (unpicked) |u| if (!std.mem.eql(u8, u.text, committed.text) and sameKeys(u.syllables, committed.syllables)) {
+        if (unpicked) |u| if (!unicode.equal(u.text, committed.text) and sameKeys(u.syllables, committed.syllables)) {
             for (try self.intendedKeys(a, u), 0..) |maybe, index| {
                 const keys = maybe orelse continue;
                 const own = intended[index] orelse continue;
@@ -1431,7 +1431,7 @@ pub const Session = struct {
         const shown_char: ?[]const u8 = if (top.charOffset(c)) |off| try top.slice(a, Range.of(off, off + 1)) else null;
         if (shown_word) |sw| {
             const listed = for (options.items) |o| {
-                if (o.span.eql(word.syllables) and std.mem.eql(u8, o.text, sw)) break true;
+                if (o.span.eql(word.syllables) and unicode.equal(o.text, sw)) break true;
             } else false;
             if (!listed) {
                 var at = options.items.len;
@@ -1443,11 +1443,11 @@ pub const Session = struct {
             }
         }
         var current: ?usize = null;
-        if (shown_word) |sw| for (options.items, 0..) |o, i| if (o.span.eql(word.syllables) and std.mem.eql(u8, o.text, sw)) {
+        if (shown_word) |sw| for (options.items, 0..) |o, i| if (o.span.eql(word.syllables) and unicode.equal(o.text, sw)) {
             current = i;
             break;
         };
-        if (current == null) if (shown_char) |sc| for (options.items, 0..) |o, i| if (o.span.eql(Range.of(c, c + 1)) and std.mem.eql(u8, o.text, sc)) {
+        if (current == null) if (shown_char) |sc| for (options.items, 0..) |o, i| if (o.span.eql(Range.of(c, c + 1)) and unicode.equal(o.text, sc)) {
             current = i;
             break;
         };
@@ -1583,7 +1583,7 @@ pub const Session = struct {
         const option = self.segment_options[index];
         try self.noteUnpicked();
         const shown = try self.spanTextOf(option.span, top);
-        if (shown == null or !std.mem.eql(u8, shown.?, option.text)) try self.learn_pins.pin(option, top);
+        if (shown == null or !unicode.equal(shown.?, option.text)) try self.learn_pins.pin(option, top);
         try self.session_pins.pin(option, top);
         self.settled_pins.clear();
         self.setPinnedPick(null);

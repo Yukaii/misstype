@@ -122,7 +122,7 @@ pub fn characterCount(text: []const u8) usize {
     var previous: ?u21 = null;
     var state: i32 = 0;
     while (it.nextCodepoint()) |cp| {
-        if (previous == null or utf8proc_grapheme_break_stateful(previous.?, cp, &state)) count += 1;
+        if (previous == null or graphemeBreak(previous.?, cp, &state)) count += 1;
         previous = cp;
     }
     return count;
@@ -138,7 +138,7 @@ pub fn characters(gpa: Allocator, text: []const u8) ![][]const u8 {
         const at = it.i;
         const cp = it.nextCodepoint() orelse break;
         if (previous) |last| {
-            if (utf8proc_grapheme_break_stateful(last, cp, &state)) {
+            if (graphemeBreak(last, cp, &state)) {
                 try out.append(gpa, text[start..at]);
                 start = at;
             }
@@ -209,9 +209,17 @@ extern "c" fn utf8proc_map([*]const u8, isize, *?[*]u8, c_int) isize;
 /// Swift String equality without changing either spelling's raw evidence.
 pub fn equal(a: []const u8, b: []const u8) bool {
     if (std.mem.eql(u8, a, b)) return true;
-    // The shipping lexicon is overwhelmingly ASCII and unified CJK; these
-    // scalars have no canonical decomposition and cannot reorder.
-    if (canonicalStable(a) and canonicalStable(b)) return false;
+    // Distinct stable starters cannot become canonically equivalent. Stop
+    // at their first difference instead of scanning both complete sentences.
+    var a_it = scalars(a);
+    var b_it = scalars(b);
+    while (true) {
+        const ac = a_it.nextCodepoint() orelse return false;
+        const bc = b_it.nextCodepoint() orelse return false;
+        if (ac == bc) continue;
+        if ((ac < 128 or simpleScalar(ac)) and (bc < 128 or simpleScalar(bc))) return false;
+        break;
+    }
     var left: ?[*]u8 = null;
     var right: ?[*]u8 = null;
     const options = 2 | 8; // UTF8PROC_STABLE | UTF8PROC_COMPOSE
@@ -227,12 +235,29 @@ test "canonical equality preserves original spelling" {
     try std.testing.expect(!equal("你", "尼"));
 }
 
+fn simpleScalar(cp: u21) bool {
+    // These base characters have Grapheme_Cluster_Break=Other and no
+    // canonical decomposition. Never include combining or control ranges.
+    return (cp >= 32 and cp < 127) or
+        (cp >= 0x3105 and cp <= 0x312f) or
+        (cp >= 0x3400 and cp <= 0x4dbf) or
+        (cp >= 0x4e00 and cp <= 0x9fff) or
+        (cp >= 0x20000 and cp <= 0x323af and !(cp >= 0x2f800 and cp <= 0x2fa1f)) or
+        (cp >= 0x3000 and cp <= 0x3029) or
+        (cp >= 0x3030 and cp <= 0x303f) or
+        (cp >= 0xff01 and cp <= 0xff5e) or
+        cp == 0x02c7 or cp == 0x02ca or cp == 0x02cb or cp == 0x02d9;
+}
+fn graphemeBreak(previous: u21, current: u21, state: *i32) bool {
+    if (simpleScalar(previous) and simpleScalar(current)) {
+        state.* = 0;
+        return true;
+    }
+    return utf8proc_grapheme_break_stateful(previous, current, state);
+}
 fn canonicalStable(text: []const u8) bool {
     var it = scalars(text);
-    while (it.nextCodepoint()) |cp| {
-        if (cp < 128 or (cp >= 0x3400 and cp <= 0x4dbf) or (cp >= 0x4e00 and cp <= 0x9fff) or (cp >= 0x20000 and cp <= 0x323af and !(cp >= 0x2f800 and cp <= 0x2fa1f))) continue;
-        return false;
-    }
+    while (it.nextCodepoint()) |cp| if (!(cp < 128 or simpleScalar(cp))) return false;
     return true;
 }
 
@@ -250,3 +275,40 @@ pub const StringContext = struct {
         return equal(a, b);
     }
 };
+
+test "fast text ranges agree with pinned Unicode properties and state resets" {
+    // Test every scalar admitted by the fast path against the actual vendor,
+    // including transitions to combining marks, emoji and control characters.
+    var cp: u21 = 0;
+    while (cp <= 0x323af) : (cp += 1) {
+        if (!simpleScalar(cp)) continue;
+        var state: i32 = 0;
+        try std.testing.expect(utf8proc_grapheme_break_stateful(cp, '你', &state));
+        state = 0;
+        try std.testing.expect(utf8proc_grapheme_break_stateful('你', cp, &state));
+        var state_bytes: [4]u8 = undefined;
+        const encoded = std.unicode.utf8Encode(cp, &state_bytes) catch unreachable;
+        var mapped: ?[*]u8 = null;
+        const n = utf8proc_map(state_bytes[0..encoded].ptr, encoded, &mapped, 2 | 16); // NFD
+        defer if (mapped) |data| std.c.free(data);
+        try std.testing.expect(n == encoded and std.mem.eql(u8, state_bytes[0..encoded], mapped.?[0..@intCast(n)]));
+    }
+    for ([_][]const u8{ "你a\u{301}好", "🇹🇼你好🇯🇵", "👩\u{200d}💻你好👨\u{200d}👩", "\r\n你好\r\n", "क्ष你好क्ष" }) |value| {
+        var expected: usize = 0;
+        var previous: ?u21 = null;
+        var state: i32 = 0;
+        var it = scalars(value);
+        while (it.nextCodepoint()) |scalar| {
+            if (previous == null or utf8proc_grapheme_break_stateful(previous.?, scalar, &state)) expected += 1;
+            previous = scalar;
+        }
+        try std.testing.expectEqual(expected, characterCount(value));
+    }
+}
+
+test "canonical comparison handles reordered marks and stable starter differences" {
+    try std.testing.expect(equal("a\u{316}\u{301}b", "a\u{301}\u{316}b"));
+    try std.testing.expect(!equal("a\u{301}b", "a\u{301}c"));
+    try std.testing.expect(!equal("你好ㄋㄧ", "你好ㄏㄠ"));
+    try std.testing.expect(equal("\u{f900}", "豈"));
+}

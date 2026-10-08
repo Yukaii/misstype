@@ -938,7 +938,7 @@ pub const Lexicon = struct {
                                 var contextual: f64 = 0;
                                 if (rules) |list| {
                                     for (list) |rule| {
-                                        if (unicode.equal(rule.text, entry.text) and std.mem.eql(u8, rule.previous, previous_words[index])) {
+                                        if (unicode.equal(rule.text, entry.text) and unicode.equal(rule.previous, previous_words[index])) {
                                             contextual = rule.bonus;
                                             break;
                                         }
@@ -1077,7 +1077,7 @@ pub const Lexicon = struct {
     fn removeText(list: *std.ArrayList(Entry), text: []const u8) void {
         var i: usize = 0;
         while (i < list.items.len) {
-            if (std.mem.eql(u8, list.items[i].text, text)) {
+            if (unicode.equal(list.items[i].text, text)) {
                 _ = list.orderedRemove(i);
             } else i += 1;
         }
