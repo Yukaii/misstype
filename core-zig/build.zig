@@ -8,7 +8,32 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/root.zig"),
         .target = target,
         .optimize = optimize,
+        // libm for bit-identical learned costs (channel.zig); malloc for the C ABI.
+        .link_libc = true,
     });
+
+    // The C ABI of Sources/CMisstype/include/misstype.h.
+    const lib = b.addLibrary(.{
+        .name = "MisstypeCAPI",
+        .linkage = .dynamic,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/capi.zig"),
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+        }),
+    });
+    b.installArtifact(lib);
+
+    // Replay driver (tests/replay) linked against the Zig library.
+    const replay = b.addExecutable(.{
+        .name = "replay",
+        .root_module = b.createModule(.{ .target = target, .optimize = optimize, .link_libc = true }),
+    });
+    replay.root_module.addCSourceFile(.{ .file = b.path("../tests/replay/replay.c"), .flags = &.{ "-std=c11", "-Wall", "-Wextra", "-Werror" } });
+    replay.root_module.addIncludePath(b.path("../Sources/CMisstype/include"));
+    replay.root_module.linkLibrary(lib);
+    b.installArtifact(replay);
 
     // Differential + latency harness against the Swift decoder (bench/).
     const bench = b.addExecutable(.{
@@ -24,14 +49,6 @@ pub fn build(b: *std.Build) void {
     const run = b.addRunArtifact(bench);
     run.addPassthruArgs();
     b.step("bench", "Decode bench/inputs.tsv (args: <resource dir> <inputs> [repeats])").dependOn(&run.step);
-
-    // Static library: the future home of the misstype.h C ABI.
-    const lib = b.addLibrary(.{
-        .name = "misstype",
-        .linkage = .static,
-        .root_module = core,
-    });
-    b.installArtifact(lib);
 
     const tests = b.addTest(.{ .root_module = core });
     b.step("test", "Run core tests").dependOn(&b.addRunArtifact(tests).step);

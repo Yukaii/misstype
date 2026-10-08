@@ -39,7 +39,11 @@ This repository is an experimental input device and decoder. The current goal is
   on all 1,344 probe candidates, bit for bit, at 14x lower latency. Until
   the port reaches parity and a platform switches over, Swift
   `MisstypeCore` stays the source of truth; Zig follows it through
-  `core-zig/bench/compare.sh`.
+  `core-zig/bench/compare.sh`. Step 1's offline keyboard session and C ABI
+  now match Swift on 13,524 synthetic replay events; the Zig library passes
+  the C ABI smoke test and 19 fcitx5 scenarios. Use
+  `core-zig/bench/replay.sh` and `script/zig/test_linux.sh` for these gates.
+  Touch, persistent-file parity, and platform cutover remain open.
 
 - macOS packaging is verified on a Mac (2026-10-04, macOS 27) except a few
   GUI paths: a per-user installer app in a DMG, Sparkle 2 updates from GitHub

@@ -35,6 +35,8 @@ static misstype_settings settings;
 static double clock_now = 1000.0;
 static const char *dirs[2];
 static char keys_buf[64];
+static long long handle_ns, max_handle_ns;
+static unsigned long handle_count;
 
 static void print_json_string(const char *s) {
     putchar('"');
@@ -90,7 +92,16 @@ static void print_result(misstype_key_result r) {
 static void send(misstype_key_event ev) {
     ev.timestamp = clock_now;
     clock_now += 0.05;
-    print_result(misstype_session_handle(session, &ev));
+    struct timespec start, end;
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    misstype_key_result result = misstype_session_handle(session, &ev);
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    long long elapsed = (end.tv_sec - start.tv_sec) * 1000000000LL + end.tv_nsec - start.tv_nsec;
+    handle_ns += elapsed;
+    if (elapsed > max_handle_ns) max_handle_ns = elapsed;
+    handle_count++;
+    print_result(result);
+    print_state();
 }
 
 static void new_session(void) {
@@ -233,8 +244,10 @@ static void run(const char *path) {
             continue;
         } else if (!strncmp(line, "k ", 2)) {
             for (char *tok = strtok(line + 2, " "); tok; tok = strtok(NULL, " ")) key_token(tok);
+            continue;
         } else if (!strncmp(line, "t ", 2)) {
             type_text(line + 2);
+            continue;
         } else if (!strncmp(line, "pick ", 5)) {
             misstype_session_pick(session, atoi(line + 5));
         } else if (!strcmp(line, "commit")) {
@@ -265,5 +278,8 @@ int main(int argc, char **argv) {
     for (int i = 3; i < argc; i++) run(argv[i]);
     if (session) misstype_session_free(session);
     if (engine) misstype_engine_free(engine);
+    if (getenv("MISSTYPE_REPLAY_METRICS") && handle_count)
+        fprintf(stderr, "replay: events=%lu handle mean=%.1fus max=%.1fus\n", handle_count,
+                (double)handle_ns / handle_count / 1000, (double)max_handle_ns / 1000);
     return 0;
 }

@@ -1,6 +1,8 @@
 # Zig port of MisstypeCore
 
-Status (2026-10-08): step 0 done; step 1 not started. Swift `MisstypeCore`
+Status (2026-10-08): step 0 done; step 1's keyboard session and C ABI are
+ported and verified against Swift on synthetic keyboard replays. Touch and the platform cutover
+remain open. Swift `MisstypeCore`
 stays the single source of truth until the Zig engine matches it and a
 platform has switched over.
 
@@ -21,7 +23,7 @@ The Zig rewrite is not mainly about speed. The goals are:
 - `MisstypeCore`: about 6,400 lines of Swift (`InputSession` 1,483,
   `Lexicon` 862), plus about 4,600 lines of tests.
 - fcitx5 uses only the C ABI (`Sources/CMisstype/include/misstype.h`,
-  26 functions). A Zig library that exports the same header can replace
+  25 functions). A Zig library that exports the same header can replace
   the Swift one without any change on the fcitx5 side.
 - The macOS IME (6 files), `misstypectl` and the Wasm demo import Swift
   types directly. They would have to move onto the C ABI, and the ABI
@@ -122,4 +124,60 @@ script/zig/bootstrap.sh                                 # pinned Zig into .cache
 (cd core-zig && "$(../script/zig/bootstrap.sh)" build test)
 core-zig/bench/compare.sh [repeats]                     # Zig vs Swift (Docker)
 MISSTYPE_SWIFT_HOST=1 core-zig/bench/compare.sh         # Swift on the host (macOS)
+core-zig/bench/replay.sh [fuzz-cases] [seed]           # full C ABI replay vs Swift (Linux)
+MISSTYPE_ZIG_OPTIMIZE=ReleaseFast core-zig/bench/replay.sh # optimized replay + latency
+script/zig/test_linux.sh                              # Zig C ABI + fcitx5 in Docker
 ```
+
+## Step 1: keyboard session and C ABI (2026-10-08)
+
+Hypothesis: the offline keyboard session can preserve Swift's behavior
+behind the existing `misstype.h` without changing the fcitx5 adapter. The
+smallest falsifier is a synthetic key replay through both libraries,
+comparing key results and views after every event. `bench/replay.sh` grows
+that check into the conformance scripts, all 42 probe sentences (toned,
+toneless, and edited), English/mixed cases, and 400 seeded random sessions
+under 11 settings combinations. Generated scripts and transcripts live in
+`build/replay/`; they contain only synthetic inputs.
+
+Ported: composition/editing, live conversion, repair and segmentation,
+candidate pages, syllable cursor/pins, phrase marking, user dictionary
+overlays, word/context learning, the personal channel model, punctuation
+and symbol menus, Shift-tap/Latin recovery, chunked commits, mixed English,
+and the 25 C ABI functions. Zig builds `libMisstypeCAPI.so`; the existing
+header and fcitx5 adapter are unchanged. User data remains local.
+
+The initial Debug replay matched all 41,064 transcript lines. It caught
+two Zig-specific bugs before passing: a narrowed integer loop bound in
+repair fallback overflowed, and changing a tagged union to Latin read its
+old field during reassignment. Both have focused regression tests. A
+tracking-allocator session test also covers engine retention and freeing
+refresh/selection allocations. The replay driver now checks intermediate
+views inside multi-key script lines as well, and reports time spent in
+`misstype_session_handle` separately from view rendering and resource load.
+
+The stronger Debug and ReleaseFast replays match **48,078/48,078 transcript lines**
+over **13,524 key events** (400 random sessions, seed 1, plus conformance and
+probes), including intermediate views. All decoding is offline. Indicative
+single-run handle latency on aarch64 Linux: Zig mean **226.5 µs**, max
+**32.7 ms**; Swift release mean **2,729.7 µs**, max **478.3 ms**. These runs
+include mixed English and malformed input; they exclude resource loading,
+view calls, and the reference's English-load waits. The machine was shared
+with other checks, so this is not a controlled latency distribution.
+The exact-decoder gate still matches all **1,344 candidates bit for bit**
+(text, scores, repairs, unresolved counts, alignment); means on this rerun
+were Swift 581.1 µs and Zig 43.3 µs.
+
+Validation: the Zig library passes the C ABI smoke transcript and exported
+symbol check, plus all 19 headless fcitx5 scenarios. The full Swift/Linux
+suite also passes (270 Swift tests, 9 skipped, C ABI and fcitx5). These checks
+exercise in-memory dictionary and learning behavior; persistent-file parity
+needs a dedicated differential check before cutover.
+
+Remaining scope: touch decoding, custom key bindings (not exposed by the
+current C ABI), Jev assistance and diagnostic logging, and dev-only bigram
+and lexicon overrides. English resources load synchronously in Zig, while
+Swift loads them in the background; the reference replay waits for that
+load. No platform default or installer has switched to Zig. macOS,
+`misstypectl`, Wasm, and running cross-compiled binaries are still later
+milestones.

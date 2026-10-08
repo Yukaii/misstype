@@ -66,19 +66,19 @@ pub fn main(init: std.process.Init) !void {
         const start = Io.Timestamp.now(io, .awake);
         for (0..repeats) |_| {
             _ = arena.reset(.retain_capacity);
-            _ = try lexicon.decode(arena.allocator(), syllables.items, true);
+            _ = try lexicon.decode(arena.allocator(), syllables.items, .{ .fuzzy = false });
         }
         const elapsed = start.durationTo(Io.Timestamp.now(io, .awake)).nanoseconds;
         try means.append(gpa, @as(f64, @floatFromInt(elapsed)) / @as(f64, @floatFromInt(repeats)) / 1000.0);
 
         _ = arena.reset(.retain_capacity);
-        const candidates = try lexicon.decode(arena.allocator(), syllables.items, true);
+        const candidates = try lexicon.decode(arena.allocator(), syllables.items, .{ .fuzzy = false });
         for (candidates, 0..) |candidate, rank| {
             try out.print("{s}\t{s}\t{d}\t{s}\t{x:0>16}\t{d}\t{d}\t", .{
                 name, kind, rank, candidate.text, @as(u64, @bitCast(candidate.score)), candidate.repairs, candidate.unresolved,
             });
             for (candidate.alignment, 0..) |span, i| {
-                try out.print("{s}{d}-{d}:{d}-{d}", .{ if (i == 0) "" else ",", span.syllable_start, span.syllable_end, span.char_start, span.char_end });
+                try out.print("{s}{d}-{d}:{d}-{d}", .{ if (i == 0) "" else ",", span.syllables.start, span.syllables.end, span.chars.start, span.chars.end });
             }
             try out.writeByte('\n');
         }
@@ -90,8 +90,7 @@ pub fn main(init: std.process.Init) !void {
     for (means.items) |m| total += m;
     const n = means.items.len;
     std.debug.print("zig: entries={d} load={d:.1}ms inputs={d} repeats={d} decode mean={d:.1}us p50={d:.1}us p95={d:.1}us max={d:.1}us\n", .{
-        lexicon.entry_count,                       @as(f64, @floatFromInt(load_ns)) / 1e6, n, repeats,
-        total / @as(f64, @floatFromInt(n)),        means.items[n / 2],
-        means.items[@min(n - 1, (n * 95) / 100)], means.items[n - 1],
+        lexicon.entry_count,                @as(f64, @floatFromInt(load_ns)) / 1e6, n,                                        repeats,
+        total / @as(f64, @floatFromInt(n)), means.items[n / 2],                     means.items[@min(n - 1, (n * 95) / 100)], means.items[n - 1],
     });
 }
