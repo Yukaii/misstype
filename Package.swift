@@ -7,7 +7,9 @@ import PackageDescription
 var products: [Product] = [
     .library(name: "MisstypeCAPI", type: .dynamic, targets: ["MisstypeCAPI"]),
     .executable(name: "MisstypeWasm", targets: ["MisstypeWasm"]),
-    .executable(name: "misstypectl", targets: ["misstypectl"]),
+    // Product name keeps the binary `misstypectl`; the target directory differs
+    // from MisstypeCtl by more than case (macOS file systems ignore case).
+    .executable(name: "misstypectl", targets: ["MisstypeCtlTool"]),
 ]
 
 var targets: [Target] = [
@@ -19,7 +21,7 @@ var targets: [Target] = [
         dependencies: ["MisstypeCore"]
     ),
     .target(name: "MisstypeCtl", dependencies: ["MisstypeCore"]),
-    .executableTarget(name: "misstypectl", dependencies: ["MisstypeCtl"]),
+    .executableTarget(name: "MisstypeCtlTool", dependencies: ["MisstypeCtl"]),
     .testTarget(name: "MisstypeCtlTests", dependencies: ["MisstypeCtl", "MisstypeCore"],
                 path: "tests/MisstypeCtlTests"),
     .testTarget(name: "MisstypeCoreTests", dependencies: ["MisstypeCore"],
