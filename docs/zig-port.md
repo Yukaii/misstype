@@ -377,7 +377,8 @@ behavior change, regenerate with `--update` on the gate script, then review the
 diff of the golden file in the commit. `parity.sh` accepts a 1e-12 relative difference in the hex doubles of touch
 cases only (`tools/parity_diff.py`): `hypot` differs in the last bits across
 macOS, glibc x86_64 and glibc aarch64, and derived costs inherit it. Candidate
-text, order and every non-touch record stay bit-exact. Regenerate the golden
+text, order and every non-touch record stay bit-exact, except the candidate rows of one
+11-syllable near-tie case (`NEAR_TIE` in the script) whose winner flips on x86_64 glibc. Regenerate the golden
 on Linux so it matches what CI computes.
 
 ### Behavior suites

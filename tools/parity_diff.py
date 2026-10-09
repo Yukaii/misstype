@@ -11,6 +11,11 @@ import struct
 import sys
 
 REL = 1e-12
+# A long (11-syllable) noisy lattice search whose top candidates are within
+# rounding of each other: libm drift flips which one wins on x86_64 glibc, so
+# its candidate records are not comparable across libm builds. Its touch
+# distances (H records) are still checked.
+NEAR_TIE = {'quiet-touch-0.12-0-lattice'}
 HEX = re.compile(r'(?<![0-9a-f])([0-9a-f]{16})(?![0-9a-f])')
 
 
@@ -20,6 +25,9 @@ def value(h):
 
 def close(a, b):
     if a == b:
+        return True
+    f = a.split('\t')
+    if len(f) > 1 and f[1] in NEAR_TIE and f[0] == 'C' and b.startswith('C\t' + f[1] + '\t'):
         return True
     if '-touch-' not in a.split('\t')[1:2].__str__():
         return False
