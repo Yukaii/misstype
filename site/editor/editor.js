@@ -33,7 +33,6 @@ const countEl = $("#count");
 let ime = null;
 let imeState = null;
 let nativeImeKeys = 0;
-let shownEnglish = null;
 
 // ---------------------------------------------------------------- document
 
@@ -127,7 +126,7 @@ function caretRect() {
 }
 
 /** Moves finished text into the document and redraws the pre-edit and candidates. */
-function sync() {
+function sync(fromKey = false) {
   if (!ime) return;
   const text = ime.takeCommitted();
   imeState = ime.state();
@@ -137,9 +136,12 @@ function sync() {
   dictionary.persistIfChanged(ime);
   panel.render(imeState, caretRect());
   const english = imeState.english;
-  modeLabel.textContent = english ? "英" : "中";
-  if (shownEnglish !== null && english !== shownEnglish) flashMode(english);
-  shownEnglish = english;
+  modeLabel.textContent = english || imeState.latinActive ? "英" : "中";
+  // As on desktop: a Shift tap or backtick that opens or closes an English run
+  // inside a Chinese composition (latinToggled) and a mode change both flash.
+  // The flags describe the last key, so only a key event may read them.
+  if (fromKey && imeState.latinToggled) flashMode(imeState.latinActive);
+  if (fromKey && imeState.modeChanged) flashMode(english);
 }
 
 /** Settles an unfinished composition so the editor can act on real text. */
@@ -179,13 +181,13 @@ function keyDown(e) {
     e.preventDefault();
     e.stopPropagation();
   }
-  sync();
+  sync(true);
 }
 
 function keyUp(e) {
   if (!ime || (e.code !== "ShiftLeft" && e.code !== "ShiftRight")) return;
   if (ime.key(e.code, e.key, modifierBits(e), 1)) e.preventDefault();
-  sync();
+  sync(true);
 }
 
 function applyImeSettings() {
@@ -280,6 +282,7 @@ function toggleMode() {
   if (!ime) return;
   ime.toggleEnglish();
   sync();
+  flashMode(imeState.english);
   view.focus();
 }
 

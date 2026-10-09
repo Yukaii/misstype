@@ -173,7 +173,6 @@ export async function enable(options = {}) {
 
   let active = null; // the element the current composition belongs to
   let state = null;
-  let shownEnglish = null;
   let nativeKeys = 0;
 
   const targetOf = (e) => {
@@ -244,7 +243,7 @@ export async function enable(options = {}) {
   }
 
   /** Delivers finished text to the field and redraws. */
-  function sync() {
+  function sync(fromKey = false) {
     const text = ime.takeCommitted();
     state = ime.state();
     if (text && active) insertText(active, text);
@@ -252,8 +251,13 @@ export async function enable(options = {}) {
       knownWords = ime.userDictionaryCount();
       try { if (storageKey) localStorage.setItem(storageKey, ime.userDictionaryText()); } catch { /* storage unavailable */ }
     }
-    if (shownEnglish !== null && state.english !== shownEnglish && active) flash(state.english, caretBox(active));
-    shownEnglish = state.english;
+    // As on desktop: opening or closing an English run inside a Chinese
+    // composition (latinToggled) and a mode change both flash. The flags
+    // describe the last key, so only a key event may read them.
+    if (fromKey && active) {
+      if (state.latinToggled) flash(state.latinActive, caretBox(active));
+      if (state.modeChanged) flash(state.english, caretBox(active));
+    }
     paint();
   }
 
@@ -284,13 +288,13 @@ export async function enable(options = {}) {
       e.preventDefault();
       e.stopImmediatePropagation();
     }
-    sync();
+    sync(true);
   }
 
   function onKeyUp(e) {
     if (!targetOf(e) || (e.code !== "ShiftLeft" && e.code !== "ShiftRight")) return;
     if (ime.key(e.code, e.key, modifierBits(e), 1)) e.preventDefault();
-    sync();
+    sync(true);
   }
 
   const onPointerDown = (e) => { if (!e.composedPath().includes(host)) flush(); };
@@ -331,6 +335,7 @@ export async function enable(options = {}) {
     toggleEnglish() {
       ime.toggleEnglish();
       sync();
+      if (active) flash(state.english, caretBox(active));
     },
     /** Changes a decoder setting (`pageSize`, `shiftToggle`, `returnConfirmsSelection`, `autoShowCandidates`). */
     setSetting(name, value) {
