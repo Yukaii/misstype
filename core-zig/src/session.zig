@@ -1871,9 +1871,15 @@ test "first page key opens a multi-page list without advancing it" {
     const a = std.testing.allocator;
     var threaded: Io.Threaded = .init_single_threaded;
     const rows = [_][]const u8{
-        "ㄋㄧˇ\t候選0\t-1", "ㄋㄧˇ\t候選1\t-2", "ㄋㄧˇ\t候選2\t-3",
-        "ㄋㄧˇ\t候選3\t-4", "ㄋㄧˇ\t候選4\t-5", "ㄋㄧˇ\t候選5\t-6",
-        "ㄋㄧˇ\t候選6\t-7", "ㄋㄧˇ\t候選7\t-8", "ㄋㄧˇ\t候選8\t-9",
+        "ㄋㄧˇ\t候選0\t-1",
+        "ㄋㄧˇ\t候選1\t-2",
+        "ㄋㄧˇ\t候選2\t-3",
+        "ㄋㄧˇ\t候選3\t-4",
+        "ㄋㄧˇ\t候選4\t-5",
+        "ㄋㄧˇ\t候選5\t-6",
+        "ㄋㄧˇ\t候選6\t-7",
+        "ㄋㄧˇ\t候選7\t-8",
+        "ㄋㄧˇ\t候選8\t-9",
     };
     const dec = try Lexicon.create(a, &rows, "");
     const engine = try Engine.create(a, threaded.io(), dec);
