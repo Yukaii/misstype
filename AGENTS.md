@@ -166,7 +166,8 @@ platform adapters only translate key events and draw the view (see
 `tests/wasm_test.mjs` (CI job `wasm`).
 
 Platform adapters follow `docs/cross-platform.md` (contract + conformance
-scenarios C1–C15). Linux work follows `docs/linux-port.md`; run Linux
+scenarios C1–C15; platform priority and the Windows TSF and IBus sketches:
+`docs/windows-port.md`, `docs/ibus-port.md`). Linux work follows `docs/linux-port.md`; run Linux
 commands through `script/linux/dev.sh '<cmd>'` (Docker, `linux/Dockerfile`).
 
 Adapter lessons that cost time once (keep them): send marked text to IMK as

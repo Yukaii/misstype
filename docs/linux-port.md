@@ -25,8 +25,8 @@ acceptance) still needs a human or a VM with a display.
 behavior as macOS, built from the same `MisstypeCore`, and verified headlessly
 in CI against the conformance scenarios in `docs/cross-platform.md`.
 
-**Non-goals for this plan:** IBus, a settings UI, distro packages. See the
-backlog (L7). (Jev, remote assistance, was removed from the product on
+**Non-goals for this plan:** IBus (sketched in `docs/ibus-port.md`), a
+settings UI, distro packages. See the backlog (L7). (Jev, remote assistance, was removed from the product on
 2026-10-09.)
 
 ## Read first (every task)
@@ -597,7 +597,8 @@ Landed 2026-10-04 (macOS Settings parity, except About):
 
 Backlog (not scheduled):
 
-- IBus adapter over the same C ABI (GNOME's default IM framework).
+- IBus adapter over the same C ABI (GNOME's default IM framework): plan in
+  `docs/ibus-port.md`; platform order in `docs/cross-platform.md`.
 - Library size (~56–71 MB): `-Xlinker --gc-sections`, strip at install, or a
   Foundation-free core.
 - Packaging: AUR recipe in `linux/aur/PKGBUILD` (publication pending;

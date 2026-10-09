@@ -26,7 +26,7 @@ task plan that applies it to Linux (fcitx5).
 │ CandidatesPanel              │              │ CommonCandidateList                     │
 └──────────────────────────────┘              └─────────────────────────────────────────┘
                      web: misstype.wasm (wasm32-wasi) → site demo, video renderer
-                                   future: IBus, Windows TSF — same C ABI
+                                   future: Windows TSF, IBus — same C ABI
 ```
 
 **Rule: behavior lives in the core; adapters only do I/O.** An adapter
@@ -193,6 +193,24 @@ each is the named `InputSessionTests` case.
 A new adapter is conformant when all fifteen pass headlessly in CI (Linux: the
 fcitx5 `testfrontend` harness). Behavior that differs from this table is a
 core bug or an intentional contract change — never an adapter special case.
+
+## Platform priority
+
+Decided 2026-10-10. Order is by reach first, then cost; every item is gated on
+demand and a headless C1–C15 pass, never on a calendar.
+
+| # | Platform | State | Plan |
+|---|---|---|---|
+| 1 | macOS (IMK) | shipped | this document |
+| 2 | Linux fcitx5 | shipped, conformant | `docs/linux-port.md` |
+| 3 | Windows (TSF) | sketch | `docs/windows-port.md` |
+| 4 | Linux IBus | sketch | `docs/ibus-port.md` |
+| 5 | Mobile (touch surface) | survey | `docs/mobile-ime-survey.md`; validates the touch layer rather than reaching users |
+
+Windows ranks above IBus because it reaches more people; IBus is the cheaper
+build (about one adapter file over the existing Linux tooling), so it can
+start whenever there is spare time. Direct Wayland `input-method-v2` is not
+planned: fcitx5 and IBus already sit on top of it.
 
 ## Adding a platform
 
