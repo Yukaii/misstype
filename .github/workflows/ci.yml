@@ -66,51 +66,6 @@ jobs:
           "$zig" build test
           "$zig" build test -Doptimize=ReleaseFast
 
-  # Windows (docs/windows-port.md W1): the core's unit and behavior suites on a
-  # real Windows host, and the C ABI DLL plus CLIs for every Windows target a
-  # TSF text service will load into (x64, x86 and arm64 host processes).
-  windows:
-    runs-on: windows-latest
-    timeout-minutes: 30
-    defaults:
-      run:
-        shell: bash
-    steps:
-      - uses: actions/checkout@v4
-      - name: Cache pinned Zig toolchain and compiler
-        uses: actions/cache@v4
-        with:
-          path: |
-            .cache/zig
-            core-zig/.zig-cache
-          key: zig-windows-${{ runner.arch }}-${{ hashFiles('script/zig/bootstrap.sh') }}-${{ hashFiles('third_party/utf8proc/*', 'core-zig/src/*', 'core-zig/build.zig', 'core-zig/build.zig.zon') }}
-          restore-keys: |
-            zig-windows-${{ runner.arch }}-${{ hashFiles('script/zig/bootstrap.sh') }}-
-      - name: Test the core on Windows
-        run: |
-          zig=$(script/zig/bootstrap.sh)
-          cd core-zig
-          "$zig" build test
-      - name: Build the C ABI DLL and CLIs for every Windows target
-        run: |
-          zig=$(script/zig/bootstrap.sh)
-          cd core-zig
-          for target in x86_64-windows x86-windows aarch64-windows; do
-            "$zig" build -Dtarget=$target -Doptimize=ReleaseFast --prefix "$PWD/../dist/windows/$target"
-            test -f "../dist/windows/$target/bin/MisstypeCAPI.dll"
-            test -f "../dist/windows/$target/lib/MisstypeCAPI.lib"
-            grep -aq misstype_key_from_windows "../dist/windows/$target/bin/MisstypeCAPI.dll"
-          done
-      - name: Upload the Windows build
-        uses: actions/upload-artifact@v4
-        with:
-          name: misstype-windows-core
-          path: |
-            dist/windows/*/bin/MisstypeCAPI.dll
-            dist/windows/*/bin/misstypectl.exe
-            dist/windows/*/lib/MisstypeCAPI.lib
-          retention-days: 14
-
   # The site demo's WebAssembly build: the same `misstype_wasm_*` exports,
   # exercised by the browser-API suite under Node.
   wasm:

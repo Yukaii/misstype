@@ -75,7 +75,9 @@ and secure-desktop-adjacent surfaces. IMM32 would be a dead end.
   `capi.zig` (set-1 scan code, `0xE000 |` scan for the extended flag; the E0
   fake shifts map to `other`) with tests in `keymap_test.zig`; the core's data
   directory resolves to `%APPDATA%\Misstype`; `script/zig/bootstrap.sh` runs on
-  Windows (Git Bash); the CI job `windows` runs the core tests on
+  Windows (Git Bash); the CI workflow `windows.yml` (path-filtered: it only runs when the core,
+  the C ABI header, `windows/` or the workflow change, since Windows minutes
+  cost double on a private repo) runs the core tests on
   `windows-latest` and builds `MisstypeCAPI.dll`/`.lib` and `misstypectl.exe`
   for x64, x86 and arm64 (uploaded as the `misstype-windows-core` artifact).
   **Not done:** `misstypectl config` still targets the fcitx5 config path
