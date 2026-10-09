@@ -1,0 +1,101 @@
+/* Markdown editor page. Variables (--paper, --ink, --card, --line, --mark…)
+   come from ../style.css; candidate styles from ../playground.css. */
+
+html, body.app { height: 100%; }
+body.app {
+  display: flex; flex-direction: column; margin: 0; overflow: hidden;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+.bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 8px 16px; border-bottom: 1px solid var(--line); background: var(--paper);
+}
+.bar .brand { font-size: 16px; white-space: nowrap; }
+.bar .brand img { width: 26px; height: 26px; }
+.bar-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+
+.tool {
+  font: inherit; font-size: 14px; line-height: 1.2; padding: 6px 12px; min-height: 34px;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--ink);
+  cursor: pointer; box-shadow: 0 2px 0 color-mix(in srgb, var(--line) 75%, #000 25%);
+  transition: transform .14s ease, box-shadow .14s ease;
+}
+.tool:hover { transform: translateY(-1px); }
+.tool:active { transform: translateY(1px); box-shadow: none; }
+.tool.english { background: #e8ecf4; color: #1a4f8b; border-color: #cad6ea; }
+:root[data-scheme="dark"] .tool.english { background: #1d2a40; color: #8fb8f0; border-color: #2f4468; }
+.tool.primary { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+#mode-btn { min-width: 40px; font-weight: 600; }
+#mode-btn:disabled, body:not(.ime-ready) #mode-btn { opacity: .5; }
+
+main.pg { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+#editor { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+
+/* Wordgard draws its own box; make it fill the page and read like a document. */
+#editor wordgard-editor { flex: 1; min-height: 0; display: flex; flex-direction: column; border: 0; border-radius: 0; background: var(--paper); color: var(--ink); }
+#editor wg-scroller { flex: 1; min-height: 0; overflow-y: auto; max-height: none; }
+#editor wg-content {
+  display: block; box-sizing: border-box; min-height: 100%; outline: none;
+  padding: 28px clamp(16px, 5vw, 48px) 40vh; font-size: var(--editor-size, 18px); line-height: 1.8;
+  font-family: var(--sans); color: var(--ink); caret-color: var(--ink);
+}
+.pg[data-wrap="comfortable"] #editor wg-content { max-width: 46em; margin: 0 auto; }
+#editor wg-content h1, #editor wg-content h2, #editor wg-content h3 { line-height: 1.35; margin: 1.2em 0 .4em; }
+#editor wg-content p { margin: .5em 0; }
+#editor wg-content blockquote { margin: .8em 0; padding: 0 1em; border-left: 3px solid var(--line); color: var(--muted); }
+#editor wg-content pre, #editor wg-content code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .9em; }
+#editor wg-content pre { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; overflow-x: auto; }
+#editor wg-content :not(pre) > code { background: var(--card); border-radius: 4px; padding: .1em .35em; }
+#editor wg-content hr { border: 0; border-top: 1px solid var(--line); margin: 1.5em 0; }
+#editor wg-content a { color: var(--mark); }
+
+.status {
+  display: flex; gap: 16px; align-items: center; padding: 6px 16px; border-top: 1px solid var(--line);
+  color: var(--muted); font-size: 13px; background: var(--paper);
+}
+.status #count { margin-left: auto; }
+
+.cp-preedit { font-size: 18px; padding: 4px 8px 6px; border-bottom: 1px solid var(--pg-line); color: var(--pg-text); }
+.candidate-panel[hidden] { display: none; }
+.candidate-panel .candidate-list[hidden], .candidate-panel .candidate-footer[hidden] { display: none; }
+
+#toast {
+  position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 56px); transform: translate(-50%, 12px);
+  background: var(--ink); color: var(--paper); padding: 8px 16px; border-radius: 999px; font-size: 14px;
+  opacity: 0; pointer-events: none; transition: opacity .18s, transform .18s; z-index: 2000;
+}
+#toast.show { opacity: .95; transform: translate(-50%, 0); }
+
+/* Command palette and settings sheet */
+dialog.palette, dialog.sheet {
+  border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--ink); padding: 0;
+  box-shadow: 0 18px 48px rgba(0,0,0,.28);
+}
+dialog::backdrop { background: rgba(20, 22, 26, .38); }
+dialog.palette { width: min(560px, calc(100vw - 24px)); margin: 12vh auto 0; }
+.palette-input {
+  width: 100%; box-sizing: border-box; font: inherit; font-size: 17px; padding: 14px 16px;
+  border: 0; border-bottom: 1px solid var(--line); background: transparent; color: var(--ink); outline: none;
+}
+.palette-list { list-style: none; margin: 0; padding: 6px; max-height: min(52vh, 420px); overflow-y: auto; }
+.palette-list li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 9px 12px; border-radius: 8px; cursor: pointer; font-size: 15px; }
+.palette-list li.active { background: var(--mark-bg); }
+.palette-list li.palette-empty { color: var(--muted); cursor: default; }
+.palette-list kbd { color: var(--muted); font-size: 12px; white-space: nowrap; }
+
+dialog.sheet { width: min(460px, calc(100vw - 24px)); }
+dialog.sheet form { padding: 18px 20px 20px; display: grid; gap: 14px; }
+dialog.sheet h2 { margin: 0; font-size: 20px; }
+dialog.sheet fieldset { border: 1px solid var(--line); border-radius: 10px; margin: 0; padding: 10px 14px 12px; display: grid; gap: 10px; }
+dialog.sheet legend { padding: 0 6px; color: var(--muted); font-size: 13px; }
+dialog.sheet label { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 15px; }
+dialog.sheet label.check { justify-content: flex-start; }
+dialog.sheet select { font: inherit; font-size: 14px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); color: var(--ink); }
+dialog.sheet .hint { margin: 0; color: var(--muted); font-size: 13px; }
+
+@media (max-width: 640px) {
+  .bar { padding: 6px 10px; }
+  .bar .brand small { display: none; }
+  .tool { padding: 6px 9px; }
+}

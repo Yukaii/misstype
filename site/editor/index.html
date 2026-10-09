@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>隨打注音 · Markdown 編輯器</title>
+<meta name="description" content="離線可用的 Markdown 編輯器，內建隨打注音。iPad 接實體鍵盤也能打注音。">
+<meta name="theme-color" content="#f7f5f0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1c1f24" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="隨打注音">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="icon" href="../icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="manifest" href="manifest.webmanifest" vite-ignore>
+<script>(function(){try{var m=localStorage.getItem("misstype-theme");document.documentElement.dataset.scheme=m==="dark"||m==="light"?m:matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"}catch(e){}})()</script>
+<link rel="stylesheet" href="../style.css">
+</head>
+<body class="app">
+
+<header class="bar">
+  <a class="brand" href="../" aria-label="回到首頁"><img src="../icon.svg" alt="">隨打注音 <small>Markdown</small></a>
+  <div class="bar-actions">
+    <button class="tool" id="mode-btn" type="button" data-command="mode" aria-label="切換中英" title="切換中／英（輕按 Shift）">中</button>
+    <button class="tool" id="copy-btn" type="button" data-command="copy-md" aria-label="複製 Markdown">複製</button>
+    <button class="tool" id="clear-btn" type="button" data-command="clear" aria-label="清空">清空</button>
+    <button class="tool" id="palette-btn" type="button" data-command="palette" aria-label="指令選單">指令</button>
+    <button class="tool" id="settings-btn" type="button" data-command="settings" aria-label="設定">設定</button>
+    <button class="theme-toggle" type="button" data-label-auto="跟隨系統" data-label-light="淺色" data-label-dark="深色" aria-label="切換淺色／深色">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><g class="i-auto"><circle cx="8" cy="8" r="5.5"/><path d="M8 2.5v11"/></g><g class="i-light"><circle cx="8" cy="8" r="2.8"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1"/></g><path class="i-dark" d="M13.2 9.6A5.6 5.6 0 0 1 6.4 2.8a5.6 5.6 0 1 0 6.8 6.8z"/></svg>
+    </button>
+  </div>
+</header>
+
+<main class="pg" data-theme="system">
+  <div id="editor"></div>
+</main>
+
+<footer class="status">
+  <span id="status" role="status">載入注音中⋯</span>
+  <span id="count">0 字</span>
+  <span id="offline"></span>
+</footer>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<dialog id="settings" class="sheet" aria-labelledby="settings-title">
+  <form method="dialog">
+    <h2 id="settings-title">設定</h2>
+    <fieldset>
+      <legend>注音</legend>
+      <label>每頁候選字
+        <select data-setting="pageSize">
+          <option>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option><option>10</option>
+        </select>
+      </label>
+      <label class="check"><input type="checkbox" data-setting="shiftToggle"> 輕按 Shift 切換中／英</label>
+      <label class="check"><input type="checkbox" data-setting="returnConfirmsSelection"> Enter 確認選取的候選字</label>
+      <label class="check"><input type="checkbox" data-setting="autoShowCandidates"> 自動顯示候選窗</label>
+    </fieldset>
+    <fieldset>
+      <legend>外觀</legend>
+      <label>候選窗排列
+        <select data-setting="candidateLayout"><option value="vertical">直式</option><option value="horizontal">橫式</option></select>
+      </label>
+      <label>候選窗配色
+        <select data-setting="candidateTheme">
+          <option value="system">預設</option><option value="solarized">Solarized</option><option value="nord">Nord</option>
+          <option value="gruvbox">Gruvbox</option><option value="catppuccin">Catppuccin</option>
+        </select>
+      </label>
+      <label>字級
+        <select data-setting="fontSize"><option>15</option><option>16</option><option>18</option><option>20</option><option>22</option><option>26</option></select>
+      </label>
+      <label>版面
+        <select data-setting="wrap"><option value="comfortable">舒適（窄欄）</option><option value="wide">全寬</option></select>
+      </label>
+    </fieldset>
+    <p class="hint">設定只存在這個瀏覽器裡。輸入的內容不會傳到任何伺服器。</p>
+    <button class="tool primary" type="button" data-close>完成</button>
+  </form>
+</dialog>
+
+<script type="module" src="./editor.js"></script>
+<script type="module" src="../theme.js"></script>
+<noscript><p class="wrap">此編輯器需要 JavaScript。</p></noscript>
+</body>
+</html>

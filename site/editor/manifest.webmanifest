@@ -1,0 +1,15 @@
+{
+  "name": "隨打注音 Markdown 編輯器",
+  "short_name": "隨打注音",
+  "description": "離線可用的 Markdown 編輯器，內建隨打注音。",
+  "lang": "zh-Hant-TW",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f7f5f0",
+  "theme_color": "#f7f5f0",
+  "icons": [
+    { "src": "icon.png", "sizes": "1024x1024", "type": "image/png", "purpose": "any" },
+    { "src": "icon.png", "sizes": "1024x1024", "type": "image/png", "purpose": "maskable" }
+  ]
+}
