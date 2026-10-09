@@ -16,10 +16,11 @@ fi
 cache_args=()
 if [ "${MISSTYPE_LINUX_BUILD_CACHE:-0}" = 1 ]; then
   cache="$ROOT/.cache/linux-build"
-  mkdir -p "$cache/swift" "$cache/zig-local" "$cache/zig-global"
+  mkdir -p "$cache/swift" "$cache/zig-local" "$cache/zig-global" "$cache/fcitx5"
   cache_args=(-v "$cache/swift":/w/.build
     -v "$cache/zig-local":/w/core-zig/.zig-cache
     -v "$cache/zig-global":/cache/zig-global
+    -v "$cache/fcitx5":/w/build/fcitx5
     -e ZIG_GLOBAL_CACHE_DIR=/cache/zig-global)
 fi
 exec docker run --rm -v "$ROOT":/src:ro "${cache_args[@]}" "$IMAGE" \
