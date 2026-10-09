@@ -143,7 +143,7 @@ swift test
 ./script/install_ime.sh
 ```
 
-Linux, all layers (core tests, C ABI smoke test, fcitx5 headless suite), in
+Linux, all layers (core tests, C ABI smoke test, fcitx5 and IBus headless suites), in
 Docker or bare-metal:
 
 ```sh

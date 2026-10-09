@@ -81,7 +81,7 @@ Download `Misstype-<version>.dmg` from [GitHub Releases](https://github.com/Yuka
 
 ### Linux
 
-Supported as an fcitx5 addon sharing the same core as macOS. See the [Linux port](docs/linux-port.md) for install and status.
+Supported as an fcitx5 addon sharing the same core as macOS. See the [Linux port](docs/linux-port.md) for install and status. An experimental IBus engine (GNOME's default framework) is also available: [IBus port](docs/ibus-port.md).
 
 On Arch Linux / Omarchy, install [`fcitx5-misstype-git`](https://aur.archlinux.org/packages/fcitx5-misstype-git) from AUR:
 

@@ -16,3 +16,8 @@ cc -std=c11 -Wall -Wextra -Werror -ISources/CMisstype/include tests/capi/smoke.c
 cmake -S linux/fcitx5 -B build/fcitx5 \
     -DMISSTYPE_CAPI_DIR="$BIN_DIR" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
 cmake --build build/fcitx5 -j"$(nproc)"
+
+# The IBus engine (docs/ibus-port.md): sudo cmake --install build/ibus
+cmake -S linux/ibus -B build/ibus \
+    -DMISSTYPE_CAPI_DIR="$BIN_DIR" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
+cmake --build build/ibus -j"$(nproc)"

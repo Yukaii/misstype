@@ -83,7 +83,7 @@
 
 ### Linux
 
-以 fcitx5 外掛支援 Linux，與 macOS 版共用同一個核心。安裝與進度見 [Linux 移植說明](docs/linux-port.md)。
+以 fcitx5 外掛支援 Linux，與 macOS 版共用同一個核心。安裝與進度見 [Linux 移植說明](docs/linux-port.md)。另有實驗性的 IBus 引擎（GNOME 預設的輸入法框架）：[IBus 移植說明](docs/ibus-port.md)。
 
 Arch Linux / Omarchy 可從 AUR 安裝 [`fcitx5-misstype-git`](https://aur.archlinux.org/packages/fcitx5-misstype-git)：
 
