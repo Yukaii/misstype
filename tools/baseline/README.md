@@ -102,9 +102,9 @@ PYTHONPATH=src python tools/baseline/compare.py gen --seeds 10 --out /tmp/inputs
 tools/baseline/run_libchewing.sh /tmp/inputs.tsv /tmp/lc.tsv chewing,fuzzy
 
 # Misstype on macOS: the C ABI builds as a dylib, resources from the app build
-swift build -c release --product MisstypeCAPI
+(cd core-zig && zig build)  # via script/zig/bootstrap.sh
 ./script/build_and_run.sh --build-only
-python tools/baseline/compare.py drive-misstype --lib .build/release/libMisstypeCAPI.dylib \
+python tools/baseline/compare.py drive-misstype --lib core-zig/zig-out/lib/libMisstypeCAPI.dylib \
     --resources dist/MisstypeIME.app/Contents/Resources --inputs /tmp/inputs.tsv --out /tmp/mt.tsv
 
 python tools/baseline/compare.py report --losses misstype /tmp/mt.tsv /tmp/lc.tsv
