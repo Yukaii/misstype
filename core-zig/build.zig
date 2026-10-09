@@ -80,6 +80,29 @@ pub fn build(b: *std.Build) void {
         }),
     });
     b.installArtifact(dev);
+    // WebAssembly build for the site demo (script/build_site_assets.sh).
+    const wasm_target = b.resolveTargetQuery(.{ .cpu_arch = .wasm32, .os_tag = .wasi });
+    const wasm_core = b.createModule(.{
+        .root_source_file = b.path("src/root.zig"),
+        .target = wasm_target,
+        .optimize = .ReleaseSmall,
+        .link_libc = true,
+    });
+    addUnicode(b, wasm_core);
+    const wasm = b.addExecutable(.{
+        .name = "misstype",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/wasm.zig"),
+            .target = wasm_target,
+            .optimize = .ReleaseSmall,
+            .link_libc = true,
+            .strip = true,
+            .imports = &.{.{ .name = "misstype", .module = wasm_core }},
+        }),
+    });
+    wasm.rdynamic = true;
+    const install_wasm = b.addInstallArtifact(wasm, .{ .dest_dir = .{ .override = .{ .custom = "wasm" } } });
+    b.step("wasm", "Build zig-out/wasm/misstype.wasm for the site demo").dependOn(&install_wasm.step);
     const linux = b.step("linux", "Build only the Linux shipping library and CLI");
     linux.dependOn(&install_lib.step);
     linux.dependOn(&install_ctl.step);

@@ -67,6 +67,37 @@ jobs:
           "$zig" build test
           "$zig" build test -Doptimize=ReleaseFast
 
+  # The site demo's WebAssembly build: the same `misstype_wasm_*` exports,
+  # exercised by the browser-API suite under Node.
+  wasm:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - name: Cache pinned Zig toolchain and compiler
+        uses: actions/cache@v4
+        with:
+          path: |
+            .cache/zig
+            ~/.cache/zig
+            core-zig/.zig-cache
+          key: zig-wasm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('script/zig/bootstrap.sh') }}-${{ hashFiles('third_party/utf8proc/*', 'core-zig/src/*', 'core-zig/build.zig') }}
+          restore-keys: |
+            zig-wasm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('script/zig/bootstrap.sh') }}-
+      - run: npm ci
+        working-directory: site
+      - name: Build wasm32-wasi and run the browser API suite
+        run: |
+          zig=$(script/zig/bootstrap.sh)
+          (cd core-zig && "$zig" build wasm)
+          mkdir -p site/public
+          cp core-zig/zig-out/wasm/misstype.wasm site/public/
+          node tests/wasm_test.mjs
+
   core-linux:
     runs-on: ubuntu-24.04
     container: swift:6.0
