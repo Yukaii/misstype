@@ -347,6 +347,9 @@ DYLD_LIBRARY_PATH="$PWD/dist/zig/macos-universal" \
 ```
 
 These checks establish local build, linking, embedding, ad-hoc signing and
-input-source registration/selection. They do not establish marked-text GUI
-behavior, Settings write migration, Developer ID/notarization, or packaged
-DMG/update runtime behavior; those remain verification/cutover gates.
+input-source registration/selection. Manual checks by the maintainer
+(2026-10-09): `script/linux/install_ime.sh` installs and works on the Linux
+desktop, and the macOS Settings GUI renders and looks correct. They do not
+establish marked-text GUI behavior, Settings write migration, Developer
+ID/notarization, or packaged DMG/update runtime behavior; those remain
+verification/cutover gates.
