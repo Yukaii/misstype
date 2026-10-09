@@ -34,12 +34,12 @@ pub const Res = struct {
 /// Zig multiline strings cannot hold a tab, so lexicon literals write `|`
 /// where the TSV has one.
 pub fn tsv(comptime text: []const u8) []const u8 {
-    comptime {
-        var out: [text.len]u8 = undefined;
-        for (text, 0..) |c, i| out[i] = if (c == '|') '\t' else c;
-        const final = out;
-        return &final;
-    }
+    const out = comptime blk: {
+        var bytes: [text.len]u8 = undefined;
+        for (text, 0..) |c, i| bytes[i] = if (c == '|') '\t' else c;
+        break :blk bytes;
+    };
+    return &out;
 }
 
 /// The lexicon most session tests share.
@@ -213,3 +213,124 @@ pub fn homophones(a: Allocator, reading: []const u8, chars: []const []const u8) 
 }
 
 pub const ten_ni = [_][]const u8{ "你", "妳", "尼", "泥", "擬", "逆", "匿", "膩", "溺", "暱" };
+
+// MARK: - Decoder fixture
+
+const keyboard = @import("../keyboard.zig");
+const composition_mod = @import("../composition.zig");
+const Candidate = candidate_mod.Candidate;
+pub const Composition = composition_mod.Composition;
+pub const Syllable = keyboard.Syllable;
+pub const Lexicon = lexicon_mod.Lexicon;
+
+/// First tone typed with Space; Swift spells it `""`.
+pub const first_tone: u8 = ' ';
+/// Tone keys: ˇ ˋ ˊ ˙.
+pub const t3: u8 = '3';
+pub const t4: u8 = '4';
+pub const t2: u8 = '6';
+pub const neutral: u8 = '7';
+
+/// A lexicon plus an arena for everything a decode allocates, so a test can
+/// build compositions and read candidates without any bookkeeping.
+pub const Dec = struct {
+    gpa: Allocator,
+    arena: std.heap.ArenaAllocator,
+    lex: *Lexicon,
+
+    pub fn init(rows: []const u8) !*Dec {
+        return initWith(rows, "");
+    }
+
+    pub fn initWith(rows: []const u8, toneless: []const u8) !*Dec {
+        const gpa = std.testing.allocator;
+        const self = try gpa.create(Dec);
+        errdefer gpa.destroy(self);
+        self.* = .{ .gpa = gpa, .arena = .init(gpa), .lex = try Lexicon.create(gpa, &.{rows}, toneless) };
+        return self;
+    }
+
+    pub fn deinit(self: *Dec) void {
+        self.lex.destroy();
+        self.arena.deinit();
+        self.gpa.destroy(self);
+    }
+
+    pub fn a(self: *Dec) Allocator {
+        return self.arena.allocator();
+    }
+
+    /// A composition typed on the physical keys (' ' is the space key).
+    pub fn comp(self: *Dec, keys: []const u8) !Composition {
+        var c: Composition = .{};
+        for (keys) |k| {
+            if (k == ' ') _ = try c.appendSpace(self.a()) else _ = try c.append(self.a(), k);
+        }
+        return c;
+    }
+
+    pub fn syl(self: *Dec, keys: []const u8, tone: ?u8) Syllable {
+        _ = self;
+        return .{ .keys = keys, .tone = tone };
+    }
+
+    /// Swift `Composition.syllables(finishing:)`.
+    pub fn syllables(self: *Dec, c: Composition, finishing: bool) ![]const Syllable {
+        const p = try c.parsed(self.a());
+        if (!finishing or p.pending.len == 0) return p.complete;
+        var out: std.ArrayList(Syllable) = .empty;
+        try out.appendSlice(self.a(), p.complete);
+        try out.append(self.a(), .{ .keys = p.pending, .tone = null });
+        return out.items;
+    }
+
+    pub fn decode(self: *Dec, syllables_: []const Syllable, opts: Lexicon.DecodeOptions) ![]Candidate {
+        return self.lex.decode(self.a(), syllables_, opts);
+    }
+
+    /// Swift `decodeComposition(complete:pendingKeys:)` over `c`'s parse.
+    pub fn decodeParsed(self: *Dec, c: Composition, opts: Lexicon.DecodeOptions) ![]Candidate {
+        const p = try c.parsed(self.a());
+        return self.lex.decodeComposition(self.a(), p.complete, p.pending, opts);
+    }
+
+    pub fn decodeComplete(self: *Dec, complete: []const Syllable, opts: Lexicon.DecodeOptions) ![]Candidate {
+        return self.lex.decodeComposition(self.a(), complete, "", opts);
+    }
+
+    /// Swift `decodeSegments(segments, pendingKeys:)` over `c`.
+    pub fn decodeSegs(self: *Dec, c: Composition, opts: Lexicon.DecodeOptions) ![]Candidate {
+        const p = try c.parsed(self.a());
+        return self.lex.decodeSegments(self.a(), try c.segments(self.a()), p.pending, opts);
+    }
+
+    pub fn readings(self: *Dec, syllables_: []const Syllable) ![]const []const u8 {
+        var out: std.ArrayList([]const u8) = .empty;
+        for (syllables_) |s| try out.append(self.a(), try s.readingAlloc(self.a()));
+        return out.items;
+    }
+
+    pub fn bases(self: *Dec, syllables_: []const Syllable) ![]const []const u8 {
+        var out: std.ArrayList([]const u8) = .empty;
+        for (syllables_) |s| {
+            var buf: [Syllable.max_reading_bytes]u8 = undefined;
+            try out.append(self.a(), try self.a().dupe(u8, s.base(&buf)));
+        }
+        return out.items;
+    }
+};
+
+pub fn expectStrings(want: []const []const u8, got: []const []const u8) !void {
+    try std.testing.expectEqual(want.len, got.len);
+    for (want, got) |w, g| try std.testing.expectEqualStrings(w, g);
+}
+
+pub fn expectTop(c: []const Candidate, text: []const u8) !void {
+    try std.testing.expect(c.len > 0);
+    try std.testing.expectEqualStrings(text, c[0].text);
+}
+
+pub fn containsText(c: []const Candidate, text: []const u8) bool {
+    for (c) |x| if (std.mem.eql(u8, x.text, text)) return true;
+    return false;
+}

@@ -23,4 +23,5 @@ test {
     @import("std").testing.refAllDecls(@This());
     // Behavior suites ported from the Swift MisstypeCoreTests.
     _ = @import("tests/session_test.zig");
+    _ = @import("tests/core_test.zig");
 }
