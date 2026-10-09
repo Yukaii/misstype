@@ -26,6 +26,7 @@ final class ZigSessionAdapter {
     }
 
     func handle(_ event: KeyEvent) -> KeyResult {
+        syncSettings()
         var result = event.withCEvent { cEvent in
             misstype_session_handle(handle, &cEvent)
         }
@@ -48,6 +49,27 @@ final class ZigSessionAdapter {
 
     func pick(at index: Int) { misstype_session_pick(handle, Int32(index)); refresh() }
     func resetModifierState() { misstype_session_reset_modifiers(handle) }
+
+    private func syncSettings() {
+        let settings = MisstypePrefs.sessionSettings
+        let candidateKeys = settings.candidateKeys
+        candidateKeys.withCString { keys in
+            var value = misstype_settings(
+                fuzzy_repair: settings.fuzzyRepair ? 1 : 0,
+                tone_tolerance: settings.toneTolerance ? 1 : 0,
+                user_learning: settings.userLearning ? 1 : 0,
+                shift_toggle: settings.shiftToggle ? 1 : 0,
+                candidate_keys: keys,
+                auto_show_candidates: settings.autoShowCandidates ? 1 : 0,
+                return_confirms_selection: settings.returnConfirmsSelection ? 1 : 0,
+                mixed_english: settings.mixedEnglish ? 1 : 0,
+                auto_commit_syllables: Int32(settings.autoCommitSyllables),
+                page_size: Int32(settings.pageSize),
+                cursor_candidates: Int32(settings.cursorCandidates.rawValue == "endingAt" ? 1 : settings.cursorCandidates.rawValue == "beginningAt" ? 2 : 0))
+            engine.setSettings(value)
+        }
+        engine.setKeyBindings(settings.keyBindings.serialized)
+    }
 
     private func refresh() {
         guard let pointer = misstype_session_view(handle) else { view = .empty; return }

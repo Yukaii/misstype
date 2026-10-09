@@ -58,5 +58,22 @@ public final class ZigEngine {
 
     public var isEnglish: Bool { misstype_engine_is_english(handle) != 0 }
 
+    public func setSettings(_ settings: misstype_settings) {
+        var value = settings
+        misstype_engine_set_settings(handle, &value)
+    }
+
+    public func setKeyBindings(_ text: String) {
+        text.withCString { misstype_engine_set_key_bindings(handle, $0) }
+    }
+
+    public func reloadUserDictionary() {
+        misstype_engine_set_user_dictionary_path(handle, nil)
+    }
+
+    public func clearLearnedPhrases() {
+        misstype_engine_clear_learned_phrases(handle)
+    }
+
     public func makeSession() -> OpaquePointer? { misstype_session_new(handle) }
 }
