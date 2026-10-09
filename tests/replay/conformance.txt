@@ -74,3 +74,13 @@ k A-bs
 t world
 k A-left
 t big 
+# Real lexicon, candidates hidden: the first Tab only opens the list at the
+# current choice, so `s` picks row 2 of the FIRST page. Before 6d05748 Tab also
+# advanced to page 2 and `s` produced 真的可以永耶 instead of 真的可以用耶.
+@engine shipping
+@set autoshow=0 confirm=1
+@case page-key-opens-list-real-lexicon
+k 5 p 2 k d k u m / u ,
+k tab
+k s
+k enter
