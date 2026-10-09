@@ -19,7 +19,7 @@
   if (items.length) animate();
   if (hint && typeof WebAssembly === "object") {
     var mobileQuery = typeof window.matchMedia === "function"
-      ? window.matchMedia("(max-width: 768px), (hover: none) and (pointer: coarse)")
+      ? window.matchMedia("(max-width: 599px), (max-height: 500px) and (hover: none) and (pointer: coarse)")
       : null;
     function isMobile() {
       return !!mobileQuery && mobileQuery.matches;

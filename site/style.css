@@ -226,7 +226,7 @@ a:hover { color: var(--mark); }
 .demo .try[hidden] { display: none; }
 .demo .keys b { color: var(--mark); font-weight: 600; }
 
-@media (max-width: 768px), (hover: none) and (pointer: coarse) {
+@media (max-width: 599px), (max-height: 500px) and (hover: none) and (pointer: coarse) {
   .demo .try { display: none !important; }
   .demo .field { cursor: default; }
   .demo .field:hover,
