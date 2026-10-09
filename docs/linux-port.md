@@ -1,5 +1,15 @@
 # Linux port (fcitx5): task plan
 
+Current build (2026-10-08): Linux uses the Zig core and Zig `misstypectl` by
+default. `MISSTYPE_CORE=swift` builds the reference implementation. Historical
+Swift implementation notes below remain useful for the adapter contract;
+`docs/zig-port.md` records the cutover gates. Run
+`script/linux/dev.sh 'script/linux/test_all.sh'` for the shipping backend and
+`script/linux/dev.sh 'MISSTYPE_CORE=swift script/linux/test_all.sh'` for the
+reference. `test_desktop.sh` runs only inside a disposable test container and
+checks an installed addon through the production GTK frontend.
+
+
 Status (2026-10-02): the user dictionary (conformance C13: Shift+arrow phrase
 marking, Return files it) is wired through the C ABI and drawn by the fcitx5
 addon; verified in Docker (aarch64): Swift tests, CAPI OK, fcitx5 17/17.
@@ -15,8 +25,9 @@ acceptance) still needs a human or a VM with a display.
 behavior as macOS, built from the same `MisstypeCore`, and verified headlessly
 in CI against the conformance scenarios in `docs/cross-platform.md`.
 
-**Non-goals for this plan:** IBus, Jev (remote assistance) on Linux, a
-settings UI, distro packages. See the backlog (L7).
+**Non-goals for this plan:** IBus, a settings UI, distro packages. See the
+backlog (L7). (Jev, remote assistance, was removed from the product on
+2026-10-09.)
 
 ## Read first (every task)
 
@@ -57,9 +68,12 @@ The container remains the canonical path, but the Linux layers also run
 directly on an Ubuntu 24.04 host (verified 2026-10-01):
 
 ```sh
-script/linux/bootstrap.sh   # Swift 6.0 toolchain + native deps (idempotent)
+script/linux/bootstrap.sh   # pinned Zig + native deps (idempotent)
+script/linux/test_all.sh    # Zig tests + C ABI + fcitx5
+# Optional Swift oracle provisioning:
+MISSTYPE_CORE=swift script/linux/bootstrap.sh
 export PATH="$HOME/swift-toolchain/swift-6.0-RELEASE-ubuntu24.04/usr/bin:$PATH"
-script/linux/test_all.sh    # swift test + test_capi.sh + test_fcitx5.sh
+MISSTYPE_CORE=swift script/linux/test_all.sh
 ```
 
 Notes:
@@ -84,7 +98,7 @@ Each was run end to end in the dev container, so tasks can rely on them:
 
 | Fact | Consequence |
 |---|---|
-| `swift build -c release --product <lib> -Xswiftc -static-stdlib` makes a `.so` with **no** Swift runtime dependencies; ~71 MB, ~56 MB stripped (aarch64). Beyond libc/libm/libstdc++/libgcc_s its only dynamic dependency is `libcurl.so.4` (FoundationNetworking, pulled in by `JevClient`) | Ship one self-contained `libMisstypeCAPI.so`; `libcurl4` is a runtime dependency |
+| `swift build -c release --product <lib> -Xswiftc -static-stdlib` makes a `.so` with **no** Swift runtime dependencies; ~71 MB, ~56 MB stripped (aarch64). Beyond libc/libm/libstdc++/libgcc_s its only dynamic dependency was `libcurl.so.4` (FoundationNetworking, pulled in by `JevClient`; gone since Jev's removal, 2026-10-09) | Ship one self-contained `libMisstypeCAPI.so` |
 | SwiftPM sets no SONAME on the `.so`; CMake still records the bare `libMisstypeCAPI.so` in the addon's `NEEDED` | Add `-Xlinker -soname=libMisstypeCAPI.so` anyway (deterministic) |
 | A C target `CMisstype` (header in `include/`) imported by a Swift target lets `@_cdecl` functions take and **return C structs by value**; a C program calls them; builds on macOS too | The header is the single source of truth for the ABI (L2) |
 | A C++ fcitx5 addon (`InputMethodEngineV2`, `FCITX_ADDON_FACTORY`) linking that `.so` loads in fcitx5 5.1.7 | L3 architecture |
@@ -220,8 +234,7 @@ minus space) is in `EvdevKeyCode.labels.values`;
   - The engine handle owns an `InputEngine` plus a stored `SessionSettings`;
     `engine.settings` returns the stored value, and
     `misstype_engine_set_settings` replaces it (candidate keys go through
-    `SelectionKeys.sanitize`). Jev stays at `JevConfig()` (off); no host is
-    set, so remote calls are impossible from C.
+    `SelectionKeys.sanitize`).
   - Channel model (appended 2026-10-06, settings struct unchanged):
     `misstype_engine_set_channel_path` (`NULL` → `ChannelLearner.defaultURL`,
     `""` → memory only, the default after `_new`),
@@ -480,7 +493,7 @@ script/linux/dev.sh 'script/linux/build.sh >/dev/null && cmake --install build/f
 
 prints the install `RUNPATH` (`/usr/lib/<multiarch>/misstype`), an `ldd` line
 resolving `libMisstypeCAPI.so` under it, and `commit=你好` (real lexicon).
-Document the runtime packages (`fcitx5`, `libcurl4`, `libstdc++6`) in the
+Document the runtime packages (`fcitx5`, `libstdc++6`) in the
 install section of `README`/this file.
 
 ---
@@ -545,7 +558,7 @@ scripts).
 
 ## L7: Settings, dictionary tools, backlog
 
-Landed 2026-10-04 (macOS Settings parity, except Jev and About):
+Landed 2026-10-04 (macOS Settings parity, except About):
 
 - **Settings page**: the addon is `Configurable=True` and exposes
   `MisstypeConfig` (`engine.cpp`), so fcitx5-configtool and the KDE/GNOME
@@ -589,9 +602,6 @@ Landed 2026-10-04 (macOS Settings parity, except Jev and About):
 Backlog (not scheduled):
 
 - IBus adapter over the same C ABI (GNOME's default IM framework).
-- Jev on Linux: host callbacks in the C ABI (`surrounding_text`,
-  `perform`, `session_did_change`), settings, and the consent flow; privacy
-  rules from `AGENTS.md` apply.
 - Library size (~56–71 MB): `-Xlinker --gc-sections`, strip at install, or a
   Foundation-free core.
 - Packaging: AUR recipe in `linux/aur/PKGBUILD` (publication pending;

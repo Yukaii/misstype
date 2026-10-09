@@ -14,7 +14,11 @@
 extern "C" {
 #endif
 
-#define MISSTYPE_ABI_VERSION 1
+/* 2 (2026-10-09): key_result.latin_toggled, view page size / word segments /
+ * focus, key bindings, the macOS keycode table, user dictionary text and
+ * learning editor functions. Fields were appended; misstype_key_result grew,
+ * so callers rebuild against this header. */
+#define MISSTYPE_ABI_VERSION 2
 int32_t misstype_abi_version(void);
 
 typedef struct misstype_engine misstype_engine;
@@ -64,6 +68,9 @@ typedef struct misstype_key_result {
     char *commit;         /* UTF-8 to insert now, or NULL (misstype_string_free) */
     int32_t beep;
     int32_t mode_changed; /* 中/英 flipped: see misstype_engine_is_english */
+    int32_t latin_toggled; /* v2: a Latin run opened/closed mid-composition (no
+                            * commit, no global flip): flash 英/中 from
+                            * misstype_session_latin_active */
 } misstype_key_result;
 
 typedef enum misstype_mark_action {
@@ -98,6 +105,16 @@ typedef struct misstype_view {
     int32_t mark_end_utf16;
     char *mark_text;            /* "" when no mark or unavailable */
     char *mark_reading;         /* hyphen-joined toned Zhuyin, "" when none */
+    /* v2. Rows per page: the page holding `selected` starts at
+     * selected / page_size * page_size. */
+    int32_t page_size;
+    /* v2. Word boundaries of preedit as contiguous UTF-16 ranges covering
+     * all of it (decoded words, Latin/punctuation gaps, the raw tail): one
+     * underline segment per word. segment_count == 0: draw one segment. */
+    int32_t segment_count;
+    int32_t *segments_utf16;    /* 2 * segment_count values: start, end, ... */
+    int32_t focus_start_utf16;  /* v2: the syllable cursor's word, else -1 */
+    int32_t focus_end_utf16;
 } misstype_view;
 
 /* Which words the syllable cursor (Left/Right) lists (CursorCandidates). */
@@ -177,6 +194,33 @@ misstype_key_kind misstype_key_from_evdev(int32_t evdev_code, const char **label
 /* Fallback without a scancode: one UTF-8 character typed on a US layout.
  * *shifted = 1 when the glyph needs Shift ("A", "!"). Unknown: MISSTYPE_KEY_OTHER. */
 misstype_key_kind misstype_key_from_character(const char *utf8, const char **label, int32_t *shifted);
+/* v2. macOS virtual key codes (ANSI positions), same labels as evdev. */
+misstype_key_kind misstype_key_from_mac(int32_t keycode, const char **label);
+
+/* v2. Key bindings in KeyBindings text form, one action per line
+ * ("nextCandidate = tab, ctrl+n"; "latinRun =" unbinds); NULL or "" = the
+ * defaults. Kept across misstype_engine_set_settings. */
+void misstype_engine_set_key_bindings(misstype_engine *engine, const char *text);
+
+/* v2. Learned phrases (UserLexicon at the engine's user lexicon path). */
+int32_t misstype_engine_learned_phrase_count(const misstype_engine *engine);
+void misstype_engine_reload_learned_phrases(misstype_engine *engine); /* re-read the file */
+void misstype_engine_save_learned_phrases(misstype_engine *engine);   /* flush to the file */
+void misstype_engine_clear_learned_phrases(misstype_engine *engine);  /* forget all, on disk too */
+/* v2. Learned typing slips the decoder uses, cheapest first: one
+ * "typed<TAB>intended<TAB>cost" line each (Bopomofo symbols); "" when none. */
+char *misstype_engine_channel_pairs(const misstype_engine *engine);
+
+/* v2. User dictionary text (user_dictionary.tsv, vChewing format). */
+/* Canonical text of the dictionary the engine has loaded. */
+char *misstype_engine_user_dictionary_text(const misstype_engine *engine);
+/* Problems of editor text, one "line<TAB>message" row each ("" = none);
+ * *added / *hidden receive the valid word and hidden-word counts. */
+char *misstype_user_dictionary_check(const char *text, int32_t *added, int32_t *hidden);
+/* Appends the new entries of `source` to editor `text` in canonical lines
+ * (nothing is written to disk). Returns the merged text; counts may be NULL. */
+char *misstype_user_dictionary_import(const char *text, const char *source, int32_t *added,
+                                      int32_t *duplicates, int32_t *skipped);
 
 void misstype_view_free(misstype_view *view);
 void misstype_string_free(char *string);

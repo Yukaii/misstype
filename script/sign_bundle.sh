@@ -29,6 +29,11 @@ for framework in "$APP"/Contents/Frameworks/*.framework(N); do
   done
   /usr/bin/codesign "${OPTS[@]}" "$framework"
 done
+# Standalone embedded dynamic libraries are nested code too and must be signed
+# before the containing app, just like frameworks.
+for dylib in "$APP"/Contents/Frameworks/*.dylib(N); do
+  /usr/bin/codesign "${OPTS[@]}" "$dylib"
+done
 if [[ -n "$ENTITLEMENTS" ]]; then OPTS+=(--entitlements "$ENTITLEMENTS"); fi
 /usr/bin/codesign "${OPTS[@]}" "$APP"
 /usr/bin/codesign --verify --strict --verbose=2 "$APP"

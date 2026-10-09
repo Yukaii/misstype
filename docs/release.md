@@ -1,5 +1,12 @@
 # Packaging, installer and updates (macOS)
 
+Linux’s default backend is Zig as of 2026-10-08. Release tests both the Swift
+reference and Zig core before packaging; the universal macOS IME still links
+Swift until its adapter/Settings migrate to the expanded C ABI. Signing,
+notarization, Sparkle, tag handling, and immutable release assets keep the
+same contract. Linux cutover checks live in CI (`docs/zig-port.md`).
+
+
 Status 2026-10-04: written on Linux, first run on a Mac the same day; see
 "Verification status" and "Unverified" below for what has and has not been
 checked.

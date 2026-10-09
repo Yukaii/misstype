@@ -2,6 +2,7 @@ import Cocoa
 @preconcurrency import Carbon
 @preconcurrency import InputMethodKit
 import MisstypeCore
+import MisstypeZigBridge
 
 enum Runtime {
     static let decoder: LexiconDecoder = {
@@ -24,6 +25,15 @@ enum Runtime {
                                  log: debugLog)
         engine.channelLearner = ChannelLearner.load()
         engine.channelLearnerURL = ChannelLearner.defaultURL
+        return engine
+    }()
+    static let zigEngine: ZigEngine = {
+        guard let resources = Bundle.main.resourceURL,
+              let engine = ZigEngine(resourceDirectory: resources,
+                                     userLexiconPath: UserLexicon.defaultURL) else {
+            NSLog("Misstype: Zig C ABI engine unavailable; refusing to start")
+            exit(1)
+        }
         return engine
     }()
     /// File trace for routing diagnosis (~/Library/Logs/MisstypeIME-debug.log).
@@ -131,10 +141,12 @@ final class ModeIndicator: NSPanel {
 /// `InputSession` and draws `session.view` (marked text + panel). Every
 /// editing rule lives in the session; nothing here holds composition state.
 @objc(MisstypeInputController)
-final class MisstypeInputController: IMKInputController, InputSessionHost {
-    private lazy var session: InputSession = {
-        let session = InputSession(engine: Runtime.engine)
-        session.host = self
+final class MisstypeInputController: IMKInputController {
+    private lazy var session: ZigSessionAdapter = {
+        guard let session = ZigSessionAdapter(engine: Runtime.zigEngine) else {
+            NSLog("Misstype: failed to create Zig session")
+            exit(1)
+        }
         return session
     }()
     private weak var lastClient: IMKTextInput?
@@ -199,7 +211,7 @@ final class MisstypeInputController: IMKInputController, InputSessionHost {
         render(client)
         if result.beep { NSSound.beep() }
         if result.latinToggled { ModeIndicator.shared.flash(english: session.latinActive, anchor: anchor) }
-        if result.modeChanged { ModeIndicator.shared.flash(english: Runtime.engine.english, anchor: anchor) }
+        if result.modeChanged { ModeIndicator.shared.flash(english: Runtime.zigEngine.isEnglish, anchor: anchor) }
     }
 
     /// Inserting replaces the marked text, so the client now shows none.
@@ -312,22 +324,6 @@ final class MisstypeInputController: IMKInputController, InputSessionHost {
         if let client = lastClient { render(client) }
     }
 
-    // MARK: - InputSessionHost
-
-    /// Safely extracts preceding text context and bundle identifier from the client.
-    func surroundingContext() -> ClientContext {
-        guard let client = lastClient else { return ClientContext() }
-        return SurroundingContext.extract(from: IMKTextInputContextAdapter(client))
-    }
-
-    func perform(_ work: @escaping () -> Void) {
-        DispatchQueue.main.async(execute: work)
-    }
-
-    func sessionDidChange(_ session: InputSession) {
-        if let client = lastClient { render(client) }
-    }
-
     // MARK: - IMK lifecycle
 
     override func menu() -> NSMenu! {
@@ -336,7 +332,7 @@ final class MisstypeInputController: IMKInputController, InputSessionHost {
         menu.autoenablesItems = false
         // Persistent mode readout (the flash pill is transient): which
         // language bare keys will produce right now.
-        let mode = NSMenuItem(title: Runtime.engine.english ? L("English mode") : L("Chinese mode"),
+        let mode = NSMenuItem(title: Runtime.zigEngine.isEnglish ? L("English mode") : L("Chinese mode"),
                               action: nil, keyEquivalent: "")
         mode.state = .on
         mode.isEnabled = false
@@ -416,11 +412,6 @@ final class MisstypeInputController: IMKInputController, InputSessionHost {
 if let traceIndex = CommandLine.arguments.firstIndex(of: "--session-trace"),
    traceIndex + 1 < CommandLine.arguments.count {
     MisstypePrefs.register()
-    final class TraceHost: InputSessionHost {
-        func surroundingContext() -> ClientContext { ClientContext() }
-        func perform(_ work: @escaping () -> Void) { work() }
-        func sessionDidChange(_ session: InputSession) {}
-    }
     var settings = MisstypePrefs.sessionSettings
     if let flag = CommandLine.arguments.firstIndex(of: "--auto-commit"),
        flag + 1 < CommandLine.arguments.count, let value = Int(CommandLine.arguments[flag + 1]) {
@@ -439,8 +430,6 @@ if let traceIndex = CommandLine.arguments.firstIndex(of: "--session-trace"),
                              settings: { settings })
     if let url = flagURL("--channel") { engine.channelLearner = ChannelLearner.load(from: url) }
     let session = InputSession(engine: engine)
-    let host = TraceHost()
-    session.host = host
     var committed = ""
     for (count, char) in CommandLine.arguments[traceIndex + 1].enumerated() {
         let label = String(char)
@@ -544,8 +533,7 @@ if let decodeIndex = CommandLine.arguments.firstIndex(of: "--decode"),
         userLexicon = UserLexicon.load(from: URL(fileURLWithPath: CommandLine.arguments[flagIndex + 1]))
     }
     let results = decoder.decodeSegments(composition.segments, pendingKeys: parsed.pending, fuzzy: MisstypePrefs.fuzzyRepair, toneTolerance: MisstypePrefs.toneTolerance, userLexicon: userLexicon, locked: decodeLocks())
-    let jevGate = MisstypePrefs.jevConfig
-    print("entries=\(decoder.entryCount) user=\(userLexicon?.count ?? 0) load_ms=\(loaded.timeIntervalSince(started) * 1000) decode_ms=\(Date().timeIntervalSince(loaded) * 1000) jev_enabled=\(jevGate.enabled ? 1 : 0) jev_key=\(jevGate.hasKey ? 1 : 0) jev_rich=\(jevGate.allowRichContext ? 1 : 0)")
+    print("entries=\(decoder.entryCount) user=\(userLexicon?.count ?? 0) load_ms=\(loaded.timeIntervalSince(started) * 1000) decode_ms=\(Date().timeIntervalSince(loaded) * 1000)")
     for candidate in results {
         var line = "\(candidate.text)\t\(candidate.score)\trepairs=\(candidate.repairs) unresolved=\(candidate.unresolved)"
         if CommandLine.arguments.contains("--align") {

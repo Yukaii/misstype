@@ -16,12 +16,6 @@ final class UserDictionaryTests: XCTestCase {
     ㄉㄚˇ-ㄉㄨㄟˋ\t打對\t-7
     """
 
-    fileprivate final class Host: InputSessionHost {
-        func surroundingContext() -> ClientContext { ClientContext() }
-        func perform(_ work: @escaping () -> Void) { work() }
-        func sessionDidChange(_ session: InputSession) {}
-    }
-    private let host = Host()
     private var tempURL: URL!
 
     override func setUp() {
@@ -37,7 +31,6 @@ final class UserDictionaryTests: XCTestCase {
         let engine = InputEngine(decoder: LexiconDecoder(tsv: Self.lexicon), userDictionaryURL: url ?? tempURL,
                                  settings: { SessionSettings() })
         let session = InputSession(engine: engine)
-        session.host = host
         return session
     }
 
@@ -324,7 +317,6 @@ extension UserDictionaryTests {
         """)
         let engine = InputEngine(decoder: decoder, settings: { SessionSettings() })
         let session = InputSession(engine: engine)
-        session.host = Host()
         return session
     }
 }

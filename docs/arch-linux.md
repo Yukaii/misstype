@@ -6,7 +6,7 @@ pacman-managed installation/removal. It is an **AUR submission candidate**;
 it has not been published to the AUR.
 
 Hypothesis: the existing Linux addon can run against Arch's fcitx5 without
-adapter changes. The smallest falsification is `makepkg` (Swift tests, C ABI
+adapter changes. The smallest falsification is `makepkg` (Zig tests, C ABI
 smoke test, fcitx5 headless conformance), followed by the real-lexicon smoke
 check and desktop checks below. Decode is offline; packaging changes no
 candidate scoring or per-keystroke latency.
@@ -31,12 +31,11 @@ distributions the same script runs `script/linux/build.sh` and
 
 ## Build a package
 
-Install `base-devel`, `cmake`, `ninja`, and `git` plus the AUR `swift-bin`
-toolchain (which provides `swift-language`). On Omarchy:
+Install `base-devel`, `cmake`, `ninja`, and `git`. The recipe downloads its
+checksum-pinned Zig toolchain as a makepkg source. On Omarchy:
 
 ```sh
 omarchy pkg add base-devel cmake ninja git
-omarchy pkg aur add swift-bin
 ```
 
 From the repository root:
@@ -61,15 +60,15 @@ generate publication metadata with `MISSTYPE_SOURCE_URL` unset.
 
 Run makepkg as your normal user. It downloads upstream source plus pinned,
 SHA-256-verified public dictionary data before building. The build/check
-phases then use local data. `check()` runs the Swift suite, C ABI smoke test,
-and headless fcitx5 conformance tests. Swift is required only at build time;
-the packaged library embeds its Swift runtime. `x86_64` and `aarch64` are
+phases then use local data. `check()` runs the Zig suite, C ABI smoke test,
+and headless fcitx5 conformance tests. Swift is no longer a build or runtime
+dependency. The library statically embeds the vendored utf8proc implementation. `x86_64` and `aarch64` are
 declared; see the verification record for architectures actually tested.
 
 The addon uses C++20 for current fcitx5 headers (`std::source_location`).
 The recipe carries the matching CMake patch until it is merged upstream.
-Split debug packaging is disabled because Arch's `debugedit` does not handle
-the Swift toolchain's DWARF module references; the runtime library is stripped.
+Zig manages its optimization and debug information; the recipe keeps LTO
+and split debug packaging disabled.
 
 The recipe follows upstream Git, so it builds committed upstream code,
 not uncommitted edits in your working tree. When dictionary manifests change

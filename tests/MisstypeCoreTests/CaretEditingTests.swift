@@ -4,14 +4,8 @@ import XCTest
 /// Editing inside the composition: typing at the syllable cursor (issue
 /// #32) and Option word editing over Latin runs and words (issue #33).
 final class CaretEditingTests: XCTestCase {
-    private final class Host: InputSessionHost {
-        func surroundingContext() -> ClientContext { ClientContext() }
-        func perform(_ work: @escaping () -> Void) { work() }
-        func sessionDidChange(_ session: InputSession) {}
-    }
 
     private var settings = SessionSettings()
-    private var host = Host()
 
     /// The conformance fixture lexicon (`InputSessionTests`).
     private func makeSession() -> InputSession {
@@ -26,7 +20,6 @@ final class CaretEditingTests: XCTestCase {
         """)
         let engine = InputEngine(decoder: decoder, settings: { [unowned self] in self.settings })
         let session = InputSession(engine: engine)
-        session.host = host
         return session
     }
 

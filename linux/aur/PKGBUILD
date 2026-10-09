@@ -5,17 +5,16 @@ pkgrel=1
 pkgdesc='Offline, fuzzy Zhuyin input method for fcitx5'
 arch=('x86_64' 'aarch64')
 url='https://github.com/Yukaii/misstype'
-license=('MIT' 'BSD-3-Clause' 'CC-BY-4.0' 'CC-BY-SA-4.0')
-depends=('fcitx5' 'curl' 'gcc-libs' 'glibc')
-makedepends=('git' 'cmake' 'ninja' 'python' 'swift-language' 'gtk4')
+license=('MIT' 'BSD-3-Clause' 'CC-BY-4.0' 'CC-BY-SA-4.0' 'Unicode-3.0')
+depends=('fcitx5' 'gcc-libs' 'glibc')
+makedepends=('git' 'cmake' 'ninja' 'python' 'gtk4')
 optdepends=('fcitx5-configtool: add Misstype to your input methods'
             'gtk4: misstype-dictionary-editor'
             'fcitx5-gtk: GTK application integration'
             'fcitx5-qt: Qt application integration')
 provides=('fcitx5-misstype')
 conflicts=('fcitx5-misstype' 'fcitx5-mistype-git')
-# Swift's static runtime does not support Arch's injected C/C++ LTO flags.
-# Swift DWARF module references are not handled by Arch's debugedit.
+# Zig manages its own optimization and debug information.
 options=('!lto' '!debug')
 _mcbopomofo=f5ba010ce8795d283ee336ca7d16380f200bd2ec
 _naer=889efe0da5e10f5eea5920027748e9dd1f58169a
@@ -45,6 +44,17 @@ sha256sums=('SKIP'
             '5351ff405b1126ef555791dd4d9798a48e3e9a501a9fc481a9da957752cfb458'
             '6dac94bbaab952f27dec7b79c9dff062f6f31ab4d471770e13a132516aed8e6a')
 
+_zig_version=0.17.0
+source_x86_64=("https://ziglang.org/download/$_zig_version/zig-x86_64-linux-$_zig_version.tar.xz")
+sha256sums_x86_64=('1cbe9df9f27e6b78d14ccbca43b6703a404ef79ef1c463de901d7f088d4e2026')
+source_aarch64=("https://ziglang.org/download/$_zig_version/zig-aarch64-linux-$_zig_version.tar.xz")
+sha256sums_aarch64=('9e8d11661d4ae3bd57702a3832781e23ad151dde5798e16a5ccd503f65234ff8')
+
+_zig() {
+    export MISSTYPE_CORE=zig
+    export MISSTYPE_ZIG="$srcdir/zig-$CARCH-linux-$_zig_version/zig"
+}
+
 pkgver() {
     cd "$srcdir/misstype"
     printf '0.1.r%s.g%s' "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
@@ -69,10 +79,11 @@ prepare() {
 
 build() {
     cd "$srcdir/misstype"
+    _zig
     # libMisstypeCAPI.so and misstypectl (settings/dictionary CLI).
     bash script/linux/build_capi.sh
     local capi_dir
-    capi_dir=$(swift build -c release --show-bin-path)
+    capi_dir=$(cat build/capi/libdir)
     cmake -S linux/fcitx5 -B build/arch -G Ninja \
         -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr \
         -DCMAKE_INSTALL_LIBDIR=lib -DMISSTYPE_CAPI_DIR="$capi_dir"
@@ -81,7 +92,8 @@ build() {
 
 check() {
     cd "$srcdir/misstype"
-    swift test
+    _zig
+    (cd core-zig && "$MISSTYPE_ZIG" build test -Doptimize=ReleaseFast)
     bash script/linux/test_capi.sh
     ctest --test-dir build/arch --output-on-failure
 }

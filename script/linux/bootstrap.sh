@@ -1,27 +1,26 @@
 #!/usr/bin/env bash
 # Bare-metal provision for the Linux test layers (no Docker).
 #
-# Installs the Swift 6.0 toolchain and the native packages that
-# linux/Dockerfile installs inside the container, so the Linux checks can
-# run directly on the host. Idempotent: safe to re-run after the machine
-# is reprovisioned (system packages do not survive that; the toolchain
-# tarball is cached under $SWIFT_TOOLCHAIN_ROOT).
-#
-# Usage: script/linux/bootstrap.sh
-# Then:  export PATH="$HOME/swift-toolchain/swift-6.0-RELEASE-ubuntu24.04/usr/bin:$PATH"
-#        script/linux/test_all.sh
+# Installs native build dependencies and the pinned Zig toolchain by default.
+# MISSTYPE_CORE=swift also provisions the Swift reference toolchain.
+# Usage: script/linux/bootstrap.sh && script/linux/test_all.sh
 set -euo pipefail
+cd "$(dirname "$0")/../.."
 
 SWIFT_TAR="swift-6.0-RELEASE-ubuntu24.04.tar.gz"
 SWIFT_URL="https://download.swift.org/swift-6.0-release/ubuntu2404/swift-6.0-release/${SWIFT_TAR}"
 TOOLCHAIN_ROOT="${SWIFT_TOOLCHAIN_ROOT:-$HOME/swift-toolchain}"
 
-# Same set as linux/Dockerfile, plus libcurl4-openssl-dev: the swift:6.0
-# image already ships curl headers, bare Ubuntu 24.04 does not, and the
-# release .so links libcurl via FoundationNetworking.
-APT_PKGS="cmake make g++ pkg-config extra-cmake-modules gettext python3 \
+# Same native build packages as the dev image. Curl headers are needed only
+# by the optional Swift oracle (FoundationNetworking).
+APT_PKGS="cmake make g++ pkg-config extra-cmake-modules gettext python3 curl xz-utils \
     fcitx5 libfcitx5core-dev libfcitx5config-dev libfcitx5utils-dev \
-    fcitx5-modules-dev libgtk-4-dev libcurl4-openssl-dev"
+    fcitx5-modules-dev libgtk-4-dev"
+case "${MISSTYPE_CORE:-zig}" in
+    zig) ;;
+    swift) APT_PKGS="$APT_PKGS libcurl4-openssl-dev" ;;
+    *) echo "bootstrap: MISSTYPE_CORE must be zig or swift" >&2; exit 1 ;;
+esac
 
 # Another apt user (unattended-upgrades, a provisioner) may hold the lock.
 for i in $(seq 1 30); do
@@ -34,19 +33,26 @@ sudo apt-get update
 # shellcheck disable=SC2086
 sudo DEBIAN_FRONTEND=noninteractive apt-get install -y $APT_PKGS
 
-mkdir -p "$TOOLCHAIN_ROOT"
-if [ ! -x "$TOOLCHAIN_ROOT/swift-6.0-RELEASE-ubuntu24.04/usr/bin/swift" ]; then
-    if [ ! -f "$TOOLCHAIN_ROOT/$SWIFT_TAR" ]; then
-        echo "bootstrap: downloading Swift 6.0 toolchain (~800MB)..."
-        curl -fL --retry 3 -o "$TOOLCHAIN_ROOT/$SWIFT_TAR" "$SWIFT_URL"
+if [ "${MISSTYPE_CORE:-zig}" = swift ]; then
+    mkdir -p "$TOOLCHAIN_ROOT"
+    if [ ! -x "$TOOLCHAIN_ROOT/swift-6.0-RELEASE-ubuntu24.04/usr/bin/swift" ]; then
+        if [ ! -f "$TOOLCHAIN_ROOT/$SWIFT_TAR" ]; then
+            echo "bootstrap: downloading Swift 6.0 toolchain (~800MB)..."
+            curl -fL --retry 3 -o "$TOOLCHAIN_ROOT/$SWIFT_TAR" "$SWIFT_URL"
+        fi
+        tar -xzf "$TOOLCHAIN_ROOT/$SWIFT_TAR" -C "$TOOLCHAIN_ROOT"
     fi
-    tar -xzf "$TOOLCHAIN_ROOT/$SWIFT_TAR" -C "$TOOLCHAIN_ROOT"
+    "$TOOLCHAIN_ROOT/swift-6.0-RELEASE-ubuntu24.04/usr/bin/swift" --version
+
+else
+    zig=$(script/zig/bootstrap.sh)
+    "$zig" version
 fi
-"$TOOLCHAIN_ROOT/swift-6.0-RELEASE-ubuntu24.04/usr/bin/swift" --version
 
-chmod +x script/linux/*.sh script/*.sh 2>/dev/null || true
-
-echo
 echo "bootstrap: done. Next:"
-echo "  export PATH=\"$TOOLCHAIN_ROOT/swift-6.0-RELEASE-ubuntu24.04/usr/bin:\$PATH\""
-echo "  script/linux/test_all.sh"
+if [ "${MISSTYPE_CORE:-zig}" = swift ]; then
+    echo "  export PATH=\"$TOOLCHAIN_ROOT/swift-6.0-RELEASE-ubuntu24.04/usr/bin:\$PATH\""
+    echo "  MISSTYPE_CORE=swift script/linux/test_all.sh"
+else
+    echo "  script/linux/test_all.sh"
+fi

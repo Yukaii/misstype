@@ -1,19 +1,5 @@
 import Foundation
 
-/// What a platform adapter provides to a session. Everything here is I/O the
-/// core cannot do itself; the offline path never calls any of it.
-public protocol InputSessionHost: AnyObject {
-    /// Committed text before the caret. Called only when a remote (Jev)
-    /// request is about to be attempted — never on the offline hot path
-    /// (macOS clients have segfaulted inside surrounding-text calls).
-    func surroundingContext() -> ClientContext
-    /// Run `work` on the thread that drives the session (UI/event loop).
-    func perform(_ work: @escaping () -> Void)
-    /// State changed outside `handle` (a Jev pick moved the highlight):
-    /// render `session.view` again.
-    func sessionDidChange(_ session: InputSession)
-}
-
 /// One-shot effects of a key; persistent state is `InputSession.view`.
 public struct KeyResult: Equatable, Sendable {
     /// False: the host passes the key on to the application, after
@@ -79,6 +65,23 @@ public struct SessionView: Equatable, Sendable {
     /// The syllable cursor's word (one of `segments`), nil outside cursor mode.
     public var focus: Range<Int>?
 
+    public init(preedit: String, caret: Int, candidates: [String], selected: Int,
+                selectionKeys: [String], keysActive: Bool, showsCandidates: Bool,
+                mark: Mark? = nil, pageSize: Int = SelectionKeys.defaultPageSize,
+                segments: [Range<Int>] = [], focus: Range<Int>? = nil) {
+        self.preedit = preedit
+        self.caret = caret
+        self.candidates = candidates
+        self.selected = selected
+        self.selectionKeys = selectionKeys
+        self.keysActive = keysActive
+        self.showsCandidates = showsCandidates
+        self.mark = mark
+        self.pageSize = pageSize
+        self.segments = segments
+        self.focus = focus
+    }
+
     /// A marked span of the converted text, offered to the user dictionary.
     public struct Mark: Equatable, Sendable {
         /// What Return does with the mark.
@@ -101,6 +104,13 @@ public struct SessionView: Equatable, Sendable {
         /// when `action == .unavailable`.
         public var reading: String
         public var action: Action
+
+        public init(range: Range<Int>, text: String, reading: String, action: Action) {
+            self.range = range
+            self.text = text
+            self.reading = reading
+            self.action = action
+        }
     }
 
     public static let empty = SessionView(preedit: "", caret: 0, candidates: [], selected: 0,
@@ -112,7 +122,6 @@ public struct SessionView: Equatable, Sendable {
 /// hold no composition state of their own.
 public final class InputSession {
     public let engine: InputEngine
-    public weak var host: InputSessionHost?
 
     private var settings = SessionSettings()
     private var composition = Composition()
@@ -191,7 +200,6 @@ public final class InputSession {
     /// Right from the cursor (or the end); Return files the marked span in
     /// the user dictionary, anything else drops it.
     private var mark: (anchor: Int, head: Int)?
-    private var jevRequestID = 0
     /// Channel learning: the raw keys before a Backspace streak, compared
     /// with the keys once the user has typed back to that length; a single
     /// symbol key that changed is a re-type (typed X, meant Y).
@@ -200,7 +208,6 @@ public final class InputSession {
     /// Top candidate before the first explicit pick of this composition, so
     /// a pick that undoes a repair reads as a revert.
     private var unpickedTop: SentenceCandidate?
-    private let jevLock = NSLock()
 
     public init(engine: InputEngine) {
         self.engine = engine
@@ -368,8 +375,6 @@ public final class InputSession {
         let chunk = String(decoding: units[0..<cut.chars.upperBound], as: UTF16.self)
         guard !chunk.isEmpty else { return nil }
         engine.log("autocommit syllables=\(head.count) keys=\(cutIndex) of=\(composition.rawKeys.count)")
-        engine.recordCommit(chunk)
-        _ = nextJevID()
         composition.dropHead(keys: cutIndex)
         retypeBefore = nil
         candidates = []
@@ -849,11 +854,6 @@ public final class InputSession {
         // punctuation passes through in place.
         let previous = candidates.map(\.text)
         mark = nil
-        // Jev gate threads through every decode entry point but changes
-        // nothing while off (the default): the offline decode below is the
-        // single source of candidates. Presence-only logging keeps remote
-        // intent observable per repo policy without leaking key or text.
-        engine.logJevGate(settings.jev)
         engine.decoder.channel = engine.activeChannel(settings)
         engine.decoder.repairCostOffset = settings.repairStrength.costOffset
         engine.decoder.repairValidReadings = settings.repairStrength.repairsValidReadings
@@ -924,7 +924,6 @@ public final class InputSession {
         } else {
             clearSegment()
         }
-        scheduleJevEvaluation()
     }
 
     /// Once the keys are back at their pre-Backspace length, a single
@@ -954,8 +953,7 @@ public final class InputSession {
         var text = raw ? composition.rawPhonetic : previewText
         if text.isEmpty {
             // Defensive: nothing rendered yet (no refresh since the last
-            // edit). Offline recompute, Jev gate closed as in refresh.
-            engine.logJevGate(settings.jev)
+            // edit). Offline recompute, as in refresh.
             text = engine.decoder.decodeSegments(composition.segments,
                                                  pendingKeys: composition.parsed.pending,
                                                  fuzzy: settings.fuzzyRepair,
@@ -966,10 +964,6 @@ public final class InputSession {
         }
         while text.last?.isWhitespace == true { text.removeLast() }
         guard !text.isEmpty else { return nil }
-        // Success-rate verdict for any evaluation of exactly this state.
-        engine.gradeJevEval(rawKeys: composition.rawKeys.joined(), committed: text)
-        // Topic continuity for future Jev runs (in-memory ring, never disk).
-        engine.recordCommit(text)
         // A pick trains only when it corrected something: a list row other
         // than the top, or a focused pin that changed its span. Confirming
         // what was already shown stays a session pin and never trains.
@@ -994,7 +988,6 @@ public final class InputSession {
     /// chose English, and wiping the text says nothing against it. Only the
     /// toggle that opened it (or a commit key) closes it.
     private func clear(keepLatin: Bool = false) {
-        _ = nextJevID()
         composition.clear()
         candidates = []
         rawTail = []
@@ -1352,132 +1345,4 @@ public final class InputSession {
         refresh()
         return .handled
     }
-
-    // MARK: - Jev (explicit opt-in remote assistance)
-
-    private func nextJevID() -> Int {
-        jevLock.lock()
-        defer { jevLock.unlock() }
-        jevRequestID += 1
-        return jevRequestID
-    }
-
-    private func currentJevID() -> Int {
-        jevLock.lock()
-        defer { jevLock.unlock() }
-        return jevRequestID
-    }
-
-    private func scheduleJevEvaluation() {
-        #if !os(WASI)
-        let requestID = nextJevID()
-        let config = settings.jev
-        // Never while the pending run is still growing: live conversion
-        // re-decodes it every keystroke, and asking then would send a request
-        // per typing pause (Jev saw only terminated runs before live
-        // conversion; this keeps that request rate).
-        guard config.canAttempt,
-              !composition.isEmpty,
-              composition.parsed.pending.isEmpty, rawTail.isEmpty,
-              candidates.count > 1,
-              pinnedPick == nil,
-              !explicitPick,
-              segmentTexts == nil,
-              let host else { return }
-        // Decisive-offline filter first: a top-1 lead past repair scale
-        // means the phonetic evidence already decided — skip before asking
-        // the host for surrounding text (an XPC round-trip on macOS, run
-        // ONLY here, after the gates above, when Jev will genuinely attempt).
-        let margin = candidates[0].score - candidates[1].score
-        let context = host.surroundingContext()
-        engine.log("context chars=\(context.precedingText.count) app=\(context.bundleIdentifier ?? "none")")
-        // Span counts complete syllables plus the segmented pending tail:
-        // toneless typing never terminates pending, but its multi-syllable
-        // runs are still worth asking about.
-        let parsed = composition.parsed
-        var syllableCount = parsed.complete.count
-        if !parsed.pending.isEmpty,
-           let tail = engine.decoder.segmentKeys(
-               parsed.pending, fuzzy: settings.fuzzyRepair,
-               toneTolerance: settings.toneTolerance).first {
-            syllableCount += tail.count
-        }
-        let hasContext = !context.precedingText.isEmpty
-        guard JevTrigger.shouldAttempt(syllableCount: syllableCount, topMargin: margin,
-                                       hasContext: hasContext) else {
-            engine.log("jev skip=\(JevTrigger.skipCode(syllableCount: syllableCount, topMargin: margin, hasContext: hasContext))")
-            return
-        }
-
-        let rawKeys = composition.rawKeys.joined()
-        // Evidence = the syllables the candidates were decoded from; the
-        // composition's segments hold a toneless run as ONE fused syllable.
-        let evidence = candidates[0].syllables.map { JevState.Evidence(base: $0.base, tone: $0.tone) }
-        let candTuples = Array(candidates.prefix(8)).map {
-            (text: $0.text, score: $0.score, repairs: $0.repairs, unresolved: $0.unresolved)
-        }
-        let userCtx = context.precedingText
-        // Learned picks for exactly these readings (harness parity), plus
-        // recent commits for topic continuity. Both ride the same explicit
-        // opt-in as the request itself; learning-off means no preferences.
-        let prefs = engine.activeUserLexicon(settings)?.matchingPreferences(
-            forBases: evidence.map(\.base)) ?? []
-        let recent = engine.recentCommits
-        let log = engine.log
-        log("jev prefs=\(prefs.count) recent=\(recent.count)")
-
-        Task.detached { [weak self, weak host] in
-            // Debounce 120ms: fast typing supersedes this request without hitting the network
-            try? await Task.sleep(nanoseconds: 120_000_000)
-            guard let self, self.currentJevID() == requestID else { return }
-
-            log("[jev-api] start model=\(config.model) cands=\(candTuples.count) ctxChars=\(userCtx.count)")
-            let t0 = DispatchTime.now()
-            func elapsedMs() -> Int {
-                Int(Double(DispatchTime.now().uptimeNanoseconds - t0.uptimeNanoseconds) / 1_000_000)
-            }
-            do {
-                let result = try await JevClient.evaluate(
-                    config: config,
-                    rawKeys: rawKeys,
-                    evidence: evidence,
-                    candidates: candTuples,
-                    userContext: userCtx,
-                    userPreferences: prefs,
-                    recentCommits: recent,
-                    richContext: config.allowRichContext,
-                    timeoutInterval: 1.2
-                )
-                let ms = elapsedMs()
-                host?.perform {
-                    self.applyJev(result, requestID: requestID, rawKeys: rawKeys, elapsedMs: ms)
-                }
-            } catch {
-                log("[jev-api] err ms=\(elapsedMs())ms \(error.localizedDescription)")
-            }
-        }
-        #endif
-    }
-
-    #if !os(WASI)
-    private func applyJev(_ result: JevEvaluationResult, requestID: Int, rawKeys: String, elapsedMs: Int) {
-        guard let host,
-              currentJevID() == requestID,
-              !composition.isEmpty,
-              pinnedPick == nil,
-              !explicitPick,
-              segmentTexts == nil else {
-            engine.log("[jev-api] stale ms=\(elapsedMs)ms (superseded)")
-            return
-        }
-        let targetIndex = result.pickedIndex - 1
-        let flip = targetIndex != selected
-        engine.log("[jev-api] ok ms=\(elapsedMs)ms pick=\(result.pickedIndex):\(result.pickedText) conf=\(String(format: "%.2f", result.confidence)) flip=\(flip ? 1 : 0)")
-        engine.noteJevEval(rawKeys: rawKeys, pickedText: result.pickedText, flip: flip, confidence: result.confidence)
-        if flip && candidates.indices.contains(targetIndex) {
-            selected = targetIndex
-            host.sessionDidChange(self)
-        }
-    }
-    #endif
 }

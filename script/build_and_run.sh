@@ -6,6 +6,9 @@ APP_NAME="MisstypeIME"
 APP_DIR="$ROOT_DIR/dist/$APP_NAME.app"
 if [[ "${1:-}" != "--build-only" ]] && pgrep -x "$APP_NAME" >/dev/null 2>&1; then killall "$APP_NAME" || true; fi
 python3 script/prepare_lexicon.py
+# The IMK target links the Zig C ABI; build its universal dylib before SwiftPM
+# resolves the macOS bridge target.
+script/zig/build_macos.sh
 # SWIFT_BUILD_FLAGS lets release packaging add e.g. "--arch arm64 --arch x86_64".
 BUILD_FLAGS=(-c release ${=SWIFT_BUILD_FLAGS:-})
 swift build "${BUILD_FLAGS[@]}"
@@ -26,6 +29,8 @@ cp Resources/local_phrases.tsv "$APP_DIR/Contents/Resources/local_phrases.tsv"
 cp .cache/frequencywords/english.tsv "$APP_DIR/Contents/Resources/english.tsv"
 cp -R third_party "$APP_DIR/Contents/Resources/third_party"
 cp LICENSE THIRD_PARTY_NOTICES.md "$APP_DIR/Contents/Resources/"
+mkdir -p "$APP_DIR/Contents/Frameworks"
+cp dist/zig/macos-universal/libMisstypeCAPI.dylib "$APP_DIR/Contents/Frameworks/"
 
 # Sparkle.framework: SwiftPM drops it next to the products; the artifact
 # bundle is the fallback. The app is sandboxed (Resources/Misstype.entitlements),
@@ -36,7 +41,6 @@ if [[ ! -d "$SPARKLE_FW" ]]; then
   SPARKLE_FW="$(find .build/artifacts -type d -name Sparkle.framework -path '*macos*' | head -1)"
 fi
 [[ -d "$SPARKLE_FW" ]] || { echo "Sparkle.framework not found; did swift build resolve packages?" >&2; exit 1; }
-mkdir -p "$APP_DIR/Contents/Frameworks"
 /usr/bin/ditto "$SPARKLE_FW" "$APP_DIR/Contents/Frameworks/Sparkle.framework"
 rm -rf "$APP_DIR"/Contents/Frameworks/Sparkle.framework/Versions/*/XPCServices/Downloader.xpc
 

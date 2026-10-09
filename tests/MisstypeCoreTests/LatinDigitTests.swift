@@ -3,17 +3,10 @@ import XCTest
 
 /// Digits inside a latin run (backtick or mid-composition Shift tap) are text.
 final class LatinDigitTests: XCTestCase {
-    private final class Host: InputSessionHost {
-        func surroundingContext() -> ClientContext { ClientContext() }
-        func perform(_ work: @escaping () -> Void) { work() }
-        func sessionDidChange(_ session: InputSession) {}
-    }
-    private var host = Host()
     private func make() -> InputSession {
         let engine = InputEngine(decoder: LexiconDecoder(tsv: "ㄋㄧˇ\t你\t-5\nㄏㄠˇ\t好\t-5\nㄋㄧˇ-ㄏㄠˇ\t你好\t-3\n"),
                                  settings: { SessionSettings() })
         let session = InputSession(engine: engine)
-        session.host = host
         return session
     }
     @discardableResult

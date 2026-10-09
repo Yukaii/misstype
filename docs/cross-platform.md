@@ -1,5 +1,11 @@
 # Cross-platform IME contract
 
+Linux now uses the Zig core and CLI by default (2026-10-08); macOS remains
+on Swift. The C ABI and C1–C15 contract are unchanged. Swift remains the
+behavioral oracle; see `docs/zig-port.md` for persistent, touch, Unicode,
+session, and production GTK cutover gates.
+
+
 How Misstype runs on more than one OS without forking behavior. This is the
 normative contract every platform adapter follows; `docs/linux-port.md` is the
 task plan that applies it to Linux (fcitx5).
@@ -8,7 +14,7 @@ task plan that applies it to Linux (fcitx5).
 
 ```text
 ┌───────────────────────── MisstypeCore (Swift, all platforms) ─────────────────────────┐
-│ LexiconDecoder · Composition · LivePreview · UserLexicon · Punctuation · Jev          │
+│ LexiconDecoder · Composition · LivePreview · UserLexicon · Punctuation                │
 │ InputEngine (per process) · InputSession (per client) · KeyEvent · key tables         │
 └───────────────┬───────────────────────────────────────────────┬───────────────────────┘
                 │ Swift API                                     │ C ABI: CMisstype/include/misstype.h
@@ -74,8 +80,8 @@ shortcut runs.
 
 ### 3. Rendering `SessionView`
 
-- Render after every call that can change state (`handle`, `pick`, `commit`,
-  and `sessionDidChange`). Skip when the view equals the last drawn one.
+- Render after every call that can change state (`handle`, `pick`,
+  `commit`). Skip when the view equals the last drawn one.
 - Preedit: `preedit` with the caret at `caret` (UTF-16 in Swift;
   `caret_bytes`/`caret_utf16` in C — use whichever unit the platform takes;
   fcitx5 `Text::setCursor` is **bytes**). The caret is the focused-word start
@@ -102,16 +108,15 @@ shortcut runs.
   if non-nil; render.
 - The platform's "original string" query returns `rawPhonetic`.
 
-### 5. Threading and host callbacks
+### 5. Threading
 
 - All calls for one engine and its sessions happen on one thread (the
   platform's UI/event-loop thread). The core is not thread-safe.
-- `InputSessionHost` (Swift) is optional. With no host, remote (Jev)
-  evaluation can never run: the offline baseline needs nothing from the host.
-  `surroundingContext()` must only be called by the core, and only when a Jev
-  request will be attempted (macOS clients have crashed inside
-  surrounding-text calls). The C ABI v1 has no host callbacks: Jev is off on
-  non-Swift adapters until a task adds them.
+- The core never calls back into the adapter: state changes only inside
+  `handle`, `pick` and `commit`, and the core never reads the client's
+  surrounding text (macOS clients have crashed inside surrounding-text
+  calls). Remote assistance (Jev) was removed on 2026-10-09; it was the only
+  reason for host callbacks.
 
 ### 6. Resources, data and settings
 
@@ -122,7 +127,7 @@ shortcut runs.
 | Learned phrases (`UserLexicon.defaultURL`) | `~/Library/Application Support/Misstype/user_phrases.json` | `$XDG_DATA_HOME/misstype/user_phrases.json` (default `~/.local/share`) |
 | Learned typing slips (`ChannelLearner.defaultURL`, experimental, off by default) | `~/Library/Application Support/Misstype/channel_model.json`; Settings → Learning toggle, list and Clear | `$XDG_DATA_HOME/misstype/channel_model.json`; the host calls `misstype_engine_set_channel_path(engine, NULL)` (default after `_new` is memory only); fcitx5 settings page `ChannelLearning` (no Clear yet) |
 | My-words editor | Settings → My Dictionary (text editor over the file) | `misstype-dictionary-editor` (GTK4) or `misstypectl dict …`; the file is reloaded at the next composition |
-| Settings store | UserDefaults (`MisstypePrefs`; Settings panes incl. Appearance, Shortcuts) | fcitx5 config `conf/misstype.conf` (settings page or `misstypectl config`) → `misstype_settings`; defaults follow `MisstypePrefs`; Jev not wired; key bindings (toggle keys, page keys) not in the ABI yet |
+| Settings store | UserDefaults (`MisstypePrefs`; Settings panes incl. Appearance, Shortcuts) | fcitx5 config `conf/misstype.conf` (settings page or `misstypectl config`) → `misstype_settings`; defaults follow `MisstypePrefs`; key bindings (toggle keys, page keys) not in the ABI yet |
 | Lone-Shift 中/英 | session (`shiftToggle` pref, default on) | fcitx5 `AltTriggerKeys` (default `Shift_L`) → session `shift_toggle = 0` |
 | Diagnostic log | `~/Library/Logs/MisstypeIME-debug.log` | none in v1 (codes only, never text, if added) |
 
@@ -198,8 +203,9 @@ core bug or an intentional contract change — never an adapter special case.
 
 ## Known costs
 
-- The Linux C ABI library links the Swift runtime and Foundation statically:
-  `libMisstypeCAPI.so` is ~71 MB (~56 MB stripped; measured 2026-09-28,
-  aarch64), mostly Foundation's ICU data. It has no Swift runtime dependency
-  at install time; it does need `libcurl.so.4` (FoundationNetworking, used by
-  `JevClient`), which every mainstream distro ships.
+- The Swift reference C ABI library (`MISSTYPE_CORE=swift`; Linux ships the
+  Zig library by default, `docs/zig-port.md`) links the Swift runtime and
+  Foundation statically: `libMisstypeCAPI.so` is ~71 MB (~56 MB stripped;
+  measured 2026-09-28, aarch64), mostly Foundation's ICU data. Since Jev's
+  removal (2026-10-09) it needs only libc, libm, libstdc++ and libgcc_s at
+  install time; the `libcurl.so.4` dependency (FoundationNetworking) is gone.

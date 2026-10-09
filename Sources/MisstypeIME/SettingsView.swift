@@ -30,7 +30,7 @@ final class SettingsWindow: NSWindow {
 }
 
 private enum Pane: String, CaseIterable, Identifiable {
-    case general, appearance, shortcuts, decoding, learning, dictionary, jev, about
+    case general, appearance, shortcuts, decoding, learning, dictionary, about
     var id: String { rawValue }
 
     var title: String {
@@ -41,7 +41,6 @@ private enum Pane: String, CaseIterable, Identifiable {
         case .decoding: return L("Decoding")
         case .learning: return L("Learning")
         case .dictionary: return L("My Dictionary")
-        case .jev: return L("Jev Assist")
         case .about: return L("About")
         }
     }
@@ -54,7 +53,6 @@ private enum Pane: String, CaseIterable, Identifiable {
         case .decoding: return "wand.and.stars"
         case .learning: return "book.closed"
         case .dictionary: return "character.book.closed"
-        case .jev: return "cloud"
         case .about: return "info.circle"
         }
     }
@@ -83,7 +81,6 @@ struct SettingsView: View {
                 case .decoding: DecodingPane()
                 case .learning: LearningPane()
                 case .dictionary: DictionaryPane()
-                case .jev: JevPane()
                 case .about: AboutPane()
                 }
             }
@@ -846,107 +843,6 @@ private struct DictionaryPane: View {
     }
 }
 
-// MARK: - Jev
-
-private struct JevPane: View {
-    @AppStorage("MisstypeJevEnabled") private var enabled = false
-    @AppStorage("MisstypeJevRichContext") private var rich = false
-    @AppStorage("MisstypeJevApiKey") private var storedKey = ""
-    @AppStorage("MisstypeJevModel") private var storedModel = JevConfig.defaultModel
-    @State private var keyDraft = ""
-    @State private var modelDraft = ""
-    @State private var confirmEnable = false
-    @FocusState private var focus: Field?
-    private enum Field { case key, model }
-
-    private var payload: String {
-        L("Each evaluation sends: the Zhuyin keys, the candidate sentences, up to 60 characters before the cursor, your explicit picks, and the last 5 committed sentences. Don't use it in password fields.")
-    }
-
-    var body: some View {
-        Form {
-            Section {
-                Text(L("Optional. When candidates are too close to call, a remote model can help decide. Off by default: Misstype decodes fully offline unless you enable this and provide a key."))
-                    .font(.callout).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                Toggle(L("Enable Jev assistance"), isOn: Binding(
-                    get: { enabled },
-                    set: { if $0 { confirmEnable = true } else { enabled = false } }))
-                Toggle(isOn: $rich) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(L("Allow richer context"))
-                        Text(L("Also sends alignment and diff metadata."))
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
-                }
-                .disabled(!enabled)
-            }
-            Section(L("Connection")) {
-                LabeledContent(L("Gateway key")) {
-                    SecureField(L("Never logged"), text: $keyDraft)
-                        .textFieldStyle(.roundedBorder)
-                        .focused($focus, equals: .key)
-                        .onSubmit(commitKey)
-                        .frame(maxWidth: 260)
-                }
-                LabeledContent(L("Model")) {
-                    TextField("", text: $modelDraft)
-                        .textFieldStyle(.roundedBorder)
-                        .focused($focus, equals: .model)
-                        .onSubmit(commitModel)
-                        .frame(maxWidth: 260)
-                }
-                Text(L("Or set the AI_GATEWAY_API_KEY environment variable."))
-                    .font(.caption).foregroundStyle(.secondary)
-                statusRow
-            }
-            Section(L("What is sent")) {
-                Text(payload).font(.callout).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .onAppear { keyDraft = storedKey; modelDraft = storedModel }
-        .onChange(of: focus) { _ in commitKey(); commitModel() }
-        .alert(L("Enable remote Jev assistance?"), isPresented: $confirmEnable) {
-            Button(L("Enable")) { enabled = true }
-            Button(L("Cancel"), role: .cancel) {}
-        } message: {
-            Text(L("Once enabled and a gateway key is present, candidate ties are sent to a remote model.") + "\n\n" + payload
-                 + "\n\n" + L("Turning it off returns to offline decoding immediately."))
-        }
-    }
-
-    private func commitKey() {
-        let value = keyDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-        storedKey = value
-        keyDraft = value
-    }
-
-    private func commitModel() {
-        let value = modelDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-        storedModel = value.isEmpty ? JevConfig.defaultModel : value
-        modelDraft = storedModel
-    }
-
-    /// Key presence only — never echoes the value.
-    private var statusRow: some View {
-        let config = MisstypePrefs.jevConfig
-        let (color, text): (Color, String)
-        if !config.enabled {
-            (color, text) = (.secondary, L("Offline — the default"))
-        } else if !config.hasKey {
-            (color, text) = (.orange, L("Enabled, but no key — staying offline"))
-        } else {
-            (color, text) = (.green, L("Ready · %@ · %@", config.model,
-                                       config.allowRichContext ? L("richer context") : L("minimal context")))
-        }
-        return HStack(spacing: 6) {
-            Circle().fill(color).frame(width: 8, height: 8)
-            Text(text).font(.callout)
-        }
-    }
-}
-
 // MARK: - About
 
 private struct UpdatesSection: View {
@@ -994,7 +890,7 @@ private struct AboutPane: View {
             }
             UpdatesSection()
             Section(L("Privacy")) {
-                Text(L("What you type stays on this Mac. The decoder runs offline; nothing is sent anywhere unless you turn on Jev Assist."))
+                Text(L("What you type stays on this Mac. The decoder runs offline and never sends your typing anywhere."))
                     .font(.callout).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }

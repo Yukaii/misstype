@@ -138,19 +138,11 @@ final class ChannelModelTests: XCTestCase {
         XCTAssertEqual(undone.reverts.map { $0.typed + $0.intended }, ["/p"])
     }
 
-    private final class Host: InputSessionHost {
-        func surroundingContext() -> ClientContext { ClientContext() }
-        func perform(_ work: @escaping () -> Void) { work() }
-        func sessionDidChange(_ session: InputSession) {}
-    }
-
     func testSessionRecordsBackspaceRetypeOnCommit() {
         let decoder = LexiconDecoder(tsv: "ㄕㄣ\t深\t-5\nㄕㄥ\t升\t-9\n")
         var settings = SessionSettings(channelLearning: true)
         let engine = InputEngine(decoder: decoder, settings: { settings })
         let session = InputSession(engine: engine)
-        let host = Host()
-        session.host = host
         func press(_ keys: String) {
             for char in keys {
                 let label = String(char)

@@ -1,8 +1,7 @@
 name: CI
 
-# Keeps MisstypeCore (decoder + InputSession) portable: the core and its
-# tests must build and pass on Linux, where only the core target exists
-# (Package.swift gates the macOS adapter). macOS is exercised by release.yml.
+# Keeps the Swift reference and Zig port portable and checks their parity.
+# macOS shipping behavior is exercised by release.yml until its C ABI cutover.
 # Site and docs-only changes skip it (the site has its own build in pages.yml).
 on:
   push:
@@ -18,39 +17,184 @@ on:
       - ".github/workflows/pages.yml"
       - "docs/**"
       - "**/*.md"
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  macos-zig-port:
+    # Compile the macOS-facing ABI on the platform that supplies lipo and
+    # SwiftPM's InputMethodKit headers. The UI remains on the Swift oracle
+    # until the bridge is switched over; this gate keeps both architectures
+    # and the ABI exports buildable while that migration proceeds.
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache pinned Zig toolchain
+        uses: actions/cache@v4
+        with:
+          path: .cache/zig
+          key: zig-macos-${{ runner.arch }}-${{ hashFiles('script/zig/bootstrap.sh') }}
+      - name: Build universal Zig C ABI
+        run: script/zig/build_macos.sh
+      - name: Compile Swift packages and C ABI reference
+        run: swift build --build-tests
+      - name: Link and run Swift-to-Zig smoke test
+        run: swift run MisstypeZigSmoke
+
+  zig-core:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache pinned Zig toolchain and compiler
+        uses: actions/cache@v4
+        with:
+          path: |
+            .cache/zig
+            ~/.cache/zig
+            core-zig/.zig-cache
+          key: zig-core-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('script/zig/bootstrap.sh') }}-${{ hashFiles('third_party/utf8proc/*', 'core-zig/src/*', 'core-zig/build.zig', 'core-zig/build.zig.zon') }}
+          restore-keys: |
+            zig-core-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('script/zig/bootstrap.sh') }}-
+      - name: Format and test Zig in Debug and ReleaseFast
+        run: |
+          zig=$(script/zig/bootstrap.sh)
+          cd core-zig
+          "$zig" fmt --check build.zig src
+          "$zig" build test
+          "$zig" build test -Doptimize=ReleaseFast
+
   core-linux:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     container: swift:6.0
     steps:
       - uses: actions/checkout@v4
       - name: Test MisstypeCore
         run: swift test
 
-  fcitx5-linux:
-    runs-on: ubuntu-latest
+  # The Linux dev image (Swift + fcitx5 + GTK) is published to GHCR keyed by the
+  # Dockerfile hash, so it builds only when linux/Dockerfile changes and every
+  # job below just pulls it.
+  linux-image:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.ref.outputs.image }}
     steps:
       - uses: actions/checkout@v4
-      # Same image as local development (linux/Dockerfile); tests only, so CI
-      # never downloads the lexicon.
+      - id: ref
+        run: |
+          repo="${GITHUB_REPOSITORY,,}"
+          echo "image=ghcr.io/${repo%%/*}/misstype-linux-dev:${{ hashFiles('linux/Dockerfile') }}" >> "$GITHUB_OUTPUT"
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Check for a published image
+        id: exists
+        run: |
+          if docker manifest inspect "${{ steps.ref.outputs.image }}" >/dev/null 2>&1; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          fi
       - uses: docker/setup-buildx-action@v3
-      - name: Linux test image
+        if: steps.exists.outputs.found != 'true'
+      - name: Build and publish the Linux test image
+        if: steps.exists.outputs.found != 'true'
         uses: docker/build-push-action@v6
         with:
           context: linux
           file: linux/Dockerfile
-          tags: misstype-linux-dev:latest
-          load: true
+          tags: ${{ steps.ref.outputs.image }}
+          push: true
           cache-from: type=gha,scope=linux-dev
           cache-to: type=gha,scope=linux-dev,mode=max
-      # A single working copy preserves Swift's incremental release build
-      # between the C ABI and addon checks.
-      - name: C ABI and fcitx5 addon
-        env:
-          MISSTYPE_LINUX_PREBUILT: "1"
-        run: script/linux/dev.sh 'script/linux/test_capi.sh && script/linux/test_fcitx5.sh'
+
+  # Independent gates run in parallel instead of one 20+ minute serial job.
+  # Each leg gets a fresh copy of the tree inside the prebuilt image.
+  fcitx5-linux:
+    needs: linux-image
+    name: linux (${{ matrix.name }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: swift reference C ABI and addon, exact decoder parity
+            run: |
+              script/linux/dev.sh 'MISSTYPE_CORE=swift script/linux/test_capi.sh && MISSTYPE_CORE=swift script/linux/test_fcitx5.sh'
+              core-zig/bench/compare.sh 10
+          - name: zig C ABI and addon, persistence and CLI
+            run: |
+              script/zig/test_linux.sh
+              script/zig/test_persistence.sh
+              script/zig/test_ctl.sh
+          - name: installed GTK desktop
+            run: script/linux/dev.sh 'script/linux/test_all.sh && script/linux/test_desktop.sh'
+          - name: full candidates, touch and Unicode parity
+            optimize: ReleaseFast
+            run: core-zig/bench/parity.sh
+          - name: debug session replay
+            run: core-zig/bench/replay.sh 400 1
+          - name: ReleaseFast session replay
+            optimize: ReleaseFast
+            run: |
+              core-zig/bench/replay.sh 400 1
+              core-zig/bench/replay.sh 400 487
+    env:
+      MISSTYPE_LINUX_PREBUILT: "1"
+      MISSTYPE_LINUX_IMAGE: ${{ needs.linux-image.outputs.image }}
+      MISSTYPE_ZIG_OPTIMIZE: ${{ matrix.optimize }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull the Linux test image
+        run: docker pull "$MISSTYPE_LINUX_IMAGE"
+      - name: Cache pinned Zig toolchain and compiler
+        uses: actions/cache@v4
+        with:
+          path: |
+            .cache/zig
+            ~/.cache/zig
+            core-zig/.zig-cache
+          key: zig-linux-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('script/zig/bootstrap.sh') }}-${{ hashFiles('third_party/utf8proc/*', 'core-zig/src/*', 'core-zig/build.zig', 'core-zig/build.zig.zon') }}
+          restore-keys: |
+            zig-linux-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('script/zig/bootstrap.sh') }}-
+      - name: Cache public dictionary sources
+        uses: actions/cache@v4
+        with:
+          path: |
+            .cache/mcbopomofo
+            .cache/naer
+            .cache/frequencywords
+          key: zig-lexicon-${{ hashFiles('third_party/*/sources.json', 'script/prepare_lexicon.py', 'Resources/reading_order.tsv') }}
+      - name: Prepare checksum-verified public lexicons
+        run: python3 script/prepare_lexicon.py
+      - name: ${{ matrix.name }}
+        run: ${{ matrix.run }}
+      - name: Upload synthetic replay diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zig-replay-diagnostics-${{ strategy.job-index }}
+          path: |
+            build/parity/*
+            build/replay/*.txt
+            build/replay/*.log
+            build/replay/scripts/*.txt
+          retention-days: 7
+          if-no-files-found: ignore

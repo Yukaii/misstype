@@ -3,14 +3,8 @@ import XCTest
 
 /// The English pass inside `InputSession`: no mode switch, no toggle key.
 final class MixedSessionTests: XCTestCase {
-    private final class Host: InputSessionHost {
-        func surroundingContext() -> ClientContext { ClientContext() }
-        func perform(_ work: @escaping () -> Void) { work() }
-        func sessionDidChange(_ session: InputSession) {}
-    }
 
     private var settings = SessionSettings(autoShowCandidates: true)
-    private var host = Host()
 
     private func makeSession(english: Bool = true) -> InputSession {
         let decoder = LexiconDecoder(tsv: """
@@ -24,7 +18,6 @@ final class MixedSessionTests: XCTestCase {
             engine.englishLexicon = EnglishLexicon(tsv: "python\t-12.9\nscript\t-11.0\nmeeting\t-9.2\nthe\t-3.4\n")
         }
         let session = InputSession(engine: engine)
-        session.host = host
         return session
     }
 

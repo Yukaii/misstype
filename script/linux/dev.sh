@@ -12,4 +12,4 @@ if [ "${MISSTYPE_LINUX_PREBUILT:-0}" != "1" ]; then
   docker build -q -t "$IMAGE" -f "$ROOT/linux/Dockerfile" "$ROOT/linux" >/dev/null
 fi
 exec docker run --rm -v "$ROOT":/src:ro "$IMAGE" bash -euo pipefail -c \
-  'mkdir -p /w && tar -C /src --exclude=./.build --exclude=./dist --exclude=./build -cf - . | tar -C /w -xf - && cd /w && '"$*"
+  'mkdir -p /w && tar -C /src --exclude=./.build --exclude=./dist --exclude=./build --exclude=./.cache/zig --exclude=./core-zig/.zig-cache --exclude=./core-zig/zig-out -cf - . | tar -C /w -xf - && cd /w && if [ -x /src/.cache/zig/0.17.0/zig ] && [ "$(head -c 4 /src/.cache/zig/0.17.0/zig | od -An -t x1 | tr -d " \\n")" = 7f454c46 ]; then export MISSTYPE_ZIG=/src/.cache/zig/0.17.0/zig; fi && '"$*"

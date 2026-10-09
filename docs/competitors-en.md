@@ -34,7 +34,7 @@ experimental directions: learned mixed Chinese/English input and paired fuzzy co
 | [vChewing](https://github.com/vChewing/vChewing-macOS) | macOS 12+ (Aqua memorial build from 10.9) | Tiehen (鐵恨) chord engine; most Zhuyin layouts and pinyin schemes of any Zhuyin IME (its claim); separate Simplified/Traditional corpora | Yes: mixed-input fallback mode (Zhuyin keys first tried as readings, else fall back to English); since v4.8.6 ASCII shows in the preedit | Decaying-memory model (POM) observes selections and feeds composition; user phrases, custom associated phrases | Not stated; sandboxed | 12.6 MB `.pkg` (v4.8.6, 2026-09-29) | MulanPSL-2.0 (core modules LGPLv3); modified builds may not keep the product name |
 | [McBopomofo 小麥注音](https://github.com/openvanilla/McBopomofo) | macOS 13+; Windows (win-mcbopomofo), Linux (fcitx5-mcbopomofo) and web/ChromeOS are separate repos in the same org | Gramambular 2 composer, unigram-only language model, Dachen | Not advertised | Records user selection overrides; user and excluded phrases | Not stated | 5.3 MB `.zip` (v3.1.1, 2026-09-02) | MIT |
 | [Rime](https://rime.im) (Squirrel / Weasel / ibus-fcitx-rime) | macOS (Squirrel), Windows (Weasel), Linux (ibus/fcitx-rime) | librime schema-driven engine; Zhuyin is the rime-bopomofo schema (Dachen and "dynamic ability" layouts, dictionary depends on terra_pinyin); Cangjie, Quick and others are separate schemas | Needs an ASCII/Chinese mode switch (the Zhuyin schema ships an `ascii_mode` switch) | librime ships a user dictionary (`user_dictionary`) | None, offline | Squirrel 25.5 MB `.pkg` (1.1.2); Weasel 12.4 MB `.exe` (0.17.4) | GPL-3.0 (Squirrel, Weasel); librime BSD-3-Clause |
-| **Misstype** (this repo) | macOS IMK, Linux fcitx5 | McBopomofo lexicon, Dachen, Swift `MisstypeCore` | Yes, `mixedEnglish` (macOS default off) | Learning + user dictionary | None by default; optional Jev LLM assist, opt-in | `.dmg` 4.4 MB (v0.0.1, universal), no model | MIT |
+| **Misstype** (this repo) | macOS IMK, Linux fcitx5 | McBopomofo lexicon, Dachen, Swift `MisstypeCore` | Yes, `mixedEnglish` (macOS default off) | Learning + user dictionary | None; decoding is offline only (an opt-in LLM assist was removed 2026-10-09) | `.dmg` 4.4 MB (v0.0.1, universal), no model | MIT |
 
 ### Download sizes (measured 2026-10-04)
 
@@ -88,7 +88,7 @@ text only.
 | Raw trace kept / replayable | - | - | - | - | - | - | - | - | Y (capture side) |
 | Simplified/Traditional switch | - | - | - | - | - | Y (separate corpora) | - | Y (OpenCC filters: simplified, HK, TW glyphs) | - |
 | Offline by default | Y | Y | Y | Y | Y | Y | Y | Y | Y |
-| LLM / model assist | - | - | researched | - | on-device | - | - | - | optional, opt-in (Jev) |
+| LLM / model assist | - | - | researched | - | on-device | - | - | - | - (removed 2026-10-09) |
 | macOS | - | Y | Y | Y | Y | Y | Y | Y (Squirrel) | Y |
 | Windows | - | preview | - | Y | - | - | Y (separate project) | Y (Weasel) | - |
 | Linux | Y (fcitx5) | - | - | Y (fcitx5) | - | - | Y (fcitx5, separate project) | Y | Y (fcitx5) |
@@ -153,7 +153,7 @@ in one input state, plus on-device "AI" homophone correction from whole-
 sentence context, 400k+ curated words, 220k-word English dictionary, and
 English Tab completion. The 271.6 MiB download suggests the model and
 dictionaries are bundled (inference, not measured). Mixed input and context
-selection are the same ground our `MixedDecode` and Jev assist cover; the
+selection are the same ground our `MixedDecode` and sentence decoder cover; the
 size and price are the contrast with our small offline lexicon.
 
 For an algorithmic and architectural breakdown across composition and decoding engines (DAG, Bigram, Rime, and unified lattices), see [Decoding and composition engines technical survey](decoding-engines-en.md).
@@ -177,8 +177,8 @@ For an algorithmic and architectural breakdown across composition and decoding e
   so this is parity with vChewing and an advantage over Rime, where only
   deleting a candidate has a default key (Shift+Delete). It is not a new idea.
 - **Whole-sentence decode.** ZingIME's sentence-context homophone fix and
-  Bopomix's unbuilt "整句 AI 選字" match what the lexicon decoder plus
-  optional Jev assist already do; ours is offline-first and observable.
+  Bopomix's unbuilt "整句 AI 選字" match what the lexicon decoder already
+  does; ours is offline-only and observable.
 - **Fuzzy input.** Two projects do part of this, both from their own
   source: Ari accepts out-of-order keys (`su3` and `s3u` both give 你) and
   drops a repeated or invalid leading key once the rest forms a syllable;
