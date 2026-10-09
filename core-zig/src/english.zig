@@ -153,7 +153,7 @@ pub const MixedCandidate = struct {
     score: f64,
 };
 
-const SpanWord = struct { range: Range, word: []const u8, score: f64 };
+const SpanWord = struct { range: Range, word: []const u8, score: f64, exact: bool };
 
 const Letter = struct { char: u8, latin: bool };
 
@@ -225,7 +225,7 @@ pub fn mixedPass(decoder: *const Lexicon, arena: Allocator, keys: []const Key, e
                         w[0] = std.ascii.toUpper(w[0]);
                         break :blk w;
                     } else match.word;
-                    try spans.append(arena, .{ .range = Range.of(from, to), .word = word, .score = match.score - opts.english_edit_cost * @as(f64, @floatFromInt(match.edits)) });
+                    try spans.append(arena, .{ .range = Range.of(from, to), .word = word, .score = match.score - opts.english_edit_cost * @as(f64, @floatFromInt(match.edits)), .exact = match.edits == 0 });
                 }
             }
         }
@@ -348,8 +348,11 @@ const Hypotheses = struct {
         extra = extra - raw_key_cost * tail_count;
         const n = @min(decoded.len, 2);
         const out = try arena.alloc(MixedCandidate, n);
+        const english_spans = try arena.alloc(@import("candidate.zig").EnglishSpan, chosen.len);
+        for (chosen, english_spans) |s, *span| span.* = .{ .keys = s.range, .exact = s.exact };
         for (decoded[0..n], out) |sentence, *o| {
             var shown = sentence;
+            shown.english_spans = english_spans;
             if (tail.items.len > 0) {
                 shown.text = try std.mem.concat(arena, u8, &.{ sentence.text, tail.items });
                 shown.utf16_len = sentence.utf16_len + unicode.utf16Len(tail.items);

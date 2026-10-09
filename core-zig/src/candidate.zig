@@ -38,6 +38,11 @@ pub const Span = struct {
     chars: Range,
 };
 
+/// Original raw-key ranges reinterpreted as English by the mixed pass.
+/// Session chunking skips these keys when matching Chinese syllables; an
+/// edited English word must remain available for correction.
+pub const EnglishSpan = struct { keys: Range, exact: bool };
+
 pub const Candidate = struct {
     text: []const u8,
     utf16_len: u32,
@@ -47,6 +52,7 @@ pub const Candidate = struct {
     alignment: []const Span = &.{},
     syllables: []const Syllable = &.{},
     runs: []const Range = &.{},
+    english_spans: []const EnglishSpan = &.{},
 
     pub fn empty() Candidate {
         return .{ .text = "", .utf16_len = 0, .score = 0, .repairs = 0, .unresolved = 0 };
@@ -104,6 +110,7 @@ pub const Candidate = struct {
         for (self.syllables, syllables) |s, *out| out.* = .{ .keys = try gpa.dupe(u8, s.keys), .tone = s.tone };
         copy.syllables = syllables;
         copy.runs = try gpa.dupe(Range, self.runs);
+        copy.english_spans = try gpa.dupe(EnglishSpan, self.english_spans);
         return copy;
     }
 };

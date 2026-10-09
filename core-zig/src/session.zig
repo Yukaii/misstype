@@ -729,33 +729,39 @@ pub const Session = struct {
         return result;
     }
 
-    /// Chunked auto-commit of the settled head (see Swift).
+    /// Commit only the exact, whole-word prefix. Unresolved or repaired
+    /// words later in the composition must not strand an already safe head.
     fn commitSettledHead(self: *Session) !?[]const u8 {
         const limit = self.settings.auto_commit_syllables;
         if (limit == 0 or self.composition.isEmpty() or self.cursor != null or self.composition.caret != null or
             self.selecting or self.symbol_menu != null or !self.session_pins.isEmpty() or self.explicit_pick or
-            !self.hasSelected() or self.showingComplete()) return null;
+            !self.hasSelected()) return null;
         const shown = self.candidates[self.selected];
         const total = shown.syllables.len;
-        if (total <= limit or shown.unresolved != 0) return null;
+        if (total <= limit) return null;
         const bound = @as(i64, @intCast(total)) - @as(i64, @intCast(limit / 2));
         var cut: ?Span = null;
-        var i = shown.alignment.len;
-        while (i > 0) {
-            i -= 1;
-            if (@as(i64, shown.alignment[i].syllables.end) <= bound) {
-                cut = shown.alignment[i];
-                break;
-            }
+        const a = self.arena();
+        for (shown.alignment) |word| {
+            if (@as(i64, word.syllables.end) > bound) break;
+            const text = (try shown.slice(a, word.chars)) orelse break;
+            if (try self.decoder().readingsOf(a, text, shown.syllables, word.syllables, false, self.settings.tone_tolerance) == null) break;
+            cut = word;
         }
         const c = cut orelse return null;
         if (c.syllables.end == 0) return null;
         var wanted: std.ArrayList(u8) = .empty;
-        const a = self.arena();
         for (shown.syllables[0..c.syllables.end]) |s| try wanted.appendSlice(a, s.keys);
         var w: usize = 0;
         var cut_index: usize = 0;
         for (self.composition.keys(), 0..) |key, index| {
+            const english = for (shown.english_spans) |span| {
+                if (span.keys.contains(index)) break span;
+            } else null;
+            if (english) |span| {
+                if (!span.exact) return null;
+                continue;
+            }
             if (!key.isSymbol()) continue;
             if (w >= wanted.items.len or key.key != wanted.items[w]) return null;
             w += 1;

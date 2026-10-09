@@ -460,6 +460,69 @@ test "auto-commit off keeps everything in the composition" {
     try s.expectPreedit(want);
 }
 
+test "unresolved tail does not strand an exact head after earlier chunks" {
+    const s = try Harness.init(h.nihao);
+    defer s.deinit();
+    s.settings().auto_commit_syllables = 6;
+    s.settings().repair_strength = .off;
+    for (0..8) |_| try s.typed("su3");
+    // Simulate a long tail entered while auto-commit is disabled, then turn
+    // it back on. The last syllable is absent from this synthetic lexicon.
+    s.settings().auto_commit_syllables = 0;
+    for (0..8) |_| try s.typed("su3");
+    try s.typed("g0");
+    s.settings().auto_commit_syllables = 6;
+    const r = try s.chr("4", 0, "4");
+    try t.expect(r.commit != null);
+    try t.expect(std.mem.indexOf(u8, r.commit.?, "ㄕ") == null);
+    try t.expect(std.mem.endsWith(u8, try s.raw(), "ㄕㄢˋ"));
+    try t.expect(s.session.candidates[s.session.selected].unresolved > 0);
+}
+
+test "chunking preserves inline Latin punctuation and spaces" {
+    const s = try Harness.init(h.nihao);
+    defer s.deinit();
+    s.settings().auto_commit_syllables = 6;
+    var committed: std.ArrayList(u8) = .empty;
+    defer committed.deinit(t.allocator);
+    for (0..5) |_| for (try s.typeKeys("su3cl3`hello `su3cl3su3cl3")) |r| {
+        if (r.commit) |text| try committed.appendSlice(t.allocator, text);
+    };
+    try t.expect(committed.items.len > 0);
+    try committed.appendSlice(t.allocator, (try s.enter()).commit orelse "");
+    const want = try std.mem.concat(t.allocator, u8, &@as([5][]const u8, @splat("你好hello 你好你好")));
+    defer t.allocator.free(want);
+    try t.expectEqualStrings(want, committed.items);
+}
+
+test "auto-commit keeps a repaired head available for correction" {
+    const s = try Harness.init(h.nihao);
+    defer s.deinit();
+    s.settings().auto_commit_syllables = 6;
+    for (0..10) |_| for (try s.typeKeys("wu3")) |r| try t.expect(r.commit == null);
+    try t.expect(s.session.candidates[s.session.selected].repairs > 0);
+}
+
+test "chunking resumes after a manually shifted Latin run" {
+    const s = try Harness.init(h.nihao);
+    defer s.deinit();
+    s.settings().auto_commit_syllables = 6;
+    var committed: std.ArrayList(u8) = .empty;
+    defer committed.deinit(t.allocator);
+    for (0..4) |_| {
+        for (try s.typeKeys("su3cl3")) |r| if (r.commit) |text| try committed.appendSlice(t.allocator, text);
+        for ("hello") |ch| {
+            const label = [_]u8{ch};
+            const r = try s.chr(&label, h.shift, &label);
+            if (r.commit) |text| try committed.appendSlice(t.allocator, text);
+        }
+        for (try s.typeKeys(" su3cl3su3cl3")) |r| if (r.commit) |text| try committed.appendSlice(t.allocator, text);
+    }
+    try t.expect(committed.items.len > 0);
+    try committed.appendSlice(t.allocator, (try s.enter()).commit orelse "");
+    try t.expect(std.mem.indexOf(u8, committed.items, "hello") != null);
+}
+
 test "smart quotes open then close and nest with shift" {
     const s = try Harness.init(h.nihao);
     defer s.deinit();

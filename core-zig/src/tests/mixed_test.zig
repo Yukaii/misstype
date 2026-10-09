@@ -106,6 +106,29 @@ fn makeSession(with_english: bool) !*Harness {
     return s;
 }
 
+test "chunking continues across bare English and preserves every key" {
+    const s = try makeSession(true);
+    defer s.deinit();
+    s.settings().auto_commit_syllables = 6;
+    var committed: std.ArrayList(u8) = .empty;
+    defer committed.deinit(t.allocator);
+    var chunks: usize = 0;
+    for (0..5) |_| {
+        for (try s.typeKeys("su3cl3python su3cl3su3cl3")) |r| {
+            if (r.commit) |text| {
+                try committed.appendSlice(t.allocator, text);
+                chunks += 1;
+            }
+        }
+    }
+    try t.expect(chunks > 1);
+    try t.expect(s.session.composition.keys().len < 40);
+    try committed.appendSlice(t.allocator, (try s.enter()).commit orelse "");
+    const want = try std.mem.concat(t.allocator, u8, &@as([5][]const u8, @splat("你好python 你好你好")));
+    defer t.allocator.free(want);
+    try t.expectEqualStrings(want, committed.items);
+}
+
 test "bare keys that spell an English word show as English" {
     const s = try makeSession(true);
     defer s.deinit();

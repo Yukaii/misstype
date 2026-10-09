@@ -175,6 +175,17 @@ Use monotonic timestamps for ordering and a separate wall-clock field only for d
 
 ## Decode policy
 
+### Chunked commit with mixed input
+
+Chunked auto-commit operates on the settled, whole-word prefix even when the
+composition has a later unresolved tail. The prefix is committed only when its
+rendered word maps back to the exact captured phonetic keys; repaired words are
+left in the composition for correction. Raw Latin runs (including text entered
+with Shift) and exact automatic English spans are skipped while matching the
+Chinese prefix, so a long mixed-language composition cannot make earlier safe
+Chinese text stop committing. Automatic English spans carrying an edit remain
+uncommitted until Return.
+
 1. Normalize and segment without blocking capture.
 2. Produce an offline preview after a short debounce.
 3. On commit or a longer pause, run phrase-level offline decoding.
