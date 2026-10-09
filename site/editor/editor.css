@@ -1,15 +1,19 @@
 /* Markdown editor page. Variables (--paper, --ink, --card, --line, --mark…)
    come from ../style.css; candidate styles from ../playground.css. */
 
-html, body.app { height: 100%; }
-body.app {
-  display: flex; flex-direction: column; margin: 0; overflow: hidden;
-  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
-}
+/* iOS 26 Safari tints and blurs its top bar from the page background (or a
+   sticky/fixed element at the edge), and lets the page run edge to edge. So the
+   page, the sticky chrome and the status strip all share --paper, the safe-area
+   insets pad the bars themselves (not the body), and the window scrolls so
+   Safari can collapse its own bars. */
+html { background: var(--paper); }
+body.app { display: flex; flex-direction: column; min-height: 100vh; min-height: 100dvh; margin: 0; background: var(--paper); }
 
+.chrome { position: sticky; top: 0; z-index: 20; background: var(--paper); }
 .bar {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  padding: 8px 16px; border-bottom: 1px solid var(--line); background: var(--paper);
+  padding: calc(8px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 8px max(16px, env(safe-area-inset-left));
+  background: var(--paper);
 }
 .bar .brand { font-size: 16px; white-space: nowrap; }
 .bar .brand img { width: 26px; height: 26px; }
@@ -29,12 +33,12 @@ body.app {
 #mode-btn { min-width: 40px; font-weight: 600; }
 #mode-btn:disabled, body:not(.ime-ready) #mode-btn { opacity: .5; }
 
-main.pg { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-#editor { flex: 1; min-height: 0; }
+main.pg { flex: 1; display: flex; flex-direction: column; }
+#editor { flex: 1; }
 
 /* Format toolbar: page colours, so it follows the light/dark switch. */
 .toolbar {
-  display: flex; align-items: center; gap: 4px; padding: 6px 12px; overflow-x: auto; flex-wrap: nowrap;
+  display: flex; align-items: center; gap: 4px; padding: 6px max(12px, env(safe-area-inset-right)) 6px max(12px, env(safe-area-inset-left)); overflow-x: auto; flex-wrap: nowrap;
   background: var(--paper); border-bottom: 1px solid var(--line); scrollbar-width: none;
 }
 .toolbar::-webkit-scrollbar { display: none; }
@@ -49,8 +53,8 @@ main.pg { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .toolbar .sep { flex: none; width: 1px; height: 18px; margin: 0 6px; background: var(--line); }
 
 /* The document. ProseMirror's own layout rules come from prosemirror.css. */
-/* #editor is the full-width scroll surface; the document is one fixed-width block inside it. */
-#editor { overflow-y: auto; cursor: text; }
+/* #editor is the full-width surface; the document is one fixed-width block inside it. */
+#editor { cursor: text; }
 .ProseMirror {
   box-sizing: border-box; width: 100%; min-height: 100%; outline: none;
   padding: 28px clamp(16px, 5vw, 48px) 40vh; font-size: var(--editor-size, 18px); line-height: 1.8;
@@ -76,7 +80,9 @@ main.pg { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .pm-replaced { display: none; }
 
 .status {
-  display: flex; gap: 16px; align-items: center; padding: 6px 16px; border-top: 1px solid var(--line);
+  position: sticky; bottom: 0; z-index: 20;
+  display: flex; gap: 16px; align-items: center; border-top: 1px solid var(--line);
+  padding: 6px max(16px, env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
   color: var(--muted); font-size: 13px; background: var(--paper);
 }
 .status #count { margin-left: auto; }

@@ -51,6 +51,16 @@ Command palette: `Mod-Shift-P` (or F1, or the 指令 button). Also
 (undoable), `Mod-S` download `.md`, `Mod-Shift-E` toggle 中/英 (a Shift tap
 too), `Mod-,` settings. `Ctrl-J/K` stay with the decoder.
 
+## iOS 26 Safari chrome
+
+Safari 26 draws the page edge to edge under translucent bars and tints them
+from the page background or a sticky/fixed element at the edge (`theme-color`
+is unreliable there). So `editor.css` keeps `html`, `body`, the sticky
+header/toolbar and the status strip all `--paper`, puts the safe-area insets on
+those bars instead of the body, and scrolls the window rather than an inner
+box; `keepCaretClear` sets ProseMirror's scroll margins from the bar heights.
+Checked only with Chromium's iPad emulation (no safe-area insets there).
+
 ## Known limits
 
 - In Chinese mode the decoder owns `-`, `#`, `*`, backtick and digits, so

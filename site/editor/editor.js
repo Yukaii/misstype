@@ -92,6 +92,14 @@ function createView() {
 
 const view = createView();
 
+// The window scrolls under the sticky header, toolbar and status strip, so keep
+// the caret clear of them when ProseMirror scrolls it into view.
+function keepCaretClear() {
+  const top = $(".chrome").offsetHeight + 12;
+  const bottom = $(".status").offsetHeight + 24;
+  view.setProps({ scrollMargin: { top, bottom, left: 8, right: 8 }, scrollThreshold: { top, bottom, left: 8, right: 8 } });
+}
+
 function runAction(id) {
   actions[id].run(view.state, view.dispatch, view);
   view.focus();
@@ -361,6 +369,8 @@ settingsDialog.querySelector("[data-close]").addEventListener("click", () => set
 
 // -------------------------------------------------------------------- boot
 
+keepCaretClear();
+addEventListener("resize", keepCaretClear);
 applyAppearance();
 countEl.textContent = `${wordCount(view.state.doc).total} 字`;
 updateToolbar();
