@@ -61,10 +61,6 @@ jobs:
           path: .cache
           key: lexicon-${{ hashFiles('third_party/*/sources.json') }}
 
-      - name: Test
-        run: swift test
-
-      # Linux now ships the Zig core; macOS packaging below still uses Swift.
       - name: Cache pinned Zig toolchain
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
@@ -76,6 +72,12 @@ jobs:
           cd core-zig
           "$zig" build test
           "$zig" build test -Doptimize=ReleaseFast
+
+      # The IME and its tests link the universal Zig library by path.
+      - name: Build the Zig library and test the Swift UI side
+        run: |
+          script/zig/build_macos.sh
+          swift test
 
       - name: Import signing certificate
         if: env.HAS_CERT == 'true'

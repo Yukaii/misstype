@@ -1,11 +1,11 @@
 //! C ABI over the Zig core: exactly the functions of
-//! Sources/CMisstype/include/misstype.h, with the Swift MisstypeCAPI's
-//! semantics. Strings and views returned are malloc'ed (free with
+//! Sources/CMisstype/include/misstype.h (the retired Swift MisstypeCAPI had the
+//! same semantics). Strings and views returned are malloc'ed (free with
 //! misstype_string_free / misstype_view_free).
 //!
-//! Differences from Swift: english.tsv loads synchronously in
-//! misstype_engine_new; the dev-only MISSTYPE_LEXICON / MISSTYPE_BIGRAM
-//! overrides are not supported (MISSTYPE_WORD_PENALTY is).
+//! english.tsv loads synchronously in misstype_engine_new; the dev-only
+//! MISSTYPE_LEXICON / MISSTYPE_BIGRAM overrides do not exist
+//! (MISSTYPE_WORD_PENALTY does).
 
 const std = @import("std");
 const core = @import("root.zig");

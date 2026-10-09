@@ -1,6 +1,6 @@
 /* replay: drive any misstype.h implementation from a key script and print
- * every key result and view, so two implementations (Swift MisstypeCAPI and
- * the Zig port, docs/zig-port.md) can be diffed line for line.
+ * every key result and view, so the transcript can be diffed line for line
+ * against the frozen Swift reference (tests/golden/replay_*.txt.gz).
  *
  *   replay <shipping resource dir> <fixture resource dir> <script>...
  *

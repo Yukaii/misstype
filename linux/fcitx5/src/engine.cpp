@@ -1,5 +1,5 @@
 // fcitx5 adapter for Misstype (docs/cross-platform.md, docs/linux-port.md L3).
-// All editing rules live in MisstypeCore's InputSession behind the C ABI in
+// All editing rules live in the Zig core's Session behind the C ABI in
 // misstype.h; this file only translates key events, applies key results and
 // draws the session view.
 #include <fcitx-config/configuration.h>

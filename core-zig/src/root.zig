@@ -1,5 +1,7 @@
-//! MisstypeCore in Zig (docs/zig-port.md). Swift `MisstypeCore` remains the
-//! source of truth until the port reaches parity.
+//! The Misstype core in Zig (docs/zig-port.md): decoding, the session and the
+//! C ABI for every platform. It replaced the Swift `MisstypeCore` on
+//! 2026-10-09; "port of Sources/MisstypeCore/X.swift" comments name the Swift
+//! files this was ported from (last present at commit c89b857).
 
 pub const unicode = @import("unicode.zig");
 pub const keyboard = @import("keyboard.zig");
@@ -21,7 +23,7 @@ pub const Syllable = keyboard.Syllable;
 
 test {
     @import("std").testing.refAllDecls(@This());
-    // Behavior suites ported from the Swift MisstypeCoreTests.
+    // Behavior suites ported from the retired Swift MisstypeCoreTests.
     _ = @import("tests/session_test.zig");
     _ = @import("tests/core_test.zig");
     _ = @import("tests/caret_test.zig");

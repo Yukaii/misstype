@@ -1,4 +1,5 @@
-//! Linux dictionary/config CLI. Files and output follow Sources/MisstypeCtl.
+//! Dictionary/config CLI (Linux). Behavior is pinned by tests/capi/ctl_test.py;
+//! it kept the output and file formats of the retired Swift MisstypeCtl.
 const std = @import("std");
 const core = @import("misstype");
 const Dict = core.user_dictionary.UserDictionary;
