@@ -20,12 +20,19 @@ mkdir -p "$out/shipping"
 python3 tests/replay/make_scripts.py "$out/scripts" --fuzz-cases "$cases" --seed "$seed"
 cp .cache/mcbopomofo/lexicon.tsv .cache/mcbopomofo/toneless.tsv \
     .cache/frequencywords/english.tsv Resources/local_phrases.tsv "$out/shipping/"
-# Debug catches overflow and bounds errors that ReleaseFast would hide.
-(cd core-zig && "$zig" build test && "$zig" build -Doptimize="${MISSTYPE_ZIG_OPTIMIZE:-Debug}")
+# Debug catches overflow and bounds errors that ReleaseFast would hide. The
+# ReleaseFast CI leg already has the same optimized tests in zig-core; skipping
+# them here avoids paying for a second test build before replay.
+if [ "${MISSTYPE_REPLAY_SKIP_TESTS:-0}" = 1 ]; then
+    (cd core-zig && ../script/ci/time.sh zig-replay-build "$zig" build -Doptimize="${MISSTYPE_ZIG_OPTIMIZE:-Debug}")
+else
+    (cd core-zig && ../script/ci/time.sh zig-tests "$zig" build test && \
+        ../script/ci/time.sh zig-replay-build "$zig" build -Doptimize="${MISSTYPE_ZIG_OPTIMIZE:-Debug}")
+fi
 LD_LIBRARY_PATH="$PWD/core-zig/zig-out/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
 DYLD_LIBRARY_PATH="$PWD/core-zig/zig-out/lib${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}" \
     MISSTYPE_REPLAY_METRICS=1 \
-    core-zig/zig-out/bin/replay "$out/shipping" tests/fixtures/lexicon \
+    script/ci/time.sh zig-session-replay core-zig/zig-out/bin/replay "$out/shipping" tests/fixtures/lexicon \
     tests/replay/conformance.txt "$out/scripts/probes.txt" "$out/scripts/fuzz.txt" > "$out/zig.txt" 2> "$out/zig.log" \
     || { tail -40 "$out/zig.log"; exit 1; }
 if [ "$update" = 1 ]; then
@@ -36,6 +43,7 @@ fi
 if diff -u <(gzip -dc "$golden") "$out/zig.txt" > "$out/diff.txt"; then
     echo "MATCH: $(wc -l < "$out/zig.txt") transcript lines identical to $golden (fuzz cases=$cases seed=$seed)"
     grep '^replay:' "$out/zig.log" || true
+    grep '^timing:' "$out/zig.log" || true
 else
     head -80 "$out/diff.txt"
     echo "MISMATCH: full diff in $out/diff.txt (--update only for an intended change)" >&2
