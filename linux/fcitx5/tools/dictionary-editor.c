@@ -3,7 +3,7 @@
  *
  * It owns no dictionary logic: every read and change goes through
  * `misstypectl dict ...`, so validation and the file format stay in
- * MisstypeCore. The engine reloads the file at the next composition.
+ * the Zig core. The engine reloads the file at the next composition.
  *
  * Usage: misstype-dictionary-editor [--file PATH]
  */

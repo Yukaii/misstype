@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
+# misstypectl behavior suite against the Zig binary (any host).
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 zig=$(script/zig/bootstrap.sh)
 (cd core-zig && "$zig" build)
-script/linux/dev.sh 'MISSTYPE_CORE=swift script/linux/build_capi.sh >&2; mkdir -p build/zig-capi; cp /src/core-zig/zig-out/bin/misstypectl build/zig-capi/; python3 tests/capi/ctl_parity.py "$(cat build/capi/libdir)/misstypectl" build/zig-capi/misstypectl'
+python3 tests/capi/ctl_test.py core-zig/zig-out/bin/misstypectl

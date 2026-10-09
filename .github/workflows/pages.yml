@@ -10,8 +10,8 @@ on:
     branches: [main]
     paths:
       - "site/**"
-      - "Sources/**"
-      - "Package.swift"
+      - "core-zig/**"
+      - "script/zig/**"
       - "Resources/**"
       - "script/prepare_lexicon.py"
       - "script/build_site_assets.sh"
@@ -23,8 +23,8 @@ on:
   pull_request:
     paths:
       - "site/**"
-      - "Sources/**"
-      - "Package.swift"
+      - "core-zig/**"
+      - "script/zig/**"
       - "Resources/**"
       - "script/prepare_lexicon.py"
       - "script/build_site_assets.sh"
@@ -44,18 +44,15 @@ jobs:
   # (site/public/ is gitignored); without them the live demo 404s.
   assets:
     runs-on: ubuntu-latest
-    container: swift:6.0
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@v4
-      # The Swift image uses HTTP Ubuntu mirrors, which have repeatedly
-      # stalled for minutes on hosted runners. Use HTTPS for package fetches.
-      - name: Install asset tools
-        run: |
-          sed -i 's|http://|https://|g' /etc/apt/sources.list.d/ubuntu.sources
-          apt-get update
-          apt-get install -y --no-install-recommends python3 unzip curl
+      - name: Cache pinned Zig toolchain
+        uses: actions/cache@v4
+        with:
+          path: .cache/zig
+          key: zig-pages-${{ runner.arch }}-${{ hashFiles('script/zig/bootstrap.sh') }}
       - run: script/build_site_assets.sh
       - uses: actions/upload-artifact@v4
         with:

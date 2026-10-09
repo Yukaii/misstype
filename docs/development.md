@@ -7,7 +7,10 @@
 macOS 輸入法以 SwiftPM InputMethodKit bundle 形式提供，建置階段引入經雜湊驗證的小麥注音詞庫資料。
 
 ```sh
-# 執行 Swift 單元測試
+# 先建置通用的 Zig 核心動態庫（輸入法連結它）
+./script/zig/build_macos.sh
+
+# 執行 Swift 單元測試（UI 端的 MisstypeMacKit；核心測試在 core-zig：cd core-zig && zig build test）
 swift test
 
 # 建置發布版本並打包 App Bundle
@@ -17,11 +20,16 @@ swift test
 ./script/install_ime.sh
 ```
 
-不經 IME 客戶端、直接用打包後的詞庫做解碼診斷：
+不經 IME 客戶端、直接用打包後的詞庫做解碼診斷（Zig 開發用 CLI）：
 
 ```sh
-dist/MisstypeIME.app/Contents/MacOS/MisstypeIME --decode su3cl3
+(cd core-zig && "$(../script/zig/bootstrap.sh)" build)
+MISSTYPE_RESOURCES=dist/MisstypeIME.app/Contents/Resources \
+    core-zig/zig-out/bin/misstype-dev --decode su3cl3
 ```
+
+重現使用者回報的按鍵序列（`--show` 顯示每鍵後的組字區與游標）：
+`dist/MisstypeIME.app/Contents/MacOS/MisstypeIME --session-trace 'su3cl3' --show`，或同樣參數的 `misstype-dev --session-trace`。
 
 替換舊版時，安裝程式會把上一版備份於 `.cache/MisstypeIME-previous.app`。需要停用輸入法來源時：
 
@@ -62,7 +70,7 @@ script/linux/dev.sh 'bash script/linux/test_all.sh'
 
 ## Python 早期原型
 
-最初的概念驗證切片（Python 3.11+、無外部執行期相依），用於驗證座標式觸控曲面輸入與取樣。解碼行為以 Swift `MisstypeCore` 為準，不要把解碼變更移植到 Python。
+最初的概念驗證切片（Python 3.11+、無外部執行期相依），用於驗證座標式觸控曲面輸入與取樣。解碼行為以 Zig 核心（`core-zig/`）為準，不要把解碼變更移植到 Python。
 
 ```sh
 PYTHONPATH=src python -m unittest discover -s tests -v

@@ -1,5 +1,5 @@
 import Cocoa
-import MisstypeCore
+import MisstypeMacKit
 
 /// User preferences: UserDefaults-backed, read live (no caching, so the
 /// panel and `defaults write` take effect on the next keystroke).

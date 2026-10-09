@@ -20,7 +20,7 @@
 | [唯音（vChewing）](https://github.com/vChewing/vChewing-macOS) | macOS 12+（Aqua 紀念版支援 10.9 起） | 鐵恨注音並擊引擎；注音排列與拼音種類數量眾多；簡繁語料庫分離 | 有：中英文混合輸入回退模式（注音鍵先試成讀音，不成則回退英文）；v4.8.6 起 ASCII 顯示於組字區 | 漸退記憶（POM）觀察選字並參與組句；使用者片語、自訂關聯詞語 | 未說明；啟用 Sandbox | 12.6 MB `.pkg`（v4.8.6，2026-09-29） | MulanPSL-2.0（核心模組 LGPLv3）；修改後不得沿用產品名稱 |
 | [小麥注音（McBopomofo）](https://github.com/openvanilla/McBopomofo) | macOS 13+；Windows（win-mcbopomofo）、Linux（fcitx5-mcbopomofo）、網頁／ChromeOS 為同組織獨立儲存庫 | Gramambular 2 組句、僅 Unigram 語言模型、大千 | 未宣稱 | 記錄使用者選字覆寫；使用者詞彙與排除詞彙 | 未說明 | 5.3 MB `.zip`（v3.1.1，2026-09-02） | MIT |
 | [Rime（鼠鬚管／小狼毫／中州韻）](https://rime.im) | macOS（鼠鬚管）、Windows（小狼毫）、Linux（ibus／fcitx-rime） | librime 方案制引擎；注音為 rime-bopomofo 方案（大千、動態能力佈局，詞庫依賴 terra_pinyin），另有倉頡、速成等方案 | 需切換中英模式（注音方案內建 `ascii_mode` 開關） | librime 內建使用者詞典（`user_dictionary`） | 無，離線 | 鼠鬚管 25.5 MB `.pkg`（1.1.2）；小狼毫 12.4 MB `.exe`（0.17.4） | GPL-3.0（鼠鬚管、小狼毫）；librime BSD-3-Clause |
-| **Misstype（本專案）** | macOS IMK、Linux fcitx5 | 小麥注音詞庫、大千、Swift `MisstypeCore` | 有，`mixedEnglish`（macOS 預設關閉） | 學習＋使用者詞庫 | 無；只在本機離線解碼（需明確啟用的 LLM 輔助已於 2026-10-09 移除） | `.dmg` 4.4 MB（v0.0.1，通用版本） | MIT |
+| **Misstype（本專案）** | macOS IMK、Linux fcitx5 | 小麥注音詞庫、大千、Zig 核心 | 有，`mixedEnglish`（macOS 預設關閉） | 學習＋使用者詞庫 | 無；只在本機離線解碼（需明確啟用的 LLM 輔助已於 2026-10-09 移除） | `.dmg` 4.4 MB（v0.0.1，通用版本） | MIT |
 
 ## 技術功能矩陣
 

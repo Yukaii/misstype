@@ -1,10 +1,11 @@
 # Packaging, installer and updates (macOS)
 
-Linux’s default backend is Zig as of 2026-10-08. Release tests both the Swift
-reference and Zig core before packaging; the universal macOS IME still links
-Swift until its adapter/Settings migrate to the expanded C ABI. Signing,
-notarization, Sparkle, tag handling, and immutable release assets keep the
-same contract. Linux cutover checks live in CI (`docs/zig-port.md`).
+The core is Zig on every platform (the Swift core was retired 2026-10-09,
+`docs/zig-port.md`). Release tests the Zig core (Debug and ReleaseFast), builds
+the universal `libMisstypeCAPI.dylib`, and runs the Swift UI-side tests before
+packaging; the IME embeds the dylib, and `sign_bundle.sh` signs it before the
+app. Signing, notarization, Sparkle, tag handling, and immutable release assets
+keep the same contract. Linux and wasm checks live in CI.
 
 
 Status 2026-10-04: written on Linux, first run on a Mac the same day; see

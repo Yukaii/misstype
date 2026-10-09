@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Run a command inside the Linux dev container (linux/Dockerfile) against a
 # fresh copy of the working tree, so host build products never leak in:
-#   script/linux/dev.sh 'swift test'
+#   script/linux/dev.sh 'script/linux/test_all.sh'
 # The tree is mounted read-only; the copy lives at /w (the working dir).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"

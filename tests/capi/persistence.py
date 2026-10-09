@@ -1,5 +1,10 @@
 """Synthetic file interoperability and resource-boundary checks through misstype.h.
-Run in the Linux dev container with both libraries; never reads personal data.
+
+Runs against the Zig library only. tests/capi/golden/ freezes what the retired
+Swift implementation wrote (the three user files after the `learn` and `mark`
+scripts) and how it read malformed lexicon rows, so files that real users
+created with the Swift IME must keep loading and mean the same thing.
+Never reads personal data.
 """
 import ctypes as C
 import json
@@ -120,84 +125,82 @@ def snapshot(directory):
     return result
 
 
-def run(paths):
-    apis = [API(path) for path in paths]
+def run(path):
+    api = API(path)
     resources = Path('tests/fixtures/lexicon').resolve()
-    with tempfile.TemporaryDirectory(prefix='misstype-parity-') as temp:
+    golden = Path('tests/capi/golden')
+    swift_dir = golden / 'swift'
+    with tempfile.TemporaryDirectory(prefix='misstype-persist-') as temp:
         root = Path(temp)
-        generated = []
-        for index, api in enumerate(apis):
-            directory = root / str(index); directory.mkdir()
+        zig_dir = root / 'zig'; zig_dir.mkdir()
+        engine = Engine(api, resources, zig_dir)
+        try:
+            engine.learn(); engine.mark()
+            assert api.engine_channel_pair_count(engine.engine) == 1
+        finally:
+            engine.close()
+        assert snapshot(zig_dir) == snapshot(swift_dir), ('generated stores differ from the Swift fixtures', snapshot(zig_dir))
+        print('PASS generated phrase, channel and dictionary files have the semantics of the frozen Swift files')
+
+        for source in (swift_dir, zig_dir):
+            directory = root / f'cross-{source.name}'; directory.mkdir()
+            for file in source.iterdir():
+                (directory / file.name).write_bytes(file.read_bytes())
             engine = Engine(api, resources, directory)
             try:
-                engine.learn(); engine.mark()
+                assert engine.top('su3') == '尼'
                 assert api.engine_channel_pair_count(engine.engine) == 1
+                engine.type('su3cl3'); engine.send('left', 1); engine.send('left', 1)
+                assert engine.view()[5] == 2  # restart sees filed phrase, offers removal
+                engine.send('enter'); engine.send('esc'); engine.send('esc')
+                # External edit; force a distinct nanosecond mtime without sleeping.
+                dictionary = directory / 'user_dictionary.tsv'
+                dictionary.write_text('擬好 ㄋㄧˇ-ㄏㄠˇ -0.5\n')
+                os.utime(dictionary, ns=(dictionary.stat().st_atime_ns, dictionary.stat().st_mtime_ns + 2_000_000_000))
+                assert engine.top('su3cl3') == '擬好'
+                dictionary.unlink()
+                assert engine.top('su3cl3') == '你好'
+                api.engine_clear_channel(engine.engine)
+                assert api.engine_channel_pair_count(engine.engine) == 0
+                assert json.loads((directory / 'channel_model.json').read_text())['costs'] == {}
             finally:
                 engine.close()
-            generated.append(snapshot(directory))
-        assert generated[0] == generated[1], ('generated stores differ', generated)
-        print('PASS generated phrase, channel and dictionary files have equal semantics')
+        print('PASS Swift-written and Zig-written files: restart, phrase boost, channel load/clear, dictionary removal/mtime reload/deletion')
 
-        for source in range(2):
-            for target, api in enumerate(apis):
-                directory = root / f'cross-{source}-{target}'; directory.mkdir()
-                for file in (root / str(source)).iterdir():
-                    (directory / file.name).write_bytes(file.read_bytes())
-                engine = Engine(api, resources, directory)
-                try:
-                    assert engine.top('su3') == '尼'
-                    assert api.engine_channel_pair_count(engine.engine) == 1
-                    engine.type('su3cl3'); engine.send('left', 1); engine.send('left', 1)
-                    assert engine.view()[5] == 2  # restart sees filed phrase, offers removal
-                    engine.send('enter'); engine.send('esc'); engine.send('esc')
-                    # External edit; force a distinct nanosecond mtime without sleeping.
-                    path = directory / 'user_dictionary.tsv'
-                    path.write_text('擬好 ㄋㄧˇ-ㄏㄠˇ -0.5\n')
-                    os.utime(path, ns=(path.stat().st_atime_ns, path.stat().st_mtime_ns + 2_000_000_000))
-                    assert engine.top('su3cl3') == '擬好'
-                    path.unlink()
-                    assert engine.top('su3cl3') == '你好'
-                    api.engine_clear_channel(engine.engine)
-                    assert api.engine_channel_pair_count(engine.engine) == 0
-                    assert json.loads((directory / 'channel_model.json').read_text())['costs'] == {}
-                finally:
-                    engine.close()
-        print('PASS both directions: restart, phrase boost, channel load/clear, dictionary removal/mtime reload/deletion')
-
-        for index, api in enumerate(apis):
-            for name, phrases in [('legacy', '{"version":1,"entries":{}}'), ('bad', '{invalid'), ('wrong-schema', '{"version":2,"entries":[]}')]:
-                directory = root / f'{index}-{name}'; directory.mkdir()
-                path = directory / 'user_phrases.json'; path.write_text(phrases)
-                (directory / 'channel_model.json').write_text('{bad')
-                (directory / 'user_dictionary.tsv').write_text('bad row\nㄋㄧˇ-ㄏㄠˇ\t擬好\t-1\n')
-                engine = Engine(api, resources, directory)
-                try:
-                    assert engine.top('su3') == '你'
-                    assert engine.top('su3cl3') == '擬好'
-                    assert api.engine_channel_pair_count(engine.engine) == 0
-                finally:
-                    engine.close()
-                assert path.read_text() == phrases, 'loading must not overwrite invalid data'
-            # A file blocking a parent directory forces writes to fail even as root.
-            blocker = root / f'blocked-{index}'; blocker.write_text('preserve this sentinel')
-            engine = Engine(api, resources, blocker / 'child')
+        for name, phrases in [('legacy', '{"version":1,"entries":{}}'), ('bad', '{invalid'), ('wrong-schema', '{"version":2,"entries":[]}')]:
+            directory = root / name; directory.mkdir()
+            path = directory / 'user_phrases.json'; path.write_text(phrases)
+            (directory / 'channel_model.json').write_text('{bad')
+            (directory / 'user_dictionary.tsv').write_text('bad row\nㄋㄧˇ-ㄏㄠˇ\t擬好\t-1\n')
+            engine = Engine(api, resources, directory)
             try:
-                engine.learn(); engine.mark()
-                assert api.engine_channel_pair_count(engine.engine) == 1
+                assert engine.top('su3') == '你'
+                assert engine.top('su3cl3') == '擬好'
+                assert api.engine_channel_pair_count(engine.engine) == 0
             finally:
                 engine.close()
-            assert blocker.read_text() == 'preserve this sentinel'
+            assert path.read_text() == phrases, 'loading must not overwrite invalid data'
+        # A file blocking a parent directory forces writes to fail even as root.
+        blocker = root / 'blocked'; blocker.write_text('preserve this sentinel')
+        engine = Engine(api, resources, blocker / 'child')
+        try:
+            engine.learn(); engine.mark()
+            assert api.engine_channel_pair_count(engine.engine) == 1
+        finally:
+            engine.close()
+        assert blocker.read_text() == 'preserve this sentinel'
         print('PASS legacy/bad schemas and malformed rows fall back; failed writes preserve existing data and in-memory behavior')
 
-        for index, api in enumerate(apis):
-            for payload in [b'\xff', b'\xe4\xbd', b'\xed\xa0\x80']:
-                directory = root / f'invalid-{index}-{payload.hex()}'; directory.mkdir()
-                (directory / 'lexicon.tsv').write_bytes(payload)
-                ptr = api.engine_new(os.fsencode(directory), b'')
-                if ptr:
-                    api.engine_free(ptr)
-                assert not ptr, 'invalid UTF-8 resource must fail engine creation'
+        for payload in [b'\xff', b'\xe4\xbd', b'\xed\xa0\x80']:
+            directory = root / f'invalid-{payload.hex()}'; directory.mkdir()
+            (directory / 'lexicon.tsv').write_bytes(payload)
+            ptr = api.engine_new(os.fsencode(directory), b'')
+            if ptr:
+                api.engine_free(ptr)
+            assert not ptr, 'invalid UTF-8 resource must fail engine creation'
         print('PASS invalid UTF-8 lexicons are refused')
+
+        expected_rows = json.loads((golden / 'swift_rows.json').read_text())
         for case, payload in enumerate([
             'bad row\nㄋㄧˇ\t你\t-5\nㄋㄧˇ\t壞\tnot-a-number\n',
             'ㄋㄧˇ\t壞\tNaN\nㄋㄧˇ\t壞\tinf\nㄋㄧˇ\t你\t-5\n',
@@ -205,32 +208,29 @@ def run(paths):
             'ㄋㄧˇ\t你\t-5\nㄋㄧˇ\t你\t-6\n',
             'ㄋㄧˇ\t你\t-5\textra\nㄋㄧˇ\t你\t-6\n',
         ]):
-            views = []
-            for index, api in enumerate(apis):
-                directory = root / f'rows-{case}-{index}'; directory.mkdir()
-                resource = directory / 'resources'; resource.mkdir()
-                (resource / 'lexicon.tsv').write_text(payload)
-                engine = Engine(api, resource, directory)
-                try:
-                    engine.type('su3'); views.append(engine.view())
-                finally:
-                    engine.close()
-            assert views[0] == views[1], ('resource rows', case, views)
-        print('PASS malformed/duplicate/non-finite/CRLF resource rows match the Swift fallback')
-        views = []
-        for index, api in enumerate(apis):
-            directory = root / f'canonical-context-{index}'; directory.mkdir()
+            directory = root / f'rows-{case}'; directory.mkdir()
             resource = directory / 'resources'; resource.mkdir()
-            (resource / 'lexicon.tsv').write_text('ㄋㄧˇ\té\t-3\nㄏㄠˇ\t好\t-4\nㄏㄠˇ\t豪\t-5\n')
-            (directory / 'user_phrases.json').write_text(json.dumps({'version': 2, 'entries': {'e\u0301|ㄏㄠ': {'豪': {'count': 2, 'updatedAt': 0}}}}))
+            (resource / 'lexicon.tsv').write_text(payload)
             engine = Engine(api, resource, directory)
             try:
-                views.append(engine.top('su3cl3'))
+                engine.type('su3'); view = list(engine.view())
             finally:
                 engine.close()
-        assert views == ['é豪', 'é豪'], ('canonical context learning', views)
+            assert view == expected_rows[case], ('resource rows', case, view, expected_rows[case])
+        print('PASS malformed/duplicate/non-finite/CRLF resource rows match the frozen Swift fallback')
+
+        directory = root / 'canonical-context'; directory.mkdir()
+        resource = directory / 'resources'; resource.mkdir()
+        (resource / 'lexicon.tsv').write_text('ㄋㄧˇ\té\t-3\nㄏㄠˇ\t好\t-4\nㄏㄠˇ\t豪\t-5\n')
+        (directory / 'user_phrases.json').write_text(json.dumps({'version': 2, 'entries': {'e\u0301|ㄏㄠ': {'豪': {'count': 2, 'updatedAt': 0}}}}))
+        engine = Engine(api, resource, directory)
+        try:
+            top = engine.top('su3cl3')
+        finally:
+            engine.close()
+        assert top == 'é豪', ('canonical context learning', top)
         print('PASS canonical Unicode context keys survive restart and score equivalent spellings equally')
 
 if __name__ == '__main__':
-    assert len(sys.argv) == 3, 'usage: persistence.py <Swift.so> <Zig.so>'
-    run(sys.argv[1:])
+    assert len(sys.argv) == 2, 'usage: persistence.py <libMisstypeCAPI.so>'
+    run(sys.argv[1])

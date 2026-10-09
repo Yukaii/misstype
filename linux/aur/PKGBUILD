@@ -51,7 +51,6 @@ source_aarch64=("https://ziglang.org/download/$_zig_version/zig-aarch64-linux-$_
 sha256sums_aarch64=('9e8d11661d4ae3bd57702a3832781e23ad151dde5798e16a5ccd503f65234ff8')
 
 _zig() {
-    export MISSTYPE_CORE=zig
     export MISSTYPE_ZIG="$srcdir/zig-$CARCH-linux-$_zig_version/zig"
 }
 

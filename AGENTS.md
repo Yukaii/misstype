@@ -2,52 +2,51 @@
 
 This repository is an experimental input device and decoder. The current goal is to validate the interaction model before committing to custom hardware.
 
-## Current state (2026-10-02)
+## Current state (2026-10-09)
 
-- The macOS Zhuyin IME (Swift `MisstypeCore` + IMK adapter) is approaching
+- The macOS Zhuyin IME (Zig core + IMK adapter) is approaching
   daily-usable: live conversion, syllable cursor, candidate window, learning,
   a user dictionary (Shift+←/→ marks a phrase, Return files it;
   `user_dictionary.tsv`, Settings editor on macOS), chunked auto-commit. The
   Linux fcitx5 port is actively maintained and held to the same conformance
   scenarios (C1–C15, `docs/cross-platform.md`); a behavior change in the core
   is not done until Linux still passes.
-- Keyboard fuzzy matching exists in Swift only as edit repair (transpose,
-  neighbor/phonetic substitution, insert/delete, tone tolerance), costed
-  against exact input. The coordinate-aware **touch** fuzzy layer — distance-
-  weighted neighbor hypotheses from raw `(x, y)`, the `full-split-1` layout,
-  `tools/noise.py` measurements (project outline, M3) — has a v1 in
-  `MisstypeCore` (`Touch.swift`, 2026-10-04): on the real lexicon it beats
-  today's keyboard repair by +15 to +45 pp at jitter 0.08–0.12 without
-  touching exact input; the lattice version (spatial costs inside each
-  syllable's reading options) adds +30 to +40 pp over the first beam version
-  on 11+ tap phrases. Break-even vs a keyboard is computed (touch must spread
-  within ~0.07–0.10 of key centre); the human tap-spread measurement is
-  missing. Open: that measurement, then wiring a touch surface to
-  `InputSession`.
-- Mixed Chinese/English with no mode switch has a measured v1 in `MisstypeCore`
-  (`MixedDecode.swift`, 2026-10-04): English words and one-letter typos are
-  recognized from bare keys with no false switches on 600 pure-Chinese inputs
-  (English list: pinned FrequencyWords, CC BY-SA, see
-  `third_party/FrequencyWords/LICENSE.md`) and is wired into `InputSession`
-  (`mixedEnglish`, macOS default off): clean English is adopted 92%, 0% of pure
-  Chinese is. Cost is the open item (toneless mixed input ~110-130 ms per
-  keystroke); real-typing quality is unmeasured. Python remains the reference for the touch semantics only; the
-  "do not port" rule below applies to everything else.
+- Keyboard fuzzy matching is edit repair (transpose, neighbor/phonetic
+  substitution, insert/delete, tone tolerance), costed against exact input.
+  The coordinate-aware **touch** fuzzy layer — distance-weighted neighbor
+  hypotheses from raw `(x, y)`, the `full-split-1` layout, `tools/noise.py`
+  measurements (project outline, M3) — has a v1 in `core-zig/src/touch.zig`
+  (2026-10-04, ported to Zig 2026-10-08): on the real lexicon it beats
+  keyboard repair by +15 to +45 pp at jitter 0.08–0.12 without touching
+  exact input; the lattice version (spatial costs inside each syllable's
+  reading options) adds +30 to +40 pp over the first beam version on 11+ tap
+  phrases. Break-even vs a keyboard is computed (touch must spread within
+  ~0.07–0.10 of key centre); the human tap-spread measurement is missing.
+  Open: that measurement, then wiring a touch surface to the session.
+- Mixed Chinese/English with no mode switch has a measured v1
+  (`core-zig/src/english.zig`, 2026-10-04): English words and one-letter
+  typos are recognized from bare keys with no false switches on 600
+  pure-Chinese inputs (English list: pinned FrequencyWords, CC BY-SA, see
+  `third_party/FrequencyWords/LICENSE.md`) and is wired into the session
+  (`mixedEnglish`, macOS default off): clean English is adopted 92%, 0% of
+  pure Chinese is. Cost is the open item (toneless mixed input ~110-130 ms
+  per keystroke on the Swift implementation; re-measure on Zig); real-typing
+  quality is unmeasured. Python remains the reference for the touch
+  semantics only; the "do not port" rule below applies to everything else.
 
-- A Zig rewrite of the core is being evaluated (`docs/zig-port.md`,
-  `core-zig/`). Step 0 (2026-10-08): the exact-input decoder matches Swift
-  on all 1,344 probe candidates, bit for bit, at 14x lower latency. Until
-  the port reaches parity and a platform switches over, Swift
-  `MisstypeCore` stays the source of truth; Zig follows it through
-  `core-zig/bench/compare.sh`. Step 1's offline keyboard session and C ABI
-  now match Swift on 13,524 synthetic replay events; the Zig library passes
-  the C ABI smoke test and 19 fcitx5 scenarios. Use
-  `core-zig/bench/replay.sh` and `script/zig/test_linux.sh` for these gates.
-  Touch mapper/beam/lattice, persistent-file interoperability, broader Unicode
-  and memory gates, and the Zig CLI are now ported. Linux builds Zig by default
-  (`MISSTYPE_CORE=swift` retains the reference). macOS and Wasm cutover remain
-  open; Swift still defines behavior and every change must pass the differential
-  gates in `docs/zig-port.md`.
+- **The core is Zig** (`core-zig/`, pinned Zig 0.17.0 via
+  `script/zig/bootstrap.sh`) and is the single implementation on every
+  platform: Linux fcitx5 and the macOS IMK adapter use its C ABI
+  (`Sources/CMisstype/include/misstype.h`), and the site demo and video
+  renderer use its wasm32-wasi build (`zig build wasm`). The Swift
+  `MisstypeCore`, its C ABI and CLI were retired on 2026-10-09 after a
+  differential campaign (bit-identical candidates, scores and session
+  transcripts, see `docs/zig-port.md`). Swift remains only on macOS for
+  the IMK adapter, the Settings UI, the installer and the Carbon source
+  tool; it holds no editing or decoding rules (`MisstypeMacKit` has the
+  UI-side types). The Swift reference's outputs are frozen as golden files
+  under `tests/golden/`; a behavior change is intentional only when the
+  golden files are regenerated and reviewed (`docs/zig-port.md`).
 
 - macOS packaging is verified on a Mac (2026-10-04, macOS 27) except a few
   GUI paths: a per-user installer app in a DMG, Sparkle 2 updates from GitHub
@@ -87,21 +86,29 @@ A change is ready when its behavior is covered by a replayable test or documente
 
 ## Canonical commands
 
-The Swift `MisstypeCore` package is the single source of truth for decoding
-behavior. The Python package (`src/misstype`, Python 3.11+, no runtime
-dependencies) is the capture/touch prototype slated for replacement; do not
-port decoder changes to it. The one exception in the other direction is the
-touch/spatial fuzzy layer (see Current state), which has to move from Python
-into Swift. Its checks still run:
+The Zig core (`core-zig/`) is the single source of truth for decoding and
+editing behavior. The Python package (`src/misstype`, Python 3.11+, no
+runtime dependencies) is the capture/touch prototype slated for replacement;
+do not port decoder changes to it. Its checks still run:
 
 ```sh
 PYTHONPATH=src python -m unittest discover -s tests -v
 PYTHONPATH=src python -m misstype.cli examples/hello.jsonl
 ```
 
-The macOS IME target is package-first SwiftPM:
+Core checks (any host; the first run downloads the pinned Zig):
 
 ```sh
+cd core-zig && "$(../script/zig/bootstrap.sh)" build test   # unit + behavior suites
+python3 tests/capi/ctl_test.py core-zig/zig-out/bin/misstypectl   # after `zig build`
+core-zig/bench/compare.sh && core-zig/bench/parity.sh && core-zig/bench/replay.sh   # golden gates
+```
+
+The macOS IME target is package-first SwiftPM; `swift test` covers the
+UI-side `MisstypeMacKit` types:
+
+```sh
+./script/zig/build_macos.sh   # universal libMisstypeCAPI.dylib the IME links
 swift test
 ./script/build_and_run.sh --build-only
 ./script/install_ime.sh
@@ -116,17 +123,18 @@ bash script/linux/test_all.sh   # on a provisioned Linux box
 script/linux/install_ime.sh     # build + install on this desktop, restart fcitx5
 ```
 
-Linux also ships `misstypectl` (Zig, `core-zig/src/ctl.zig`; Swift reference
-`Sources/MisstypeCtl`: `dict` and
+Linux also ships `misstypectl` (Zig, `core-zig/src/ctl.zig`: `dict` and
 `config` subcommands) and a GTK4 dictionary editor over it; the fcitx5
 settings page and `misstypectl config` edit the same `conf/misstype.conf`
-(`docs/linux-port.md`, L7). Keep the key lists in Zig `ctl.settings` and Swift `ConfigCommand.settings` in
-step with `MisstypeConfig` in `linux/fcitx5/src/engine.cpp`.
+(`docs/linux-port.md`, L7). Keep the key lists in Zig `ctl.settings` in step
+with `MisstypeConfig` in `linux/fcitx5/src/engine.cpp`. `misstype-dev`
+(`core-zig/src/dev.zig`) is the offline decode / session-trace / cursor-replay
+CLI the `tools/*.py` measurement scripts drive.
 
-Editing rules live in `MisstypeCore`'s `InputSession`; platform adapters
-only translate key events and draw `SessionView` (see
-`docs/architecture.md`, Platform boundary). `swift test` also runs on Linux,
-where `Package.swift` declares only the core and its tests (CI `core-linux`).
+Editing rules live in the Zig `Session` (`core-zig/src/session.zig`);
+platform adapters only translate key events and draw the view (see
+`docs/architecture.md`, Platform boundary). The wasm build is checked by
+`tests/wasm_test.mjs` (CI job `wasm`).
 
 Platform adapters follow `docs/cross-platform.md` (contract + conformance
 scenarios C1–C15). Linux work follows `docs/linux-port.md`; run Linux

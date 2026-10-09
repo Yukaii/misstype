@@ -1,39 +1,22 @@
 import Cocoa
 @preconcurrency import Carbon
 @preconcurrency import InputMethodKit
-import MisstypeCore
+import MisstypeMacKit
 import MisstypeZigBridge
 
 enum Runtime {
-    static let decoder: LexiconDecoder = {
-        guard let resources = Bundle.main.resourceURL,
-              let decoder = LexiconLoader.load(resourceDirectory: resources, log: { NSLog("%@", $0) }) else {
-            NSLog("Misstype: missing lexicon; refusing to start with a fixture decoder")
-            exit(1)
-        }
-        return decoder
-    }()
-    /// Process-wide engine: every controller's session shares the decoder,
-    /// the learned-phrase overlay, 中/英 mode and Shift-tap tracking.
-    static let engine: InputEngine = {
-        let engine = InputEngine(decoder: decoder,
-                                 userLexicon: UserLexicon.load(),
-                                 userLexiconURL: UserLexicon.defaultURL,
-                                 userDictionary: UserDictionary.load(),
-                                 userDictionaryURL: UserDictionary.defaultURL,
-                                 settings: { MisstypePrefs.sessionSettings },
-                                 log: debugLog)
-        engine.channelLearner = ChannelLearner.load()
-        engine.channelLearnerURL = ChannelLearner.defaultURL
-        return engine
-    }()
+    /// Process-wide engine: every controller's session shares the lexicon,
+    /// the learned-phrase overlay, 中/英 mode and Shift-tap tracking. User
+    /// data lives in the platform default paths (the sandbox container).
     static let zigEngine: ZigEngine = {
         guard let resources = Bundle.main.resourceURL,
-              let engine = ZigEngine(resourceDirectory: resources,
-                                     userLexiconPath: UserLexicon.defaultURL) else {
-            NSLog("Misstype: Zig C ABI engine unavailable; refusing to start")
+              let engine = ZigEngine(resourceDirectory: resources, userLexiconPath: nil) else {
+            NSLog("Misstype: missing lexicon or Zig engine unavailable; refusing to start")
             exit(1)
         }
+        // misstype_engine_new keeps the dictionary and channel in memory only.
+        engine.setUserDictionaryPath(nil)
+        engine.setChannelPath(nil)
         return engine
     }()
     /// File trace for routing diagnosis (~/Library/Logs/MisstypeIME-debug.log).
@@ -405,203 +388,18 @@ final class MisstypeInputController: IMKInputController {
     }
 }
 
-// --session-trace <keys> [--auto-commit N] [--show]: the full InputSession
-// (real lexicon) key by key. Prints per-key latency, every auto-commit chunk,
-// the preedit after each key with --show, and the final text (dev
-// measurement, offline).
-if let traceIndex = CommandLine.arguments.firstIndex(of: "--session-trace"),
-   traceIndex + 1 < CommandLine.arguments.count {
-    MisstypePrefs.register()
-    var settings = MisstypePrefs.sessionSettings
-    if let flag = CommandLine.arguments.firstIndex(of: "--auto-commit"),
-       flag + 1 < CommandLine.arguments.count, let value = Int(CommandLine.arguments[flag + 1]) {
-        settings.autoCommitSyllables = value
-    }
-    // --user-lexicon / --user-dictionary / --channel <path>: replay against a
-    // copy of a user's learned state (no URLs, so nothing is written back).
-    func flagURL(_ flag: String) -> URL? {
-        guard let index = CommandLine.arguments.firstIndex(of: flag),
-              index + 1 < CommandLine.arguments.count else { return nil }
-        return URL(fileURLWithPath: CommandLine.arguments[index + 1])
-    }
-    let engine = InputEngine(decoder: Runtime.decoder,
-                             userLexicon: flagURL("--user-lexicon").map { UserLexicon.load(from: $0) } ?? UserLexicon(),
-                             userDictionary: flagURL("--user-dictionary").map { UserDictionary.load(from: $0) } ?? UserDictionary(),
-                             settings: { settings })
-    if let url = flagURL("--channel") { engine.channelLearner = ChannelLearner.load(from: url) }
-    let session = InputSession(engine: engine)
-    var committed = ""
-    for (count, char) in CommandLine.arguments[traceIndex + 1].enumerated() {
-        let label = String(char)
-        // Editing keys as glyphs, so a debug-log key sequence replays verbatim.
-        let named: [String: KeyEvent.Key] = ["⌫": .backspace, "⏎": .enter, "←": .left, "→": .right,
-                                             "↑": .up, "↓": .down, "⇥": .tab, "⎋": .escape, "⌦": .forwardDelete]
-        // Option word editing: ⇠ ⇢ Option+Left/Right, ⌧ Option+Backspace.
-        let option: [String: KeyEvent.Key] = ["⇠": .left, "⇢": .right, "⌧": .backspace]
-        let event = label == " " ? KeyEvent(.space, text: " ")
-            : option[label].map { KeyEvent($0, modifiers: .option) }
-            ?? named[label].map { KeyEvent($0) } ?? KeyEvent(.character(label), text: label)
-        let started = Date()
-        let result = session.handle(event)
-        let ms = Date().timeIntervalSince(started) * 1000
-        print("time\t\(count + 1)\t\(String(format: "%.1f", ms))")
-        if CommandLine.arguments.contains("--show") { print("view\t\(count + 1)\t\(preeditWithCursor(session.view.preedit, caretUTF16: session.view.caret))") }
-        if let text = result.commit {
-            committed += text
-            print("chunk\t\(count + 1)\t\(text)\tpreedit=\(session.view.preedit)")
-        }
-    }
-    let rest = session.handle(KeyEvent(.enter, text: "\r")).commit ?? ""
-    print("final\t\(committed + rest)")
-    exit(0)
-}
-
-if let decodeIndex = CommandLine.arguments.firstIndex(of: "--decode"),
-   decodeIndex + 1 < CommandLine.arguments.count {
-    // Measurement fidelity: the decode CLI must see the same registered
-    // defaults as a live launch (fuzzyRepair/toneTolerance/userLearning all
-    // default true). register() normally runs at the bottom next to app.run(),
-    // which this early-exit path never reaches — every --decode number ever
-    // measured ran the no-fuzzy, no-tolerance baseline instead.
-    MisstypePrefs.register()
-    Runtime.decoder.repairCostOffset = MisstypePrefs.repairStrength.costOffset
-    Runtime.decoder.repairValidReadings = MisstypePrefs.repairStrength.repairsValidReadings
-    func compose<S: Sequence>(_ keys: S) -> Composition where S.Element == Character {
-    var composition = Composition()
-    var latin = false
-    for key in keys {
-        let label = String(key)
-        if label == "`" {
-            latin.toggle()
-            continue
-        }
-        if label == " " {
-            if !composition.isEmpty { _ = composition.appendSpace() }
-            continue
-        }
-        if latin, label.count == 1, let char = label.first,
-           char.isASCII, char.isLetter {
-            _ = composition.appendLatin(label)
-            continue
-        }
-        // Uppercase ASCII mirrors Shift+letter (inline latin, no commit).
-        if !latin, label.count == 1, let char = label.first,
-           char.isASCII, char.isUppercase {
-            _ = composition.appendLatin(label)
-            continue
-        }
-        latin = false
-        if Punctuation.literals.contains(label) {
-            _ = composition.appendLiteral(label)
-        } else if !composition.append(label) {
-            _ = composition.retoneLast(label)
-        }
-    }
-    return composition
-    }
-    let keyText = CommandLine.arguments[decodeIndex + 1]
-    let composition = compose(keyText)
-    // --live-trace: the IME preview after every keystroke (tools/live_trace.py).
-    if CommandLine.arguments.contains("--live-trace") {
-        let decoder = Runtime.decoder
-        let keys = Array(keyText)
-        // --settle K: auto-settle words K+ syllables before the end (and
-        // earlier runs), carried across keystrokes as the IME does.
-        var keep: Int?
-        if let settleIndex = CommandLine.arguments.firstIndex(of: "--settle"),
-           settleIndex + 1 < CommandLine.arguments.count { keep = Int(CommandLine.arguments[settleIndex + 1]) }
-        var settled = UserLexicon()
-        for count in 1...max(keys.count, 1) where count <= keys.count {
-            let keyStarted = Date()
-            let preview = decoder.livePreview(compose(keys.prefix(count)), fuzzy: MisstypePrefs.fuzzyRepair,
-                                              toneTolerance: MisstypePrefs.toneTolerance,
-                                              settled: keep == nil || settled.isEmpty ? nil : settled)
-            let keyMs = Date().timeIntervalSince(keyStarted) * 1000
-            print("live\t\(count)\t\(preview.text())")
-            print("time\t\(count)\t\(String(format: "%.1f", keyMs))")
-            if let keep, let top = preview.candidates.first { settled = UserLexicon.settled(from: top, keep: keep) }
-        }
-        exit(0)
-    }
-    let started = Date()
-    let decoder = Runtime.decoder
-    let loaded = Date()
-    let parsed = composition.parsed
-    var userLexicon: UserLexicon?
-    if let flagIndex = CommandLine.arguments.firstIndex(of: "--user-lexicon"),
-       flagIndex + 1 < CommandLine.arguments.count {
-        userLexicon = UserLexicon.load(from: URL(fileURLWithPath: CommandLine.arguments[flagIndex + 1]))
-    }
-    let results = decoder.decodeSegments(composition.segments, pendingKeys: parsed.pending, fuzzy: MisstypePrefs.fuzzyRepair, toneTolerance: MisstypePrefs.toneTolerance, userLexicon: userLexicon, locked: decodeLocks())
-    print("entries=\(decoder.entryCount) user=\(userLexicon?.count ?? 0) load_ms=\(loaded.timeIntervalSince(started) * 1000) decode_ms=\(Date().timeIntervalSince(loaded) * 1000)")
-    for candidate in results {
-        var line = "\(candidate.text)\t\(candidate.score)\trepairs=\(candidate.repairs) unresolved=\(candidate.unresolved)"
-        if CommandLine.arguments.contains("--align") {
-            line += "\talign=" + candidate.alignment.map {
-                "\($0.syllables.lowerBound)-\($0.syllables.upperBound):\($0.chars.lowerBound)-\($0.chars.upperBound)"
-            }.joined(separator: ",")
-        }
-        print(line)
-    }
-    if let segIndex = CommandLine.arguments.firstIndex(of: "--segment"),
-       segIndex + 1 < CommandLine.arguments.count {
-        let bounds = CommandLine.arguments[segIndex + 1].split(separator: ":").compactMap { Int($0) }
-        if bounds.count == 2 {
-            let syllables = composition.syllables(finishing: true)
-            let queryStart = Date()
-            let options = decoder.segmentOptions(syllables, span: bounds[0]..<bounds[1])
-            print("segment \(bounds[0]):\(bounds[1]) query_ms=\(Date().timeIntervalSince(queryStart) * 1000)")
-            for option in options.prefix(8) { print("  \(option.text)\t\(option.score)") }
-        }
-    }
-    // --replay <expected>: cursor-pick count per candidate model (tools/cursor_replay.py).
-    if let replayIndex = CommandLine.arguments.firstIndex(of: "--replay"),
-       replayIndex + 1 < CommandLine.arguments.count {
-        for model in [CursorReplay.Model.aligned, .startAtCursor] {
-            let live = Array(parsed.pending.prefix(decoder.livePendingCut(
-                parsed.pending, toneTolerance: MisstypePrefs.toneTolerance)))
-            let outcome = CursorReplay.run(decoder, segments: composition.segments, pendingKeys: live,
-                                           expected: CommandLine.arguments[replayIndex + 1], model: model,
-                                           fuzzy: MisstypePrefs.fuzzyRepair, toneTolerance: MisstypePrefs.toneTolerance,
-                                           userLexicon: userLexicon)
-            print("replay \(model.rawValue) picks=\(outcome.picks.map(String.init) ?? "-") ranks=\(outcome.ranks.map(String.init).joined(separator: ",")) learned=\(outcome.learned.joined(separator: ","))")
-            // --learn-out <path>: commit the covering-model outcome's words
-            // into a (synthetic) lexicon file, as the IME would on Return.
-            if model == .startAtCursor, let outIndex = CommandLine.arguments.firstIndex(of: "--learn-out"),
-               outIndex + 1 < CommandLine.arguments.count, !outcome.learned.isEmpty {
-                let url = URL(fileURLWithPath: CommandLine.arguments[outIndex + 1])
-                var learned = UserLexicon.load(from: url)
-                for pair in outcome.learned {
-                    let parts = pair.split(separator: "=", maxSplits: 1).map(String.init)
-                    if parts.count == 2 { learned.record(key: parts[0], text: parts[1], at: Date(timeIntervalSince1970: 0)) }
-                }
-                learned.save(to: url)
-            }
-        }
-    }
-    exit(0)
-}
-
-/// --lock key=text (repeatable): session pins for falsifying segment locks.
-/// Key is the toneless-concatenated span (see UserLexicon).
-private func decodeLocks() -> UserLexicon? {
-    var pins = UserLexicon()
-    var found = false
-    for argument in CommandLine.arguments.dropFirst() {
-        guard argument.hasPrefix("--lock=") else { continue }
-        let pair = argument.dropFirst("--lock=".count).split(separator: "=", maxSplits: 1).map(String.init)
-        guard pair.count == 2, !pair[0].isEmpty, !pair[1].isEmpty else { continue }
-        pins.entries[pair[0], default: [:]][pair[1]] = UserLexicon.Record(count: 1, updatedAt: 0)
-        found = true
-    }
-    return found ? pins : nil
+if CommandLine.arguments.contains("--session-trace") { runSessionTrace(arguments: CommandLine.arguments) }
+if CommandLine.arguments.contains("--decode") {
+    // The offline decode CLI moved out of the app with the Swift core.
+    FileHandle.standardError.write(Data("--decode moved to core-zig/zig-out/bin/misstype-dev (docs/development.md)\n".utf8))
+    exit(2)
 }
 
 ProcessInfo.processInfo.disableAutomaticTermination("MisstypeIME Input Method")
 ProcessInfo.processInfo.disableSuddenTermination()
 
 let app = NSApplication.shared
-_ = Runtime.decoder
+_ = Runtime.zigEngine
 let connectionName = Bundle.main.infoDictionary?["InputMethodConnectionName"] as? String ?? "org.misstype.inputmethod.Misstype_Connection"
 guard NSClassFromString("MisstypeInputController") != nil,
       let bundleID = Bundle.main.bundleIdentifier,
@@ -625,9 +423,6 @@ extension NSApplication {
 
 MisstypePrefs.register()
 MainActor.assumeIsolated { UpdateController.shared.start() }
-if let resources = Bundle.main.resourceURL {
-    Runtime.engine.loadEnglishLexicon(resourceDirectory: resources)
-}
 // Retained: DistributedNotificationCenter returns an opaque token that must
 // stay alive, otherwise the observer is released immediately and the
 // cross-process preferences trigger silently never fires.

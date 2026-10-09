@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Bare-metal Linux test layers (no Docker): MisstypeCore, the C ABI, and the
-# fcitx5 addon headless conformance tests. This is what CI's fcitx5-linux
-# job runs inside the container (script/linux/dev.sh), minus Docker.
+# Bare-metal Linux test layers (no Docker): the Zig core suites, the C ABI, and
+# the fcitx5 addon headless conformance tests. CI runs the same layers inside
+# the container (script/linux/dev.sh), minus Docker.
 #
 # Provision first: script/linux/bootstrap.sh
 set -euo pipefail
@@ -36,12 +36,8 @@ EOF
     fi
 fi
 
-if [ "${MISSTYPE_CORE:-zig}" = swift ]; then
-    swift test
-else
-    zig=$(script/zig/bootstrap.sh)
-    (cd core-zig && "$zig" build test && "$zig" build test -Doptimize=ReleaseFast)
-fi
+zig=$(script/zig/bootstrap.sh)
+(cd core-zig && "$zig" build test && "$zig" build test -Doptimize=ReleaseFast)
 script/linux/test_capi.sh
 script/linux/test_fcitx5.sh
 echo "ALL LINUX TESTS OK"
