@@ -20,6 +20,7 @@ Usage:
     python tools/lm_rerank.py [--top 8] [--n-probs 200]
 """
 
+import os
 import argparse
 import json
 import subprocess
@@ -29,7 +30,8 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-APP_BIN = ROOT / "dist/MisstypeIME.app/Contents/MacOS/MisstypeIME"
+APP_BIN = ROOT / "core-zig/zig-out/bin/misstype-dev"  # cd core-zig && zig build
+os.environ.setdefault("MISSTYPE_RESOURCES", str(ROOT / "dist/MisstypeIME.app/Contents/Resources"))
 SERVER = "http://localhost:8081"
 FLOOR = -12.0
 

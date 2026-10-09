@@ -14,6 +14,7 @@ Complements tools/noise.py, which sweeps spatial touch jitter through the
 Python fixture pipeline instead.
 """
 
+import os
 import argparse
 import hashlib
 import json
@@ -28,7 +29,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from bench import cer  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
-APP_BIN = ROOT / "dist/MisstypeIME.app/Contents/MacOS/MisstypeIME"
+APP_BIN = ROOT / "core-zig/zig-out/bin/misstype-dev"  # cd core-zig && zig build
+os.environ.setdefault("MISSTYPE_RESOURCES", str(ROOT / "dist/MisstypeIME.app/Contents/Resources"))
 
 TONE_KEYS = set("3467 ")
 SYMBOL_ROWS = ["1234567890-", "qwertyuiop", "asdfghjkl;", "zxcvbnm,./"]

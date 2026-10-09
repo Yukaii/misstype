@@ -70,6 +70,16 @@ pub fn build(b: *std.Build) void {
     });
     const install_ctl = b.addInstallArtifact(ctl, .{});
     b.getInstallStep().dependOn(&install_ctl.step);
+    const dev = b.addExecutable(.{
+        .name = "misstype-dev",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/dev.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{.{ .name = "misstype", .module = core }},
+        }),
+    });
+    b.installArtifact(dev);
     const linux = b.step("linux", "Build only the Linux shipping library and CLI");
     linux.dependOn(&install_lib.step);
     linux.dependOn(&install_ctl.step);
