@@ -27,6 +27,18 @@
 > [!IMPORTANT]
 > 本專案完全使用 LLM 開發，之後也會持續交給 LLM 開發、交付與測試。歡迎貢獻 bug 與 feature prompt；一般的貢獻同樣絕讚歡迎，不過要有被關掉、完全重改的心理準備 XD
 
+## 開始開發（人與代理程式）
+
+1. 先讀 [AGENTS.md](AGENTS.md)（工作流程、隱私規則、指令清單），再讀 [docs/architecture.md](docs/architecture.md) 與 [docs/project-outline.md](docs/project-outline.md)。
+2. 建置並跑核心測試（第一次會下載固定版本的 Zig）：
+
+   ```sh
+   cd core-zig && "$(../script/zig/bootstrap.sh)" build test
+   ```
+
+   各平台與各層的完整檢查見 [CONTRIBUTING.md](CONTRIBUTING.md#checks) 與 [docs/development.md](docs/development.md)。
+3. 送 PR 前讀 [CONTRIBUTING.md](CONTRIBUTING.md) 並使用 PR 範本。代理程式只在使用者明確要求時才開 PR，並在 PR 中揭露模型與 harness。
+
 ## 為什麼又寫一個輸入法？
 
 因為我自己想用。一開始只是想連眼睛都不睜開，一路隨便打下去，聲調懶得管，手指也不用很準，打完讓輸入法盡量猜回我想打的字。
@@ -72,14 +84,9 @@ Arch Linux / Omarchy 的套件建置、安裝與移除方式請參閱 [安裝說
 
 從原始碼建置請見[開發、建置與發布](docs/development.md)。
 
-## 打字操作指南
+## 使用
 
-* **連續鍵入與免聲調**：聲調可選擇性鍵入；打字時邊打邊即時轉換，僅當前尚未拼完的注音符號會保留在組字區內。鍵入聲調鍵會立即完成該音節，<kbd>Space</kbd>（空白鍵）也代表第一聲（陰平）。
-* **遞交輸入與注音文**：按下 <kbd>Enter</kbd> 鍵會直接遞交當前畫面上顯示的文字（包含尚未拼完的注音符號，支援注音文）；按下 <kbd>Shift</kbd> + <kbd>Enter</kbd> 則會將原始鍵入的注音符號直接輸出。
-* **候選字選字模式**：按下 <kbd>↓</kbd> 或 <kbd>Tab</kbd>（亦可按 <kbd>←</kbd> 倒退至前方的詞彙）即可進入選字選單。選字時可使用鍵盤中間一排的 <kbd>asdfghjk</kbd> 快速鍵選取候選字（可在偏好設定調整；平常打字時這些鍵仍是正常的注音按鍵）。<kbd>Tab</kbd>／<kbd>Shift</kbd> + <kbd>Tab</kbd> 翻頁。按 <kbd>Esc</kbd> 退出選字模式；在一般打字狀態下按 <kbd>Esc</kbd> 則清空整個組字區。
-* **全形符號與中英切換**：<kbd>Shift</kbd> + <kbd>數字鍵</kbd> 與 <kbd>Shift</kbd> + <kbd>=</kbd>、<kbd>[</kbd>、<kbd>]</kbd>、<kbd>&#96;</kbd> 可直接鍵入全形符號（！＠＃＄％︿＆＊（）＋｛｝～）。<kbd>Backspace</kbd> 可倒退修改原始組字內容。輕按單次 <kbd>Shift</kbd> 或按下 <kbd>Shift</kbd> + <kbd>Space</kbd> 即可直接遞交並切換中／英文模式。
-* **我的詞庫**：打字時用 <kbd>Shift</kbd> + <kbd>←</kbd>/<kbd>→</kbd> 標記已轉換文字中的音節，按 <kbd>Return</kbd> 即可把詞（人名、專有名詞）加入自己的詞庫；對同一段標記再按 <kbd>Return</kbd> 則移除。macOS 的「設定 → 我的詞庫」是同一份 `user_dictionary.tsv` 的純文字編輯器，格式與唯音的 userdata 相同（`詞語 注音`，每行一筆），可直接貼上或用「匯入…」讀入唯音詞庫；只有一般詞彙清單時，可用 Will 保哥的第三方[線上產生器](https://vu.gh.miniasp.com/)（[原始碼](https://github.com/doggy8088/vChewing-userdata-generator)，MIT；與本專案無關）轉成此格式；Linux 請直接編輯 `~/.local/share/misstype/user_dictionary.tsv`。
-* **在地化學習**：系統會在本地記憶各詞彙的選字偏好，單個漢字則會結合其前置上下文詞彙共同學習與加權。
+按鍵與操作（連續輸入、選字、全形符號、我的詞庫、學習）見[操作手冊](docs/usage.md)。
 
 ## 專案結構
 
@@ -93,10 +100,6 @@ Arch Linux / Omarchy 的套件建置、安裝與移除方式請參閱 [安裝說
 | `tests/`、`tools/` | Golden 檔、重播測試資料、量測腳本 |
 | `docs/` | 架構、跨平台規範（C1–C15）、設計筆記 |
 | `site/` | 官網與網頁編輯器（刻意與本 README 分開） |
-
-## 貢獻
-
-請先讀 [CONTRIBUTING.md](CONTRIBUTING.md)；代理程式另須遵守 [AGENTS.md](AGENTS.md)。行為變更需附可重播的重現方式與驗證說明；AI 輔助的 PR 請揭露模型與 harness。
 
 ## 授權條款
 

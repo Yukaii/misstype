@@ -27,6 +27,18 @@ Everything runs locally; no network is needed. The project is still experimental
 > [!IMPORTANT]
 > This project is developed entirely with LLMs, and will keep being developed, delivered and tested by LLMs. Bug reports and feature prompts are welcome, and regular contributions are very welcome too, but be prepared for them to be closed and redone from scratch XD
 
+## Start here (humans and agents)
+
+1. Read [AGENTS.md](AGENTS.md) first (working loop, privacy rules, canonical commands), then [docs/architecture.md](docs/architecture.md) and [docs/project-outline.md](docs/project-outline.md).
+2. Build and run the core tests (the first run downloads the pinned Zig):
+
+   ```sh
+   cd core-zig && "$(../script/zig/bootstrap.sh)" build test
+   ```
+
+   Per-layer and per-platform checks: [CONTRIBUTING.md](CONTRIBUTING.md#checks) and [docs/development.md](docs/development.md).
+3. Before opening a PR read [CONTRIBUTING.md](CONTRIBUTING.md) and use the PR template. Agents open a PR only when their human asks, and disclose the model and harness in it.
+
 ## Why another input method?
 
 Because I wanted one for myself. It started with wanting to type without even opening my eyes: keep going, skip the tones, fingers not too precise, and let the input method guess what I meant.
@@ -73,13 +85,7 @@ To build from source see [Development, build and release](docs/development.md).
 
 ## Usage
 
-Type with the normal Zhuyin keyboard:
-- **Continuous typing & optional tones**: tones are optional, and continuous typing converts as you go (only the syllable still being typed stays in Bopomofo). Tone keys finish syllables and <kbd>Space</kbd> represents the first tone.
-- **Commit**: <kbd>Return</kbd> commits exactly what is shown, unfinished Bopomofo included (注音文 works); <kbd>Shift</kbd> + <kbd>Return</kbd> sends raw typed Bopomofo.
-- **Candidate selection**: <kbd>↓</kbd> or <kbd>Tab</kbd> (or <kbd>←</kbd> to walk back to an earlier word) enters candidate selection mode, where home-row keys <kbd>asdfghjk</kbd> pick from the candidate panel (configurable in Preferences; they type Zhuyin outside this mode). <kbd>Tab</kbd> / <kbd>Shift</kbd> + <kbd>Tab</kbd> turn candidate pages. <kbd>Esc</kbd> leaves the selection mode; outside selection mode, <kbd>Esc</kbd> cancels the composition.
-- **Symbols & English toggle**: <kbd>Shift</kbd> + digit keys and <kbd>Shift</kbd> + <kbd>=</kbd>, <kbd>[</kbd>, <kbd>]</kbd>, <kbd>&#96;</kbd> type full-width symbols (！＠＃＄％︿＆＊（）＋｛｝～). <kbd>Backspace</kbd> edits the raw composition; tapping <kbd>Shift</kbd> or pressing <kbd>Shift</kbd> + <kbd>Space</kbd> commits and toggles Chinese / English mode.
-- **My dictionary**: while typing, <kbd>Shift</kbd> + <kbd>←</kbd>/<kbd>→</kbd> marks syllables of the converted text and <kbd>Return</kbd> adds the phrase (a name, jargon) to your own dictionary; <kbd>Return</kbd> on the same mark removes it. Settings → My Dictionary (macOS) is a plain-text editor over `user_dictionary.tsv`, which uses the vChewing user-data format (`word reading`, one per line) and has an Import… button for vChewing files. To turn a plain word list into that format, use the third-party [online generator](https://vu.gh.miniasp.com/) by Will 保哥 ([source](https://github.com/doggy8088/vChewing-userdata-generator), MIT; not affiliated with this project). On Linux edit `~/.local/share/misstype/user_dictionary.tsv` directly.
-- **Learning**: Candidate selections are learned locally per word, and single characters are learned in context with the preceding word.
+Key bindings and behavior (continuous typing, candidates, symbols, user dictionary, learning) are in the [user manual](docs/usage-en.md).
 
 ## Repository layout
 
@@ -93,10 +99,6 @@ Type with the normal Zhuyin keyboard:
 | `tests/`, `tools/` | Golden files, replay fixtures, measurement scripts |
 | `docs/` | Architecture, cross-platform contract (C1–C15), design notes |
 | `site/` | Landing page and web editor (separate from this README by design) |
-
-## Contributing
-
-Read [CONTRIBUTING.md](CONTRIBUTING.md); agents also follow [AGENTS.md](AGENTS.md). Behavior changes need a replayable reproduction and a verification note in the PR; AI-assisted PRs disclose the model and harness.
 
 ## License
 
