@@ -31,4 +31,6 @@ test {
     _ = @import("tests/mixed_test.zig");
     _ = @import("tests/repair_test.zig");
     _ = @import("tests/touch_test.zig");
+    _ = @import("tests/channel_test.zig");
+    _ = @import("tests/dictionary_test.zig");
 }

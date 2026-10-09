@@ -93,6 +93,13 @@ pub const Harness = struct {
         return &self.engine.settings;
     }
 
+    /// Points the engine at a user dictionary file and loads it, as the C
+    /// ABI's `misstype_engine_set_user_dictionary_path` does.
+    pub fn useUserDictionary(self: *Harness, path: []const u8) !void {
+        try self.engine.setPath(&self.engine.user_dictionary_path, path);
+        try self.engine.setUserDictionary(try self.engine.loadUserDictionary(), false);
+    }
+
     pub fn send(self: *Harness, event: KeyEvent) !Res {
         const r = try self.session.handle(event);
         return .{
@@ -344,3 +351,20 @@ pub fn readRepoFile(a: Allocator, path: []const u8) ![]u8 {
     var threaded: Io.Threaded = .init_single_threaded;
     return Io.Dir.cwd().readFileAlloc(threaded.io(), path, a, .unlimited);
 }
+
+/// A scratch directory under `.zig-cache/tmp` (relative to `core-zig/`)
+/// that is removed with the test.
+pub const TmpPath = struct {
+    tmp: std.testing.TmpDir,
+    path: []const u8,
+
+    pub fn init(a: Allocator, file: []const u8) !TmpPath {
+        var tmp = std.testing.tmpDir(.{});
+        errdefer tmp.cleanup();
+        return .{ .tmp = tmp, .path = try std.fmt.allocPrint(a, ".zig-cache/tmp/{s}/{s}", .{ tmp.sub_path, file }) };
+    }
+
+    pub fn deinit(self: *TmpPath) void {
+        self.tmp.cleanup();
+    }
+};
