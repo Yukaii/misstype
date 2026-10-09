@@ -168,6 +168,16 @@ private func freeStringArray(_ ptr: UnsafeMutablePointer<UnsafeMutablePointer<CC
     ptr.deallocate()
 }
 
+/// Ranges as flat start/end pairs (2 * count values).
+private func copyRanges(_ ranges: [Range<Int>]) -> UnsafeMutablePointer<Int32> {
+    let ptr = UnsafeMutablePointer<Int32>.allocate(capacity: max(1, 2 * ranges.count))
+    for (i, range) in ranges.enumerated() {
+        ptr[2 * i] = Int32(range.lowerBound)
+        ptr[2 * i + 1] = Int32(range.upperBound)
+    }
+    return ptr
+}
+
 private func markAction(_ mark: SessionView.Mark?) -> Int32 {
     guard let mark else { return Int32(MISSTYPE_MARK_NONE.rawValue) }
     switch mark.action {
@@ -285,6 +295,7 @@ public func misstype_engine_set_settings(
         returnConfirmsSelection: settings.pointee.return_confirms_selection != 0,
         mixedEnglish: settings.pointee.mixed_english != 0,
         pageSize: Int(settings.pointee.page_size),
+        keyBindings: handle?.settings.value.keyBindings ?? KeyBindings(),
         cursorCandidates: cursorCandidates(settings.pointee.cursor_candidates),
         channelLearning: handle?.settings.value.channelLearning ?? false
     )
@@ -383,7 +394,7 @@ public func misstype_session_handle(
     _ session: OpaquePointer?,
     _ event: UnsafePointer<misstype_key_event>?
 ) -> misstype_key_result {
-    var result = misstype_key_result(consumed: 0, commit: nil, beep: 0, mode_changed: 0)
+    var result = misstype_key_result(consumed: 0, commit: nil, beep: 0, mode_changed: 0, latin_toggled: 0)
     guard let session = session, let event = event else { return result }
     let handle = getSession(session)
     guard let sessionHandle = handle else { return result }
@@ -395,6 +406,7 @@ public func misstype_session_handle(
     result.commit = strdupOptional(keyResult.commit)
     result.beep = keyResult.beep ? 1 : 0
     result.mode_changed = keyResult.modeChanged ? 1 : 0
+    result.latin_toggled = keyResult.latinToggled ? 1 : 0
     return result
 }
 
@@ -459,7 +471,12 @@ public func misstype_session_view(_ session: OpaquePointer?) -> UnsafeMutablePoi
         mark_start_utf16: view.mark.map { Int32($0.range.lowerBound) } ?? -1,
         mark_end_utf16: view.mark.map { Int32($0.range.upperBound) } ?? -1,
         mark_text: strdupSwift(view.mark?.text ?? ""),
-        mark_reading: strdupSwift(view.mark?.reading ?? "")
+        mark_reading: strdupSwift(view.mark?.reading ?? ""),
+        page_size: Int32(view.pageSize),
+        segment_count: Int32(view.segments.count),
+        segments_utf16: copyRanges(view.segments),
+        focus_start_utf16: view.focus.map { Int32($0.lowerBound) } ?? -1,
+        focus_end_utf16: view.focus.map { Int32($0.upperBound) } ?? -1
     ))
     return viewPtr
 }
@@ -511,10 +528,91 @@ public func misstype_view_free(_ view: UnsafeMutablePointer<misstype_view>?) {
     freeString(view.pointee.mark_reading)
     freeStringArray(view.pointee.candidates, count: Int(view.pointee.candidate_count))
     freeStringArray(view.pointee.selection_keys, count: Int(view.pointee.selection_key_count))
+    view.pointee.segments_utf16?.deallocate()
     view.deallocate()
 }
 
 @_cdecl("misstype_string_free")
 public func misstype_string_free(_ string: UnsafeMutablePointer<CChar>?) {
     freeString(string)
+}
+// MARK: - ABI v2
+
+@_cdecl("misstype_key_from_mac")
+public func misstype_key_from_mac(_ keycode: Int32, _ label: UnsafeMutablePointer<UnsafePointer<CChar>?>?) -> misstype_key_kind {
+    let key = MacKeyCode.key(Int(keycode))
+    if let labelPtr = label {
+        if case .character(let l) = key { labelPtr.pointee = staticLabels[l] } else { labelPtr.pointee = nil }
+    }
+    return toMisstypeKey(key)
+}
+
+@_cdecl("misstype_engine_set_key_bindings")
+public func misstype_engine_set_key_bindings(_ engine: OpaquePointer?, _ text: UnsafePointer<CChar>?) {
+    guard let handle = getEngine(engine) else { return }
+    handle.settings.value.keyBindings = KeyBindings.parse(text.map { String(cString: $0) } ?? "")
+}
+
+@_cdecl("misstype_engine_learned_phrase_count")
+public func misstype_engine_learned_phrase_count(_ engine: OpaquePointer?) -> Int32 {
+    guard let handle = getEngine(engine) else { return 0 }
+    return Int32(handle.engine.userLexicon.count)
+}
+
+@_cdecl("misstype_engine_reload_learned_phrases")
+public func misstype_engine_reload_learned_phrases(_ engine: OpaquePointer?) {
+    guard let handle = getEngine(engine) else { return }
+    handle.engine.userLexicon = handle.engine.userLexiconURL.map { UserLexicon.load(from: $0) } ?? UserLexicon()
+}
+
+@_cdecl("misstype_engine_save_learned_phrases")
+public func misstype_engine_save_learned_phrases(_ engine: OpaquePointer?) {
+    guard let handle = getEngine(engine), let url = handle.engine.userLexiconURL else { return }
+    handle.engine.userLexicon.save(to: url)
+}
+
+@_cdecl("misstype_engine_clear_learned_phrases")
+public func misstype_engine_clear_learned_phrases(_ engine: OpaquePointer?) {
+    guard let handle = getEngine(engine) else { return }
+    handle.engine.userLexicon = UserLexicon()
+    if let url = handle.engine.userLexiconURL { handle.engine.userLexicon.save(to: url) }
+}
+
+@_cdecl("misstype_engine_channel_pairs")
+public func misstype_engine_channel_pairs(_ engine: OpaquePointer?) -> UnsafeMutablePointer<CChar>? {
+    guard let handle = getEngine(engine) else { return strdupSwift("") }
+    return strdupSwift(handle.engine.channelLearner.learnedPairs
+        .map { "\($0.typed)\t\($0.intended)\t\($0.cost)\n" }.joined())
+}
+
+@_cdecl("misstype_engine_user_dictionary_text")
+public func misstype_engine_user_dictionary_text(_ engine: OpaquePointer?) -> UnsafeMutablePointer<CChar>? {
+    guard let handle = getEngine(engine) else { return strdupSwift("") }
+    return strdupSwift(handle.engine.userDictionary.serialized())
+}
+
+private func problemRows(_ problems: [UserDictionary.Problem]) -> String {
+    problems.map { "\($0.line)\t\($0.message)\n" }.joined()
+}
+
+@_cdecl("misstype_user_dictionary_check")
+public func misstype_user_dictionary_check(_ text: UnsafePointer<CChar>?, _ added: UnsafeMutablePointer<Int32>?,
+                                           _ hidden: UnsafeMutablePointer<Int32>?) -> UnsafeMutablePointer<CChar>? {
+    let parsed = UserDictionary.parse(text.map { String(cString: $0) } ?? "")
+    added?.pointee = Int32(parsed.dictionary.added.count)
+    hidden?.pointee = Int32(parsed.dictionary.excluded.count)
+    return strdupSwift(problemRows(parsed.problems))
+}
+
+@_cdecl("misstype_user_dictionary_import")
+public func misstype_user_dictionary_import(_ text: UnsafePointer<CChar>?, _ source: UnsafePointer<CChar>?,
+                                            _ added: UnsafeMutablePointer<Int32>?,
+                                            _ duplicates: UnsafeMutablePointer<Int32>?,
+                                            _ skipped: UnsafeMutablePointer<Int32>?) -> UnsafeMutablePointer<CChar>? {
+    let result = UserDictionary.importing(source.map { String(cString: $0) } ?? "",
+                                          into: text.map { String(cString: $0) } ?? "")
+    added?.pointee = Int32(result.added)
+    duplicates?.pointee = Int32(result.duplicates)
+    skipped?.pointee = Int32(result.problems.count)
+    return strdupSwift(result.text)
 }

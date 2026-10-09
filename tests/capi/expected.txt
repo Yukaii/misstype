@@ -1,4 +1,4 @@
-abi=1
+abi=2
 C1 preedit=你好 caret_bytes=6 caret_utf16=2 shows=1 count=10
 C1 commit=[你好]
 C2 enter consumed=0 commit=(null)

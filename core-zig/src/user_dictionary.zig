@@ -139,7 +139,8 @@ pub const UserDictionary = struct {
         return out.toOwnedSlice(gpa);
     }
 
-    /// Parses file text; bad lines are skipped (counted in `problems`).
+    /// Parses file text; bad lines are skipped (counted in `problems`, with
+    /// Swift's exact messages allocated from `gpa`: pass an arena).
     pub fn parse(gpa: Allocator, source: []const u8, problems: ?*std.ArrayList(Problem)) !UserDictionary {
         var dict = UserDictionary.init(gpa);
         errdefer dict.deinit();
@@ -164,8 +165,12 @@ pub const UserDictionary = struct {
             if (isReadingLike(fields[0]) and !isReadingLike(fields[1])) std.mem.swap([]const u8, &fields[0], &fields[1]);
             const text = fields[0];
             const reading = fields[1];
-            if (validate(reading, text)) |message| {
-                try report(gpa, problems, number, message);
+            if (validate(reading, text) != null) {
+                if (problems != null) {
+                    const message = (try validateMessage(gpa, reading, text)).?;
+                    defer gpa.free(message);
+                    try report(gpa, problems, number, message);
+                }
                 continue;
             }
             var weight: f64 = default_weight;
@@ -190,6 +195,82 @@ pub const UserDictionary = struct {
         if (problems) |p| try p.append(gpa, .{ .line = line, .message = message });
     }
 };
+
+/// `validate` with Swift's exact wording (the syllable that fails, the
+/// character and syllable counts). Allocates from `gpa` when it fails.
+pub fn validateMessage(gpa: Allocator, reading: []const u8, text: []const u8) !?[]const u8 {
+    const generic = validate(reading, text) orelse return null;
+    if (std.mem.eql(u8, generic, "character count differs from syllable count")) {
+        const n = unicode.characterCount(text);
+        const syllables = std.mem.count(u8, reading, "-") + 1;
+        return try std.fmt.allocPrint(gpa, "{d} character{s} for {d} syllable{s}", .{
+            n, if (n == 1) "" else "s", syllables, if (syllables == 1) "" else "s",
+        });
+    }
+    if (std.mem.eql(u8, generic, "not a Zhuyin syllable")) {
+        var it = std.mem.splitScalar(u8, reading, '-');
+        while (it.next()) |syllable| {
+            // A lone valid syllable spells one character.
+            if (validate(syllable, "你") != null) return try std.fmt.allocPrint(gpa, "“{s}” is not a Zhuyin syllable", .{syllable});
+        }
+    }
+    return generic;
+}
+
+pub const ImportResult = struct {
+    text: []const u8,
+    added: usize = 0,
+    /// Valid lines already present (same reading and text).
+    duplicates: usize = 0,
+    /// Lines skipped as invalid.
+    skipped: usize = 0,
+};
+
+/// Appends the new entries of `source` (vChewing userdata or our own file)
+/// to the editor `text` in canonical lines, leaving existing text, comments
+/// and order untouched. Everything lives in `arena`; nothing is written.
+pub fn importing(arena: Allocator, source: []const u8, text: []const u8) !ImportResult {
+    const existing = try UserDictionary.parse(arena, text, null);
+    var problems: std.ArrayList(Problem) = .empty;
+    const incoming = try UserDictionary.parse(arena, source, &problems);
+    var result: ImportResult = .{ .text = text, .skipped = problems.items.len };
+    var lines: std.ArrayList([]const u8) = .empty;
+    for (incoming.added.items) |e| {
+        if (existing.contains(e.reading, e.text)) {
+            result.duplicates += 1;
+            continue;
+        }
+        var line: std.ArrayList(u8) = .empty;
+        try line.print(arena, "{s} {s}", .{ e.text, e.reading });
+        if (e.weight != default_weight) {
+            try line.append(arena, ' ');
+            try appendSwiftDouble(&line, arena, e.weight);
+        }
+        try lines.append(arena, line.items);
+    }
+    for (incoming.excluded.items) |e| {
+        if (existing.isExcluded(e.reading, e.text)) {
+            result.duplicates += 1;
+            continue;
+        }
+        try lines.append(arena, try std.fmt.allocPrint(arena, "!{s} {s}", .{ e.text, e.reading }));
+    }
+    result.added = lines.items.len;
+    if (lines.items.len > 0) {
+        var out: std.ArrayList(u8) = .empty;
+        try out.appendSlice(arena, text);
+        // Swift's hasSuffix("\n") is false for a trailing "\r\n" (one
+        // Character), so CRLF text gains a newline too.
+        const ends_lf = text.len > 0 and text[text.len - 1] == '\n' and !(text.len > 1 and text[text.len - 2] == '\r');
+        if (text.len > 0 and !ends_lf) try out.append(arena, '\n');
+        for (lines.items) |l| {
+            try out.appendSlice(arena, l);
+            try out.append(arena, '\n');
+        }
+        result.text = out.items;
+    }
+    return result;
+}
 
 /// Why a (reading, text) pair cannot be stored, or null when it can.
 pub fn validate(reading: []const u8, text: []const u8) ?[]const u8 {

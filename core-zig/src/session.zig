@@ -23,6 +23,7 @@ const channel_mod = @import("channel.zig");
 const english_mod = @import("english.zig");
 const layout_mod = @import("layout.zig");
 const storage = @import("storage.zig");
+const keybindings = @import("keybindings.zig");
 
 const Allocator = std.mem.Allocator;
 const Io = std.Io;
@@ -126,18 +127,52 @@ pub const KeyResult = struct {
     const beeped: KeyResult = .{ .consumed = true, .beep = true };
 };
 
-/// Default bindings: Tab / Shift+Tab are next / previous page (their
-/// canonical events are PageDown / PageUp); every other default chord is
-/// its own canonical event.
-fn resolveBinding(event: KeyEvent) KeyEvent {
-    if (event.release or event.kind != .tab) return event;
-    const chord = event.mods & (mod_control | mod_option | mod_shift | mod_command);
-    if (chord != 0 and chord != mod_shift) return event;
-    return .{
-        .kind = if (chord == mod_shift) .page_up else .page_down,
-        .mods = event.mods & mod_caps_lock,
-        .timestamp = event.timestamp,
+/// The event a binding resolves to (KeyBindings.resolve), or null when the
+/// key is unbound and goes to the application.
+fn resolveBinding(bindings: *const keybindings.Bindings, event: KeyEvent) ?KeyEvent {
+    const key: keybindings.Key = switch (event.kind) {
+        .character => if (event.label.len == 1) .{ .character = event.label[0] } else .other,
+        .space => .space,
+        .enter => .enter,
+        .tab => .tab,
+        .escape => .escape,
+        .left => .left,
+        .right => .right,
+        .up => .up,
+        .down => .down,
+        .page_up => .page_up,
+        .page_down => .page_down,
+        else => .other,
     };
+    switch (bindings.resolve(key, event.mods, event.release)) {
+        .unchanged => return event,
+        .unbound => return null,
+        .strip_shift => {
+            var plain = event;
+            plain.mods &= ~mod_shift;
+            return plain;
+        },
+        .rewritten => |r| return .{
+            .kind = switch (r.chord.key) {
+                .character => .character,
+                .space => .space,
+                .enter => .enter,
+                .tab => .tab,
+                .escape => .escape,
+                .left => .left,
+                .right => .right,
+                .up => .up,
+                .down => .down,
+                .page_up => .page_up,
+                .page_down => .page_down,
+                .other => .other,
+            },
+            .label = if (r.chord.key == .character and r.chord.key.character == '`') "`" else "",
+            .text = r.text,
+            .mods = r.chord.mods | r.extra_mods,
+            .timestamp = event.timestamp,
+        },
+    }
 }
 
 /// Lone-Shift-tap detection for the 中/英 toggle.
@@ -279,6 +314,8 @@ pub const Engine = struct {
     /// 中/英 mode: global, one keyboard for all clients.
     english: bool = false,
     shift_tap: ShiftTapTracker = .{},
+    /// User key bindings (`KeyBindings`; default: the built-in keys).
+    bindings: keybindings.Bindings = .{},
     /// Live sessions plus the host's handle.
     refs: usize = 1,
     /// Owned copy of the selection keys setting.
@@ -401,10 +438,22 @@ pub const Engine = struct {
         if (words.len == 0) return;
         const now = storage.nowUnix(self.io);
         for (words) |w| try self.user_lexicon.record(w.key, w.text, now);
+        try self.saveUserLexicon();
+    }
+
+    /// Writes the learned phrases to `user_lexicon_path` (no-op in memory).
+    pub fn saveUserLexicon(self: *Engine) !void {
         const path = self.user_lexicon_path orelse return;
         const data = try self.user_lexicon.encode(self.gpa);
         defer self.gpa.free(data);
         _ = storage.writeAtomic(self.io, self.gpa, path, data);
+    }
+
+    /// Forgets every learned phrase, on disk too.
+    pub fn clearUserLexicon(self: *Engine) !void {
+        self.user_lexicon.deinit();
+        self.user_lexicon = .init(self.gpa);
+        try self.saveUserLexicon();
     }
 };
 
@@ -430,6 +479,11 @@ pub const View = struct {
     shows_candidates: bool,
     mark: ?Mark = null,
     page_size: usize,
+    /// Word boundaries of `preedit`: contiguous UTF-16 ranges covering all
+    /// of it. Empty = no segmentation known (draw one segment).
+    segments: []const Range = &.{},
+    /// The syllable cursor's word (one of `segments`).
+    focus: ?Range = null,
 };
 
 // MARK: - Session
@@ -544,6 +598,8 @@ pub const Session = struct {
         const preedit = try self.previewText(va);
         const page_size = self.settings.page_size;
         if (self.symbol_menu) |*menu| {
+            const total = unicode.utf16Len(preedit);
+            const whole: []const Range = if (total > 0) try va.dupe(Range, &.{Range.of(0, total)}) else &.{};
             return .{
                 .preedit = preedit,
                 .caret = try self.caretOffset(preedit),
@@ -553,6 +609,8 @@ pub const Session = struct {
                 .keys_active = menu.selecting,
                 .shows_candidates = menu.selecting or self.settings.auto_show_candidates,
                 .page_size = page_size,
+                .segments = if (whole.len > 0) whole else &.{},
+                .focus = if (whole.len > 0) whole[0] else null,
             };
         }
         if (try self.markView(va)) |marked| {
@@ -568,6 +626,7 @@ pub const Session = struct {
                 .page_size = page_size,
             };
         }
+        const segments = try self.wordSegments(va, preedit);
         const texts: []const []const u8 = if (self.segment_texts) |t| t else blk: {
             const out = try va.alloc([]const u8, self.candidates.len);
             for (self.candidates, out) |c, *o| o.* = c.text;
@@ -582,7 +641,38 @@ pub const Session = struct {
             .keys_active = self.selecting,
             .shows_candidates = if (self.segment_texts != null) texts.len > 0 else texts.len > 1 and (self.selecting or self.settings.auto_show_candidates),
             .page_size = page_size,
+            .segments = segments.segments,
+            .focus = segments.focus,
         };
+    }
+
+    const WordSegments = struct { segments: []const Range = &.{}, focus: ?Range = null };
+
+    /// Word ranges of the shown preedit and the cursor's word: decoded
+    /// words, the gaps between them (Latin, punctuation) and the raw tail.
+    /// English readings of the mixed pass stay one segment (none listed).
+    fn wordSegments(self: *const Session, va: Allocator, preedit: []const u8) !WordSegments {
+        const total = unicode.utf16Len(preedit);
+        if (total == 0 or !self.hasSelected() or self.showingComplete()) return .{};
+        const shown = self.candidates[self.selected];
+        const converted = shown.utf16_len;
+        var cuts: std.AutoArrayHashMapUnmanaged(u32, void) = .empty;
+        for ([_]u32{ 0, converted, total }) |c| try cuts.put(va, c, {});
+        for (shown.alignment) |word| {
+            if (word.chars.end > converted) continue;
+            try cuts.put(va, word.chars.start, {});
+            try cuts.put(va, word.chars.end, {});
+        }
+        var ordered: std.ArrayList(u32) = .empty;
+        for (cuts.keys()) |c| if (c <= total) try ordered.append(va, c);
+        std.mem.sort(u32, ordered.items, {}, std.sort.asc(u32));
+        const out = try va.alloc(Range, ordered.items.len -| 1);
+        for (out, 0..) |*r, i| r.* = .{ .start = ordered.items[i], .end = ordered.items[i + 1] };
+        var focus: ?Range = null;
+        if (self.cursor) |c| if (self.segment_texts != null) if (shown.wordAt(c)) |word| {
+            if (word.chars.end <= converted) focus = word.chars;
+        };
+        return .{ .segments = out, .focus = focus };
     }
 
     fn hasSelected(self: *const Session) bool {
@@ -629,7 +719,7 @@ pub const Session = struct {
             return .handled;
         }
         _ = self.engine.shift_tap.feed(null, mods & mod_shift != 0, true, other_mods, now);
-        const event = resolveBinding(event_);
+        const event = resolveBinding(&self.engine.bindings, event_) orelse return self.pass(true);
         if (self.composition.isEmpty()) try self.engine.reloadUserDictionaryIfChanged();
         if (event.kind == .modifier and (event.text == null or event.text.?.len == 0)) return .handled;
         var result = try self.typeKey(event);

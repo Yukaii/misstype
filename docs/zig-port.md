@@ -1,10 +1,16 @@
 # Zig port of MisstypeCore
 
-Status (2026-10-08): exact decoding, the offline keyboard session/C ABI,
+Status (2026-10-09): exact decoding, the offline keyboard session/C ABI,
 persistent user files, touch mapper/beam/lattice, and the Linux CLI are ported.
 Linux builds Zig by default; `MISSTYPE_CORE=swift` retains the reference backend.
 Swift remains the behavioral oracle and the macOS/Wasm implementation until
-those consumers migrate. See the verification record below.
+those consumers migrate. The macOS ABI migration is now staged: ABI v2 carries
+Latin-run feedback, UTF-16 word segments/focus, macOS keycode mapping, custom
+bindings, and dictionary/learning editor operations. `script/zig/build_macos.sh`
+builds and lipo-checks the Zig library for both macOS architectures; CI compiles
+that artifact beside the Swift packages. The IMK consumer still uses the Swift
+oracle until a native Mac replay confirms the bridge. See the verification
+record below.
 
 ## Why
 
@@ -66,8 +72,9 @@ The Zig rewrite is not mainly about speed. The goals are:
      lexicon/pins, mixed English, touch.
    - The fcitx5 C1–C15 suite runs against the Zig `.so`, and Linux
      switches over.
-2. **macOS IME and Wasm move onto the C ABI.** The ABI
-   grows to cover config and user-dictionary editing.
+2. **macOS IME and Wasm move onto the C ABI.** ABI v2 now covers the macOS
+   adapter's view metadata, key bindings, and user-dictionary/learning editor;
+   the remaining work is the IMK compatibility layer and native GUI replay.
 3. **Remove the Swift core** and update `AGENTS.md`, `architecture.md` and
    `cross-platform.md`.
 

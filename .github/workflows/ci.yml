@@ -24,6 +24,25 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  macos-zig-port:
+    # Compile the macOS-facing ABI on the platform that supplies lipo and
+    # SwiftPM's InputMethodKit headers. The UI remains on the Swift oracle
+    # until the bridge is switched over; this gate keeps both architectures
+    # and the ABI exports buildable while that migration proceeds.
+    runs-on: macos-14
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache pinned Zig toolchain
+        uses: actions/cache@v4
+        with:
+          path: .cache/zig
+          key: zig-macos-${{ runner.arch }}-${{ hashFiles('script/zig/bootstrap.sh') }}
+      - name: Build universal Zig C ABI
+        run: script/zig/build_macos.sh
+      - name: Compile Swift packages and C ABI reference
+        run: swift build --build-tests
+
   zig-core:
     runs-on: ubuntu-24.04
     steps:

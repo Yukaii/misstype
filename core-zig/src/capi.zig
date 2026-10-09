@@ -23,7 +23,7 @@ fn io() std.Io {
     return io_instance.io();
 }
 
-pub const abi_version: i32 = 1;
+pub const abi_version: i32 = 2;
 
 // MARK: - C types (layout of misstype.h)
 
@@ -42,6 +42,7 @@ const CKeyResult = extern struct {
     commit: ?[*:0]u8 = null,
     beep: i32 = 0,
     mode_changed: i32 = 0,
+    latin_toggled: i32 = 0,
 };
 
 const CView = extern struct {
@@ -62,6 +63,11 @@ const CView = extern struct {
     mark_end_utf16: i32,
     mark_text: [*:0]u8,
     mark_reading: [*:0]u8,
+    page_size: i32,
+    segment_count: i32,
+    segments_utf16: ?[*]i32,
+    focus_start_utf16: i32,
+    focus_end_utf16: i32,
 };
 
 const CSettings = extern struct {
@@ -290,6 +296,7 @@ export fn misstype_session_handle(session_: ?*Session, event_: ?*const CKeyEvent
         .commit = if (result.commit) |text| dupZ(text) else null,
         .beep = @intFromBool(result.beep),
         .mode_changed = @intFromBool(result.mode_changed),
+        .latin_toggled = @intFromBool(result.latin_toggled),
     };
 }
 
@@ -349,8 +356,23 @@ export fn misstype_session_view(session_: ?*Session) callconv(.c) ?*CView {
         .mark_end_utf16 = if (mark) |m| @intCast(m.range.end) else -1,
         .mark_text = dupZ(if (mark) |m| m.text else ""),
         .mark_reading = dupZ(if (mark) |m| m.reading else ""),
+        .page_size = @intCast(v.page_size),
+        .segment_count = @intCast(v.segments.len),
+        .segments_utf16 = rangeArray(v.segments),
+        .focus_start_utf16 = if (v.focus) |f| @intCast(f.start) else -1,
+        .focus_end_utf16 = if (v.focus) |f| @intCast(f.end) else -1,
     };
     return out;
+}
+
+/// Ranges as flat start/end pairs (2 * count values).
+fn rangeArray(ranges: []const core.candidate.Range) ?[*]i32 {
+    const out = gpa.alloc(i32, @max(1, 2 * ranges.len)) catch @panic("out of memory");
+    for (ranges, 0..) |r, i| {
+        out[2 * i] = @intCast(r.start);
+        out[2 * i + 1] = @intCast(r.end);
+    }
+    return out.ptr;
 }
 
 fn freeArray(items: ?[*][*:0]u8, count: i32) void {
@@ -367,6 +389,7 @@ export fn misstype_view_free(view: ?*CView) callconv(.c) void {
     gpa.free(std.mem.span(v.mark_reading));
     freeArray(v.candidates, v.candidate_count);
     freeArray(v.selection_keys, v.selection_key_count);
+    if (v.segments_utf16) |segs| gpa.free(segs[0..@max(1, 2 * @as(usize, @intCast(@max(v.segment_count, 0))))]);
     gpa.destroy(v);
 }
 
@@ -496,4 +519,144 @@ export fn misstype_key_from_character(utf8: ?[*:0]const u8, label: ?*?[*:0]const
         return kindToC(.character);
     }
     return kindToC(.other);
+}
+
+// MARK: - ABI v2
+
+/// macOS virtual key codes (ANSI positions) -> US-ANSI labels.
+fn macLabel(code: i32) ?u8 {
+    return switch (code) {
+        0 => 'a', 1 => 's', 2 => 'd', 3 => 'f', 4 => 'h', 5 => 'g', 6 => 'z', 7 => 'x', 8 => 'c', 9 => 'v', 11 => 'b',
+        12 => 'q', 13 => 'w', 14 => 'e', 15 => 'r', 16 => 'y', 17 => 't', 18 => '1', 19 => '2', 20 => '3', 21 => '4',
+        22 => '6', 23 => '5', 24 => '=', 25 => '9', 26 => '7', 27 => '-', 28 => '8', 29 => '0', 30 => ']', 31 => 'o',
+        32 => 'u', 33 => '[', 34 => 'i', 35 => 'p', 37 => 'l', 38 => 'j', 39 => '\'', 40 => 'k', 41 => ';', 42 => '\\',
+        43 => ',', 44 => '/', 45 => 'n', 46 => 'm', 47 => '.', 50 => '`',
+        else => null,
+    };
+}
+
+export fn misstype_key_from_mac(code: i32, label: ?*?[*:0]const u8) callconv(.c) c_int {
+    if (macLabel(code)) |c| {
+        if (label) |out| out.* = staticLabel(c);
+        return kindToC(.character);
+    }
+    if (label) |out| out.* = null;
+    const kind: KeyKind = switch (code) {
+        49 => .space,
+        36, 76 => .enter,
+        48 => .tab,
+        51 => .backspace,
+        117 => .forward_delete,
+        53 => .escape,
+        123 => .left,
+        124 => .right,
+        125 => .down,
+        126 => .up,
+        116 => .page_up,
+        121 => .page_down,
+        56 => .shift_left,
+        60 => .shift_right,
+        55, 54, 57, 58, 61, 59, 62, 63, 114 => .modifier,
+        else => .other,
+    };
+    return kindToC(kind);
+}
+
+export fn misstype_engine_set_key_bindings(engine_: ?*Engine, text: ?[*:0]const u8) callconv(.c) void {
+    const engine = engine_ orelse return;
+    engine.bindings = core.keybindings.Bindings.parse(span(text) orelse "");
+}
+
+export fn misstype_engine_learned_phrase_count(engine_: ?*const Engine) callconv(.c) i32 {
+    const engine = engine_ orelse return 0;
+    return @intCast(engine.user_lexicon.count());
+}
+
+export fn misstype_engine_reload_learned_phrases(engine_: ?*Engine) callconv(.c) void {
+    const engine = engine_ orelse return;
+    engine.loadUserLexicon();
+}
+
+export fn misstype_engine_save_learned_phrases(engine_: ?*Engine) callconv(.c) void {
+    const engine = engine_ orelse return;
+    engine.saveUserLexicon() catch {};
+}
+
+export fn misstype_engine_clear_learned_phrases(engine_: ?*Engine) callconv(.c) void {
+    const engine = engine_ orelse return;
+    engine.clearUserLexicon() catch {};
+}
+
+export fn misstype_engine_channel_pairs(engine_: ?*const Engine) callconv(.c) ?[*:0]u8 {
+    const engine = engine_ orelse return dupZ("");
+    var arena: std.heap.ArenaAllocator = .init(gpa);
+    defer arena.deinit();
+    const text = channelPairs(arena.allocator(), &engine.channel_learner) catch return dupZ("");
+    return dupZ(text);
+}
+
+const Pair = struct { typed: []const u8, intended: []const u8, cost: f64 };
+
+/// ChannelLearner.learnedPairs: model pairs as symbols, cheapest first,
+/// ties by typed+intended.
+fn channelPairs(a: std.mem.Allocator, learner: *const core.channel.ChannelLearner) ![]const u8 {
+    var pairs: std.ArrayList(Pair) = .empty;
+    const model = learner.model() orelse return "";
+    for (model.rows, 0..) |row, typed| for (row) |sub| {
+        const t: u8 = @intCast(typed);
+        try pairs.append(a, .{
+            .typed = core.keyboard.symbol(t) orelse std.mem.span(staticLabel(t)),
+            .intended = core.keyboard.symbol(sub.intended) orelse std.mem.span(staticLabel(sub.intended)),
+            .cost = sub.raw,
+        });
+    };
+    std.mem.sort(Pair, pairs.items, {}, struct {
+        fn lt(_: void, x: Pair, y: Pair) bool {
+            if (x.cost != y.cost) return x.cost < y.cost;
+            // Swift compares the concatenated strings typed + intended.
+            var bx: [16]u8 = undefined;
+            var by: [16]u8 = undefined;
+            const jx = std.fmt.bufPrint(&bx, "{s}{s}", .{ x.typed, x.intended }) catch return false;
+            const jy = std.fmt.bufPrint(&by, "{s}{s}", .{ y.typed, y.intended }) catch return false;
+            return std.mem.order(u8, jx, jy) == .lt;
+        }
+    }.lt);
+    var out: std.ArrayList(u8) = .empty;
+    for (pairs.items) |p| {
+        try out.print(a, "{s}\t{s}\t", .{ p.typed, p.intended });
+        try core.user_dictionary.appendSwiftDouble(&out, a, p.cost);
+        try out.append(a, '\n');
+    }
+    return out.items;
+}
+
+export fn misstype_engine_user_dictionary_text(engine_: ?*const Engine) callconv(.c) ?[*:0]u8 {
+    const engine = engine_ orelse return dupZ("");
+    const text = engine.user_dictionary.serialized(gpa) catch return dupZ("");
+    defer gpa.free(text);
+    return dupZ(text);
+}
+
+export fn misstype_user_dictionary_check(text: ?[*:0]const u8, added: ?*i32, hidden: ?*i32) callconv(.c) ?[*:0]u8 {
+    var arena: std.heap.ArenaAllocator = .init(gpa);
+    defer arena.deinit();
+    const a = arena.allocator();
+    var problems: std.ArrayList(core.user_dictionary.Problem) = .empty;
+    const dict = core.user_dictionary.UserDictionary.parse(a, span(text) orelse "", &problems) catch return dupZ("");
+    if (added) |out| out.* = @intCast(dict.added.items.len);
+    if (hidden) |out| out.* = @intCast(dict.excluded.items.len);
+    var rows: std.ArrayList(u8) = .empty;
+    for (problems.items) |p| rows.print(a, "{d}\t{s}\n", .{ p.line, p.message }) catch return dupZ("");
+    return dupZ(rows.items);
+}
+
+export fn misstype_user_dictionary_import(text: ?[*:0]const u8, source: ?[*:0]const u8, added: ?*i32, duplicates: ?*i32, skipped: ?*i32) callconv(.c) ?[*:0]u8 {
+    var arena: std.heap.ArenaAllocator = .init(gpa);
+    defer arena.deinit();
+    const original = span(text) orelse "";
+    const result = core.user_dictionary.importing(arena.allocator(), span(source) orelse "", original) catch return dupZ(original);
+    if (added) |out| out.* = @intCast(result.added);
+    if (duplicates) |out| out.* = @intCast(result.duplicates);
+    if (skipped) |out| out.* = @intCast(result.skipped);
+    return dupZ(result.text);
 }
