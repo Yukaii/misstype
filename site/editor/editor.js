@@ -375,6 +375,13 @@ host.addEventListener("compositionstart", flush);
 addEventListener("resize", () => panel.place(caretRect()));
 visualViewport?.addEventListener("resize", () => panel.place(caretRect()));
 
+// The margins around the document block belong to the editor too.
+$("#editor").addEventListener("mousedown", (e) => {
+  if (e.target !== e.currentTarget) return;
+  e.preventDefault();
+  view.focus();
+});
+
 modeBtn.addEventListener("click", toggleMode);
 for (const el of document.querySelectorAll("[data-command]")) {
   const command = commands.find((c) => c.id === el.dataset.command);

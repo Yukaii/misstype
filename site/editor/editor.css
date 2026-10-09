@@ -30,7 +30,7 @@ body.app {
 #mode-btn:disabled, body:not(.ime-ready) #mode-btn { opacity: .5; }
 
 main.pg { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-#editor { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+#editor { flex: 1; min-height: 0; }
 
 /* Format toolbar: page colours, so it follows the light/dark switch. */
 .toolbar {
@@ -49,9 +49,10 @@ main.pg { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .toolbar .sep { flex: none; width: 1px; height: 18px; margin: 0 6px; background: var(--line); }
 
 /* The document. ProseMirror's own layout rules come from prosemirror.css. */
-#editor { overflow-y: auto; }
+/* #editor is the full-width scroll surface; the document is one fixed-width block inside it. */
+#editor { overflow-y: auto; cursor: text; }
 .ProseMirror {
-  box-sizing: border-box; min-height: 100%; outline: none;
+  box-sizing: border-box; width: 100%; min-height: 100%; outline: none;
   padding: 28px clamp(16px, 5vw, 48px) 40vh; font-size: var(--editor-size, 18px); line-height: 1.8;
   font-family: var(--sans); color: var(--ink); caret-color: var(--ink);
 }
