@@ -5,7 +5,7 @@ name: CI
 # Site and docs-only changes skip it (the site has its own build in pages.yml).
 on:
   push:
-    branches: [main, zig-core-spike]
+    branches: [main]
     paths-ignore:
       - "site/**"
       - ".github/workflows/pages.yml"
