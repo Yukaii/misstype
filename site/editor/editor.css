@@ -32,23 +32,47 @@ body.app {
 main.pg { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 #editor { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 
-/* Wordgard draws its own box; make it fill the page and read like a document. */
-#editor wordgard-editor { flex: 1; min-height: 0; display: flex; flex-direction: column; border: 0; border-radius: 0; background: var(--paper); color: var(--ink); }
-#editor wg-scroller { flex: 1; min-height: 0; overflow-y: auto; max-height: none; }
-#editor wg-content {
-  display: block; box-sizing: border-box; min-height: 100%; outline: none;
+/* Format toolbar: page colours, so it follows the light/dark switch. */
+.toolbar {
+  display: flex; align-items: center; gap: 4px; padding: 6px 12px; overflow-x: auto; flex-wrap: nowrap;
+  background: var(--paper); border-bottom: 1px solid var(--line); scrollbar-width: none;
+}
+.toolbar::-webkit-scrollbar { display: none; }
+.toolbar button {
+  flex: none; font: inherit; font-size: 14px; line-height: 1; min-width: 34px; min-height: 32px; padding: 6px 9px;
+  border: 1px solid transparent; border-radius: 7px; background: transparent; color: var(--ink); cursor: pointer;
+}
+.toolbar button:hover:not(:disabled) { background: var(--card); border-color: var(--line); }
+.toolbar button.on { background: var(--mark-bg); border-color: color-mix(in srgb, var(--mark) 45%, transparent); color: var(--mark); }
+.toolbar button:disabled { opacity: .35; cursor: default; }
+.toolbar button code { font-size: 12px; background: none; padding: 0; color: inherit; }
+.toolbar .sep { flex: none; width: 1px; height: 18px; margin: 0 6px; background: var(--line); }
+
+/* The document. ProseMirror's own layout rules come from prosemirror.css. */
+#editor { overflow-y: auto; }
+.ProseMirror {
+  box-sizing: border-box; min-height: 100%; outline: none;
   padding: 28px clamp(16px, 5vw, 48px) 40vh; font-size: var(--editor-size, 18px); line-height: 1.8;
   font-family: var(--sans); color: var(--ink); caret-color: var(--ink);
 }
-.pg[data-wrap="comfortable"] #editor wg-content { max-width: 46em; margin: 0 auto; }
-#editor wg-content h1, #editor wg-content h2, #editor wg-content h3 { line-height: 1.35; margin: 1.2em 0 .4em; }
-#editor wg-content p { margin: .5em 0; }
-#editor wg-content blockquote { margin: .8em 0; padding: 0 1em; border-left: 3px solid var(--line); color: var(--muted); }
-#editor wg-content pre, #editor wg-content code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .9em; }
-#editor wg-content pre { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; overflow-x: auto; }
-#editor wg-content :not(pre) > code { background: var(--card); border-radius: 4px; padding: .1em .35em; }
-#editor wg-content hr { border: 0; border-top: 1px solid var(--line); margin: 1.5em 0; }
-#editor wg-content a { color: var(--mark); }
+.pg[data-wrap="comfortable"] .ProseMirror { max-width: calc(46em + 2 * clamp(16px, 5vw, 48px)); margin: 0 auto; }
+.ProseMirror h1, .ProseMirror h2, .ProseMirror h3, .ProseMirror h4 { line-height: 1.35; margin: 1.2em 0 .4em; }
+.ProseMirror h1 { font-size: 1.7em; } .ProseMirror h2 { font-size: 1.4em; } .ProseMirror h3 { font-size: 1.2em; }
+.ProseMirror p { margin: .5em 0; }
+.ProseMirror ul, .ProseMirror ol { padding-left: 1.6em; margin: .5em 0; }
+.ProseMirror li > p { margin: .2em 0; }
+.ProseMirror blockquote { margin: .8em 0; padding: 0 1em; border-left: 3px solid var(--line); color: var(--muted); }
+.ProseMirror pre, .ProseMirror code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .9em; }
+.ProseMirror pre { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; overflow-x: auto; }
+.ProseMirror :not(pre) > code { background: var(--card); border-radius: 4px; padding: .1em .35em; }
+.ProseMirror hr { border: 0; border-top: 1px solid var(--line); margin: 1.5em 0; }
+.ProseMirror a { color: var(--mark); }
+.ProseMirror .is-empty::before { content: attr(data-placeholder); color: var(--muted); pointer-events: none; float: left; height: 0; }
+.ProseMirror-dropcursor { background: var(--mark); }
+/* Pre-edit text is drawn by the decoder, so the native caret steps aside and replaced text is hidden. */
+.ProseMirror.composing { caret-color: transparent; }
+.ProseMirror.composing .is-empty::before { content: none; }
+.pm-replaced { display: none; }
 
 .status {
   display: flex; gap: 16px; align-items: center; padding: 6px 16px; border-top: 1px solid var(--line);
@@ -56,9 +80,7 @@ main.pg { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 }
 .status #count { margin-left: auto; }
 
-.cp-preedit { font-size: 18px; padding: 4px 8px 6px; border-bottom: 1px solid var(--pg-line); color: var(--pg-text); }
 .candidate-panel[hidden] { display: none; }
-.candidate-panel .candidate-list[hidden], .candidate-panel .candidate-footer[hidden] { display: none; }
 
 #toast {
   position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 56px); transform: translate(-50%, 12px);

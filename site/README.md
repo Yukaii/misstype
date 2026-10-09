@@ -39,7 +39,7 @@ which only works for visitors once the repository is public.
 ## Markdown editor (PWA)
 
 `editor/` is an installable, offline-capable Markdown editor built on
-[Wordgard](https://wordgard.net) with the same wasm decoder, for devices that
+[ProseMirror](https://prosemirror.net) with the same wasm decoder, for devices that
 cannot host a custom IME (iPad with a hardware keyboard). See
 [`docs/editor.md`](../docs/editor.md). `npm run build` also emits
 `dist/editor/sw.js` and `manifest.webmanifest` (plugin in `vite.config.js`);

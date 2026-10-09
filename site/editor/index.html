@@ -33,6 +33,24 @@
   </div>
 </header>
 
+<div class="toolbar" id="toolbar" role="toolbar" aria-label="格式">
+  <button type="button" data-action="bold" aria-label="粗體"><b>B</b></button>
+  <button type="button" data-action="italic" aria-label="斜體"><i>I</i></button>
+  <button type="button" data-action="code" aria-label="行內程式碼"><code>&lt;/&gt;</code></button>
+  <span class="sep" aria-hidden="true"></span>
+  <button type="button" data-action="h1" aria-label="標題 1">H1</button>
+  <button type="button" data-action="h2" aria-label="標題 2">H2</button>
+  <button type="button" data-action="h3" aria-label="標題 3">H3</button>
+  <span class="sep" aria-hidden="true"></span>
+  <button type="button" data-action="bulletList" aria-label="項目清單">• 清單</button>
+  <button type="button" data-action="orderedList" aria-label="編號清單">1. 清單</button>
+  <button type="button" data-action="quote" aria-label="引用">❝ 引用</button>
+  <button type="button" data-action="codeBlock" aria-label="程式碼區塊">{ } 區塊</button>
+  <span class="sep" aria-hidden="true"></span>
+  <button type="button" data-command="undo" aria-label="復原">↶</button>
+  <button type="button" data-command="redo" aria-label="重做">↷</button>
+</div>
+
 <main class="pg" data-theme="system">
   <div id="editor"></div>
 </main>

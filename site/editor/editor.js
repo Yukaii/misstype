@@ -1,20 +1,25 @@
-import { Wordgard, menuBar, placeholder } from "wordgard/editor";
-import { Command, insertText, deleteSelection, selectAll, undo, redo, toggleStrong, toggleEmphasis, toggleBlock, toggleList, setTextblockType } from "wordgard/command";
-import { fullSchema } from "wordgard/schema";
-import { history } from "wordgard/history";
-import { Blockquote, BulletList, CodeBlock, Heading, OrderedList, Paragraph } from "wordgard/types";
+import { EditorState, Plugin, TextSelection } from "prosemirror-state";
+import { Decoration, DecorationSet, EditorView } from "prosemirror-view";
+import { Slice } from "prosemirror-model";
+import { baseKeymap } from "prosemirror-commands";
+import { history, redo, undo } from "prosemirror-history";
+import { keymap } from "prosemirror-keymap";
+import { dropCursor } from "prosemirror-dropcursor";
+import "prosemirror-view/style/prosemirror.css";
 import MisstypeWasm from "../../packages/misstype-wasm/src/index.js";
 import "../playground.css";
 import "./editor.css";
+import { actions, editingKeys } from "./actions.js";
 import { CandidatePanel } from "./candidates.js";
+import { chord, isApple, matches, modifierBits } from "./keys.js";
+import { parseMarkdown, schema, toMarkdown, wordCount } from "./model.js";
 import { Palette } from "./palette.js";
-import { chord, hasMod, isApple, matches, modifierBits } from "./keys.js";
-import { toMarkdown, wordCount } from "./markdown.js";
-import { IME_KEYS, loadSettings, saveSettings } from "./settings.js";
-import { inlineRules } from "./inline-rules.js";
+import { preeditKey, preeditPlugin, setPreedit } from "./preedit.js";
 import { registerServiceWorker } from "./pwa.js";
+import { markdownRules } from "./rules.js";
+import { IME_KEYS, loadSettings, saveSettings } from "./settings.js";
 
-const DOC_KEY = "misstype-editor-doc";
+const DOC_KEY = "misstype-editor-md";
 const $ = (sel) => document.querySelector(sel);
 
 const settings = loadSettings();
@@ -25,83 +30,99 @@ const countEl = $("#count");
 
 let ime = null;
 let imeState = null;
-let wg = null;
+let nativeImeKeys = 0;
 
 // ---------------------------------------------------------------- document
 
-function savedDoc() {
-  try { return JSON.parse(localStorage.getItem(DOC_KEY)); } catch { return null; }
-}
+const readStored = () => {
+  try { return localStorage.getItem(DOC_KEY) || ""; } catch { return ""; }
+};
 
 let saveTimer = 0;
 function scheduleSave() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    try { localStorage.setItem(DOC_KEY, JSON.stringify(wg.state.doc.toJSON())); } catch { /* storage full or private mode */ }
+    try { localStorage.setItem(DOC_KEY, toMarkdown(view.state.doc)); } catch { /* storage full or private mode */ }
   }, 400);
 }
 
-function createEditor() {
-  const make = (doc) => Wordgard.create({
-    parent: $("#editor"),
-    doc,
-    config: [
-      fullSchema(),
-      history(),
-      menuBar(),
-      inlineRules,
-      placeholder("開始打字⋯ 打 # 加空白是標題，- 加空白是清單。"),
-      Wordgard.updateListener.of((update) => {
-        if (!update.docChanged) return;
+const placeholder = new Plugin({
+  props: {
+    decorations({ doc }) {
+      const empty = doc.childCount === 1 && doc.firstChild.isTextblock && doc.firstChild.content.size === 0;
+      return empty
+        ? DecorationSet.create(doc, [Decoration.node(0, doc.firstChild.nodeSize, {
+          class: "is-empty",
+          "data-placeholder": "開始打字⋯ 打 # 加空白是標題，- 加空白是清單。",
+        })])
+        : null;
+    },
+  },
+});
+
+function createView() {
+  return new EditorView($("#editor"), {
+    state: EditorState.create({
+      doc: parseMarkdown(readStored()),
+      plugins: [
+        markdownRules,
+        history(),
+        keymap({ ...editingKeys, "Mod-z": undo, "Mod-y": redo, "Shift-Mod-z": redo }),
+        keymap(baseKeymap),
+        dropCursor(),
+        preeditPlugin,
+        placeholder,
+      ],
+    }),
+    // Pasted plain text is read as Markdown, so notes from other editors keep their structure.
+    clipboardTextParser: (text, $context, plain) => {
+      if (plain) return undefined;
+      return new Slice(parseMarkdown(text).content, 0, 0);
+    },
+    dispatchTransaction(tr) {
+      view.updateState(view.state.apply(tr));
+      if (tr.docChanged) {
         scheduleSave();
-        const { total } = wordCount(update.state.doc);
-        countEl.textContent = `${total} 字`;
-      }),
-    ],
+        countEl.textContent = `${wordCount(view.state.doc).total} 字`;
+      }
+      updateToolbar();
+    },
   });
-  const stored = savedDoc();
-  try {
-    return make(stored ?? "<p></p>");
-  } catch (err) {
-    console.warn("saved document could not be restored", err);
-    $("#editor").replaceChildren();
-    return make("<p></p>");
-  }
 }
 
-function run(command, param) {
-  const ok = param === undefined ? Command.dispatch(wg, command) : Command.dispatch(wg, command, param);
-  wg.focus();
-  return ok;
-}
+const view = createView();
 
-function insert(text) {
-  const { from, to } = wg.state.selection.replacementRange;
-  const spec = insertText({ state: wg.state }, { from, to, insert: text, userEvent: "input.type" });
-  if (spec) wg.dispatch({ ...spec, scrollIntoView: true });
+function runAction(id) {
+  actions[id].run(view.state, view.dispatch, view);
+  view.focus();
 }
 
 // --------------------------------------------------------------------- IME
 
 const panel = new CandidatePanel(app, {
-  onPick: (index) => { ime?.pick(index); sync(); wg.focus(); },
-  onPage: (code) => { ime?.key(code, code, 0, 0); sync(); wg.focus(); },
+  onPick: (index) => { ime?.pick(index); sync(); view.focus(); },
+  onPage: (code) => { ime?.key(code, code, 0, 0); sync(); view.focus(); },
 });
 
 function caretRect() {
+  const caret = view.dom.querySelector(".pg-composition-caret") || view.dom.querySelector(".pg-preedit");
+  if (caret) return caret.getBoundingClientRect();
   try {
-    return wg.coordsAtPos(wg.state.selection.head);
+    const { top, bottom, left } = view.coordsAtPos(view.state.selection.head);
+    return { top, bottom, left, right: left };
   } catch {
-    return $("#editor").getBoundingClientRect();
+    return view.dom.getBoundingClientRect();
   }
 }
 
-/** Moves finished text into the document and redraws the composition bar. */
+/** Moves finished text into the document and redraws the pre-edit and candidates. */
 function sync() {
   if (!ime) return;
   const text = ime.takeCommitted();
-  if (text) insert(text);
   imeState = ime.state();
+  let tr = view.state.tr;
+  if (text) tr = tr.insertText(text).scrollIntoView();
+  view.dispatch(setPreedit(tr, imeState.preedit ? imeState : null));
   panel.render(imeState, caretRect());
   const english = imeState.english;
   modeBtn.textContent = english ? "英" : "中";
@@ -122,7 +143,7 @@ function keyDown(e) {
     return;
   }
   nativeImeKeys = 0;
-  // Document shortcuts belong to Wordgard; settle the composition first.
+  // Document shortcuts belong to the editor; settle the composition first.
   // Control+J/K stay with the decoder.
   const decoderCtrl = e.ctrlKey && !e.metaKey && ["KeyJ", "KeyK"].includes(e.code);
   if (e.metaKey || (e.ctrlKey && !decoderCtrl) || e.code === "Home" || e.code === "End") {
@@ -141,8 +162,6 @@ function keyUp(e) {
   if (ime.key(e.code, e.key, modifierBits(e), 1)) e.preventDefault();
   sync();
 }
-
-let nativeImeKeys = 0;
 
 function applyImeSettings() {
   if (!ime) return;
@@ -200,10 +219,10 @@ async function copyText(text, done) {
   toast(done);
 }
 
-const plainText = () => wg.state.doc.textContent({ blockSeparator: "\n" });
+const plainText = () => view.state.doc.textBetween(0, view.state.doc.content.size, "\n\n", "\n");
 
 function download() {
-  const url = URL.createObjectURL(new Blob([toMarkdown(wg.state.doc)], { type: "text/markdown;charset=utf-8" }));
+  const url = URL.createObjectURL(new Blob([toMarkdown(view.state.doc)], { type: "text/markdown;charset=utf-8" }));
   const a = Object.assign(document.createElement("a"), { href: url, download: "note.md" });
   document.body.append(a);
   a.click();
@@ -211,10 +230,23 @@ function download() {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+/** Replaces the whole note with a Markdown file; one undo brings the old one back. */
+function importFile() {
+  const input = Object.assign(document.createElement("input"), { type: "file", accept: ".md,.markdown,.txt,text/markdown,text/plain" });
+  input.addEventListener("change", async () => {
+    const file = input.files?.[0];
+    if (!file) return;
+    const doc = parseMarkdown(await file.text());
+    view.dispatch(view.state.tr.replaceWith(0, view.state.doc.content.size, doc.content).scrollIntoView());
+    toast(`已匯入 ${file.name}`);
+    view.focus();
+  });
+  input.click();
+}
+
 function clearAll() {
-  run(selectAll);
-  const spec = deleteSelection(wg.state);
-  if (spec) wg.dispatch(spec);
+  const tr = view.state.tr.delete(0, view.state.doc.content.size);
+  view.dispatch(tr.setSelection(TextSelection.atStart(tr.doc)));
   toast(`已清空（${chord("Mod-z")} 可復原）`);
 }
 
@@ -222,11 +254,7 @@ function toggleMode() {
   if (!ime) return;
   ime.toggleEnglish();
   sync();
-  wg.focus();
-}
-
-function cycle(list, current) {
-  return list[(list.indexOf(current) + 1) % list.length];
+  view.focus();
 }
 
 function setSetting(key, value) {
@@ -236,38 +264,39 @@ function setSetting(key, value) {
   if (IME_KEYS.includes(key)) applyImeSettings();
 }
 
-const heading = (n) => () => run(setTextblockType, Heading.of(n));
+const act = (id) => () => runAction(id);
 
 const commands = [
   { id: "palette", title: "指令選單", chord: chord("Mod-Shift-p"), combo: "Mod-Shift-p", run: () => palette.open() },
   { id: "copy-md", title: "複製為 Markdown", keywords: "copy markdown 複製", combo: "Mod-Shift-c", chord: chord("Mod-Shift-c"),
-    run: () => copyText(toMarkdown(wg.state.doc), "已複製 Markdown") },
+    run: () => copyText(toMarkdown(view.state.doc), "已複製 Markdown") },
   { id: "copy-text", title: "複製為純文字", keywords: "copy plain text 複製", combo: "Mod-Shift-x", chord: chord("Mod-Shift-x"),
     run: () => copyText(plainText(), "已複製純文字") },
   { id: "clear", title: "清空內容", keywords: "clear delete empty 清除", combo: "Mod-Shift-k", chord: chord("Mod-Shift-k"), run: clearAll },
   { id: "download", title: "下載 .md 檔", keywords: "download save export 儲存", combo: "Mod-s", chord: chord("Mod-s"), run: download },
+  { id: "import", title: "匯入 Markdown 檔", keywords: "import open file 開啟", combo: "Mod-o", chord: chord("Mod-o"), run: importFile },
   { id: "mode", title: "切換中／英", keywords: "english chinese mode 中英", combo: "Mod-Shift-e", chord: chord("Mod-Shift-e") + " · 輕按 Shift", run: toggleMode },
   { id: "settings", title: "設定", keywords: "settings options preferences 選項", combo: "Mod-,", chord: chord("Mod-,"), run: () => openSettings() },
   { id: "layout", title: "候選窗：直式／橫式", keywords: "candidate layout vertical horizontal",
     run: () => setSetting("candidateLayout", settings.candidateLayout === "vertical" ? "horizontal" : "vertical") },
   { id: "theme", title: "切換淺色／深色", keywords: "theme dark light 主題", run: () => $(".theme-toggle").click() },
-  { id: "h1", title: "標題 1", keywords: "heading", chord: "Ctrl+Shift+1", run: heading(1) },
-  { id: "h2", title: "標題 2", keywords: "heading", chord: "Ctrl+Shift+2", run: heading(2) },
-  { id: "h3", title: "標題 3", keywords: "heading", chord: "Ctrl+Shift+3", run: heading(3) },
-  { id: "p", title: "一般段落", keywords: "paragraph", chord: "Ctrl+Shift+0", run: () => run(setTextblockType, Paragraph) },
-  { id: "ul", title: "項目清單", keywords: "bullet list", run: () => run(toggleList, BulletList) },
-  { id: "ol", title: "編號清單", keywords: "ordered numbered list", run: () => run(toggleList, OrderedList) },
-  { id: "quote", title: "引用", keywords: "blockquote", run: () => run(toggleBlock, Blockquote) },
-  { id: "code", title: "程式碼區塊", keywords: "code block", run: () => run(toggleBlock, CodeBlock) },
-  { id: "bold", title: "粗體", keywords: "bold strong", chord: chord("Mod-b"), run: () => run(toggleStrong) },
-  { id: "italic", title: "斜體", keywords: "italic emphasis", chord: chord("Mod-i"), run: () => run(toggleEmphasis) },
-  { id: "undo", title: "復原", keywords: "undo", chord: chord("Mod-z"), run: () => run(undo) },
-  { id: "redo", title: "重做", keywords: "redo", chord: chord(isApple ? "Mod-Shift-z" : "Mod-y"), run: () => run(redo) },
-  { id: "select-all", title: "全選", keywords: "select all", chord: chord("Mod-a"), run: () => run(selectAll) },
+  { id: "h1", title: "標題 1", keywords: "heading", run: act("h1") },
+  { id: "h2", title: "標題 2", keywords: "heading", run: act("h2") },
+  { id: "h3", title: "標題 3", keywords: "heading", run: act("h3") },
+  { id: "p", title: "一般段落", keywords: "paragraph", run: act("paragraph") },
+  { id: "ul", title: "項目清單", keywords: "bullet list", run: act("bulletList") },
+  { id: "ol", title: "編號清單", keywords: "ordered numbered list", run: act("orderedList") },
+  { id: "quote", title: "引用", keywords: "blockquote", run: act("quote") },
+  { id: "code", title: "程式碼區塊", keywords: "code block", run: act("codeBlock") },
+  { id: "bold", title: "粗體", keywords: "bold strong", chord: chord("Mod-b"), run: act("bold") },
+  { id: "italic", title: "斜體", keywords: "italic emphasis", chord: chord("Mod-i"), run: act("italic") },
+  { id: "inline-code", title: "行內程式碼", keywords: "code", chord: chord("Mod-`"), run: act("code") },
+  { id: "undo", title: "復原", keywords: "undo", chord: chord("Mod-z"), run: () => { undo(view.state, view.dispatch); view.focus(); } },
+  { id: "redo", title: "重做", keywords: "redo", chord: chord(isApple ? "Mod-Shift-z" : "Mod-y"), run: () => { redo(view.state, view.dispatch); view.focus(); } },
 ];
 
 const palette = new Palette(() => commands);
-palette.onClose = () => wg.focus();
+palette.onClose = () => view.focus();
 
 document.addEventListener("keydown", (e) => {
   if (palette.isOpen || settingsDialog.open || e.isComposing) return;
@@ -279,6 +308,33 @@ document.addEventListener("keydown", (e) => {
   flush();
   command.run();
 }, true);
+
+// ----------------------------------------------------------------- toolbar
+
+const toolbar = $("#toolbar");
+
+function updateToolbar() {
+  for (const button of toolbar.querySelectorAll("[data-action]")) {
+    const action = actions[button.dataset.action];
+    const on = action.active?.(view.state) ?? false;
+    button.classList.toggle("on", on);
+    button.setAttribute("aria-pressed", String(on));
+  }
+  const undoable = undo(view.state);
+  const redoable = redo(view.state);
+  toolbar.querySelector('[data-command="undo"]').disabled = !undoable;
+  toolbar.querySelector('[data-command="redo"]').disabled = !redoable;
+}
+
+// Buttons must not take focus from the editor mid-composition.
+toolbar.addEventListener("pointerdown", (e) => { if (e.target.closest("button")) e.preventDefault(); });
+toolbar.addEventListener("click", (e) => {
+  const button = e.target.closest("button");
+  if (!button) return;
+  flush();
+  if (button.dataset.action) runAction(button.dataset.action);
+  else commands.find((c) => c.id === button.dataset.command)?.run();
+});
 
 // ---------------------------------------------------------------- settings
 
@@ -299,18 +355,18 @@ settingsDialog.addEventListener("change", (e) => {
   const raw = el.type === "checkbox" ? el.checked : el.value;
   setSetting(el.dataset.setting, typeof settings[el.dataset.setting] === "number" ? Number(raw) : raw);
 });
-settingsDialog.addEventListener("close", () => wg.focus());
+settingsDialog.addEventListener("close", () => view.focus());
 settingsDialog.addEventListener("pointerdown", (e) => { if (e.target === settingsDialog) settingsDialog.close(); });
 settingsDialog.querySelector("[data-close]").addEventListener("click", () => settingsDialog.close());
 
 // -------------------------------------------------------------------- boot
 
-wg = createEditor();
 applyAppearance();
-countEl.textContent = `${wordCount(wg.state.doc).total} 字`;
+countEl.textContent = `${wordCount(view.state.doc).total} 字`;
+updateToolbar();
 
-// Capture on the wrapper so the decoder sees keys before Wordgard's own handlers.
-const host = $("#editor");
+// Capture on the editor so the decoder sees keys before ProseMirror's handlers.
+const host = view.dom;
 host.addEventListener("keydown", keyDown, true);
 host.addEventListener("keyup", keyUp, true);
 host.addEventListener("pointerdown", flush, true);
@@ -320,20 +376,21 @@ addEventListener("resize", () => panel.place(caretRect()));
 visualViewport?.addEventListener("resize", () => panel.place(caretRect()));
 
 modeBtn.addEventListener("click", toggleMode);
-$("#palette-btn").addEventListener("click", () => { flush(); palette.open(); });
-$("#settings-btn").addEventListener("click", () => { flush(); openSettings(); });
-$("#copy-btn").addEventListener("click", () => { flush(); copyText(toMarkdown(wg.state.doc), "已複製 Markdown"); });
-$("#clear-btn").addEventListener("click", () => { flush(); clearAll(); wg.focus(); });
-// Buttons must not take focus from the editor mid-composition.
-document.querySelector(".bar").addEventListener("pointerdown", (e) => { if (e.target.closest("button")) e.preventDefault(); });
-
 for (const el of document.querySelectorAll("[data-command]")) {
   const command = commands.find((c) => c.id === el.dataset.command);
   if (command?.chord) el.title = `${el.getAttribute("aria-label") || el.textContent.trim()} (${command.chord})`;
 }
+// Header buttons must not take focus from the editor mid-composition either.
+$(".bar").addEventListener("pointerdown", (e) => { if (e.target.closest("button")) e.preventDefault(); });
+$(".bar").addEventListener("click", (e) => {
+  const button = e.target.closest("[data-command]");
+  if (!button || button.id === "mode-btn") return;
+  flush();
+  commands.find((c) => c.id === button.dataset.command)?.run();
+});
 
 loadIme();
 registerServiceWorker((state) => {
   $("#offline").textContent = state;
 });
-wg.focus();
+view.focus();

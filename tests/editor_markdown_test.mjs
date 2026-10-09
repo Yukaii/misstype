@@ -1,46 +1,34 @@
-// Checks the editor's Wordgard -> Markdown serializer (site/editor/markdown.js)
-// on documents built from JSON, so no browser is needed.
+// Checks the editor's Markdown model (site/editor/model.js): notes survive a
+// parse -> serialize round trip, and the word count handles Han and Latin text.
 //   cd site && npm ci && node ../tests/editor_markdown_test.mjs
 import assert from "node:assert/strict";
 import test from "node:test";
-import { GardState } from "../site/node_modules/wordgard/dist/state.js";
-import { fullSchema } from "../site/node_modules/wordgard/dist/schema.js";
-import { toMarkdown, wordCount } from "../site/editor/markdown.js";
+import { parseMarkdown, toMarkdown, wordCount } from "../site/editor/model.js";
 
-const text = (param, marks) => ({ type: "Text", param, ...(marks ? { marks } : {}) });
-const para = (...content) => ({ type: "Paragraph", content });
-const doc = (...content) => GardState.create({ doc: { type: "Doc", content }, config: [fullSchema()] }).doc;
+const roundTrip = (md) => toMarkdown(parseMarkdown(md));
 
-test("headings, paragraphs and lists", () => {
-  const md = toMarkdown(doc(
-    { type: "Heading", param: 2, content: [text("標題")] },
-    para(text("你好")),
-    { type: "BulletList", content: [
-      { type: "ListItem", content: [para(text("一"))] },
-      { type: "ListItem", content: [para(text("二"))] },
-    ] },
-    { type: "OrderedList", content: [{ type: "ListItem", content: [para(text("甲"))] }] },
-  ));
-  assert.equal(md, "## 標題\n\n你好\n\n- 一\n- 二\n\n1. 甲\n");
+test("headings, paragraphs and lists round-trip", () => {
+  const md = "## 標題\n\n你好\n\n* 一\n* 二\n\n1. 甲\n2. 乙";
+  assert.equal(roundTrip(md), md);
+  assert.equal(roundTrip("- 一\n- 二"), "* 一\n* 二");
 });
 
-test("inline marks wrap runs and escape specials", () => {
-  const md = toMarkdown(doc(para(
-    text("a*b "),
-    text("bold", { Strong: null }),
-    text(" x", { Strong: null, Emphasis: null }),
-  )));
-  assert.equal(md, "a\\*b **bold** ***x***\n");
+test("inline marks, links and escapes", () => {
+  const md = "a\\*b **bold** *it* `code` [site](https://example.com)";
+  assert.equal(roundTrip(md), md);
 });
 
-test("code blocks and quotes", () => {
-  const md = toMarkdown(doc(
-    { type: "Blockquote", content: [para(text("引用"))] },
-    { type: "CodeBlock", content: [text("let x = 1")] },
-  ));
-  assert.equal(md, "> 引用\n\n```\nlet x = 1\n```\n");
+test("quotes and code blocks", () => {
+  const md = "> 引用\n\n```\nlet x = 1\n```";
+  assert.equal(roundTrip(md), md);
+});
+
+test("an empty note parses to one empty paragraph", () => {
+  const doc = parseMarkdown("");
+  assert.equal(doc.childCount, 1);
+  assert.equal(toMarkdown(doc), "");
 });
 
 test("word count treats each Han character as a word", () => {
-  assert.deepEqual(wordCount(doc(para(text("你好 hello world")))), { chars: 2, words: 2, total: 4 });
+  assert.deepEqual(wordCount(parseMarkdown("你好 hello world")), { chars: 2, words: 2, total: 4 });
 });
