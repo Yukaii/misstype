@@ -20,6 +20,11 @@ swift test
 ./script/install_ime.sh
 ```
 
+`install_ime.sh` detects the host architecture and builds only that Zig slice,
+so local installs on Apple Silicon do not spend time compiling the Intel
+target. `script/zig/build_macos.sh` without `MISSTYPE_MACOS_ARCH=native` still
+builds the universal library used by release packaging.
+
 不經 IME 客戶端、直接用打包後的詞庫做解碼診斷（Zig 開發用 CLI）：
 
 ```sh

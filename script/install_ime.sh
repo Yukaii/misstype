@@ -2,7 +2,9 @@
 set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT_DIR"
-./script/build_and_run.sh --build-only
+# A local install only needs the architecture of this Mac. Release builds use
+# the default universal mode from build_macos.sh.
+MISSTYPE_MACOS_ARCH=native ./script/build_and_run.sh --build-only
 DEST="$HOME/Library/Input Methods/MisstypeIME.app"
 mkdir -p "$(dirname "$DEST")"
 # Keep one rollback copy when replacing our own input method.
