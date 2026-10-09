@@ -35,3 +35,12 @@ same list, so there is one place to update. Keys used (standard layout):
 Deployed by `.github/workflows/pages.yml` once Pages is enabled (see the
 workflow header). The download button points at GitHub Releases `latest`,
 which only works for visitors once the repository is public.
+
+## Reuse the decoder
+
+The low-level browser binding is prepared as the `misstype-wasm` npm
+package (not yet published). It loads the same `misstype.wasm` and lexicon assets used here and
+exposes key handling, state, candidate selection, commit, and settings without
+requiring the site's editor or CSS. See
+[`packages/misstype-wasm/README.md`](../packages/misstype-wasm/README.md) for a
+minimal integration.

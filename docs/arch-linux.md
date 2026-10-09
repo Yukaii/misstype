@@ -113,6 +113,31 @@ Check candidate arrows/Tab/click, Backspace repeat, English toggle, cursor
 movement, and focus change mid-composition. Headless tests cannot validate
 the candidate window placement or client-side caret styling.
 
+## Candidate window and vertical rows
+
+Linux uses the candidate window supplied by fcitx5. Misstype gives fcitx5 one
+list of candidates; the desktop panel decides its orientation, where it appears,
+and whether it has a border, shadow, or theme. This is different from the
+macOS Misstype panel, so a vertical list beside the caret is expected.
+
+While the list is visible:
+
+- `Up` and `Down` move the highlighted row.
+- `Tab` and `Shift+Tab` page through the list.
+- The home-row selection keys (by default `a s d f g h j k`) choose the visible
+  rows once selection keys are active; before that, these keys type Zhuyin.
+- Clicking a row selects it when the application supports fcitx5 candidate
+  clicks. `Return` confirms according to the current fcitx5/Misstype settings;
+  a second `Return` commits the completed composition.
+- `Escape` leaves candidate selection and keeps the current preedit.
+
+If candidates do not appear, confirm that **Misstype** is the active input
+method rather than `keyboard-us`, restart fcitx5, and check that the desktop
+environment is loading the fcitx5 frontend (`QT_IM_MODULE=fcitx` and
+`XMODIFIERS=@im=fcitx`). A panel that appears in the wrong place or uses a
+horizontal layout is controlled by the desktop's fcitx5 UI; it does not change
+decoding or candidate order.
+
 ## Remove cleanly
 
 First remove Misstype from the list in `fcitx5-configtool`, switch to another

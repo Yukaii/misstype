@@ -58,6 +58,12 @@ The coordinator exposes `ingest`, `preview`, `maybe_commit`, and `commit`, plus 
 
 The prototype UI shows the live trace, optional preview, committed text, and decoder status. A future IME adapter can consume committed text without changing the core pipeline.
 
+The `packages/misstype-wasm` ESM binding exposes the existing WASM key/state
+contract to browser integrations. Each loaded module owns one engine/session;
+the host supplies WASM and lexicon asset URLs, draws candidates and preedit,
+passes through unconsumed keys, and drains committed text with
+`takeCommitted()`. The package adds no decoding rules or persistent storage.
+
 ### Platform boundary: InputSession
 
 Every editing rule of the IME lives in the Zig core (`core-zig/src/session.zig`), so each platform adapter is only I/O (decision 2026-09-28, ahead of a Linux fcitx5/IBus frontend; before this the rules lived in the IMK controller keyed on macOS key codes):

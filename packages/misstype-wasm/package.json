@@ -1,0 +1,24 @@
+{
+  "name": "misstype-wasm",
+  "version": "0.1.0",
+  "description": "Browser WebAssembly bindings for the Misstype Zhuyin input engine",
+  "type": "module",
+  "main": "./src/index.js",
+  "module": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": ["bopomofo", "zhuyin", "ime", "wasm", "input-method"],
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "@bjorn3/browser_wasi_shim": "^0.4.2"
+  }
+}

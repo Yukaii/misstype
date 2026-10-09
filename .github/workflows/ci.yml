@@ -96,6 +96,12 @@ jobs:
           mkdir -p site/public
           cp core-zig/zig-out/wasm/misstype.wasm site/public/
           node tests/wasm_test.mjs
+      - name: Test npm browser bindings
+        working-directory: packages/misstype-wasm
+        run: |
+          npm ci --ignore-scripts
+          npm test
+          npm pack --dry-run
 
   # The Linux dev image (fcitx5 + GTK build tools) is published to GHCR keyed by the
   # Dockerfile hash, so it builds only when linux/Dockerfile changes and every
