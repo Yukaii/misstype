@@ -23,7 +23,13 @@ cp .cache/mcbopomofo/lexicon.tsv .cache/mcbopomofo/toneless.tsv \
 # Debug catches overflow and bounds errors that ReleaseFast would hide. The
 # ReleaseFast CI leg already has the same optimized tests in zig-core; skipping
 # them here avoids paying for a second test build before replay.
-if [ "${MISSTYPE_REPLAY_SKIP_TESTS:-0}" = 1 ]; then
+if [ "${MISSTYPE_REPLAY_SKIP_BUILD:-0}" = 1 ]; then
+    test -x core-zig/zig-out/bin/replay || {
+        echo "replay: cannot reuse missing core-zig/zig-out/bin/replay" >&2
+        exit 2
+    }
+    echo "replay: reusing existing zig replay build" >&2
+elif [ "${MISSTYPE_REPLAY_SKIP_TESTS:-0}" = 1 ]; then
     (cd core-zig && ../script/ci/time.sh zig-replay-build "$zig" build -Doptimize="${MISSTYPE_ZIG_OPTIMIZE:-Debug}")
 else
     (cd core-zig && ../script/ci/time.sh zig-tests "$zig" build test && \
