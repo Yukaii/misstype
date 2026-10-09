@@ -162,3 +162,8 @@ dialog.sheet.wide { width: min(640px, calc(100vw - 24px)); }
 .dict-actions #dict-count { margin-right: auto; color: var(--muted); font-size: 13px; }
 .tool:disabled { opacity: .45; cursor: default; transform: none; }
 .hint:empty { display: none; }
+
+.status-link { font: inherit; font-size: 13px; padding: 0; border: 0; background: none; color: var(--muted); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.status-link:hover { color: var(--ink); }
+#about p { margin: 0; font-size: 15px; line-height: 1.7; }
+#about a { color: var(--mark); }

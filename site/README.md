@@ -45,6 +45,12 @@ cannot host a custom IME (iPad with a hardware keyboard). See
 `dist/editor/sw.js` and `manifest.webmanifest` (plugin in `vite.config.js`);
 `node ../tests/editor_markdown_test.mjs` checks the Markdown serializer.
 
+## Enable the IME on other sites
+
+`npm run build` also writes `dist/embed.js`, a one-file script that turns the
+decoder on for every text field of the page that loads it
+(`vite.embed.config.js`; see [`docs/embed.md`](../docs/embed.md)).
+
 ## Reuse the decoder
 
 The low-level browser binding is prepared as the `misstype-wasm` npm

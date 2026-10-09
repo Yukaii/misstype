@@ -305,6 +305,7 @@ const commands = [
   { id: "import", title: "匯入 Markdown 檔", keywords: "import open file 開啟", combo: "Mod-o", chord: chord("Mod-o"), run: importFile },
   { id: "mode", title: "切換中／英", keywords: "english chinese mode 中英", combo: "Mod-Shift-e", chord: chord("Mod-Shift-e") + " · 輕按 Shift", run: toggleMode },
   { id: "dictionary", title: "我的詞庫", keywords: "dictionary words phrases user 詞庫 詞彙", combo: "Mod-Shift-d", chord: chord("Mod-Shift-d"), run: () => dictionary.open() },
+  { id: "about", title: "關於", keywords: "about info help 說明 介紹", run: () => openAbout() },
   { id: "settings", title: "設定", keywords: "settings options preferences 選項", combo: "Mod-,", chord: chord("Mod-,"), run: () => openSettings() },
   { id: "layout", title: "候選窗：直式／橫式", keywords: "candidate layout vertical horizontal",
     run: () => setSetting("candidateLayout", settings.candidateLayout === "vertical" ? "horizontal" : "vertical") },
@@ -328,7 +329,7 @@ const palette = new Palette(() => commands);
 palette.onClose = () => view.focus();
 
 document.addEventListener("keydown", (e) => {
-  if (palette.isOpen || settingsDialog.open || dictionary.isOpen || e.isComposing) return;
+  if (palette.isOpen || settingsDialog.open || aboutDialog.open || dictionary.isOpen || e.isComposing) return;
   const command = commands.find((c) => c.combo && matches(e, c.combo))
     || (e.key === "F1" && commands[0]);
   if (!command) return;
@@ -364,6 +365,15 @@ toolbar.addEventListener("click", (e) => {
   if (button.dataset.action) runAction(button.dataset.action);
   else commands.find((c) => c.id === button.dataset.command)?.run();
 });
+
+// ------------------------------------------------------------------- about
+
+const aboutDialog = $("#about");
+const openAbout = () => aboutDialog.showModal();
+aboutDialog.addEventListener("close", () => view.focus());
+aboutDialog.addEventListener("pointerdown", (e) => { if (e.target === aboutDialog) aboutDialog.close(); });
+aboutDialog.querySelector("[data-close]").addEventListener("click", () => aboutDialog.close());
+$("#about-btn").addEventListener("click", () => { flush(); openAbout(); });
 
 // ---------------------------------------------------------------- settings
 

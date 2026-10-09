@@ -77,6 +77,12 @@ those bars instead of the body, and scrolls the window rather than an inner
 box; `keepCaretClear` sets ProseMirror's scroll margins from the bar heights.
 Checked only with Chromium's iPad emulation (no safe-area insets there).
 
+## About
+
+An About dialog (status strip, or the palette) says what the page is for: the same
+IME inside a web page, for devices that cannot install a custom one, with links to
+the native macOS and Linux versions and the privacy note.
+
 ## Known limits
 
 - In Chinese mode the decoder owns `-`, `#`, `*`, backtick and digits, so

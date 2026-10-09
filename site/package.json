@@ -6,7 +6,7 @@
     "predev": "node ../script/prepare_site_notices.mjs",
     "dev": "vite",
     "prebuild": "node ../script/prepare_site_notices.mjs",
-    "build": "vite build",
+    "build": "vite build && vite build -c vite.embed.config.js",
     "preview": "vite preview",
     "build:wasm": "cd .. && script/build_site_assets.sh",
     "test:wasm": "node ../tests/wasm_test.mjs"
