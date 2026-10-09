@@ -1,5 +1,6 @@
 import Cocoa
-import MisstypeCore
+import MisstypeMacKit
+import MisstypeZigBridge
 import SwiftUI
 
 /// Settings window: sidebar of panes, grouped forms on the right. Controls
@@ -659,8 +660,8 @@ private struct DecodingPane: View {
 private struct LearningPane: View {
     @AppStorage("MisstypeUserLearning") private var learning = true
     @AppStorage("MisstypeChannelLearning") private var channel = false
-    @State private var count = Runtime.engine.userLexicon.count
-    @State private var slips = Runtime.engine.channelLearner.learnedPairs
+    @State private var count = Runtime.zigEngine.learnedPhraseCount
+    @State private var slips = Runtime.zigEngine.channelPairs
     @State private var confirmClear = false
     @State private var confirmClearSlips = false
 
@@ -672,16 +673,16 @@ private struct LearningPane: View {
                     detail: L("Remembers candidates you choose on purpose (Tab, arrows, selection keys, click) and ranks them higher next time. Stored only on this Mac."),
                     isOn: $learning)
                     .onChange(of: learning) { isOn in
-                        if isOn { Runtime.engine.userLexicon = UserLexicon.load() }
-                        count = Runtime.engine.userLexicon.count
+                        if isOn { Runtime.zigEngine.reloadLearnedPhrases() }
+                        count = Runtime.zigEngine.learnedPhraseCount
                     }
             }
             Section(L("Learned phrases")) {
                 LabeledContent(L("Entries"), value: "\(count)")
                 HStack {
                     Button(L("Show in Finder")) {
-                        Runtime.engine.userLexicon.save() // flush before revealing
-                        NSWorkspace.shared.activateFileViewerSelecting([UserLexicon.defaultURL])
+                        Runtime.zigEngine.saveLearnedPhrases() // flush before revealing
+                        NSWorkspace.shared.activateFileViewerSelecting([UserFiles.learnedPhrases])
                     }
                     Button(L("Clear…"), role: .destructive) { confirmClear = true }
                         .disabled(count == 0)
@@ -712,13 +713,12 @@ private struct LearningPane: View {
             }
         }
         .onAppear {
-            count = Runtime.engine.userLexicon.count
-            slips = Runtime.engine.channelLearner.learnedPairs
+            count = Runtime.zigEngine.learnedPhraseCount
+            slips = Runtime.zigEngine.channelPairs
         }
         .alert(L("Clear all learned phrases?"), isPresented: $confirmClear) {
             Button(L("Clear"), role: .destructive) {
-                Runtime.engine.userLexicon = UserLexicon()
-                Runtime.engine.userLexicon.save()
+                Runtime.zigEngine.clearLearnedPhrases()
                 count = 0
             }
             Button(L("Cancel"), role: .cancel) {}
@@ -727,7 +727,7 @@ private struct LearningPane: View {
         }
         .alert(L("Clear all learned typing slips?"), isPresented: $confirmClearSlips) {
             Button(L("Clear"), role: .destructive) {
-                Runtime.engine.clearChannel()
+                Runtime.zigEngine.clearChannel()
                 slips = []
             }
             Button(L("Cancel"), role: .cancel) {}
@@ -749,8 +749,8 @@ private struct DictionaryPane: View {
     @State private var loaded = false
     @State private var importNote: String?
 
-    private var parsed: (dictionary: UserDictionary, problems: [UserDictionary.Problem]) {
-        UserDictionary.parse(text)
+    private var parsed: ZigEngine.DictionaryCheck {
+        ZigEngine.checkUserDictionary(text)
     }
 
     var body: some View {
@@ -794,13 +794,13 @@ private struct DictionaryPane: View {
                     }
                 }
                 HStack {
-                    Text(L("%d words, %d hidden", result.dictionary.added.count, result.dictionary.excluded.count))
+                    Text(L("%d words, %d hidden", result.added, result.hidden))
                         .font(.caption).foregroundStyle(.secondary)
                     Spacer()
                     Button(L("Import…")) { importFile() }
                     Button(L("Show in Finder")) {
-                        if !FileManager.default.fileExists(atPath: UserDictionary.defaultURL.path) { save() }
-                        NSWorkspace.shared.activateFileViewerSelecting([UserDictionary.defaultURL])
+                        if !FileManager.default.fileExists(atPath: UserFiles.userDictionary.path) { save() }
+                        NSWorkspace.shared.activateFileViewerSelecting([UserFiles.userDictionary])
                     }
                     Button(L("Revert")) { load() }.disabled(text == saved)
                     Button(L("Save")) { save() }
@@ -813,8 +813,7 @@ private struct DictionaryPane: View {
     }
 
     private func load() {
-        let url = UserDictionary.defaultURL
-        text = (try? String(contentsOf: url, encoding: .utf8)) ?? Runtime.engine.userDictionary.serialized()
+        text = (try? String(contentsOf: UserFiles.userDictionary, encoding: .utf8)) ?? Runtime.zigEngine.userDictionaryText
         saved = text
         loaded = true
     }
@@ -829,15 +828,15 @@ private struct DictionaryPane: View {
             importNote = L("Could not read %@ as UTF-8 text.", url.lastPathComponent)
             return
         }
-        let result = UserDictionary.importing(source, into: text)
+        let result = ZigEngine.importUserDictionary(source, into: text)
         text = result.text
         importNote = L("Imported %d words (%d already there, %d lines skipped). Press Save to apply.",
-                       result.added, result.duplicates, result.problems.count)
+                       result.added, result.duplicates, result.skipped)
     }
 
     private func save() {
-        guard UserDictionary.write(text: text, to: UserDictionary.defaultURL) else { NSSound.beep(); return }
-        Runtime.engine.setUserDictionary(UserDictionary.parse(text).dictionary, persist: false)
+        guard UserFiles.write(text, to: UserFiles.userDictionary) else { NSSound.beep(); return }
+        Runtime.zigEngine.reloadUserDictionary()
         saved = text
         importNote = nil
     }

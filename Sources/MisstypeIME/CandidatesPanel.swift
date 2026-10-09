@@ -1,5 +1,5 @@
 import Cocoa
-import MisstypeCore
+import MisstypeMacKit
 
 /// Own candidate window: single source of truth for the highlight.
 /// IMKCandidates could display but never moved its highlight programmatically
@@ -143,8 +143,8 @@ final class CandidatesPanel: NSPanel {
         switch mark.action {
         case .add: return L("⏎ add “%@”  %@", mark.text, mark.reading)
         case .remove: return L("⏎ remove “%@”  %@", mark.text, mark.reading)
-        case .tooShort: return L("Mark %d–%d syllables", UserDictionary.minSyllables, UserDictionary.maxSyllables)
-        case .tooLong: return L("Mark %d–%d syllables", UserDictionary.minSyllables, UserDictionary.maxSyllables)
+        case .tooShort: return L("Mark %d–%d syllables", 2, 8)
+        case .tooLong: return L("Mark %d–%d syllables", 2, 8)
         case .unavailable: return L("Can't add this selection")
         }
     }

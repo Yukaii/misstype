@@ -43,9 +43,14 @@ products += [
     .executable(name: "MisstypeZigSmoke", targets: ["MisstypeZigSmoke"]),
 ]
 targets += [
+    // UI-side types of the IME (key events, view model, preferences model,
+    // key-binding editor); the Zig core owns every editing rule.
+    .target(name: "MisstypeMacKit"),
+    .testTarget(name: "MisstypeMacKitTests", dependencies: ["MisstypeMacKit"],
+                path: "tests/MisstypeMacKitTests"),
     .executableTarget(
         name: "MisstypeIME",
-        dependencies: ["MisstypeCore", "MisstypeZigBridge", .product(name: "Sparkle", package: "Sparkle")],
+        dependencies: ["MisstypeMacKit", "MisstypeZigBridge", .product(name: "Sparkle", package: "Sparkle")],
         // The packaged bundle carries Sparkle.framework in Contents/Frameworks.
         linkerSettings: [.unsafeFlags(["\(zigLibraryDir)/libMisstypeCAPI.dylib",
                                        "-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"])]),
