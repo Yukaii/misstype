@@ -219,7 +219,7 @@ pub const ten_ni = [_][]const u8{ "你", "妳", "尼", "泥", "擬", "逆", "匿
 
 const keyboard = @import("../keyboard.zig");
 const composition_mod = @import("../composition.zig");
-const Candidate = candidate_mod.Candidate;
+pub const Candidate = candidate_mod.Candidate;
 pub const Composition = composition_mod.Composition;
 pub const Syllable = keyboard.Syllable;
 pub const Lexicon = lexicon_mod.Lexicon;
@@ -334,4 +334,13 @@ pub fn expectTop(c: []const Candidate, text: []const u8) !void {
 pub fn containsText(c: []const Candidate, text: []const u8) bool {
     for (c) |x| if (std.mem.eql(u8, x.text, text)) return true;
     return false;
+}
+
+const english_mod = @import("../english.zig");
+pub const EnglishLexicon = english_mod.EnglishLexicon;
+
+/// Reads a repo file relative to `core-zig/` (where `zig build test` runs).
+pub fn readRepoFile(a: Allocator, path: []const u8) ![]u8 {
+    var threaded: Io.Threaded = .init_single_threaded;
+    return Io.Dir.cwd().readFileAlloc(threaded.io(), path, a, .unlimited);
 }

@@ -28,4 +28,7 @@ test {
     _ = @import("tests/latin_digit_test.zig");
     _ = @import("tests/bindings_test.zig");
     _ = @import("tests/keymap_test.zig");
+    _ = @import("tests/mixed_test.zig");
+    _ = @import("tests/repair_test.zig");
+    _ = @import("tests/touch_test.zig");
 }
