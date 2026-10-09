@@ -48,7 +48,9 @@ targets += [
             .unsafeFlags(["\(zigLibraryDir)/libMisstypeCAPI.dylib",
                           "-Xlinker", "-rpath", "-Xlinker", "@loader_path/../../zig"])
         ]),
-    .executableTarget(name: "MisstypeZigSmoke", dependencies: ["MisstypeZigBridge"]),
+    .executableTarget(
+        name: "MisstypeZigSmoke", dependencies: ["MisstypeZigBridge"],
+        linkerSettings: [.unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", zigLibraryDir])]),
 ]
 #endif
 

@@ -18,10 +18,12 @@ if [ "$update" = 1 ]; then
     echo "UPDATED tests/golden/parity.tsv.gz: $(wc -l < build/parity/zig.tsv) records"
     exit 0
 fi
-if diff -u <(gzip -dc tests/golden/parity.tsv.gz) build/parity/zig.tsv > build/parity/diff.txt; then
+# Touch distances (H records) may differ in the last bits across libm builds.
+gzip -dc tests/golden/parity.tsv.gz > build/parity/golden.tsv
+if python3 tools/parity_diff.py build/parity/golden.tsv build/parity/zig.tsv > build/parity/diff.txt; then
     grep "^parity:" build/parity/zig.log || true
     python3 tools/zig_quality.py build/parity/cases.jsonl build/parity/zig.tsv
-    echo "MATCH: $(wc -l < build/parity/zig.tsv) full candidate/touch/Unicode records identical to tests/golden/parity.tsv.gz"
+    echo "MATCH: $(wc -l < build/parity/zig.tsv) full candidate/touch/Unicode records match tests/golden/parity.tsv.gz"
 else
     head -80 build/parity/diff.txt
     echo "MISMATCH: full diff in build/parity/diff.txt (--update only for an intended change)" >&2
