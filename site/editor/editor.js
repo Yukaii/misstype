@@ -26,12 +26,14 @@ const $ = (sel) => document.querySelector(sel);
 const settings = loadSettings();
 const app = $(".pg");
 const toastEl = $("#toast");
-const modeBtn = $("#mode-btn");
+const modeLabel = $("#mode-label");
+const modeFlash = $("#mode-flash");
 const countEl = $("#count");
 
 let ime = null;
 let imeState = null;
 let nativeImeKeys = 0;
+let shownEnglish = null;
 
 // ---------------------------------------------------------------- document
 
@@ -135,13 +137,26 @@ function sync() {
   dictionary.persistIfChanged(ime);
   panel.render(imeState, caretRect());
   const english = imeState.english;
-  modeBtn.textContent = english ? "英" : "中";
-  modeBtn.classList.toggle("english", english || imeState.latinActive);
+  modeLabel.textContent = english ? "英" : "中";
+  if (shownEnglish !== null && english !== shownEnglish) flashMode(english);
+  shownEnglish = english;
 }
 
 /** Settles an unfinished composition so the editor can act on real text. */
 function flush() {
   if (ime && imeState?.preedit && ime.commit()) sync();
+}
+
+/** Like the desktop IMEs: a small 中 / 英 appears beside the cursor when the mode changes. */
+function flashMode(english) {
+  const rect = caretRect();
+  modeFlash.textContent = english ? "英" : "中";
+  modeFlash.classList.toggle("english", english);
+  modeFlash.style.left = `${Math.round(rect.left + 6)}px`;
+  modeFlash.style.top = `${Math.round(rect.top - 26)}px`;
+  modeFlash.classList.remove("show");
+  void modeFlash.offsetWidth; // restart the fade
+  modeFlash.classList.add("show");
 }
 
 function keyDown(e) {
@@ -408,7 +423,6 @@ $("#editor").addEventListener("mousedown", (e) => {
   view.focus();
 });
 
-modeBtn.addEventListener("click", toggleMode);
 for (const el of document.querySelectorAll("[data-command]")) {
   const command = commands.find((c) => c.id === el.dataset.command);
   if (command?.chord) el.title = `${el.getAttribute("aria-label") || el.textContent.trim()} (${command.chord})`;
@@ -417,7 +431,7 @@ for (const el of document.querySelectorAll("[data-command]")) {
 $(".bar").addEventListener("pointerdown", (e) => { if (e.target.closest("button")) e.preventDefault(); });
 $(".bar").addEventListener("click", (e) => {
   const button = e.target.closest("[data-command]");
-  if (!button || button.id === "mode-btn") return;
+  if (!button) return;
   flush();
   commands.find((c) => c.id === button.dataset.command)?.run();
 });

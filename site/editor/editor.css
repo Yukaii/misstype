@@ -30,8 +30,21 @@ body.app { display: flex; flex-direction: column; min-height: 100vh; min-height:
 .tool.english { background: #e8ecf4; color: #1a4f8b; border-color: #cad6ea; }
 :root[data-scheme="dark"] .tool.english { background: #1d2a40; color: #8fb8f0; border-color: #2f4468; }
 .tool.primary { background: var(--ink); color: var(--paper); border-color: var(--ink); }
-#mode-btn { min-width: 40px; font-weight: 600; }
-#mode-btn:disabled, body:not(.ime-ready) #mode-btn { opacity: .5; }
+.tool.icon { display: inline-grid; place-items: center; width: 34px; padding: 0; }
+.tool.icon svg, .bar .theme-toggle svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+#mode-label { font-weight: 600; }
+body:not(.ime-ready) #mode-label { opacity: .5; }
+
+/* 中 / 英 flashes beside the cursor when the mode changes. */
+#mode-flash {
+  position: fixed; z-index: 1500; pointer-events: none; opacity: 0;
+  padding: 1px 8px; border-radius: 6px; font-size: 15px; font-weight: 600; line-height: 1.5;
+  background: var(--ink); color: var(--paper);
+}
+#mode-flash.english { background: #1a4f8b; color: #fff; }
+#mode-flash.show { animation: mode-flash 1.3s ease-out forwards; }
+@keyframes mode-flash { 0%, 70% { opacity: .95; transform: translateY(0); } 100% { opacity: 0; transform: translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) { #mode-flash.show { animation: mode-flash-rm 1.3s forwards; } @keyframes mode-flash-rm { 0%, 80% { opacity: .95; } 100% { opacity: 0; } } }
 
 main.pg { flex: 1; display: flex; flex-direction: column; }
 #editor { flex: 1; }
@@ -124,9 +137,11 @@ dialog.sheet select { font: inherit; font-size: 14px; padding: 4px 8px; border: 
 dialog.sheet .hint { margin: 0; color: var(--muted); font-size: 13px; }
 
 @media (max-width: 640px) {
-  .bar { padding: 6px 10px; }
+  .bar { padding-left: max(10px, env(safe-area-inset-left)); padding-right: max(10px, env(safe-area-inset-right)); }
   .bar .brand small { display: none; }
+  .bar-actions { flex-wrap: nowrap; gap: 6px; }
   .tool { padding: 6px 9px; }
+  .tool.icon { width: 32px; min-height: 32px; padding: 0; }
 }
 
 /* Phrase marked with Shift+←/→ for the user dictionary. */

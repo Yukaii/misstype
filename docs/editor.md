@@ -65,7 +65,7 @@ Nothing typed is sent anywhere.
 Command palette: `Mod-Shift-P` (or F1, or the 指令 button). Also
 `Mod-Shift-C` copy Markdown, `Mod-Shift-X` copy plain text, `Mod-Shift-K` clear
 (undoable), `Mod-S` download `.md`, `Mod-Shift-E` toggle 中/英 (a Shift tap
-too), `Mod-,` settings. `Ctrl-J/K` stay with the decoder.
+too), `Mod-,` settings. The 中/英 mode flashes beside the cursor when it changes (as on desktop) and is shown in the status strip; there is no header button for it. `Ctrl-J/K` stay with the decoder.
 
 ## iOS 26 Safari chrome
 
