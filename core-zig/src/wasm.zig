@@ -276,3 +276,77 @@ export fn misstype_wasm_get_state_json() ?[*:0]const u8 {
     state_json.append(gpa, 0) catch return null;
     return @ptrCast(state_json.items.ptr);
 }
+
+// MARK: - User dictionary
+//
+// The same file the desktop IMEs keep (`user_dictionary.tsv`, vChewing user
+// data: `text reading [weight]`, `!text reading` hides a built-in word). The
+// module has no storage of its own: the host loads the text at start, saves it
+// when `user_dictionary_count` changes (a phrase marked with Shift+←/→ and
+// filed with Return changes it) and applies edits with `set_user_dictionary`.
+
+/// Alive until the next dictionary call.
+var dictionary_reply: std.ArrayList(u8) = .empty;
+
+fn dictionaryReply() ?[*:0]const u8 {
+    dictionary_reply.append(gpa, 0) catch return null;
+    return @ptrCast(dictionary_reply.items.ptr);
+}
+
+/// Canonical text of the current dictionary.
+export fn misstype_wasm_user_dictionary_text() ?[*:0]const u8 {
+    dictionary_reply.clearRetainingCapacity();
+    if (engine) |e| {
+        const text = e.user_dictionary.serialized(gpa) catch return null;
+        defer gpa.free(text);
+        dictionary_reply.appendSlice(gpa, text) catch return null;
+    }
+    return dictionaryReply();
+}
+
+/// Added plus hidden words; changes whenever a phrase is filed or removed.
+export fn misstype_wasm_user_dictionary_count() i32 {
+    const e = engine orelse return 0;
+    return @intCast(e.user_dictionary.added.items.len + e.user_dictionary.excluded.items.len);
+}
+
+/// Replaces the dictionary with the parsed text (bad lines are skipped, as in
+/// `check`). Returns 1 on success.
+export fn misstype_wasm_set_user_dictionary(text_ptr: [*]const u8, text_len: usize) i32 {
+    const e = engine orelse return 0;
+    const dictionary = core.user_dictionary.UserDictionary.parse(gpa, bytes(text_ptr, text_len), null) catch return 0;
+    e.setUserDictionary(dictionary, false) catch return 0;
+    return 1;
+}
+
+/// `{"added":n,"hidden":n,"problems":[{"line":n,"message":"…"}]}` for editor text.
+export fn misstype_wasm_check_user_dictionary(text_ptr: [*]const u8, text_len: usize) ?[*:0]const u8 {
+    var arena: std.heap.ArenaAllocator = .init(gpa);
+    defer arena.deinit();
+    const a = arena.allocator();
+    var problems: std.ArrayList(core.user_dictionary.Problem) = .empty;
+    const dictionary = core.user_dictionary.UserDictionary.parse(a, bytes(text_ptr, text_len), &problems) catch return null;
+    dictionary_reply.clearRetainingCapacity();
+    dictionary_reply.print(gpa, "{{\"added\":{d},\"hidden\":{d},\"problems\":[", .{ dictionary.added.items.len, dictionary.excluded.items.len }) catch return null;
+    for (problems.items, 0..) |p, i| {
+        if (i > 0) dictionary_reply.append(gpa, ',') catch return null;
+        dictionary_reply.print(gpa, "{{\"line\":{d},\"message\":", .{p.line}) catch return null;
+        jsonString(&dictionary_reply, p.message) catch return null;
+        dictionary_reply.append(gpa, '}') catch return null;
+    }
+    dictionary_reply.appendSlice(gpa, "]}") catch return null;
+    return dictionaryReply();
+}
+
+/// Merges `source` (vChewing user data) into the editor text:
+/// `{"text":"…","added":n,"duplicates":n,"skipped":n}`. Nothing is applied.
+export fn misstype_wasm_import_user_dictionary(source_ptr: [*]const u8, source_len: usize, text_ptr: [*]const u8, text_len: usize) ?[*:0]const u8 {
+    var arena: std.heap.ArenaAllocator = .init(gpa);
+    defer arena.deinit();
+    const result = core.user_dictionary.importing(arena.allocator(), bytes(source_ptr, source_len), bytes(text_ptr, text_len)) catch return null;
+    dictionary_reply.clearRetainingCapacity();
+    dictionary_reply.appendSlice(gpa, "{\"text\":") catch return null;
+    jsonString(&dictionary_reply, result.text) catch return null;
+    dictionary_reply.print(gpa, ",\"added\":{d},\"duplicates\":{d},\"skipped\":{d}}}", .{ result.added, result.duplicates, result.skipped }) catch return null;
+    return dictionaryReply();
+}

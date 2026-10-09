@@ -128,3 +128,22 @@ dialog.sheet .hint { margin: 0; color: var(--muted); font-size: 13px; }
   .bar .brand small { display: none; }
   .tool { padding: 6px 9px; }
 }
+
+/* Phrase marked with Shift+←/→ for the user dictionary. */
+.pg-marked { background: var(--mark-bg); border-radius: 3px; }
+.pg-mark-hint { margin-left: 8px; font-size: .62em; color: var(--mark); white-space: nowrap; user-select: none; }
+
+/* My Dictionary dialog */
+dialog.sheet.wide { width: min(640px, calc(100vw - 24px)); }
+#dict-text {
+  width: 100%; box-sizing: border-box; height: 280px; resize: vertical; padding: 10px 12px;
+  font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; tab-size: 4;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink);
+}
+.problems { margin: 0; padding-left: 1.2em; color: #d33; font-size: 13px; }
+:root[data-scheme="dark"] .problems { color: #ff8a80; }
+.problems:empty { display: none; }
+.dict-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
+.dict-actions #dict-count { margin-right: auto; color: var(--muted); font-size: 13px; }
+.tool:disabled { opacity: .45; cursor: default; transform: none; }
+.hint:empty { display: none; }

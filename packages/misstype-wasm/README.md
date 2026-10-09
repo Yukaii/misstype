@@ -44,6 +44,13 @@ are `autoShowCandidates`, `returnConfirmsSelection`, `shiftToggle` (booleans)
 and `pageSize` (4–10). Loading an English lexicon does not enable automatic
 mixed-English recognition in the current WASM API.
 
+User dictionary (the desktop IMEs' `user_dictionary.tsv`, vChewing user data):
+`userDictionaryText()`, `userDictionaryCount()`, `setUserDictionary(text)`,
+`checkUserDictionary(text)` and `importUserDictionary(source, text)`. The module
+keeps no files: save `userDictionaryText()` whenever `userDictionaryCount()`
+changes (a phrase filed with Shift+←/→ and Return) and call
+`setUserDictionary` with it at start.
+
 To validate from the repository root:
 
 ```sh

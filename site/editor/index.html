@@ -78,6 +78,7 @@
       <label class="check"><input type="checkbox" data-setting="shiftToggle"> 輕按 Shift 切換中／英</label>
       <label class="check"><input type="checkbox" data-setting="returnConfirmsSelection"> Enter 確認選取的候選字</label>
       <label class="check"><input type="checkbox" data-setting="autoShowCandidates"> 自動顯示候選窗</label>
+      <label>我的詞庫 <button class="tool" type="button" data-open-dictionary>編輯詞庫⋯</button></label>
     </fieldset>
     <fieldset>
       <legend>外觀</legend>
@@ -99,6 +100,26 @@
     </fieldset>
     <p class="hint">設定只存在這個瀏覽器裡。輸入的內容不會傳到任何伺服器。</p>
     <button class="tool primary" type="button" data-close>完成</button>
+  </form>
+</dialog>
+
+<dialog id="dictionary" class="sheet wide" aria-labelledby="dict-title">
+  <form method="dialog" onsubmit="return false">
+    <h2 id="dict-title">我的詞庫</h2>
+    <p class="hint">打字時按 Shift+←／→ 標記一段文字，再按 Enter 加進詞庫；對同一段再按一次 Enter 就移除。</p>
+    <p class="hint">匯入支援 vChewing 使用者資料（.txt，UTF-8）。純詞彙表可用 <a href="https://vu.gh.miniasp.com/" target="_blank" rel="noopener">vChewing 使用者資料產生器</a>（第三方工具，由保哥提供，MIT 授權，與隨打注音無關；在瀏覽器中執行，不會上傳）。</p>
+    <textarea id="dict-text" spellcheck="false" autocapitalize="off" autocomplete="off" wrap="off" rows="12" aria-label="詞庫內容"></textarea>
+    <p class="hint">每行一個詞：詞語、空格、以連字號相連的注音（vChewing 使用者資料格式）。行首加 ! 可隱藏內建詞。# 開頭是註解。</p>
+    <p class="hint" id="dict-note" role="status"></p>
+    <ul class="problems" id="dict-problems"></ul>
+    <div class="dict-actions">
+      <span id="dict-count"></span>
+      <button class="tool" type="button" data-dict="import">匯入⋯</button>
+      <button class="tool" type="button" data-dict="export">匯出</button>
+      <button class="tool" type="button" data-dict="revert">還原</button>
+      <button class="tool primary" type="button" data-dict="save">儲存</button>
+      <button class="tool" type="button" data-close>關閉</button>
+    </div>
   </form>
 </dialog>
 

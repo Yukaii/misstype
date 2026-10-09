@@ -110,6 +110,35 @@ export class MisstypeWasm {
     return this._withString(name, (ptr, len) => this.exports.misstype_wasm_set_setting(ptr, len, Number(value)));
   }
 
+  // User dictionary: the desktop IMEs' `user_dictionary.tsv` (vChewing user
+  // data, `text reading [weight]`; `!text reading` hides a built-in word). The
+  // module keeps no files: persist `userDictionaryText()` when
+  // `userDictionaryCount()` changes (a phrase filed with Shift+←/→ and Return).
+
+  userDictionaryText() {
+    return this._read(this.exports.misstype_wasm_user_dictionary_text());
+  }
+
+  userDictionaryCount() {
+    return this.exports.misstype_wasm_user_dictionary_count();
+  }
+
+  /** Replaces the dictionary with `text`; unparseable lines are skipped. */
+  setUserDictionary(text) {
+    return this._withString(text, (ptr, len) => this.exports.misstype_wasm_set_user_dictionary(ptr, len)) === 1;
+  }
+
+  /** `{ added, hidden, problems: [{ line, message }] }` for editor text. */
+  checkUserDictionary(text) {
+    return JSON.parse(this._read(this._withString(text, (ptr, len) => this.exports.misstype_wasm_check_user_dictionary(ptr, len))));
+  }
+
+  /** Merges `source` into the editor `text`: `{ text, added, duplicates, skipped }`. Applies nothing. */
+  importUserDictionary(source, text) {
+    return JSON.parse(this._read(this._withString(source, (sp, sl) =>
+      this._withString(text, (tp, tl) => this.exports.misstype_wasm_import_user_dictionary(sp, sl, tp, tl)))));
+  }
+
   takeCommitted() {
     const state = this.state();
     const text = state.lastCommit || "";

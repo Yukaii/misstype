@@ -36,6 +36,22 @@ iPad emulation, not a real device).
   auto-show candidates (all passed to the wasm session), candidate layout and
   palette, font size, column width.
 
+## My Dictionary
+
+The same file format and pane as the desktop apps (`user_dictionary.tsv`:
+`text reading [weight]`, `!text reading` hides a built-in word): a plain-text
+editor with live validation (line-numbered problems, word and hidden counts),
+Import (merges vChewing user data into the box), Export, Revert and Save.
+Open it from the palette (`Mod-Shift-D`) or Settings. The wasm module has no
+files, so `misstype-wasm` gained `userDictionaryText/Count`, `setUserDictionary`,
+`checkUserDictionary` and `importUserDictionary` (core: `wasm.zig`, tested in
+`packages/misstype-wasm/test`); `dictionary.js` keeps the text in
+`localStorage` and re-applies it at start. Marking a phrase with Shift+←/→
+highlights it in the pre-edit with an Enter hint, and Return files it; the
+editor notices the count change and saves the canonical text (which drops
+comments, as on desktop). Opening Settings focuses the candidates-per-page
+select and drops its list down.
+
 ## Offline
 
 `vite.config.js` (`editorPwa`) emits `editor/sw.js` with the list of built files
