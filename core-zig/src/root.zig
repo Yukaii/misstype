@@ -21,4 +21,6 @@ pub const Syllable = keyboard.Syllable;
 
 test {
     @import("std").testing.refAllDecls(@This());
+    // Behavior suites ported from the Swift MisstypeCoreTests.
+    _ = @import("tests/session_test.zig");
 }
