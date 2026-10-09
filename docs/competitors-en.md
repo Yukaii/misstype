@@ -169,7 +169,7 @@ For an algorithmic and architectural breakdown across composition and decoding e
   differentiator. Our `MixedDecode` also recovers one-letter English typos,
   which none of them advertise. Ari's rule (a complete toned syllable is
   the only trigger) is simpler and deterministic; ours is a scored decision
-  and costs ~110–130 ms per keystroke on toneless mixed input. Ari is the
+  and costs ~4.5 ms mean / 21 ms worst per keystroke on toneless mixed input (Zig core, ReleaseFast; the Swift implementation took ~110–130 ms). Ari is the
   reference for whether a simpler rule loses much quality.
 - **Adding words in place.** vChewing already has the gesture we copied
   (Shift+← / → marks, Enter adds with a boost, Shift+Cmd+Enter nerfs,

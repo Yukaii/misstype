@@ -3,7 +3,7 @@
 //!
 //!   misstype-dev --decode KEYS [--align] [--segment A:B] [--lock=KEY=TEXT ...]
 //!                [--user-lexicon PATH] [--replay EXPECTED [--learn-out PATH]]
-//!   misstype-dev --session-trace KEYS [--auto-commit N] [--show]
+//!   misstype-dev --session-trace KEYS [--auto-commit N] [--show] [--mixed-english]
 //!                [--user-lexicon PATH] [--user-dictionary PATH] [--channel PATH]
 //!
 //! Resources (lexicon.tsv, local_phrases.tsv, toneless.tsv, english.tsv) come
@@ -336,7 +336,7 @@ fn trace(cli: Cli, keys: []const u8) !void {
     engine.settings = .{
         .auto_show_candidates = false,
         .return_confirms_selection = true,
-        .mixed_english = false,
+        .mixed_english = cli.flag("--mixed-english"),
     };
     if (cli.value("--auto-commit")) |n| engine.settings.auto_commit_syllables = std.fmt.parseInt(usize, n, 10) catch 24;
     if (cli.value("--user-lexicon")) |path| if (cli.read(path)) |data| {

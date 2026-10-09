@@ -29,8 +29,9 @@ This repository is an experimental input device and decoder. The current goal is
   pure-Chinese inputs (English list: pinned FrequencyWords, CC BY-SA, see
   `third_party/FrequencyWords/LICENSE.md`) and is wired into the session
   (`mixedEnglish`, macOS default off): clean English is adopted 92%, 0% of
-  pure Chinese is. Cost is the open item (toneless mixed input ~110-130 ms
-  per keystroke on the Swift implementation; re-measure on Zig); real-typing
+  pure Chinese is. Cost is no longer open (Zig, 2026-10-09:
+  toneless mixed input 4.5 ms mean / 21 ms max per key, +2 ms over off;
+  `tools/mixed_latency.py`; Swift was ~110-130 ms); real-typing
   quality is unmeasured. Python remains the reference for the touch
   semantics only; the "do not port" rule below applies to everything else.
 

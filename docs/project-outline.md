@@ -899,9 +899,9 @@ English words rarely spell valid Chinese key runs, because Zhuyin runs are
 syllable-shaped (initial + final) while English letter runs are not. (3) The
 cost is latency: `decodeMixed` takes 48 ms vs 18 ms for a plain decode of the
 same mixed input (release build), plus 350 ms once to build the index for
-46k words. Fine for a finished phrase; running it per keystroke needs pruning
+46k words. Fine for a finished phrase; running it per keystroke needed pruning
 first (only when a letter run of >= 3 keys exists, cache spans per key
-prefix). (4) Limits of the evidence: the negatives are random lexicon-word
+prefix). Re-measured per key on the Zig core in a session (2026-10-09, `tools/mixed_latency.py`, 12 dev sentences with a spliced English word): toneless mixed input 4.5 ms mean, 15.6 ms p95, 21 ms max with `mixedEnglish` on (2.6 ms off); Chinese-only toneless 0.9 ms; toned mixed 0.9 ms; English adopted 12/12. Only six long English words, one machine. (4) Limits of the evidence: the negatives are random lexicon-word
 sequences, not real prose; the positives use 18 words and 5 Chinese pieces;
 typos are one slip in words of 6+ letters; the 20% typo misses and the 4%
 toneless misses are not yet classified; no uppercase, digits, or hyphenated
