@@ -86,20 +86,20 @@ final class ZigSessionAdapter {
         let focus: Range<Int>? = c.focus_start_utf16 >= 0 && c.focus_end_utf16 >= c.focus_start_utf16
             ? Int(c.focus_start_utf16)..<Int(c.focus_end_utf16) : nil
         let mark: SessionView.Mark? = {
-            guard c.mark_action != MISSTYPE_MARK_NONE.rawValue,
+            guard c.mark_action != Int32(MISSTYPE_MARK_NONE.rawValue),
                   let text = c.mark_text, let reading = c.mark_reading else { return nil }
             let action: SessionView.Mark.Action
             switch c.mark_action {
-            case MISSTYPE_MARK_ADD.rawValue: action = .add
-            case MISSTYPE_MARK_REMOVE.rawValue: action = .remove
-            case MISSTYPE_MARK_TOO_SHORT.rawValue: action = .tooShort
-            case MISSTYPE_MARK_TOO_LONG.rawValue: action = .tooLong
+            case Int32(MISSTYPE_MARK_ADD.rawValue): action = .add
+            case Int32(MISSTYPE_MARK_REMOVE.rawValue): action = .remove
+            case Int32(MISSTYPE_MARK_TOO_SHORT.rawValue): action = .tooShort
+            case Int32(MISSTYPE_MARK_TOO_LONG.rawValue): action = .tooLong
             default: action = .unavailable
             }
             return SessionView.Mark(range: Int(c.mark_start_utf16)..<Int(c.mark_end_utf16),
                                     text: String(cString: text), reading: String(cString: reading), action: action)
         }()
-        view = SessionView(preedit: c.preedit.map(String.init(cString:)) ?? "",
+        view = SessionView(preedit: c.preedit.map { String(cString: $0) } ?? "",
                            caret: Int(c.caret_utf16), candidates: candidates,
                            selected: Int(c.selected), selectionKeys: keys,
                            keysActive: c.keys_active != 0, showsCandidates: c.shows_candidates != 0,
@@ -108,7 +108,7 @@ final class ZigSessionAdapter {
 
     private func strings(_ values: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?, count: Int) -> [String] {
         guard let values else { return [] }
-        return (0..<count).compactMap { values[$0].map(String.init(cString:)) }
+        return (0..<count).compactMap { values[$0].map { String(cString: $0) } }
     }
 
     private func takeString(_ pointer: inout UnsafeMutablePointer<CChar>?) -> String? {

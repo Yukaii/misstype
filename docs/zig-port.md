@@ -318,3 +318,35 @@ roughly **580 µs** for Swift on this host: the old 14× spike measurement is
 historical, not the latency of the complete Unicode-aware port. Full
 keyboard/touch variant timings above are about 4–5× lower than Swift;
 candidate quality remains identical on the regression corpus.
+
+### macOS installer build verification (2026-10-09)
+
+Hypothesis: the installer failure before Swift compilation comes from running
+`zig build` at the repository root rather than in `core-zig`. The smallest
+check is `script/zig/build_macos.sh`, followed by `./script/install_ime.sh`.
+Both now pass locally. The Zig targets explicitly use macOS 13.0, matching
+SwiftPM's minimum, and the embedded dylib contains x86_64 and arm64 slices.
+The signing script signs standalone dylibs before the containing app; strict
+codesign verification passes for both the staged and installed ad-hoc app.
+
+The macOS consumers link the Zig dylib by its absolute file path. A library
+search flag alone can select SwiftPM's same-named reference
+`libMisstypeCAPI.dylib` before the Zig output. Public presentation initializers
+let the C ABI adapter construct `SessionView` and its phrase mark without
+changing Swift session behavior.
+
+`swift build -c release` compiles the IMK and smoke targets. `swift test`
+passes 233 core tests (10 optional measurement/oracle skips). The synthetic
+runtime check returns `abi=2` and `preedit=你`:
+
+```sh
+swift build -c release --product MisstypeZigSmoke
+BIN_DIR="$(swift build -c release --show-bin-path)"
+DYLD_LIBRARY_PATH="$PWD/dist/zig/macos-universal" \
+  "$BIN_DIR/MisstypeZigSmoke" tests/fixtures/lexicon
+```
+
+These checks establish local build, linking, embedding, ad-hoc signing and
+input-source registration/selection. They do not establish marked-text GUI
+behavior, Settings write migration, Developer ID/notarization, or packaged
+DMG/update runtime behavior; those remain verification/cutover gates.

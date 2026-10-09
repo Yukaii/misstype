@@ -2,6 +2,7 @@ import Cocoa
 @preconcurrency import Carbon
 @preconcurrency import InputMethodKit
 import MisstypeCore
+import MisstypeZigBridge
 
 enum Runtime {
     static let decoder: LexiconDecoder = {

@@ -13,10 +13,10 @@ mkdir -p "$out"
 
 for arch in x86_64 arm64; do
     case "$arch" in
-        x86_64) target=x86_64-macos; dir="$ROOT_DIR/dist/zig/macos-x86_64" ;;
-        arm64) target=aarch64-macos; dir="$ROOT_DIR/dist/zig/macos-arm64" ;;
+        x86_64) target=x86_64-macos.13.0; dir="$ROOT_DIR/dist/zig/macos-x86_64" ;;
+        arm64) target=aarch64-macos.13.0; dir="$ROOT_DIR/dist/zig/macos-arm64" ;;
     esac
-    "$zig" build -Dtarget="$target" -Doptimize=ReleaseFast -p "$dir"
+    (cd "$ROOT_DIR/core-zig" && "$zig" build -Dtarget="$target" -Doptimize=ReleaseFast -p "$dir")
 done
 
 lipo -create \

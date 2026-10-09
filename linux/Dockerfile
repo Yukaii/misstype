@@ -5,6 +5,6 @@
 FROM swift:6.0
 RUN sed -i 's|http://|https://|g' /etc/apt/sources.list.d/ubuntu.sources \
     && apt-get update && apt-get install -y --no-install-recommends \
-      cmake make g++ pkg-config extra-cmake-modules gettext python3 \
+      cmake make g++ pkg-config extra-cmake-modules gettext python3 curl \
       fcitx5 libfcitx5core-dev libfcitx5config-dev libfcitx5utils-dev fcitx5-modules-dev libgtk-4-dev libgtk-3-dev fcitx5-frontend-gtk3 xvfb xdotool dbus-x11 \
     && rm -rf /var/lib/apt/lists/*

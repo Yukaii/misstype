@@ -65,6 +65,23 @@ public struct SessionView: Equatable, Sendable {
     /// The syllable cursor's word (one of `segments`), nil outside cursor mode.
     public var focus: Range<Int>?
 
+    public init(preedit: String, caret: Int, candidates: [String], selected: Int,
+                selectionKeys: [String], keysActive: Bool, showsCandidates: Bool,
+                mark: Mark? = nil, pageSize: Int = SelectionKeys.defaultPageSize,
+                segments: [Range<Int>] = [], focus: Range<Int>? = nil) {
+        self.preedit = preedit
+        self.caret = caret
+        self.candidates = candidates
+        self.selected = selected
+        self.selectionKeys = selectionKeys
+        self.keysActive = keysActive
+        self.showsCandidates = showsCandidates
+        self.mark = mark
+        self.pageSize = pageSize
+        self.segments = segments
+        self.focus = focus
+    }
+
     /// A marked span of the converted text, offered to the user dictionary.
     public struct Mark: Equatable, Sendable {
         /// What Return does with the mark.
@@ -87,6 +104,13 @@ public struct SessionView: Equatable, Sendable {
         /// when `action == .unavailable`.
         public var reading: String
         public var action: Action
+
+        public init(range: Range<Int>, text: String, reading: String, action: Action) {
+            self.range = range
+            self.text = text
+            self.reading = reading
+            self.action = action
+        }
     }
 
     public static let empty = SessionView(preedit: "", caret: 0, candidates: [], selected: 0,

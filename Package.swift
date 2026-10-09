@@ -1,4 +1,5 @@
 // swift-tools-version: 6.0
+import Foundation
 import PackageDescription
 
 // MisstypeCore (decoder + InputSession) builds everywhere Swift does; the
@@ -29,6 +30,8 @@ var targets: [Target] = [
 ]
 var dependencies: [Package.Dependency] = []
 #if os(macOS)
+let packageRoot = URL(fileURLWithPath: #filePath).deletingLastPathComponent().path
+let zigLibraryDir = "\(packageRoot)/dist/zig/macos-universal"
 // Sparkle is macOS-only and declared here so Linux never resolves it.
 dependencies += [
     .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.6.0"),
@@ -44,7 +47,7 @@ targets += [
         name: "MisstypeIME",
         dependencies: ["MisstypeCore", "MisstypeZigBridge", .product(name: "Sparkle", package: "Sparkle")],
         // The packaged bundle carries Sparkle.framework in Contents/Frameworks.
-        linkerSettings: [.unsafeFlags(["-Ldist/zig/macos-universal", "-lMisstypeCAPI",
+        linkerSettings: [.unsafeFlags(["\(zigLibraryDir)/libMisstypeCAPI.dylib",
                                        "-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"])]),
     .executableTarget(name: "MisstypeSourceTool"),
     // Double-clickable installer shipped in the DMG (see docs/release.md).
@@ -53,7 +56,7 @@ targets += [
         name: "MisstypeZigBridge",
         dependencies: ["CMisstype"],
         linkerSettings: [
-            .unsafeFlags(["-Ldist/zig/macos-universal", "-lMisstypeCAPI",
+            .unsafeFlags(["\(zigLibraryDir)/libMisstypeCAPI.dylib",
                           "-Xlinker", "-rpath", "-Xlinker", "@loader_path/../../zig"])
         ]),
     .executableTarget(name: "MisstypeZigSmoke", dependencies: ["MisstypeZigBridge"]),
