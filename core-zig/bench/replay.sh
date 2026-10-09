@@ -14,10 +14,11 @@ python3 tests/replay/make_scripts.py "$out/scripts" --fuzz-cases "$cases" --seed
 cp .cache/mcbopomofo/lexicon.tsv .cache/mcbopomofo/toneless.tsv \
     .cache/frequencywords/english.tsv Resources/local_phrases.tsv "$out/shipping/"
 # Debug catches overflow and bounds errors that ReleaseFast would hide.
-(cd core-zig && "$zig" build test && "$zig" build -Doptimize="${MISSTYPE_ZIG_OPTIMIZE:-Debug}")
+(cd core-zig && ../script/ci/time.sh zig-tests "$zig" build test && \
+    ../script/ci/time.sh zig-replay-build "$zig" build -Doptimize="${MISSTYPE_ZIG_OPTIMIZE:-Debug}")
 LD_LIBRARY_PATH="$PWD/core-zig/zig-out/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
     MISSTYPE_REPLAY_METRICS=1 \
-    core-zig/zig-out/bin/replay "$out/shipping" tests/fixtures/lexicon \
+    script/ci/time.sh zig-session-replay core-zig/zig-out/bin/replay "$out/shipping" tests/fixtures/lexicon \
     tests/replay/conformance.txt "$out/scripts/probes.txt" "$out/scripts/fuzz.txt" > "$out/zig.txt" 2> "$out/zig.log" \
     || { tail -40 "$out/zig.log"; exit 1; }
 # dev.sh excludes build/, so generate identical scripts inside the container.
@@ -26,6 +27,7 @@ script/linux/dev.sh "python3 tests/replay/make_scripts.py build/replay/scripts -
 if diff -u "$out/swift.txt" "$out/zig.txt" > "$out/diff.txt"; then
     echo "MATCH: $(wc -l < "$out/zig.txt") transcript lines (fuzz cases=$cases seed=$seed)"
     grep '^replay:' "$out/zig.log" "$out/swift.log"
+    grep '^timing:' "$out/zig.log" "$out/swift.log"
 else
     head -80 "$out/diff.txt"
     echo "MISMATCH: full diff in $out/diff.txt" >&2

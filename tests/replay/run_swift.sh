@@ -14,4 +14,5 @@ mkdir -p "$res"
 cp .cache/mcbopomofo/lexicon.tsv .cache/mcbopomofo/toneless.tsv .cache/frequencywords/english.tsv \
     Resources/local_phrases.tsv "$res/"
 # english.tsv loads on a background queue in Swift; give it time.
-MISSTYPE_REPLAY_WAIT=${MISSTYPE_REPLAY_WAIT:-3} build/replay/replay-swift "$res" tests/fixtures/lexicon "$@"
+MISSTYPE_REPLAY_WAIT=${MISSTYPE_REPLAY_WAIT:-3} script/ci/time.sh swift-session-replay \
+    build/replay/replay-swift "$res" tests/fixtures/lexicon "$@"

@@ -117,7 +117,7 @@ jobs:
           cache-to: type=gha,scope=linux-dev,mode=max
 
   # Independent gates run in parallel instead of one 20+ minute serial job.
-  # Each leg gets a fresh copy of the tree inside the prebuilt image.
+  # Each leg gets a fresh source copy and its own Linux-only build cache.
   fcitx5-linux:
     needs: linux-image
     name: linux (${{ matrix.name }})
@@ -132,27 +132,28 @@ jobs:
         include:
           - name: swift reference C ABI and addon, exact decoder parity
             run: |
-              script/linux/dev.sh 'MISSTYPE_CORE=swift script/linux/test_capi.sh && MISSTYPE_CORE=swift script/linux/test_fcitx5.sh'
-              core-zig/bench/compare.sh 10
+              script/linux/dev.sh 'MISSTYPE_CORE=swift script/ci/time.sh swift-capi-check script/linux/test_capi.sh && MISSTYPE_CORE=swift script/ci/time.sh swift-addon-check script/linux/test_fcitx5.sh'
+              script/ci/time.sh exact-decoder-parity core-zig/bench/compare.sh 10
           - name: zig C ABI and addon, persistence and CLI
             run: |
-              script/zig/test_linux.sh
-              script/zig/test_persistence.sh
-              script/zig/test_ctl.sh
+              script/ci/time.sh zig-capi-addon script/zig/test_linux.sh
+              script/ci/time.sh persistence-parity script/zig/test_persistence.sh
+              script/ci/time.sh cli-parity script/zig/test_ctl.sh
           - name: installed GTK desktop
-            run: script/linux/dev.sh 'script/linux/test_all.sh && script/linux/test_desktop.sh'
+            run: script/linux/dev.sh 'script/ci/time.sh linux-tests script/linux/test_all.sh && script/ci/time.sh installed-desktop script/linux/test_desktop.sh'
           - name: full candidates, touch and Unicode parity
             optimize: ReleaseFast
-            run: core-zig/bench/parity.sh
+            run: script/ci/time.sh full-candidate-parity core-zig/bench/parity.sh
           - name: debug session replay
-            run: core-zig/bench/replay.sh 400 1
+            run: script/ci/time.sh debug-replay core-zig/bench/replay.sh 400 1
           - name: ReleaseFast session replay
             optimize: ReleaseFast
             run: |
-              core-zig/bench/replay.sh 400 1
-              core-zig/bench/replay.sh 400 487
+              script/ci/time.sh release-replay-seed-1 core-zig/bench/replay.sh 400 1
+              script/ci/time.sh release-replay-seed-487 core-zig/bench/replay.sh 400 487
     env:
       MISSTYPE_LINUX_PREBUILT: "1"
+      MISSTYPE_LINUX_BUILD_CACHE: "1"
       MISSTYPE_LINUX_IMAGE: ${{ needs.linux-image.outputs.image }}
       MISSTYPE_ZIG_OPTIMIZE: ${{ matrix.optimize }}
     steps:
@@ -164,6 +165,16 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Pull the Linux test image
         run: docker pull "$MISSTYPE_LINUX_IMAGE"
+      - name: Cache container SwiftPM and Zig builds
+        uses: actions/cache@v4
+        with:
+          path: .cache/linux-build
+          # Separate legs avoid competing saves; image/toolchain changes must
+          # never restore incompatible builds. Source changes use incremental
+          # compiler validation, then save a new snapshot at this commit.
+          key: linux-build-v1-${{ runner.arch }}-${{ hashFiles('linux/Dockerfile', 'script/zig/bootstrap.sh', 'Package.swift', 'Package.resolved') }}-${{ strategy.job-index }}-${{ github.sha }}
+          restore-keys: |
+            linux-build-v1-${{ runner.arch }}-${{ hashFiles('linux/Dockerfile', 'script/zig/bootstrap.sh', 'Package.swift', 'Package.resolved') }}-${{ strategy.job-index }}-
       - name: Cache pinned Zig toolchain and compiler
         uses: actions/cache@v4
         with:
@@ -185,7 +196,11 @@ jobs:
       - name: Prepare checksum-verified public lexicons
         run: python3 script/prepare_lexicon.py
       - name: ${{ matrix.name }}
-        run: ${{ matrix.run }}
+        run: |
+          TIMEFORMAT='timing: linux-leg wall=%3Rs user=%3Us sys=%3Ss'
+          time {
+            ${{ matrix.run }}
+          }
       - name: Upload synthetic replay diagnostics on failure
         if: failure()
         uses: actions/upload-artifact@v4

@@ -208,8 +208,11 @@ Hypothesis for CI integration: the existing local gates run unchanged on a
 fresh x86_64 Linux runner. A branch CI run is the falsifier; successful
 aarch64 local checks alone do not establish hosted-runner portability.
 Latency is reported for observation, without a machine-dependent pass
-threshold. Release and Pages still build their Swift consumers; Zig passing
-CI does not change what either workflow ships.
+threshold. Each matrix leg now times its major phase, and `dev.sh` can mount
+an isolated SwiftPM/Zig incremental cache (`MISSTYPE_LINUX_BUILD_CACHE=1`).
+The cache is keyed per leg and toolchain/image inputs, so a miss still performs
+the complete build and all checks. Release and Pages still build their Swift
+consumers; Zig passing CI does not change what either workflow ships.
 
 The complete port has these remaining boundaries, in dependency order:
 
