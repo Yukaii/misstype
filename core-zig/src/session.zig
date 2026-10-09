@@ -7,8 +7,8 @@
 //! refresh, so the previous candidates stay readable while the next ones
 //! are built. Results handed to the host live until the next call.
 //!
-//! Not ported: Jev (remote assistance), the diagnostic log,
-//! user key bindings (the C ABI only exposes the defaults).
+//! Not ported: the diagnostic log and user key bindings (the C ABI only
+//! exposes the defaults).
 
 const std = @import("std");
 const keyboard = @import("keyboard.zig");

@@ -158,6 +158,11 @@ resolves to 泥好 (CER 0.5) on the real 112k lexicon — the old "wrong tone
 recovers to 你" finding was fixture-lexicon-backed and does not transfer;
 future controls must be cut against the real table.
 
+Decision 2026-10-09: Jev was removed from the product (IME, core and
+settings; maintainer decision during the Zig port). The findings below stay
+as the research record; the `tools/lm_choose.py` harness remains a
+tools-only experiment.
+
 Finding (Jev choice, `tools/lm_choose.py --backend jev` + `tools/jev_choice.cjs`,
 Vercel AI Gateway `typesafe-ai/jev`, 5 cases x 3 reps): architecturally the
 cleanest fit yet — typed Choice over the top-8 (no text, no parse), native
@@ -476,7 +481,9 @@ window out of the critical path):
    point with presence-only logging. (Correction 2026-09-27: a debounced
    remote Choice request DID ship behind that gate and moves the highlight
    when enabled with a key — the triage verdict covered panel auto-hide,
-   not this path. It now waits for a settled run; see architecture step 5.)
+   not this path. It waited for a settled run.) Removed 2026-10-09 with
+   Jev: launching the IME deletes the four Jev keys, including any stored
+   gateway key.
 8. Segment lock v1 + Rime alignment targets: RETIRED as Opt+Right (falsified
    in the file trace: toneless input beeped, fully toned input committed
    exactly like Return — the only case it served was toned-head plus
@@ -1209,4 +1216,4 @@ Competitor comparison and feature ideas: [`competitors.md`](competitors.md).
 - How should Latin text, numbers, punctuation, and code tokens interrupt a Zhuyin span?
 - What local model size meets the latency budget on the target device?
 
-- Settings window (landed 2026-09-29): the 360pt utility panel became a full `SettingsWindow` (SwiftUI, sidebar: General / Decoding / Learning / Jev Assist / About; controls bind to the same `Misstype*` UserDefaults keys). UI strings go through `L()` with English keys and `Resources/{zh-Hant,zh-Hans,ja}.lproj/Localizable.strings`, following the system language; `tools/check_localizations.py` fails on missing or stale keys. Manual check pending: language switch, Jev consent alert, Clear learned phrases.
+- Settings window (landed 2026-09-29): the 360pt utility panel became a full `SettingsWindow` (SwiftUI, sidebar: General / Decoding / Learning / Jev Assist (removed 2026-10-09) / About; controls bind to the same `Misstype*` UserDefaults keys). UI strings go through `L()` with English keys and `Resources/{zh-Hant,zh-Hans,ja}.lproj/Localizable.strings`, following the system language; `tools/check_localizations.py` fails on missing or stale keys. Manual check pending: language switch, Clear learned phrases.

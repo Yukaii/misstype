@@ -4,18 +4,7 @@ import XCTest
 /// Replayable key traces through the platform-neutral session: the same
 /// rules every adapter (IMK today, fcitx5/IBus later) inherits.
 final class InputSessionTests: XCTestCase {
-    private final class Host: InputSessionHost {
-        var contextRequests = 0
-        func surroundingContext() -> ClientContext {
-            contextRequests += 1
-            return ClientContext()
-        }
-        func perform(_ work: @escaping () -> Void) { work() }
-        func sessionDidChange(_ session: InputSession) {}
-    }
-
     private var settings = SessionSettings()
-    private var host = Host()
 
     private func makeSession() -> InputSession {
         let decoder = LexiconDecoder(tsv: """
@@ -29,7 +18,6 @@ final class InputSessionTests: XCTestCase {
         """)
         let engine = InputEngine(decoder: decoder, settings: { [unowned self] in self.settings })
         let session = InputSession(engine: engine)
-        session.host = host
         return session
     }
 
@@ -176,7 +164,6 @@ final class InputSessionTests: XCTestCase {
         rows += "ㄏㄠˇ\t好\t-5\n"
         let engine = InputEngine(decoder: LexiconDecoder(tsv: rows), settings: { [unowned self] in self.settings })
         let session = InputSession(engine: engine)
-        session.host = host
         type("su3cl3", into: session)
         _ = session.handle(key(.left)); _ = session.handle(key(.left))
         for _ in 0..<8 { _ = session.handle(key(.down)) }
@@ -191,7 +178,6 @@ final class InputSessionTests: XCTestCase {
         for (i, c) in "你妳尼泥擬逆匿膩溺暱".enumerated() { rows += "ㄋㄧˇ\t\(c)\t-\(5 + i)\n" }
         let engine = InputEngine(decoder: LexiconDecoder(tsv: rows), settings: { [unowned self] in self.settings })
         let session = InputSession(engine: engine)
-        session.host = host
         type("su3", into: session)
         return session
     }
@@ -487,7 +473,6 @@ final class InputSessionTests: XCTestCase {
         """)
         let engine = InputEngine(decoder: decoder, settings: { [unowned self] in self.settings })
         let session = InputSession(engine: engine)
-        session.host = host
         return session
     }
 
@@ -689,17 +674,6 @@ final class InputSessionTests: XCTestCase {
         XCTAssertEqual(session.view.preedit, "泥")
         XCTAssertEqual(session.commit(), "泥")
         XCTAssertNil(session.commit())
-    }
-
-    func testOfflineTypingNeverAsksTheHostForSurroundingText() {
-        let session = makeSession()
-        type("su3cl3a87", into: session)
-        session.handle(key(.enter, text: "\r"))
-        XCTAssertEqual(host.contextRequests, 0)
-        // Enabled without a key is still offline (JevConfig.canAttempt).
-        settings.jev = JevConfig(enabled: true)
-        type("su3", into: session)
-        XCTAssertEqual(host.contextRequests, 0)
     }
 }
 

@@ -12,21 +12,9 @@ public func __cxa_throw(_ exception: UnsafeMutableRawPointer?, _ tinfo: UnsafeMu
     fatalError("C++ exception not supported in WASI")
 }
 
-private final class WasmSessionHost: InputSessionHost {
-    func surroundingContext() -> ClientContext {
-        ClientContext(precedingText: "", bundleIdentifier: "wasm.browser")
-    }
-    func perform(_ work: @escaping () -> Void) {
-        work()
-    }
-    func sessionDidChange(_ session: InputSession) {
-        // Called when asynchronous state changes
-    }
-}
 
 private var globalEngine: InputEngine?
 private var globalSession: InputSession?
-private var wasmHost = WasmSessionHost()
 private var lastResult: KeyResult = KeyResult(consumed: false)
 private var lastCommittedText: String?
 private var currentSettings = SessionSettings()
@@ -73,7 +61,6 @@ public func misstype_wasm_init(
     engine.shiftTap.tapTimeLimit = 0.35
 
     let session = InputSession(engine: engine)
-    session.host = wasmHost
 
     globalEngine = engine
     globalSession = session
@@ -204,7 +191,6 @@ public func misstype_wasm_commit() -> Int32 {
 public func misstype_wasm_reset() {
     guard let engine = globalEngine else { return }
     let session = InputSession(engine: engine)
-    session.host = wasmHost
     globalSession = session
     lastCommittedText = nil
     lastResult = KeyResult(consumed: false)

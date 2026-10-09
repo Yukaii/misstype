@@ -131,12 +131,8 @@ final class ModeIndicator: NSPanel {
 /// `InputSession` and draws `session.view` (marked text + panel). Every
 /// editing rule lives in the session; nothing here holds composition state.
 @objc(MisstypeInputController)
-final class MisstypeInputController: IMKInputController, InputSessionHost {
-    private lazy var session: InputSession = {
-        let session = InputSession(engine: Runtime.engine)
-        session.host = self
-        return session
-    }()
+final class MisstypeInputController: IMKInputController {
+    private lazy var session = InputSession(engine: Runtime.engine)
     private weak var lastClient: IMKTextInput?
     /// What the client and panel show now; `render` pushes only differences.
     private var rendered = SessionView.empty
@@ -312,22 +308,6 @@ final class MisstypeInputController: IMKInputController, InputSessionHost {
         if let client = lastClient { render(client) }
     }
 
-    // MARK: - InputSessionHost
-
-    /// Safely extracts preceding text context and bundle identifier from the client.
-    func surroundingContext() -> ClientContext {
-        guard let client = lastClient else { return ClientContext() }
-        return SurroundingContext.extract(from: IMKTextInputContextAdapter(client))
-    }
-
-    func perform(_ work: @escaping () -> Void) {
-        DispatchQueue.main.async(execute: work)
-    }
-
-    func sessionDidChange(_ session: InputSession) {
-        if let client = lastClient { render(client) }
-    }
-
     // MARK: - IMK lifecycle
 
     override func menu() -> NSMenu! {
@@ -416,11 +396,6 @@ final class MisstypeInputController: IMKInputController, InputSessionHost {
 if let traceIndex = CommandLine.arguments.firstIndex(of: "--session-trace"),
    traceIndex + 1 < CommandLine.arguments.count {
     MisstypePrefs.register()
-    final class TraceHost: InputSessionHost {
-        func surroundingContext() -> ClientContext { ClientContext() }
-        func perform(_ work: @escaping () -> Void) { work() }
-        func sessionDidChange(_ session: InputSession) {}
-    }
     var settings = MisstypePrefs.sessionSettings
     if let flag = CommandLine.arguments.firstIndex(of: "--auto-commit"),
        flag + 1 < CommandLine.arguments.count, let value = Int(CommandLine.arguments[flag + 1]) {
@@ -439,8 +414,6 @@ if let traceIndex = CommandLine.arguments.firstIndex(of: "--session-trace"),
                              settings: { settings })
     if let url = flagURL("--channel") { engine.channelLearner = ChannelLearner.load(from: url) }
     let session = InputSession(engine: engine)
-    let host = TraceHost()
-    session.host = host
     var committed = ""
     for (count, char) in CommandLine.arguments[traceIndex + 1].enumerated() {
         let label = String(char)
@@ -544,8 +517,7 @@ if let decodeIndex = CommandLine.arguments.firstIndex(of: "--decode"),
         userLexicon = UserLexicon.load(from: URL(fileURLWithPath: CommandLine.arguments[flagIndex + 1]))
     }
     let results = decoder.decodeSegments(composition.segments, pendingKeys: parsed.pending, fuzzy: MisstypePrefs.fuzzyRepair, toneTolerance: MisstypePrefs.toneTolerance, userLexicon: userLexicon, locked: decodeLocks())
-    let jevGate = MisstypePrefs.jevConfig
-    print("entries=\(decoder.entryCount) user=\(userLexicon?.count ?? 0) load_ms=\(loaded.timeIntervalSince(started) * 1000) decode_ms=\(Date().timeIntervalSince(loaded) * 1000) jev_enabled=\(jevGate.enabled ? 1 : 0) jev_key=\(jevGate.hasKey ? 1 : 0) jev_rich=\(jevGate.allowRichContext ? 1 : 0)")
+    print("entries=\(decoder.entryCount) user=\(userLexicon?.count ?? 0) load_ms=\(loaded.timeIntervalSince(started) * 1000) decode_ms=\(Date().timeIntervalSince(loaded) * 1000)")
     for candidate in results {
         var line = "\(candidate.text)\t\(candidate.score)\trepairs=\(candidate.repairs) unresolved=\(candidate.unresolved)"
         if CommandLine.arguments.contains("--align") {

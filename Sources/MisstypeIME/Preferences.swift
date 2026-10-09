@@ -11,10 +11,6 @@ import MisstypeCore
 ///   toneless variants — strictness applies to asserted tones).
 /// - candidateKeys: selection keys, active only in selection mode (Down/Tab
 ///   or the syllable cursor); they are Zhuyin keys while typing.
-/// - jevEnabled / jevRichContext / jevApiKey / jevModel: Jev gateway
-///   assistance. Default OFF (offline baseline): the adapter never calls the
-///   network unless the user explicitly enables it AND provides a key.
-///   Rich context additionally gates the alignment/diff/contract metadata.
 enum MisstypePrefs {
     static func register() {
         // Repair was an on/off switch before 2026-10-06: carry an explicit
@@ -25,16 +21,17 @@ enum MisstypePrefs {
             defaults.set(RepairStrength.off.rawValue, forKey: "MisstypeRepairStrength")
         }
         defaults.removeObject(forKey: "MisstypeFuzzyRepair")
+        // Jev (remote assistance) was removed 2026-10-09: drop its settings,
+        // including any stored gateway key.
+        for key in ["MisstypeJevEnabled", "MisstypeJevRichContext", "MisstypeJevApiKey", "MisstypeJevModel"] {
+            defaults.removeObject(forKey: key)
+        }
         UserDefaults.standard.register(defaults: [
             "MisstypeRepairStrength": RepairStrength.standard.rawValue,
             "MisstypeToneTolerance": true,
             "MisstypeCandidateKeys": "asdfghjkl;",
             "MisstypeUserLearning": true,
             "MisstypeChannelLearning": false,
-            "MisstypeJevEnabled": false,
-            "MisstypeJevRichContext": false,
-            "MisstypeJevApiKey": "",
-            "MisstypeJevModel": JevConfig.defaultModel,
             "MisstypeShiftToggle": true,
             "MisstypeAutoCommitSyllables": 24,
             "MisstypeAutoShowCandidates": false,
@@ -197,34 +194,11 @@ enum MisstypePrefs {
         set { UserDefaults.standard.set(newValue, forKey: "MisstypeChannelLearning") }
     }
 
-    static var jevEnabled: Bool {
-        get { UserDefaults.standard.bool(forKey: "MisstypeJevEnabled") }
-        set { UserDefaults.standard.set(newValue, forKey: "MisstypeJevEnabled") }
-    }
-
-    static var jevRichContext: Bool {
-        get { UserDefaults.standard.bool(forKey: "MisstypeJevRichContext") }
-        set { UserDefaults.standard.set(newValue, forKey: "MisstypeJevRichContext") }
-    }
-
-    /// Gateway key. Stored in UserDefaults for prototype simplicity (a
-    /// Keychain move is queued if this graduates beyond experiment); the
-    /// value is never logged — only presence is observable.
-    static var jevApiKey: String {
-        get { UserDefaults.standard.string(forKey: "MisstypeJevApiKey") ?? "" }
-        set { UserDefaults.standard.set(newValue, forKey: "MisstypeJevApiKey") }
-    }
-
-    static var jevModel: String {
-        get { UserDefaults.standard.string(forKey: "MisstypeJevModel") ?? JevConfig.defaultModel }
-        set { UserDefaults.standard.set(newValue, forKey: "MisstypeJevModel") }
-    }
-
     /// Everything one keystroke reads, snapshotted per event by the session.
     static var sessionSettings: SessionSettings {
         SessionSettings(repairStrength: repairStrength, toneTolerance: toneTolerance,
                         candidateKeys: candidateKeys, userLearning: userLearning,
-                        shiftToggle: shiftToggle, jev: jevConfig,
+                        shiftToggle: shiftToggle,
                         autoCommitSyllables: autoCommitSyllables,
                         autoShowCandidates: autoShowCandidates,
                         returnConfirmsSelection: returnConfirmsSelection,
@@ -233,17 +207,6 @@ enum MisstypePrefs {
                         keyBindings: keyBindings,
                         cursorCandidates: cursorCandidates,
                         channelLearning: channelLearning)
-    }
-
-    /// Live adapter config: explicit enable + key presence gate the attempt;
-    /// empty prefs key falls back to AI_GATEWAY_API_KEY env (CLI runs).
-    static var jevConfig: JevConfig {
-        let model = jevModel.trimmingCharacters(in: .whitespacesAndNewlines)
-        return JevConfig(
-            enabled: jevEnabled,
-            allowRichContext: jevRichContext,
-            apiKey: JevConfig.resolveApiKey(preferencesKey: jevApiKey),
-            model: model.isEmpty ? JevConfig.defaultModel : model)
     }
 }
 

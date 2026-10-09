@@ -2,7 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
 <key>com.apple.security.app-sandbox</key><true/>
-<!-- Jev Assist only (opt-in, off by default); the offline path never opens a socket. -->
+<!-- Sparkle update checks and downloads (Downloader.xpc is removed, docs/release.md);
+     decoding never opens a socket. -->
 <key>com.apple.security.network.client</key><true/>
 <!-- Settings → My Dictionary → Import…: read the one file the user picks in the open panel. -->
 <key>com.apple.security.files.user-selected.read-only</key><true/>

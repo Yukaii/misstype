@@ -30,12 +30,6 @@ final class ChannelLearningSweepTests: XCTestCase {
         }
     }
 
-    private final class Host: InputSessionHost {
-        func surroundingContext() -> ClientContext { ClientContext() }
-        func perform(_ work: @escaping () -> Void) { work() }
-        func sessionDidChange(_ session: InputSession) {}
-    }
-
     private static let toneKeys: [Character: String] = ["ˊ": "6", "ˇ": "3", "ˋ": "4", "˙": "7"]
 
     private func realDecoder() throws -> LexiconDecoder {
@@ -107,8 +101,6 @@ final class ChannelLearningSweepTests: XCTestCase {
         var settings = SessionSettings(channelLearning: learn)
         let engine = InputEngine(decoder: decoder, settings: { settings })
         let session = InputSession(engine: engine)
-        let host = Host()
-        session.host = host
         var rng = SplitMix64(state: seed)
         for phase in phases {
             for _ in 0..<phase.epochs {

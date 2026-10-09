@@ -38,8 +38,9 @@ The Zig rewrite is not mainly about speed. The goals are:
   and canonical `String` equality use statically linked utf8proc 2.12.0,
   pinned and vendored with its licenses. Candidate ordering still follows
   the reference’s UTF-8 order; caret ranges remain UTF-16.
-- **Library replacements:** Foundation features (JSON, file access,
-  `URLSession` in `JevClient`) need Zig equivalents.
+- **Library replacements:** Foundation features (JSON, file access) need
+  Zig equivalents. Networking does not: Jev, the only network client, was
+  removed on 2026-10-09.
 - **Manual memory management.** The decoder allocates everything for one
   decode in an arena that is freed in one step.
 - **Silent integer overflow in fast builds.** `@min(x, comptime_value)`
@@ -209,8 +210,8 @@ The complete port has these remaining boundaries, in dependency order:
 | Persistent user data | Completed: bidirectional restart of phrase/channel JSON and dictionary TSV, external edits/deletion, legacy/malformed files, and failed writes preserving in-memory state and existing data. | `script/zig/test_persistence.sh` (synthetic temp files only). |
 | Touch | Completed: `full-split-1` mapper and beam/spatial lattice; exact hypothesis distances/weights, candidates, scores, alignment, and spatial costs match Swift on seeded jitter. | `core-zig/bench/parity.sh`; quality and timings printed. Coordinates remain in the fixtures. Touch-to-session wiring remains the same separate product experiment as in Swift. |
 | Linux build and distribution | Completed: default Zig library/CLI build, installer and AUR recipe with checksum-pinned Zig and no Swift dependency; explicit Swift fallback. | CLI differential, C ABI/export smoke, 19 fcitx5 scenarios, staged install, production GTK composition/cursor/Latin checks under Xvfb. Native Arch desktop packaging remains an environment-specific manual check. |
-| C ABI and macOS | The current ABI lacks clause segments/focus, the Latin-toggle result flag, custom bindings, host/context callbacks, and dictionary/learning editor operations used through Swift types. | Extend/version the ABI and test ownership/layout compatibility; move the IMK adapter and Settings onto it without changing UI behavior. Verify caret, marked clauses, popup clients, dictionary editing, and sandbox paths on a real Mac. |
-| Optional assistance and diagnostics | Jev's opt-in asynchronous path, context/deadline/revision handling, core logs, and dev-only bigram/lexicon overrides are unported. | Preserve these seams or explicitly decide their future. Network transport can remain in an adapter, but async results must remain revision-safe and offline/default-off behavior unchanged. |
+| C ABI and macOS | The current ABI lacks clause segments/focus, the Latin-toggle result flag, custom bindings, and dictionary/learning editor operations used through Swift types. | Extend/version the ABI and test ownership/layout compatibility; move the IMK adapter and Settings onto it without changing UI behavior. Verify caret, marked clauses, popup clients, dictionary editing, and sandbox paths on a real Mac. |
+| Diagnostics | Jev was removed from the product on 2026-10-09 (Swift core, IME, settings); nothing remains to port and the core has no host callbacks. Core logs and dev-only bigram/lexicon overrides are unported. | Port the diagnostic log or replace it in the adapters; decide whether the dev-only overrides are still needed. |
 | Wasm and shipping | The site imports Swift and uses SwiftWasm. Step 0 cross-compilation only established that the smaller decoder built; the expanded C ABI/session has not been validated on each target. | Run the full core on target architectures, migrate browser bindings and Pages assets, check size and latency, then update macOS packaging to link/sign both architectures and test a signed/notarized install and update. |
 | Final removal | macOS/Wasm production consumers and the behavioral oracle still depend on Swift `MisstypeCore`. | Remove it only after consumers and regression tools use the replacement; update architecture, cross-platform contracts, commands, licenses, and release docs. Retain replay fixtures and an explicit replacement for the Swift reference gate. |
 

@@ -70,12 +70,6 @@ final class RepairStrengthTests: XCTestCase {
         XCTAssertEqual(top(decoder, "g/ ")?.text, "深")
     }
 
-    private final class Host: InputSessionHost {
-        func surroundingContext() -> ClientContext { ClientContext() }
-        func perform(_ work: @escaping () -> Void) { work() }
-        func sessionDidChange(_ session: InputSession) {}
-    }
-
     func testSessionAppliesTheLevelPerKeystroke() throws {
         let neighbor = try XCTUnwrap(ZhuyinKeyboard.neighbors(of: "g").first)
         let symbol = try XCTUnwrap(ZhuyinKeyboard.symbols[neighbor])
@@ -83,8 +77,6 @@ final class RepairStrengthTests: XCTestCase {
         var settings = SessionSettings()
         let engine = InputEngine(decoder: decoder, settings: { settings })
         let session = InputSession(engine: engine)
-        let host = Host()
-        session.host = host
         func type(_ keys: String) -> String? {
             for char in keys {
                 let label = String(char)
