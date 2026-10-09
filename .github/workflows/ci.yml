@@ -148,6 +148,7 @@ jobs:
             run: script/ci/time.sh debug-replay core-zig/bench/replay.sh 400 1
           - name: ReleaseFast session replay
             optimize: ReleaseFast
+            skip_tests: "1"
             run: |
               script/ci/time.sh release-replay-seed-1 core-zig/bench/replay.sh 400 1
               script/ci/time.sh release-replay-seed-487 core-zig/bench/replay.sh 400 487
@@ -156,6 +157,7 @@ jobs:
       MISSTYPE_LINUX_BUILD_CACHE: "1"
       MISSTYPE_LINUX_IMAGE: ${{ needs.linux-image.outputs.image }}
       MISSTYPE_ZIG_OPTIMIZE: ${{ matrix.optimize }}
+      MISSTYPE_REPLAY_SKIP_TESTS: ${{ matrix.skip_tests || '0' }}
     steps:
       - uses: actions/checkout@v4
       - uses: docker/login-action@v3
