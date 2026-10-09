@@ -384,6 +384,13 @@ text, order and every non-touch record stay bit-exact, except the candidate rows
 11-syllable near-tie case (`NEAR_TIE` in the script) whose winner flips on x86_64 glibc. Regenerate the golden
 on Linux so it matches what CI computes.
 
+Golden regenerations after the retirement: `replay_400_{1,487}` on 2026-10-10 for
+`6d05748` (with candidates hidden, the first Tab/Shift+Tab/PageUp/PageDown only
+opens the list at the current choice, so Shift+Tab no longer wraps to the last
+page first, and with a single candidate it opens selection instead of beeping).
+Reverting that commit's `session.zig` change reproduced the old transcripts
+bit for bit, so nothing else moved.
+
 ### Behavior suites
 
 Every Swift suite was ported before deletion (`core-zig/src/tests/`, run by
