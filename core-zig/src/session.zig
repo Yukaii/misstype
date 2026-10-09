@@ -1166,12 +1166,25 @@ pub const Session = struct {
 
     fn page(self: *Session, forward: bool) !KeyResult {
         if (self.segment_texts) |texts| {
+            // When candidates are hidden, the first Tab/PageDown opens the
+            // list at the current choice. Do not silently move to another
+            // page before the user has had a chance to use a selection key.
+            if (!self.selecting and !self.settings.auto_show_candidates) {
+                self.selecting = true;
+                return .handled;
+            }
             const index = self.pageTarget(self.segment_selected, texts.len, forward) orelse {
                 if (self.selecting) return .beeped;
                 self.selecting = true;
                 return .handled;
             };
             self.segment_selected = index;
+            self.selecting = true;
+            return .handled;
+        }
+        // Match the hidden-list behavior for multi-page whole-sentence lists:
+        // opening the list must not also advance its highlight.
+        if (!self.selecting and !self.settings.auto_show_candidates) {
             self.selecting = true;
             return .handled;
         }
@@ -1852,6 +1865,41 @@ test "session retains engine and frees refresh and selection allocations" {
     _ = try session.handle(.{ .kind = .backspace, .timestamp = 1002 });
     _ = try session.commit();
     try std.testing.expectEqualStrings("", (try session.view()).preedit);
+}
+
+test "first page key opens a multi-page list without advancing it" {
+    const a = std.testing.allocator;
+    var threaded: Io.Threaded = .init_single_threaded;
+    const rows = [_][]const u8{
+        "ㄋㄧˇ\t候選0\t-1", "ㄋㄧˇ\t候選1\t-2", "ㄋㄧˇ\t候選2\t-3",
+        "ㄋㄧˇ\t候選3\t-4", "ㄋㄧˇ\t候選4\t-5", "ㄋㄧˇ\t候選5\t-6",
+        "ㄋㄧˇ\t候選6\t-7", "ㄋㄧˇ\t候選7\t-8", "ㄋㄧˇ\t候選8\t-9",
+    };
+    const dec = try Lexicon.create(a, &rows, "");
+    const engine = try Engine.create(a, threaded.io(), dec);
+    engine.settings.auto_show_candidates = false;
+    const session = try Session.create(engine);
+    defer session.destroy();
+    engine.release();
+
+    for ("su3") |key| {
+        const label = [_]u8{key};
+        _ = try session.handle(.{ .kind = .character, .label = &label, .text = &label, .timestamp = 1000 });
+    }
+    var view = try session.view();
+    try std.testing.expectEqual(@as(usize, 0), view.selected);
+    try std.testing.expect(view.candidates.len > 8);
+
+    _ = try session.handle(.{ .kind = .page_down, .timestamp = 1001 });
+    view = try session.view();
+    try std.testing.expect(view.keys_active);
+    try std.testing.expectEqual(@as(usize, 0), view.selected);
+
+    const key = [_]u8{'s'};
+    _ = try session.handle(.{ .kind = .character, .label = &key, .text = &key, .timestamp = 1002 });
+    view = try session.view();
+    try std.testing.expectEqual(@as(usize, 1), view.selected);
+    try std.testing.expectEqualStrings("候選1", view.preedit);
 }
 
 test "1000 sessions with cursor edits and commits release all memory" {

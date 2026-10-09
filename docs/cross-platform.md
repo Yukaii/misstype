@@ -93,7 +93,9 @@ shortcut runs.
   `keyBindings` or `cursorCandidates` yet: non-Swift hosts get
   the core defaults (8 per page, default bindings: Tab/Shift+Tab and PageUp/PageDown page, Down/Up step), so
   they keep paging by 8 until those are appended. Label visible rows with `selectionKeys`; dim or hide labels
-  when `keysActive` is false (selection keys type Zhuyin then).
+  when `keysActive` is false (selection keys type Zhuyin then). When candidate
+  auto-show is disabled, the first Tab/PageDown opens a multi-page list at the
+  current candidate; a later page key advances pages.
 - Page keys: translate PageUp/PageDown to `MISSTYPE_KEY_PAGE_UP/DOWN` (ABI
   values 15/16, appended); the core pages the highlight, the host just
   redraws the page holding `selected`.
