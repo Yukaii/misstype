@@ -24,4 +24,8 @@ test {
     // Behavior suites ported from the Swift MisstypeCoreTests.
     _ = @import("tests/session_test.zig");
     _ = @import("tests/core_test.zig");
+    _ = @import("tests/caret_test.zig");
+    _ = @import("tests/latin_digit_test.zig");
+    _ = @import("tests/bindings_test.zig");
+    _ = @import("tests/keymap_test.zig");
 }

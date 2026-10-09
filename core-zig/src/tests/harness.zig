@@ -18,6 +18,7 @@ pub const View = session_mod.View;
 pub const Range = candidate_mod.Range;
 pub const shift = session_mod.mod_shift;
 pub const control = session_mod.mod_control;
+pub const option = session_mod.mod_option;
 pub const command = session_mod.mod_command;
 pub const caps_lock = session_mod.mod_caps_lock;
 

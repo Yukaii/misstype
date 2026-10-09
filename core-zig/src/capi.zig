@@ -453,7 +453,7 @@ fn evdevLabel(code: i32) ?[*:0]const u8 {
     };
 }
 
-export fn misstype_key_from_evdev(code: i32, label: ?*?[*:0]const u8) callconv(.c) c_int {
+pub export fn misstype_key_from_evdev(code: i32, label: ?*?[*:0]const u8) callconv(.c) c_int {
     if (evdevLabel(code)) |l| {
         if (label) |out| out.* = l;
         return kindToC(.character);
@@ -494,7 +494,7 @@ fn staticLabel(c: u8) [*:0]const u8 {
     return &table[c];
 }
 
-export fn misstype_key_from_character(utf8: ?[*:0]const u8, label: ?*?[*:0]const u8, shifted: ?*i32) callconv(.c) c_int {
+pub export fn misstype_key_from_character(utf8: ?[*:0]const u8, label: ?*?[*:0]const u8, shifted: ?*i32) callconv(.c) c_int {
     const text = span(utf8) orelse return kindToC(.other);
     if (text.len != 1) return kindToC(.other);
     const c = text[0];
@@ -577,7 +577,7 @@ fn macLabel(code: i32) ?u8 {
     };
 }
 
-export fn misstype_key_from_mac(code: i32, label: ?*?[*:0]const u8) callconv(.c) c_int {
+pub export fn misstype_key_from_mac(code: i32, label: ?*?[*:0]const u8) callconv(.c) c_int {
     if (macLabel(code)) |c| {
         if (label) |out| out.* = staticLabel(c);
         return kindToC(.character);
