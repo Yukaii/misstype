@@ -1,13 +1,13 @@
 # Linux port (fcitx5): task plan
 
-Current build (2026-10-08): Linux uses the Zig core and Zig `misstypectl` by
-default. `MISSTYPE_CORE=swift` builds the reference implementation. Historical
-Swift implementation notes below remain useful for the adapter contract;
-`docs/zig-port.md` records the cutover gates. Run
-`script/linux/dev.sh 'script/linux/test_all.sh'` for the shipping backend and
-`script/linux/dev.sh 'MISSTYPE_CORE=swift script/linux/test_all.sh'` for the
-reference. `test_desktop.sh` runs only inside a disposable test container and
-checks an installed addon through the production GTK frontend.
+Current build (2026-10-09): Linux uses the Zig core and Zig `misstypectl`; the
+Swift reference was retired the same day (`docs/zig-port.md`). The Swift
+implementation notes below are historical, but still describe the adapter
+contract; commands that mention `swift test`, `MISSTYPE_CORE=swift` or
+`Sources/MisstypeCore` refer to the retired implementation (last present at
+commit `c89b857`). Run `script/linux/dev.sh 'script/linux/test_all.sh'` for
+all Linux layers. `test_desktop.sh` runs only inside a disposable test
+container and checks an installed addon through the production GTK frontend.
 
 
 Status (2026-10-02): the user dictionary (conformance C13: Shift+arrow phrase
@@ -70,10 +70,6 @@ directly on an Ubuntu 24.04 host (verified 2026-10-01):
 ```sh
 script/linux/bootstrap.sh   # pinned Zig + native deps (idempotent)
 script/linux/test_all.sh    # Zig tests + C ABI + fcitx5
-# Optional Swift oracle provisioning:
-MISSTYPE_CORE=swift script/linux/bootstrap.sh
-export PATH="$HOME/swift-toolchain/swift-6.0-RELEASE-ubuntu24.04/usr/bin:$PATH"
-MISSTYPE_CORE=swift script/linux/test_all.sh
 ```
 
 Notes:
@@ -578,11 +574,11 @@ Landed 2026-10-04 (macOS Settings parity, except About):
   `ExternalOption` pointing at `misstype-dictionary-editor`; whether a given
   configtool build launches a bare program name is **not verified** (open the
   editor from the app menu or `misstypectl dict gui` otherwise).
-- **`misstypectl`** (Swift, `Sources/MisstypeCtl`, tests in
-  `tests/MisstypeCtlTests`): `dict list|add|remove|exclude|unexclude|check|edit|gui|path`
+- **`misstypectl`** (Zig, `core-zig/src/ctl.zig`, tests in
+  `tests/capi/ctl_test.py`): `dict list|add|remove|exclude|unexclude|check|edit|gui|path`
   edits `user_dictionary.tsv` (vChewing userdata format, `詞語 注音 [權重]`, so
   vChewing-userdata-generator output pastes in) line by line (comments survive) with
-  `UserDictionary`'s own validation; `config list|get|set|reset|path` edits
+  the user dictionary's own validation; `config list|get|set|reset|path` edits
   the same `misstype.conf` the page does (values validated, unknown lines
   kept, fcitx5 asked over D-Bus to reload the addon unless `--no-reload`; `fcitx5-remote -r` would reload only the global config).
 - **`misstype-dictionary-editor`** (GTK4, `linux/fcitx5/tools`): list, add,

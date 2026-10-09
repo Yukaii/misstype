@@ -1,5 +1,12 @@
 # Project outline
 
+> Note (2026-10-09): this is the project's decision and results record. Where it
+> names `Sources/MisstypeCore/*.swift`, `MisstypeCore`, `swift test`, the app's
+> `--decode`/`--replay` modes or the `MISSTYPE_*_SWEEP` tests, it means the
+> Swift implementation that the Zig core (`core-zig/`) replaced on 2026-10-09
+> (last present at commit `c89b857`, see `docs/zig-port.md`). The measurements
+> stay valid; the sweeps themselves were not ported.
+
 ## Problem
 
 Conventional touch keyboards make the user divide attention between composing and locating small, exact targets. Chinese input adds another interruption: choosing candidates while the thought is still forming. Misstype explores whether a forgiving split surface can preserve a user's learned hand motion and postpone linguistic decisions until a phrase is complete.

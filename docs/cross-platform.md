@@ -13,18 +13,19 @@ task plan that applies it to Linux (fcitx5).
 ## Layers
 
 ```text
-┌───────────────────────── MisstypeCore (Swift, all platforms) ─────────────────────────┐
-│ LexiconDecoder · Composition · LivePreview · UserLexicon · Punctuation                │
-│ InputEngine (per process) · InputSession (per client) · KeyEvent · key tables         │
+┌──────────────────────────── core-zig (Zig, all platforms) ────────────────────────────┐
+│ Lexicon · Composition · live preview · UserLexicon · Punctuation · touch · english    │
+│ Engine (per process) · Session (per client) · KeyEvent · key tables · wasm exports    │
 └───────────────┬───────────────────────────────────────────────┬───────────────────────┘
-                │ Swift API                                     │ C ABI: CMisstype/include/misstype.h
-                │                                               │ implemented by MisstypeCAPI (@_cdecl)
+                │ C ABI: CMisstype/include/misstype.h           │ C ABI: the same header
+                │ (libMisstypeCAPI.dylib, via MisstypeZigBridge)│ (libMisstypeCAPI.so)
 ┌───────────────▼──────────────┐              ┌─────────────────▼───────────────────────┐
 │ macOS: MisstypeIME (IMK)      │              │ Linux: linux/fcitx5 (C++ addon)         │
-│ NSEvent → KeyEvent           │              │ fcitx::KeyEvent → misstype_key_event     │
-│ SessionView → marked text,   │              │ misstype_view → client preedit,          │
+│ NSEvent → misstype_key_event │              │ fcitx::KeyEvent → misstype_key_event     │
+│ misstype_view → marked text, │              │ misstype_view → client preedit,          │
 │ CandidatesPanel              │              │ CommonCandidateList                     │
 └──────────────────────────────┘              └─────────────────────────────────────────┘
+                     web: misstype.wasm (wasm32-wasi) → site demo, video renderer
                                    future: IBus, Windows TSF — same C ABI
 ```
 
@@ -32,10 +33,10 @@ task plan that applies it to Linux (fcitx5).
 translates native key events, applies `KeyResult`, draws `SessionView`, and
 owns platform lifecycle, UI, preferences storage and file locations. If an
 adapter change would alter what a key sequence produces, the change belongs in
-`InputSession` (with an `InputSessionTests` case) instead.
+the Zig `Session` (with a case in `core-zig/src/tests/session_test.zig`) instead.
 
-The Swift adapter (macOS) calls the Swift API directly. Every non-Swift
-adapter goes through the C ABI; `misstype.h` is its only interface to the core.
+Every adapter, the macOS Swift one included, goes through the C ABI;
+`misstype.h` is its only interface to the core.
 
 ## The contract
 
@@ -193,19 +194,16 @@ core bug or an intentional contract change — never an adapter special case.
 
 ## Adding a platform
 
-1. Key table in the core (`<Platform>KeyCode`, same label set as
-   `MacKeyCode`, unit-tested).
-2. Adapter over the Swift API (Swift platforms) or `misstype.h` (everything
-   else), following §1–§6 and the delivery rules.
+1. Key table in the core (`misstype_key_from_<platform>` in `capi.zig`, same
+   label set as the macOS and evdev tables, unit-tested in `keymap_test.zig`).
+2. Adapter over `misstype.h`, following §1–§6 and the delivery rules.
 3. Headless integration tests for C1–C15.
 4. Resource/data locations added to the §6 table.
 5. A row in the delivery-rules table if the platform's event model differs.
 
 ## Known costs
 
-- The Swift reference C ABI library (`MISSTYPE_CORE=swift`; Linux ships the
-  Zig library by default, `docs/zig-port.md`) links the Swift runtime and
-  Foundation statically: `libMisstypeCAPI.so` is ~71 MB (~56 MB stripped;
-  measured 2026-09-28, aarch64), mostly Foundation's ICU data. Since Jev's
-  removal (2026-10-09) it needs only libc, libm, libstdc++ and libgcc_s at
-  install time; the `libcurl.so.4` dependency (FoundationNetworking) is gone.
+- The retired Swift C ABI library (`libMisstypeCAPI.so`, built with the Swift
+  runtime and Foundation linked statically) was ~71 MB (~56 MB stripped;
+  measured 2026-09-28, aarch64), mostly Foundation's ICU data. The Zig
+  library needs only libc and libm at install time.
