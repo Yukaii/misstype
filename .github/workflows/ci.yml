@@ -29,7 +29,7 @@ jobs:
     # SwiftPM's InputMethodKit headers. The UI remains on the Swift oracle
     # until the bridge is switched over; this gate keeps both architectures
     # and the ABI exports buildable while that migration proceeds.
-    runs-on: macos-14
+    runs-on: macos-26
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
