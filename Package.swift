@@ -42,9 +42,10 @@ products += [
 targets += [
     .executableTarget(
         name: "MisstypeIME",
-        dependencies: ["MisstypeCore", .product(name: "Sparkle", package: "Sparkle")],
+        dependencies: ["MisstypeCore", "MisstypeZigBridge", .product(name: "Sparkle", package: "Sparkle")],
         // The packaged bundle carries Sparkle.framework in Contents/Frameworks.
-        linkerSettings: [.unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"])]),
+        linkerSettings: [.unsafeFlags(["-Ldist/zig/macos-universal", "-lMisstypeCAPI",
+                                       "-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"])]),
     .executableTarget(name: "MisstypeSourceTool"),
     // Double-clickable installer shipped in the DMG (see docs/release.md).
     .executableTarget(name: "MisstypeInstaller"),

@@ -8,9 +8,11 @@ those consumers migrate. The macOS ABI migration is now staged: ABI v2 carries
 Latin-run feedback, UTF-16 word segments/focus, macOS keycode mapping, custom
 bindings, and dictionary/learning editor operations. `script/zig/build_macos.sh`
 builds and lipo-checks the Zig library for both macOS architectures; CI compiles
-that artifact beside the Swift packages. The IMK consumer still uses the Swift
-oracle until a native Mac replay confirms the bridge. See the verification
-record below.
+that artifact beside the Swift packages. The IMK composition path now defaults
+to the Zig session adapter; Swift remains the settings/editor and differential
+oracle until a native Mac replay confirms marked text, candidate paging,
+dictionary editing, and sandboxed persistence. See the verification record
+below.
 
 ## Why
 

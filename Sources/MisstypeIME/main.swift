@@ -26,6 +26,15 @@ enum Runtime {
         engine.channelLearnerURL = ChannelLearner.defaultURL
         return engine
     }()
+    static let zigEngine: ZigEngine = {
+        guard let resources = Bundle.main.resourceURL,
+              let engine = ZigEngine(resourceDirectory: resources,
+                                     userLexiconPath: UserLexicon.defaultURL) else {
+            NSLog("Misstype: Zig C ABI engine unavailable; refusing to start")
+            exit(1)
+        }
+        return engine
+    }()
     /// File trace for routing diagnosis (~/Library/Logs/MisstypeIME-debug.log).
     /// NSLog is a black hole under TIS-launched ad-hoc builds, so diagnosis
     /// goes here instead. Codes and indices only — never text content.
@@ -132,7 +141,13 @@ final class ModeIndicator: NSPanel {
 /// editing rule lives in the session; nothing here holds composition state.
 @objc(MisstypeInputController)
 final class MisstypeInputController: IMKInputController {
-    private lazy var session = InputSession(engine: Runtime.engine)
+    private lazy var session: ZigSessionAdapter = {
+        guard let session = ZigSessionAdapter(engine: Runtime.zigEngine) else {
+            NSLog("Misstype: failed to create Zig session")
+            exit(1)
+        }
+        return session
+    }()
     private weak var lastClient: IMKTextInput?
     /// What the client and panel show now; `render` pushes only differences.
     private var rendered = SessionView.empty
@@ -195,7 +210,7 @@ final class MisstypeInputController: IMKInputController {
         render(client)
         if result.beep { NSSound.beep() }
         if result.latinToggled { ModeIndicator.shared.flash(english: session.latinActive, anchor: anchor) }
-        if result.modeChanged { ModeIndicator.shared.flash(english: Runtime.engine.english, anchor: anchor) }
+        if result.modeChanged { ModeIndicator.shared.flash(english: Runtime.zigEngine.isEnglish, anchor: anchor) }
     }
 
     /// Inserting replaces the marked text, so the client now shows none.
@@ -316,7 +331,7 @@ final class MisstypeInputController: IMKInputController {
         menu.autoenablesItems = false
         // Persistent mode readout (the flash pill is transient): which
         // language bare keys will produce right now.
-        let mode = NSMenuItem(title: Runtime.engine.english ? L("English mode") : L("Chinese mode"),
+        let mode = NSMenuItem(title: Runtime.zigEngine.isEnglish ? L("English mode") : L("Chinese mode"),
                               action: nil, keyEquivalent: "")
         mode.state = .on
         mode.isEnabled = false

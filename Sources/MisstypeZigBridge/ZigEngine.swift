@@ -38,3 +38,25 @@ public final class ZigEngineProbe {
         return String(cString: preedit)
     }
 }
+
+/// Owning Swift handle used by the macOS adapter.
+public final class ZigEngine {
+    let handle: OpaquePointer
+
+    public init?(resourceDirectory: URL, userLexiconPath: URL?) {
+        let created: OpaquePointer? = resourceDirectory.path.withCString { resources in
+            if let path = userLexiconPath?.path {
+                return path.withCString { misstype_engine_new(resources, $0) }
+            }
+            return misstype_engine_new(resources, nil)
+        }
+        guard let created else { return nil }
+        handle = created
+    }
+
+    deinit { misstype_engine_free(handle) }
+
+    public var isEnglish: Bool { misstype_engine_is_english(handle) != 0 }
+
+    public func makeSession() -> OpaquePointer? { misstype_session_new(handle) }
+}
