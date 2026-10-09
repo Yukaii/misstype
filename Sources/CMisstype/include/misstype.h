@@ -1,4 +1,4 @@
-/* misstype.h: C ABI over MisstypeCore's InputSession (docs/cross-platform.md).
+/* misstype.h: C ABI of the Zig core's Session (core-zig/src/capi.zig; docs/cross-platform.md).
  *
  * Threading: all calls for one engine and its sessions on one thread.
  * Memory: every char* and misstype_view* returned is owned by the caller and
@@ -44,12 +44,12 @@ typedef enum misstype_key_kind {
     MISSTYPE_KEY_PAGE_DOWN = 16
 } misstype_key_kind;
 
-/* Bit values equal KeyEvent.Modifiers raw values. */
+/* Modifier bit values (the macOS adapter's KeyEvent.Modifiers use the same). */
 enum {
     MISSTYPE_MOD_SHIFT = 1 << 0,
     MISSTYPE_MOD_CONTROL = 1 << 1,
-    MISSTYPE_MOD_ALT = 1 << 2,       /* KeyEvent.Modifiers.option */
-    MISSTYPE_MOD_SUPER = 1 << 3,     /* KeyEvent.Modifiers.command */
+    MISSTYPE_MOD_ALT = 1 << 2,       /* Option on macOS */
+    MISSTYPE_MOD_SUPER = 1 << 3,     /* Command on macOS */
     MISSTYPE_MOD_CAPS_LOCK = 1 << 4
 };
 
@@ -85,7 +85,7 @@ typedef enum misstype_mark_action {
 typedef struct misstype_view {
     char *preedit;              /* UTF-8, "" when idle */
     int32_t caret_bytes;        /* caret as a UTF-8 byte offset into preedit */
-    int32_t caret_utf16;        /* same caret in UTF-16 units (SessionView.caret) */
+    int32_t caret_utf16;        /* same caret in UTF-16 units */
     char **candidates;          /* full list, candidate_count entries */
     int32_t candidate_count;
     int32_t selected;           /* index into candidates */
@@ -117,7 +117,7 @@ typedef struct misstype_view {
     int32_t focus_end_utf16;
 } misstype_view;
 
-/* Which words the syllable cursor (Left/Right) lists (CursorCandidates). */
+/* Which words the syllable cursor (Left/Right) lists. */
 typedef enum misstype_cursor_candidates {
     MISSTYPE_CURSOR_COVERING = 0,     /* every word covering the cursor syllable */
     MISSTYPE_CURSOR_ENDING_AT = 1,    /* words ending at the cursor syllable, caret after it */
@@ -129,7 +129,7 @@ typedef struct misstype_settings {
     int32_t tone_tolerance;     /* default 1 */
     int32_t user_learning;      /* default 1 */
     int32_t shift_toggle;       /* default 1; fcitx5 sets 0 (AltTriggerKeys owns Shift_L) */
-    const char *candidate_keys; /* NULL = "asdfghjkl;"; sanitized like SelectionKeys.sanitize */
+    const char *candidate_keys; /* NULL = "asdfghjkl;"; sanitized: distinct Zhuyin/tone keys, one page */
     /* Appended fields. misstype_settings_default() keeps the core's behavior. */
     int32_t auto_show_candidates;       /* default 1; 0 = panel opens on Tab/arrows only */
     int32_t return_confirms_selection;  /* default 0; 1 = Return confirms a pick, the next Return sends */
@@ -142,7 +142,9 @@ typedef struct misstype_settings {
 misstype_settings misstype_settings_default(void);
 
 /* resource_dir holds lexicon.tsv (required), local_phrases.tsv, toneless.tsv.
- * user_lexicon_path: NULL = UserLexicon.defaultURL, "" = memory only.
+ * user_lexicon_path: NULL = user_phrases.json in the platform data directory
+ * (~/Library/Application Support/Misstype on macOS, $XDG_DATA_HOME/misstype
+ * elsewhere), "" = memory only.
  * Returns NULL when lexicon.tsv is missing or unreadable. */
 misstype_engine *misstype_engine_new(const char *resource_dir, const char *user_lexicon_path);
 /* Releases the caller's handle; live sessions keep the engine alive. */
@@ -151,7 +153,7 @@ void misstype_engine_set_settings(misstype_engine *engine, const misstype_settin
 int32_t misstype_engine_is_english(const misstype_engine *engine);
 
 /* User dictionary (my words): path of user_dictionary.tsv. NULL =
- * UserDictionary.defaultURL ($XDG_DATA_HOME/misstype/user_dictionary.tsv),
+ * the default (user_dictionary.tsv in the platform data directory),
  * "" = memory only (the default after misstype_engine_new, so tests are
  * hermetic). Loads the file now; Enter on a mark persists to it, and edits
  * made outside are picked up when the next composition starts. */
@@ -159,9 +161,8 @@ void misstype_engine_set_user_dictionary_path(misstype_engine *engine, const cha
 
 /* Personal channel model (learned typing slips; docs/project-outline.md,
  * Personal channel model). Appended functions, the settings struct is
- * unchanged. Path: NULL = ChannelLearner.defaultURL
- * ($XDG_DATA_HOME/misstype/channel_model.json), "" = memory only (the
- * default after misstype_engine_new). Learning is off until enabled, and
+ * unchanged. Path: NULL = the default (channel_model.json in the platform data
+ * directory), "" = memory only (the default after misstype_engine_new). Learning is off until enabled, and
  * also needs user_learning; misstype_engine_set_settings keeps the flag. */
 void misstype_engine_set_channel_path(misstype_engine *engine, const char *path);
 void misstype_engine_set_channel_learning(misstype_engine *engine, int32_t enabled);
@@ -183,12 +184,12 @@ void misstype_session_pick(misstype_session *session, int32_t index);
 void misstype_session_reset_modifiers(misstype_session *session);
 char *misstype_session_raw_phonetic(misstype_session *session);
 /* 1 while an English (latin) run is open mid-composition (Shift tap or
- * backtick; InputSession.latinActive), else 0. Appended 2026-10-07: the host
+ * backtick), else 0. Appended 2026-10-07: the host
  * compares it across misstype_session_handle to show 英/中 (contract §2). */
 int32_t misstype_session_latin_active(misstype_session *session);
 misstype_view *misstype_session_view(misstype_session *session);
 
-/* Keymap (tables live in MisstypeCore). label receives a static string for
+/* Keymap (tables live in core-zig/src/capi.zig). label receives a static string for
  * MISSTYPE_KEY_CHARACTER, else NULL. */
 misstype_key_kind misstype_key_from_evdev(int32_t evdev_code, const char **label);
 /* Fallback without a scancode: one UTF-8 character typed on a US layout.
@@ -197,7 +198,7 @@ misstype_key_kind misstype_key_from_character(const char *utf8, const char **lab
 /* v2. macOS virtual key codes (ANSI positions), same labels as evdev. */
 misstype_key_kind misstype_key_from_mac(int32_t keycode, const char **label);
 
-/* v2. Key bindings in KeyBindings text form, one action per line
+/* v2. Key bindings in text form, one action per line
  * ("nextCandidate = tab, ctrl+n"; "latinRun =" unbinds); NULL or "" = the
  * defaults. Kept across misstype_engine_set_settings. */
 void misstype_engine_set_key_bindings(misstype_engine *engine, const char *text);

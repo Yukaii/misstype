@@ -2,37 +2,19 @@
 import Foundation
 import PackageDescription
 
-// MisstypeCore (decoder + InputSession) builds everywhere Swift does; the
-// InputMethodKit adapter and the Carbon source tool are macOS-only.
-// MisstypeCAPI (C ABI over MisstypeCore) and CMisstype (C header) build on all platforms.
-var products: [Product] = [
-    .library(name: "MisstypeCAPI", type: .dynamic, targets: ["MisstypeCAPI"]),
-    .executable(name: "MisstypeWasm", targets: ["MisstypeWasm"]),
-    // Product name keeps the binary `misstypectl`; the target directory differs
-    // from MisstypeCtl by more than case (macOS file systems ignore case).
-    .executable(name: "misstypectl", targets: ["MisstypeCtlTool"]),
-]
-
-var targets: [Target] = [
-    .target(name: "MisstypeCore"),
-    .target(name: "CMisstype"),
-    .target(name: "MisstypeCAPI", dependencies: ["MisstypeCore", "CMisstype"]),
-    .executableTarget(
-        name: "MisstypeWasm",
-        dependencies: ["MisstypeCore"]
-    ),
-    .target(name: "MisstypeCtl", dependencies: ["MisstypeCore"]),
-    .executableTarget(name: "MisstypeCtlTool", dependencies: ["MisstypeCtl"]),
-    .testTarget(name: "MisstypeCtlTests", dependencies: ["MisstypeCtl", "MisstypeCore"],
-                path: "tests/MisstypeCtlTests"),
-    .testTarget(name: "MisstypeCoreTests", dependencies: ["MisstypeCore"],
-                path: "tests/MisstypeCoreTests"),
-]
+// The core is Zig (core-zig/, docs/zig-port.md). SwiftPM builds only the macOS
+// side: the InputMethodKit adapter, its Settings UI, the installer, the Carbon
+// source tool, and the thin Swift bridge to the C ABI (CMisstype/include/misstype.h).
+// `./script/zig/build_macos.sh` produces the universal libMisstypeCAPI.dylib
+// that the adapter and the bridge link by absolute path (a library search flag
+// alone can pick SwiftPM's same-named reference library first).
+var products: [Product] = []
+var targets: [Target] = []
 var dependencies: [Package.Dependency] = []
 #if os(macOS)
 let packageRoot = URL(fileURLWithPath: #filePath).deletingLastPathComponent().path
 let zigLibraryDir = "\(packageRoot)/dist/zig/macos-universal"
-// Sparkle is macOS-only and declared here so Linux never resolves it.
+// Sparkle is macOS-only and declared here so other platforms never resolve it.
 dependencies += [
     .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.6.0"),
 ]
@@ -43,9 +25,16 @@ products += [
     .executable(name: "MisstypeZigSmoke", targets: ["MisstypeZigSmoke"]),
 ]
 targets += [
+    .target(name: "CMisstype"),
+    // UI-side types of the IME (key events, view model, preferences model,
+    // key-binding editor, candidate row windows); the Zig core owns every
+    // editing rule.
+    .target(name: "MisstypeMacKit"),
+    .testTarget(name: "MisstypeMacKitTests", dependencies: ["MisstypeMacKit"],
+                path: "tests/MisstypeMacKitTests"),
     .executableTarget(
         name: "MisstypeIME",
-        dependencies: ["MisstypeCore", "MisstypeZigBridge", .product(name: "Sparkle", package: "Sparkle")],
+        dependencies: ["MisstypeMacKit", "MisstypeZigBridge", .product(name: "Sparkle", package: "Sparkle")],
         // The packaged bundle carries Sparkle.framework in Contents/Frameworks.
         linkerSettings: [.unsafeFlags(["\(zigLibraryDir)/libMisstypeCAPI.dylib",
                                        "-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"])]),
@@ -59,7 +48,9 @@ targets += [
             .unsafeFlags(["\(zigLibraryDir)/libMisstypeCAPI.dylib",
                           "-Xlinker", "-rpath", "-Xlinker", "@loader_path/../../zig"])
         ]),
-    .executableTarget(name: "MisstypeZigSmoke", dependencies: ["MisstypeZigBridge"]),
+    .executableTarget(
+        name: "MisstypeZigSmoke", dependencies: ["MisstypeZigBridge"],
+        linkerSettings: [.unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", zigLibraryDir])]),
 ]
 #endif
 

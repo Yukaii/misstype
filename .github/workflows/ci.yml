@@ -1,7 +1,7 @@
 name: CI
 
-# Keeps the Swift reference and Zig port portable and checks their parity.
-# macOS shipping behavior is exercised by release.yml until its C ABI cutover.
+# Tests the Zig core (units, behavior suites, golden gates frozen from the retired
+# Swift reference), the Linux frontends, the wasm build and the macOS UI side.
 # Site and docs-only changes skip it (the site has its own build in pages.yml).
 on:
   push:
@@ -25,10 +25,9 @@ concurrency:
 
 jobs:
   macos-zig-port:
-    # Compile the macOS-facing ABI on the platform that supplies lipo and
-    # SwiftPM's InputMethodKit headers. The UI remains on the Swift oracle
-    # until the bridge is switched over; this gate keeps both architectures
-    # and the ABI exports buildable while that migration proceeds.
+    # Build the universal Zig library on the platform that supplies lipo and
+    # SwiftPM's InputMethodKit headers, then build the IME against it and run
+    # the Swift UI-side tests and the Swift-to-Zig smoke test.
     runs-on: macos-26
     timeout-minutes: 30
     steps:
@@ -40,10 +39,10 @@ jobs:
           key: zig-macos-${{ runner.arch }}-${{ hashFiles('script/zig/bootstrap.sh') }}
       - name: Build universal Zig C ABI
         run: script/zig/build_macos.sh
-      - name: Compile Swift packages and C ABI reference
-        run: swift build --build-tests
+      - name: Build the IME and run the Swift UI-side tests
+        run: swift test
       - name: Link and run Swift-to-Zig smoke test
-        run: swift run MisstypeZigSmoke
+        run: swift run MisstypeZigSmoke tests/fixtures/lexicon
 
   zig-core:
     runs-on: ubuntu-24.04
@@ -67,15 +66,38 @@ jobs:
           "$zig" build test
           "$zig" build test -Doptimize=ReleaseFast
 
-  core-linux:
+  # The site demo's WebAssembly build: the same `misstype_wasm_*` exports,
+  # exercised by the browser-API suite under Node.
+  wasm:
     runs-on: ubuntu-24.04
-    container: swift:6.0
     steps:
       - uses: actions/checkout@v4
-      - name: Test MisstypeCore
-        run: swift test
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - name: Cache pinned Zig toolchain and compiler
+        uses: actions/cache@v4
+        with:
+          path: |
+            .cache/zig
+            ~/.cache/zig
+            core-zig/.zig-cache
+          key: zig-wasm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('script/zig/bootstrap.sh') }}-${{ hashFiles('third_party/utf8proc/*', 'core-zig/src/*', 'core-zig/build.zig') }}
+          restore-keys: |
+            zig-wasm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('script/zig/bootstrap.sh') }}-
+      - run: npm ci
+        working-directory: site
+      - name: Build wasm32-wasi and run the browser API suite
+        run: |
+          zig=$(script/zig/bootstrap.sh)
+          (cd core-zig && "$zig" build wasm)
+          mkdir -p site/public
+          cp core-zig/zig-out/wasm/misstype.wasm site/public/
+          node tests/wasm_test.mjs
 
-  # The Linux dev image (Swift + fcitx5 + GTK) is published to GHCR keyed by the
+  # The Linux dev image (fcitx5 + GTK build tools) is published to GHCR keyed by the
   # Dockerfile hash, so it builds only when linux/Dockerfile changes and every
   # job below just pulls it.
   linux-image:
@@ -130,18 +152,17 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: swift reference C ABI and addon, exact decoder parity
-            run: |
-              script/linux/dev.sh 'MISSTYPE_CORE=swift script/ci/time.sh swift-capi-check script/linux/test_capi.sh && MISSTYPE_CORE=swift script/ci/time.sh swift-addon-check script/linux/test_fcitx5.sh'
-              script/ci/time.sh exact-decoder-parity core-zig/bench/compare.sh 10
-          - name: zig C ABI and addon, persistence and CLI
+          - name: exact decoder golden
+            optimize: ReleaseFast
+            run: script/ci/time.sh exact-decoder-golden core-zig/bench/compare.sh 10
+          - name: C ABI and addon, persistence and CLI
             run: |
               script/ci/time.sh zig-capi-addon script/zig/test_linux.sh
               script/ci/time.sh persistence-parity script/zig/test_persistence.sh
               script/ci/time.sh cli-parity script/zig/test_ctl.sh
           - name: installed GTK desktop
             run: script/linux/dev.sh 'script/ci/time.sh linux-tests script/linux/test_all.sh && script/ci/time.sh installed-desktop script/linux/test_desktop.sh'
-          - name: full candidates, touch and Unicode parity
+          - name: full candidates, touch and Unicode golden
             optimize: ReleaseFast
             run: script/ci/time.sh full-candidate-parity core-zig/bench/parity.sh
           - name: debug session replay
@@ -167,7 +188,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Pull the Linux test image
         run: docker pull "$MISSTYPE_LINUX_IMAGE"
-      - name: Cache container SwiftPM and Zig builds
+      - name: Cache container Zig and fcitx5 builds
         uses: actions/cache@v4
         with:
           path: .cache/linux-build
@@ -176,9 +197,9 @@ jobs:
           # compiler validation, then save a new snapshot at this commit.
           # The fcitx5 CMake tree is included because the installed-desktop
           # leg spends most of its cold time compiling the addon.
-          key: linux-build-v1-${{ runner.arch }}-${{ hashFiles('linux/Dockerfile', 'script/zig/bootstrap.sh', 'Package.swift', 'Package.resolved') }}-${{ strategy.job-index }}-${{ github.sha }}
+          key: linux-build-v2-${{ runner.arch }}-${{ hashFiles('linux/Dockerfile', 'script/zig/bootstrap.sh') }}-${{ strategy.job-index }}-${{ github.sha }}
           restore-keys: |
-            linux-build-v1-${{ runner.arch }}-${{ hashFiles('linux/Dockerfile', 'script/zig/bootstrap.sh', 'Package.swift', 'Package.resolved') }}-${{ strategy.job-index }}-
+            linux-build-v2-${{ runner.arch }}-${{ hashFiles('linux/Dockerfile', 'script/zig/bootstrap.sh') }}-${{ strategy.job-index }}-
       - name: Cache pinned Zig toolchain and compiler
         uses: actions/cache@v4
         with:

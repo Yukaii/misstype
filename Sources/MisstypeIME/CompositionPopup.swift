@@ -1,5 +1,5 @@
 import AppKit
-import MisstypeCore
+import MisstypeMacKit
 
 /// Clients whose `IMKTextInput` marked text cannot be trusted (vChewing's
 /// "mitigation level 2", checked against its LibVanguard source 2026-10-06):

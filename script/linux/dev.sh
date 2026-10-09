@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Run a command inside the Linux dev container (linux/Dockerfile) against a
 # fresh copy of the working tree, so host build products never leak in:
-#   script/linux/dev.sh 'swift test'
+#   script/linux/dev.sh 'script/linux/test_all.sh'
 # The tree is mounted read-only; the copy lives at /w (the working dir).
 # MISSTYPE_LINUX_BUILD_CACHE=1 opts into separate Linux-only compiler caches
 # under .cache/linux-build. Default local runs still use clean build directories.
@@ -16,9 +16,8 @@ fi
 cache_args=()
 if [ "${MISSTYPE_LINUX_BUILD_CACHE:-0}" = 1 ]; then
   cache="$ROOT/.cache/linux-build"
-  mkdir -p "$cache/swift" "$cache/zig-local" "$cache/zig-global" "$cache/fcitx5"
-  cache_args=(-v "$cache/swift":/w/.build
-    -v "$cache/zig-local":/w/core-zig/.zig-cache
+  mkdir -p "$cache/zig-local" "$cache/zig-global" "$cache/fcitx5"
+  cache_args=(-v "$cache/zig-local":/w/core-zig/.zig-cache
     -v "$cache/zig-global":/cache/zig-global
     -v "$cache/fcitx5":/w/build/fcitx5
     -e ZIG_GLOBAL_CACHE_DIR=/cache/zig-global)

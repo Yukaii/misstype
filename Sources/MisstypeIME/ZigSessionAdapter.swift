@@ -1,5 +1,5 @@
 import Foundation
-import MisstypeCore
+import MisstypeMacKit
 import MisstypeZigBridge
 import CMisstype
 
@@ -8,10 +8,13 @@ final class ZigSessionAdapter {
     private let engine: ZigEngine
     private let handle: OpaquePointer
     private(set) var view = SessionView.empty
+    /// Preferences read before every key, so a flip applies on the next one.
+    private let settingsProvider: () -> SessionSettings
 
-    init?(engine: ZigEngine) {
+    init?(engine: ZigEngine, settings: @escaping () -> SessionSettings = { MisstypePrefs.sessionSettings }) {
         guard let session = engine.makeSession() else { return nil }
         self.engine = engine
+        self.settingsProvider = settings
         self.handle = session
         refresh()
     }
@@ -51,7 +54,7 @@ final class ZigSessionAdapter {
     func resetModifierState() { misstype_session_reset_modifiers(handle) }
 
     private func syncSettings() {
-        let settings = MisstypePrefs.sessionSettings
+        let settings = settingsProvider()
         let candidateKeys = settings.candidateKeys
         candidateKeys.withCString { keys in
             var value = misstype_settings(
@@ -65,9 +68,12 @@ final class ZigSessionAdapter {
                 mixed_english: settings.mixedEnglish ? 1 : 0,
                 auto_commit_syllables: Int32(settings.autoCommitSyllables),
                 page_size: Int32(settings.pageSize),
-                cursor_candidates: Int32(settings.cursorCandidates.rawValue == "endingAt" ? 1 : settings.cursorCandidates.rawValue == "beginningAt" ? 2 : 0))
+                cursor_candidates: settings.cursorCandidates.level)
             engine.setSettings(value)
         }
+        // misstype_engine_set_settings keeps these two, so they follow it.
+        engine.setRepairStrength(settings.repairStrength.level)
+        engine.setChannelLearning(settings.channelLearning)
         engine.setKeyBindings(settings.keyBindings.serialized)
     }
 

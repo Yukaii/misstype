@@ -15,6 +15,7 @@ Usage:
 Exits 0 (report, not gate).
 """
 
+import os
 import argparse
 import subprocess
 import sys
@@ -23,7 +24,8 @@ from pathlib import Path
 
 CACHE = Path.home() / ".cache/misstype/corpus"
 ROOT = Path(__file__).resolve().parent.parent
-APP_BIN = ROOT / "dist/MisstypeIME.app/Contents/MacOS/MisstypeIME"
+APP_BIN = ROOT / "core-zig/zig-out/bin/misstype-dev"  # cd core-zig && zig build
+os.environ.setdefault("MISSTYPE_RESOURCES", str(ROOT / "dist/MisstypeIME.app/Contents/Resources"))
 FLOOR = -12.0
 
 CASES = [

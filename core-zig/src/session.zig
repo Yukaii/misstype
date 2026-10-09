@@ -277,12 +277,12 @@ pub const Settings = struct {
 };
 
 /// Selection key labels: the first `page_size` characters of `keys`.
-fn selectionLabels(arena: Allocator, keys: []const u8, page_size: usize) ![][]const u8 {
+pub fn selectionLabels(arena: Allocator, keys: []const u8, page_size: usize) ![][]const u8 {
     const chars = try unicode.characters(arena, keys);
     return chars[0..@min(chars.len, page_size)];
 }
 
-fn selectionSlot(arena: Allocator, label: []const u8, keys: []const u8, page_size: usize) !?usize {
+pub fn selectionSlot(arena: Allocator, label: []const u8, keys: []const u8, page_size: usize) !?usize {
     for (try selectionLabels(arena, keys, page_size), 0..) |l, i| {
         if (std.mem.eql(u8, l, label)) return i;
     }

@@ -17,7 +17,7 @@ status=0
 script/ci/time.sh container-command bash -euo pipefail -c "$1" || status=$?
 # Docker runs as root, while the Actions runner saves the bind-mounted cache
 # as its own user. Make compiler artifacts readable before the container exits.
-for cache_dir in /w/.build /w/core-zig/.zig-cache /cache/zig-global /w/build/fcitx5; do
+for cache_dir in /w/core-zig/.zig-cache /cache/zig-global /w/build/fcitx5; do
     [ -d "$cache_dir" ] && chmod -R a+rX "$cache_dir" || true
 done
 exit "$status"

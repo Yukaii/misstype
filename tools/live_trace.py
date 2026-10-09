@@ -3,9 +3,9 @@
 Question (user report 2026-09-27): with live conversion, characters that
 were already converted fall back to Bopomofo mid-sentence, and partial
 syllables snap to a character immediately, so the preview jumps around.
-This replays each synthetic sentence key by key through the Swift
-binary's `--live-trace` (the exact IME preview path, `livePreview`) and
-counts, between consecutive keystrokes:
+This replays each synthetic sentence key by key through the Zig
+`misstype-dev --session-trace --show` (the real session's preedit after each
+key, with auto-commit off) and counts, between consecutive keystrokes:
 
 - revert: a position showing a Han character now shows Bopomofo;
 - churn:  a settled Han character (not the last converted one, which is
@@ -14,7 +14,8 @@ counts, between consecutive keystrokes:
 Offline and deterministic; sentences are the synthetic cursor_replay sets.
 
 Usage:
-  ./script/build_and_run.sh --build-only
+  ./script/build_and_run.sh --build-only   # bundle resources
+  (cd core-zig && zig build)
   PYTHONPATH=src python tools/live_trace.py [--set dev|holdout|all] [--show N]
 """
 
@@ -37,13 +38,12 @@ def is_bopomofo(char: str) -> bool:
 
 
 def trace(keys: str, settle: int | None = None) -> list[str]:
-    command = [str(APP_BIN), "--decode", keys, "--live-trace"]
-    if settle is not None:
-        command += ["--settle", str(settle)]
-    proc = subprocess.run(command,
-                          capture_output=True, text=True, timeout=120, check=True)
-    return [line.split("\t", 2)[2] if line.count("\t") >= 2 else ""
-            for line in proc.stdout.splitlines() if line.startswith("live\t")]
+    """The preedit after each key. `settle` is ignored: the session settles
+    accepted text itself (the Swift-era `--settle` knob is gone)."""
+    command = [str(APP_BIN), "--session-trace", keys, "--auto-commit", "0", "--show"]
+    proc = subprocess.run(command, capture_output=True, text=True, timeout=120, check=True)
+    return [line.split("\t", 2)[2].replace("|", "", 1) if line.count("\t") >= 2 else ""
+            for line in proc.stdout.splitlines() if line.startswith("view\t")]
 
 
 def stability(previews: list[str]) -> dict[str, int]:
@@ -75,7 +75,7 @@ def main() -> int:
                         help="auto-settle words this many syllables before the end")
     args = parser.parse_args()
     if not APP_BIN.exists():
-        print("missing build: run ./script/build_and_run.sh --build-only")
+        print("missing build: run ./script/build_and_run.sh --build-only and (cd core-zig && zig build)")
         return 2
     rows = []
     for expected, readings in sentence_set(args.set):

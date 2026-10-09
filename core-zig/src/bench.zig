@@ -1,9 +1,9 @@
 //! misstype-bench <resource dir> <inputs.tsv> [repeats]
 //!
 //! Loads the shipping lexicon the way LexiconLoader does, decodes every
-//! input in bench/inputs.tsv, and prints the top candidates in the format
-//! of tests/MisstypeCoreTests/ZigReferenceTests.swift (stdout) plus latency
-//! (stderr). bench/compare.sh diffs the two.
+//! input in bench/inputs.tsv, and prints the top candidates (stdout) plus
+//! latency (stderr). bench/compare.sh diffs the candidates against
+//! tests/golden/decode.tsv, frozen from the retired Swift reference.
 
 const std = @import("std");
 const misstype = @import("misstype");
