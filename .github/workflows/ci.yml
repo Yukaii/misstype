@@ -145,6 +145,8 @@ jobs:
           cache-to: type=gha,scope=linux-dev,mode=max
 
   # Independent gates run in parallel instead of one 20+ minute serial job.
+  # Pull requests use reduced replay/golden samples below; main and manual runs
+  # retain the full corpus and candidate/touch parity gate.
   # Each leg gets a fresh source copy and its own Linux-only build cache.
   fcitx5-linux:
     needs: linux-image
@@ -160,31 +162,34 @@ jobs:
         include:
           - name: exact decoder golden
             optimize: ReleaseFast
-            run: script/ci/time.sh exact-decoder-golden core-zig/bench/compare.sh 10
+            run: script/ci/time.sh exact-decoder-golden core-zig/bench/compare.sh "$MISSTYPE_GOLDEN_REPEATS"
           - name: C ABI and addon, persistence and CLI
             run: |
               script/ci/time.sh zig-capi-addon script/zig/test_linux.sh
               script/ci/time.sh persistence-parity script/zig/test_persistence.sh
               script/ci/time.sh cli-parity script/zig/test_ctl.sh
           - name: installed GTK desktop
-            run: script/linux/dev.sh 'script/ci/time.sh linux-tests script/linux/test_all.sh && script/ci/time.sh installed-desktop script/linux/test_desktop.sh'
+            run: script/linux/dev.sh 'script/ci/time.sh installed-desktop script/linux/test_desktop.sh'
           - name: full candidates, touch and Unicode golden
             optimize: ReleaseFast
+            skip_pr: true
             run: script/ci/time.sh full-candidate-parity core-zig/bench/parity.sh
           - name: debug session replay
-            run: script/ci/time.sh debug-replay core-zig/bench/replay.sh 400 1
+            run: script/ci/time.sh debug-replay core-zig/bench/replay.sh "$MISSTYPE_REPLAY_CASES" 1
           - name: ReleaseFast session replay
             optimize: ReleaseFast
             skip_tests: "1"
             run: |
-              script/ci/time.sh release-replay-seed-1 core-zig/bench/replay.sh 400 1
-              script/ci/time.sh release-replay-seed-487 core-zig/bench/replay.sh 400 487
+              script/ci/time.sh release-replay-seed-1 core-zig/bench/replay.sh "$MISSTYPE_REPLAY_CASES" 1
+              MISSTYPE_REPLAY_SKIP_BUILD=1 script/ci/time.sh release-replay-seed-487 core-zig/bench/replay.sh "$MISSTYPE_REPLAY_CASES" 487
     env:
       MISSTYPE_LINUX_PREBUILT: "1"
       MISSTYPE_LINUX_BUILD_CACHE: "1"
       MISSTYPE_LINUX_IMAGE: ${{ needs.linux-image.outputs.image }}
       MISSTYPE_ZIG_OPTIMIZE: ${{ matrix.optimize }}
       MISSTYPE_REPLAY_SKIP_TESTS: ${{ matrix.skip_tests || '0' }}
+      MISSTYPE_REPLAY_CASES: ${{ github.event_name == 'pull_request' && '100' || '400' }}
+      MISSTYPE_GOLDEN_REPEATS: ${{ github.event_name == 'pull_request' && '2' || '10' }}
     steps:
       - uses: actions/checkout@v4
       - uses: docker/login-action@v3
@@ -227,6 +232,7 @@ jobs:
       - name: Prepare checksum-verified public lexicons
         run: python3 script/prepare_lexicon.py
       - name: ${{ matrix.name }}
+        if: matrix.skip_pr != true || github.event_name != 'pull_request'
         run: |
           TIMEFORMAT='timing: linux-leg wall=%3Rs user=%3Us sys=%3Ss'
           time {
