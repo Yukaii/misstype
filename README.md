@@ -1,6 +1,21 @@
-# 隨打注音 (Misstype)
+<div align="center">
+  <img src="Resources/MisstypeIcon.png" alt="Misstype logo" width="96" height="96">
+  <br><sub><i>打注音，不用管聲調。</i></sub>
 
-**繁體中文** | [English](README-en.md)
+  <h1>隨打注音 (Misstype)</h1>
+
+  <p>免聲調、自動修正的注音輸入法。<br>Zig 核心 · macOS (IMK) 與 Linux (fcitx5) · 離線 · MIT</p>
+
+  <p>
+  <a href="https://github.com/Yukaii/misstype/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Yukaii/misstype/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/Yukaii/misstype/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/Yukaii/misstype?sort=semver"></a>
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue"></a>
+  <img alt="Core: Zig" src="https://img.shields.io/badge/core-Zig-f7a41d">
+  <img alt="Platforms: macOS, Linux" src="https://img.shields.io/badge/platforms-macOS%20%C2%B7%20Linux-lightgrey">
+  </p>
+
+  <p><b>繁體中文</b> · <a href="README-en.md">English</a> · <a href="docs/architecture.md">架構</a> · <a href="CONTRIBUTING.md">貢獻</a> · <a href="docs/development.md">開發</a></p>
+</div>
 
 「隨打注音」（Misstype）是給注音使用者的輸入法，主打兩件事：
 
@@ -65,6 +80,23 @@ Arch Linux / Omarchy 的套件建置、安裝與移除方式請參閱 [安裝說
 * **全形符號與中英切換**：<kbd>Shift</kbd> + <kbd>數字鍵</kbd> 與 <kbd>Shift</kbd> + <kbd>=</kbd>、<kbd>[</kbd>、<kbd>]</kbd>、<kbd>&#96;</kbd> 可直接鍵入全形符號（！＠＃＄％︿＆＊（）＋｛｝～）。<kbd>Backspace</kbd> 可倒退修改原始組字內容。輕按單次 <kbd>Shift</kbd> 或按下 <kbd>Shift</kbd> + <kbd>Space</kbd> 即可直接遞交並切換中／英文模式。
 * **我的詞庫**：打字時用 <kbd>Shift</kbd> + <kbd>←</kbd>/<kbd>→</kbd> 標記已轉換文字中的音節，按 <kbd>Return</kbd> 即可把詞（人名、專有名詞）加入自己的詞庫；對同一段標記再按 <kbd>Return</kbd> 則移除。macOS 的「設定 → 我的詞庫」是同一份 `user_dictionary.tsv` 的純文字編輯器，格式與唯音的 userdata 相同（`詞語 注音`，每行一筆），可直接貼上或用「匯入…」讀入唯音詞庫；只有一般詞彙清單時，可用 Will 保哥的第三方[線上產生器](https://vu.gh.miniasp.com/)（[原始碼](https://github.com/doggy8088/vChewing-userdata-generator)，MIT；與本專案無關）轉成此格式；Linux 請直接編輯 `~/.local/share/misstype/user_dictionary.tsv`。
 * **在地化學習**：系統會在本地記憶各詞彙的選字偏好，單個漢字則會結合其前置上下文詞彙共同學習與加權。
+
+## 專案結構
+
+| 路徑 | 內容 |
+| --- | --- |
+| `core-zig/` | 唯一的解碼與編輯 `Session` 實作，透過 C ABI 與 wasm32-wasi 對外 |
+| `Sources/` | 僅 macOS：IMK 轉接層、設定介面、安裝程式（不含解碼規則） |
+| `linux/fcitx5/` | 共用同一核心的 fcitx5 外掛與 GTK 詞庫編輯器 |
+| `packages/misstype-wasm/` | npm 瀏覽器綁定 |
+| `src/misstype/` | Python 捕捉／觸控原型（僅作為觸控語意的參考） |
+| `tests/`、`tools/` | Golden 檔、重播測試資料、量測腳本 |
+| `docs/` | 架構、跨平台規範（C1–C15）、設計筆記 |
+| `site/` | 官網與網頁編輯器（刻意與本 README 分開） |
+
+## 貢獻
+
+請先讀 [CONTRIBUTING.md](CONTRIBUTING.md)；代理程式另須遵守 [AGENTS.md](AGENTS.md)。行為變更需附可重播的重現方式與驗證說明；AI 輔助的 PR 請揭露模型與 harness。
 
 ## 授權條款
 

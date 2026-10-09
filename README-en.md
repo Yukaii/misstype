@@ -1,6 +1,21 @@
-# Misstype (隨打注音)
+<div align="center">
+  <img src="Resources/MisstypeIcon.png" alt="Misstype logo" width="96" height="96">
+  <br><sub><i>Type Zhuyin. Skip the tones.</i></sub>
 
-[繁體中文](README.md) | **English**
+  <h1>Misstype (隨打注音)</h1>
+
+  <p>A Zhuyin input method with optional tones and automatic typo repair.<br>Zig core · macOS (IMK) and Linux (fcitx5) · offline · MIT</p>
+
+  <p>
+  <a href="https://github.com/Yukaii/misstype/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Yukaii/misstype/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/Yukaii/misstype/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/Yukaii/misstype?sort=semver"></a>
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue"></a>
+  <img alt="Core: Zig" src="https://img.shields.io/badge/core-Zig-f7a41d">
+  <img alt="Platforms: macOS, Linux" src="https://img.shields.io/badge/platforms-macOS%20%C2%B7%20Linux-lightgrey">
+  </p>
+
+  <p><a href="README.md">繁體中文</a> · <b>English</b> · <a href="docs/architecture.md">Architecture</a> · <a href="CONTRIBUTING.md">Contributing</a> · <a href="docs/development.md">Development</a></p>
+</div>
 
 Misstype is a Zhuyin (Bopomofo) input method built around two things:
 
@@ -65,6 +80,23 @@ Type with the normal Zhuyin keyboard:
 - **Symbols & English toggle**: <kbd>Shift</kbd> + digit keys and <kbd>Shift</kbd> + <kbd>=</kbd>, <kbd>[</kbd>, <kbd>]</kbd>, <kbd>&#96;</kbd> type full-width symbols (！＠＃＄％︿＆＊（）＋｛｝～). <kbd>Backspace</kbd> edits the raw composition; tapping <kbd>Shift</kbd> or pressing <kbd>Shift</kbd> + <kbd>Space</kbd> commits and toggles Chinese / English mode.
 - **My dictionary**: while typing, <kbd>Shift</kbd> + <kbd>←</kbd>/<kbd>→</kbd> marks syllables of the converted text and <kbd>Return</kbd> adds the phrase (a name, jargon) to your own dictionary; <kbd>Return</kbd> on the same mark removes it. Settings → My Dictionary (macOS) is a plain-text editor over `user_dictionary.tsv`, which uses the vChewing user-data format (`word reading`, one per line) and has an Import… button for vChewing files. To turn a plain word list into that format, use the third-party [online generator](https://vu.gh.miniasp.com/) by Will 保哥 ([source](https://github.com/doggy8088/vChewing-userdata-generator), MIT; not affiliated with this project). On Linux edit `~/.local/share/misstype/user_dictionary.tsv` directly.
 - **Learning**: Candidate selections are learned locally per word, and single characters are learned in context with the preceding word.
+
+## Repository layout
+
+| Path | What lives there |
+| --- | --- |
+| `core-zig/` | The single decoder and editing `Session`, exposed through a C ABI and a wasm32-wasi build |
+| `Sources/` | macOS only: IMK adapter, Settings UI, installer (no decoding rules) |
+| `linux/fcitx5/` | fcitx5 addon and GTK dictionary editor over the same core |
+| `packages/misstype-wasm/` | npm browser bindings |
+| `src/misstype/` | Python capture/touch prototype (reference for touch semantics only) |
+| `tests/`, `tools/` | Golden files, replay fixtures, measurement scripts |
+| `docs/` | Architecture, cross-platform contract (C1–C15), design notes |
+| `site/` | Landing page and web editor (separate from this README by design) |
+
+## Contributing
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md); agents also follow [AGENTS.md](AGENTS.md). Behavior changes need a replayable reproduction and a verification note in the PR; AI-assisted PRs disclose the model and harness.
 
 ## License
 
