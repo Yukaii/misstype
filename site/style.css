@@ -75,6 +75,8 @@ a:hover { color: var(--mark); }
 .top nav { display: flex; gap: 20px; font-size: 15px; }
 .top nav a { text-decoration: none; color: var(--muted); }
 .top nav a:hover { color: var(--ink); }
+.top nav .nav-icon { display: none; width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.top nav .nav-icon.nav-fill { fill: currentColor; stroke: none; }
 .theme-toggle {
   display: inline-grid;
   place-items: center;
@@ -397,7 +399,16 @@ footer p { margin: 0 0 6px; }
   .caret { animation: none; }
 }
 
-@media (max-width: 520px) {
+/* Narrow screens: the header links shrink to icon buttons like the theme
+   toggle, so the row stays on one line in both languages. */
+@media (max-width: 640px) {
   .brand small { display: none; }
-  .top nav { gap: 14px; }
+  .top nav { gap: 8px; align-items: center; }
+  .top nav .nav-link {
+    display: inline-grid; place-items: center; width: 28px; height: 28px;
+    border: 1px solid var(--line); border-radius: 50%;
+  }
+  .top nav .nav-link:hover { border-color: var(--muted); }
+  .top nav .nav-icon { display: block; }
+  .top nav .nav-label { display: none; }
 }
