@@ -224,6 +224,7 @@ a:hover { color: var(--mark); }
 .demo .field[role="button"]:hover,
 .demo .field[role="button"]:focus-visible { border-color: var(--ink); outline: none; }
 .demo .try[hidden] { display: none; }
+.demo .editor-link { margin: 8px 4px 0; color: var(--muted); font-size: 14px; }
 .demo .keys b { color: var(--mark); font-weight: 600; }
 
 @media (max-width: 599px), (max-height: 500px) and (hover: none) and (pointer: coarse) {
