@@ -42,7 +42,7 @@ jobs:
       - name: Build the IME and run the Swift UI-side tests
         run: swift test
       - name: Link and run Swift-to-Zig smoke test
-        run: swift run MisstypeZigSmoke
+        run: swift run MisstypeZigSmoke tests/fixtures/lexicon
 
   zig-core:
     runs-on: ubuntu-24.04
