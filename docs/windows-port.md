@@ -1,8 +1,9 @@
 # Windows port (TSF): sketch
 
-Status (2026-10-10): **sketch, not started.** Drafted after deciding the
-platform order in `docs/cross-platform.md` (Platform priority). Nothing here
-is verified on a machine yet. Items marked **spike** must be settled before
+Status (2026-10-10): **W1 (core pieces) in review; the text service itself is
+not started.** Drafted after deciding the platform order in
+`docs/cross-platform.md` (Platform priority). The Windows text service is not
+verified on a machine yet. Items marked **spike** must be settled before
 committing to a task, and they are mostly API facts to confirm against the
 Microsoft docs and a real Windows build.
 
@@ -70,9 +71,16 @@ and secure-desktop-adjacent surfaces. IMM32 would be a dead end.
   receives key events in Notepad, and starts/ends a composition. Settles: key
   event numbering, `OnTestKeyDown` strategy, UWP behavior, the language
   choice.
-- **W1 Core pieces.** `misstype_key_from_windows_scancode` in `capi.zig`
-  with a unit test in `keymap_test.zig`; Windows cross-build of the C ABI
-  (x64, x86, arm64) in `zig build` and CI; `misstypectl` for Windows.
+- **W1 Core pieces (done in the W1 PR).** `misstype_key_from_windows` in
+  `capi.zig` (set-1 scan code, `0xE000 |` scan for the extended flag; the E0
+  fake shifts map to `other`) with tests in `keymap_test.zig`; the core's data
+  directory resolves to `%APPDATA%\Misstype`; `script/zig/bootstrap.sh` runs on
+  Windows (Git Bash); the CI job `windows` runs the core tests on
+  `windows-latest` and builds `MisstypeCAPI.dll`/`.lib` and `misstypectl.exe`
+  for x64, x86 and arm64 (uploaded as the `misstype-windows-core` artifact).
+  **Not done:** `misstypectl config` still targets the fcitx5 config path
+  (Linux only); a Windows config location comes with W2. The DLLs have only
+  been built, never loaded on Windows, until the W0 spike or the VM pass.
 - **W2 Text service.** Key sink, composition, edit sessions, lifecycle,
   config and data paths.
 - **W3 Candidate window.** Own window, no focus steal, DPI aware, positions

@@ -198,6 +198,12 @@ misstype_key_kind misstype_key_from_character(const char *utf8, const char **lab
 /* v2. macOS virtual key codes (ANSI positions), same labels as evdev. */
 misstype_key_kind misstype_key_from_mac(int32_t keycode, const char **label);
 
+/* Appended 2026-10-10 (no ABI bump, new symbol only). Windows set-1 scan codes,
+ * the key message's lParam bits 16-23; pass 0xE000 | scan when the extended
+ * flag (bit 24) is set. Same labels as evdev and mac. The E0 2A / E0 36 fake
+ * shifts map to MISSTYPE_KEY_OTHER. */
+misstype_key_kind misstype_key_from_windows(int32_t scancode, const char **label);
+
 /* v2. Key bindings in text form, one action per line
  * ("nextCandidate = tab, ctrl+n"; "latinRun =" unbinds); NULL or "" = the
  * defaults. Kept across misstype_engine_set_settings. */

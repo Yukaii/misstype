@@ -17,6 +17,10 @@ fn kindOfMac(code: i32, label: *?[*:0]const u8) c_int {
     return capi.misstype_key_from_mac(code, label);
 }
 
+fn kindOfWindows(code: i32, label: *?[*:0]const u8) c_int {
+    return capi.misstype_key_from_windows(code, label);
+}
+
 fn expectLabel(want: []const u8, label: ?[*:0]const u8) !void {
     try t.expect(label != null);
     try t.expectEqualStrings(want, std.mem.span(label.?));
@@ -164,6 +168,83 @@ test "the US layout covers every label" {
 
 test "Zhuyin and tone labels are present in the evdev map" {
     var labels = try labelsOf(kindOfEvdev, 256);
+    defer labels.deinit(t.allocator);
+    for (keyboard.symbol_keys) |key| try t.expect(labels.contains(&.{key}));
+    for ("3467") |key| try t.expect(labels.contains(&.{key}));
+}
+
+test "Windows scan codes agree with evdev on the main block" {
+    // The Windows table reuses evdev's labels for 0x00...0x58; this pins the
+    // coincidence so a change to either table cannot drift silently.
+    var win = try labelsOf(kindOfWindows, 0x100);
+    defer win.deinit(t.allocator);
+    var evdev = try labelsOf(kindOfEvdev, 256);
+    defer evdev.deinit(t.allocator);
+    try t.expectEqual(@as(usize, 47), win.count());
+    for (evdev.keys()) |label| try t.expect(win.contains(label));
+    var code: i32 = 0;
+    while (code <= 0x58) : (code += 1) {
+        var w: ?[*:0]const u8 = null;
+        var e: ?[*:0]const u8 = null;
+        const wk = kindOfWindows(code, &w);
+        const ek = kindOfEvdev(code, &e);
+        if (wk == char_kind or ek == char_kind) {
+            try t.expectEqual(ek, wk);
+            try expectLabel(std.mem.span(e.?), w);
+        }
+    }
+}
+
+test "Windows key mappings" {
+    var label: ?[*:0]const u8 = null;
+    try t.expectEqual(char_kind, kindOfWindows(0x1F, &label)); // S
+    try expectLabel("s", label);
+    try t.expectEqual(char_kind, kindOfWindows(0x04, &label)); // 3
+    try expectLabel("3", label);
+    try t.expectEqual(char_kind, kindOfWindows(0x2B, &label)); // backslash
+    try expectLabel("\\", label);
+    try t.expectEqual(kindNamed(.space), kindOfWindows(0x39, &label));
+    try t.expectEqual(kindNamed(.enter), kindOfWindows(0x1C, &label));
+    try t.expectEqual(kindNamed(.enter), kindOfWindows(0xE01C, &label)); // numpad Enter
+    try t.expectEqual(kindNamed(.tab), kindOfWindows(0x0F, &label));
+    try t.expectEqual(kindNamed(.backspace), kindOfWindows(0x0E, &label));
+    try t.expectEqual(kindNamed(.escape), kindOfWindows(0x01, &label));
+    try t.expectEqual(kindNamed(.forward_delete), kindOfWindows(0xE053, &label));
+    try t.expectEqual(kindNamed(.left), kindOfWindows(0xE04B, &label));
+    try t.expectEqual(kindNamed(.right), kindOfWindows(0xE04D, &label));
+    try t.expectEqual(kindNamed(.up), kindOfWindows(0xE048, &label));
+    try t.expectEqual(kindNamed(.down), kindOfWindows(0xE050, &label));
+    try t.expectEqual(kindNamed(.page_up), kindOfWindows(0xE049, &label));
+    try t.expectEqual(kindNamed(.page_down), kindOfWindows(0xE051, &label));
+    try t.expectEqual(kindNamed(.shift_left), kindOfWindows(0x2A, &label));
+    try t.expectEqual(kindNamed(.shift_right), kindOfWindows(0x36, &label));
+    for ([_]i32{ 0x1D, 0x38, 0x3A, 0xE01D, 0xE038, 0xE05B, 0xE05C }) |code| {
+        try t.expectEqual(kindNamed(.modifier), kindOfWindows(code, &label));
+        try t.expect(label == null);
+    }
+}
+
+test "Windows extended keys are not their plain twins" {
+    var label: ?[*:0]const u8 = null;
+    // Plain 0x48 / 0x4B / 0x50 / 0x53 are numpad 8 / 4 / 2 / Decimal (with
+    // Num Lock they type digits), the extended ones are the arrow cluster.
+    for ([_]i32{ 0x47, 0x48, 0x49, 0x4B, 0x4D, 0x4F, 0x50, 0x51, 0x52, 0x53 }) |code| {
+        try t.expectEqual(kindNamed(.other), kindOfWindows(code, &label));
+    }
+    // Fake shifts injected around numpad navigation never toggle Shift.
+    try t.expectEqual(kindNamed(.other), kindOfWindows(0xE02A, &label));
+    try t.expectEqual(kindNamed(.other), kindOfWindows(0xE036, &label));
+    // Function keys, Num Lock, out-of-range input.
+    try t.expectEqual(kindNamed(.other), kindOfWindows(0x3B, &label)); // F1
+    try t.expectEqual(kindNamed(.other), kindOfWindows(0x45, &label)); // Num Lock
+    try t.expectEqual(kindNamed(.other), kindOfWindows(-1, &label));
+    try t.expectEqual(kindNamed(.other), kindOfWindows(0x1_0000, &label));
+    // NULL label pointer is accepted.
+    try t.expectEqual(char_kind, capi.misstype_key_from_windows(0x1F, null));
+}
+
+test "Zhuyin and tone labels are present in the Windows map" {
+    var labels = try labelsOf(kindOfWindows, 0x100);
     defer labels.deinit(t.allocator);
     for (keyboard.symbol_keys) |key| try t.expect(labels.contains(&.{key}));
     for ("3467") |key| try t.expect(labels.contains(&.{key}));
