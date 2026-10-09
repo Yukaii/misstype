@@ -50,7 +50,7 @@ files, so `misstype-wasm` gained `userDictionaryText/Count`, `setUserDictionary`
 highlights it in the pre-edit with an Enter hint, and Return files it; the
 editor notices the count change and saves the canonical text (which drops
 comments, as on desktop). Opening Settings focuses the candidates-per-page
-select and drops its list down.
+select (list closed).
 
 ## Offline
 

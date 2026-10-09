@@ -386,12 +386,8 @@ function openSettings() {
     else el.value = String(value);
   }
   settingsDialog.showModal();
-  // Land on the candidates-per-page select and drop its list down. Browsers
-  // only allow that from a user gesture, which the shortcut, button or palette
-  // entry that opened this still counts as.
-  const pageSize = settingsDialog.querySelector('[data-setting="pageSize"]');
-  pageSize.focus();
-  try { pageSize.showPicker?.(); } catch { /* no recent user gesture */ }
+  // Land on the candidates-per-page select (focused, list closed).
+  settingsDialog.querySelector('[data-setting="pageSize"]').focus();
 }
 
 settingsDialog.addEventListener("change", (e) => {
