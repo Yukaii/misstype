@@ -1,0 +1,40 @@
+name: Bug report
+description: Wrong candidates, editing behavior, crash, or platform glitch
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please do not paste real typed text or personal traces. Use a synthetic or redacted key sequence.
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options: [macOS IME, Linux fcitx5, Web / wasm, Touch prototype, Other]
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Release tag or commit
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: |
+        Key sequence replayable with `misstype-dev --session-trace '<keys>' --show`
+        (macOS: `MisstypeIME --session-trace`), or exact UI steps.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected vs actual
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Screenshots or recording
+      description: Drag files here for UI problems.

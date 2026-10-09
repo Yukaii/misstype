@@ -74,6 +74,34 @@ This repository is an experimental input device and decoder. The current goal is
 6. For decoder changes, report latency, candidate quality, and whether the result came from offline or LLM-assisted decoding.
 7. Update the architecture or decision record when a boundary, data contract, or user-visible behavior changes.
 
+## Pull requests
+
+Humans and agents follow `CONTRIBUTING.md` and `.github/pull_request_template.md`.
+For agents:
+
+- Open a PR only when the user explicitly asks. One request is one PR; split
+  unrelated fixes. (Maintainer shortcut: small changes may still go straight
+  to `main` when the user says so.)
+- Title is a conventional commit in plain language, e.g.
+  `fix(core): tone-less 3rd tone no longer outranks exact match`.
+- Fill every template section. Problem and Change in your own words, short.
+  Verification states what you ran and observed, not "tests pass".
+- Give a reproduction a reviewer can replay: a `--session-trace` key sequence,
+  `--decode` input, or fixture. Turn trace-derived bugs into fixtures with
+  synthetic or redacted text.
+- Run focused checks for the touched layer (see Canonical commands). Do not
+  launch long repo-wide runs just to fill the checklist; CI runs the rest.
+  Say what you could not run (no Linux box, no GUI session).
+- UI or adapter changes: capture before/after screenshots, plus a short
+  recording when timing or motion matters, using the preview/device tools
+  when available. Ask before launching your own dev servers, browsers or GUI
+  automation. Upload evidence to the PR; never commit it.
+- Decoder changes: report candidates before/after, quality, latency and
+  offline vs LLM-assisted.
+- End the **AI assistance** section with the model and harness that did the
+  work (e.g. "Claude Sonnet 5.5 via Claude Code").
+- After creating a PR, report its URL and the checks that are still pending.
+
 ## Data and privacy
 
 - Treat raw traces and typed text as sensitive local data.
