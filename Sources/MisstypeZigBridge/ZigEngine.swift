@@ -1,0 +1,40 @@
+import CMisstype
+
+/// Minimal Swift-facing handle for the Zig C ABI.
+///
+/// The IMK adapter still owns the richer Swift presentation model. This type
+/// intentionally keeps the first cutover seam small and testable: it proves
+/// that SwiftPM links the universal Zig library and that an engine/session can
+/// be created and released with C ownership rules.
+public final class ZigEngineProbe {
+    public init() {}
+
+    public var abiVersion: Int32 { misstype_abi_version() }
+
+    /// Runs one synthetic composition and returns the preedit. The resource
+    /// directory must contain lexicon.tsv and is supplied by the caller so
+    /// tests never read a user's files.
+    public func preedit(resourceDirectory: String) -> String? {
+        let engine = resourceDirectory.withCString { path in
+            misstype_engine_new(path, "".withCString { $0 })
+        }
+        guard let engine else { return nil }
+        defer { misstype_engine_free(engine) }
+        guard let session = misstype_session_new(engine) else { return nil }
+        defer { misstype_session_free(session) }
+
+        for byte in Array("su3".utf8) {
+            var label = [CChar(bitPattern: byte), 0]
+            let event = label.withUnsafeMutableBufferPointer { buffer -> misstype_key_event in
+                misstype_key_event(kind: MISSTYPE_KEY_CHARACTER,
+                                   label: UnsafePointer(buffer.baseAddress!), text: UnsafePointer(buffer.baseAddress!),
+                                   modifiers: 0, is_release: 0, native_code: -1, timestamp: -1)
+            }
+            _ = misstype_session_handle(session, &event)
+        }
+        guard let view = misstype_session_view(session) else { return nil }
+        defer { misstype_view_free(view) }
+        guard let preedit = view.pointee.preedit else { return nil }
+        return String(cString: preedit)
+    }
+}

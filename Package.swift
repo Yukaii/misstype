@@ -37,6 +37,7 @@ products += [
     .executable(name: "MisstypeIME", targets: ["MisstypeIME"]),
     .executable(name: "MisstypeSourceTool", targets: ["MisstypeSourceTool"]),
     .executable(name: "MisstypeInstaller", targets: ["MisstypeInstaller"]),
+    .executable(name: "MisstypeZigSmoke", targets: ["MisstypeZigSmoke"]),
 ]
 targets += [
     .executableTarget(
@@ -47,6 +48,14 @@ targets += [
     .executableTarget(name: "MisstypeSourceTool"),
     // Double-clickable installer shipped in the DMG (see docs/release.md).
     .executableTarget(name: "MisstypeInstaller"),
+    .target(
+        name: "MisstypeZigBridge",
+        dependencies: ["CMisstype"],
+        linkerSettings: [
+            .unsafeFlags(["-Ldist/zig/macos-universal", "-lMisstypeCAPI",
+                          "-Xlinker", "-rpath", "-Xlinker", "@loader_path/../../zig"])
+        ]),
+    .executableTarget(name: "MisstypeZigSmoke", dependencies: ["MisstypeZigBridge"]),
 ]
 #endif
 

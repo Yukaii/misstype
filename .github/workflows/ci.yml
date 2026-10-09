@@ -42,6 +42,8 @@ jobs:
         run: script/zig/build_macos.sh
       - name: Compile Swift packages and C ABI reference
         run: swift build --build-tests
+      - name: Link and run Swift-to-Zig smoke test
+        run: swift run MisstypeZigSmoke
 
   zig-core:
     runs-on: ubuntu-24.04
