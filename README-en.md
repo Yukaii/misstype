@@ -102,4 +102,14 @@ Key bindings and behavior (continuous typing, candidates, symbols, user dictiona
 
 ## License
 
-MIT (see `LICENSE`). The bundled dictionary data comes from McBopomofo (MIT) and libtabe (BSD-style); see `THIRD_PARTY_NOTICES.md`.
+Misstype's own code is **MIT** (see [`LICENSE`](LICENSE)). Third-party code and
+dictionary data keep their own licenses: McBopomofo (MIT), libtabe (BSD-style),
+the National Academy for Educational Research word-frequency table (CC BY 4.0),
+and the English word list (CC BY-SA 4.0); the macOS build uses Sparkle and the
+Linux build links fcitx5. See [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)
+for sources, licenses and where each applies.
+
+The demo video's narration and background music (`video/public/voice/`,
+`video/public/music/`, `site/media/demo*.mp4`) are **not** MIT: they were
+generated on a free ElevenLabs plan, so they are for non-commercial use only and
+need the ElevenLabs credit shown with them. See the same notices file.

@@ -25,7 +25,7 @@
 ---
 
 ### 流派二：二元統計語言模型（Bigram Markov Model）
-- **代表專案**：ChiaKey、Yahoo KeyKey
+- **代表專案**：千秋輸入法、Yahoo KeyKey
 - **核心演算法**：
   - 引入相鄰詞對的轉移機率矩陣 P(word_i | word_{i-1})。在動態規劃走訪時，邊的權重結合了目前詞的自身詞頻與前一個詞的轉移獎勵。
 - **實測經驗與挑戰**（參考專案於 `tools/bigram_eval.py` 的量測結論）：
@@ -87,7 +87,7 @@
 
 ## 2. 關鍵技術指標橫向對照
 
-| 維度 | Unigram DAG (vChewing) | Bigram Markov (ChiaKey) | Spelling Algebra (Rime) | DAG (libchewing 0.13) | Neural LM (ZingIME) | Misstype |
+| 維度 | Unigram DAG (vChewing) | Bigram Markov (千秋輸入法) | Spelling Algebra (Rime) | DAG (libchewing 0.13) | Neural LM (ZingIME) | Misstype |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **主要打分依據** | 詞頻 ＋ 長詞優先 | 詞頻 ＋ 相鄰轉移機率 | 詞頻 ＋ 規則衍生 ＋ 長詞 | 詞組對數機率 ＋ 詞長先驗 | 神經語境機率 | 詞庫權重 − 容錯代價 ＋ 學習加權 |
 | **無聲調支援** | 無（需精確聲調） | 支援（但同音詞易飄移） | 支援（靜態規則展開） | 無（未以聲調結束的音節不送出） | 支援（模型消歧義） | 原生支援（以 Penalty 代價納入 DP） |
@@ -121,7 +121,7 @@
   - **適用對象**：重度鍵盤玩家、雙拼／特殊排列使用者、跨 Windows/macOS/Linux/Android 多平台並希望全套設定同步的極客。
   - **核心體驗**：無窮無盡的 YAML 拼寫運算自訂能力與豐富的社群詞庫方案。
 
-- **習慣傳統桌面整句輸入與慣用語搭配 → 推薦 ChiaKey 或 KeyKey**
+- **習慣傳統桌面整句輸入與慣用語搭配 → 推薦千秋輸入法或 KeyKey**
   - **適用對象**：懷念 Yahoo 奇摩輸入法時代的長句組詞感、注重台灣在地領域詞庫與常用詞對流暢度的使用者。
   - **核心體驗**：透過二元片語庫自動串接常見詞組，適合節奏平穩的桌面文書處理。
 

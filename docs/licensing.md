@@ -4,6 +4,8 @@ Misstype's own code remains MIT. Third-party components and dictionary data
 keep their original licenses; `THIRD_PARTY_NOTICES.md` is the inventory and
 records the applicability to each platform. `english.tsv` is distributed
 separately as CC BY-SA 4.0 content, including when downloaded by the web demo.
+The demo video's ElevenLabs-generated narration and music are non-commercial
+only and are excluded from the MIT grant; see `THIRD_PARTY_NOTICES.md`.
 
 Hypothesis (2026-10-07): keeping notices in the repository is insufficient
 unless the actual app, Linux install tree, and website carry them. The smallest

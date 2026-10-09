@@ -30,6 +30,20 @@ Users may modify it and replace the shared libraries, including to debug their
 modifications. Bundling or modifying those libraries in a future distribution
 requires their corresponding source and the other applicable LGPL conditions.
 
+## Demo video audio (not MIT)
+
+The narration (`video/public/voice/`), background music
+(`video/public/music/bed.mp3`) and the rendered demo videos that embed them
+(`site/media/demo.mp4`, `site/media/demo-en.mp4`) were generated with
+[ElevenLabs](https://elevenlabs.io) on a free plan. They are **not** covered by
+Misstype's MIT license: they may be used for non-commercial purposes only, and
+the credit "elevenlabs.io" (voice) and "Created in collaboration with
+ElevenLabs" / Eleven Music (music) must stay next to wherever the video is
+shown, as it does on the landing pages. Commercial reuse needs a paid
+ElevenLabs plan or replacement audio. Fork distributions that want a fully
+MIT tree can delete those paths; nothing in the decoder, IME or site code
+depends on them. Provenance details: `video/README.md`.
+
 ## Distribution locations
 
 - macOS: `MisstypeIME.app/Contents/Resources/` carries `LICENSE`, this notice,

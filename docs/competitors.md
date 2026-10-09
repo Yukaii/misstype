@@ -13,7 +13,7 @@
 | 專案 | 平台 | 注音引擎 | 中英混輸（免切換） | 學習 | AI／網路 | 下載大小 | 授權／價格 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | [Ari IME](https://github.com/kaiyasi/Ari-IME) | Linux（fcitx5）、WASM 核心 | libchewing 詞組模型、11 種排列 | 有：字鍵先原樣顯示，直到構成完整有調音節才轉換 | 個人詞庫加權 | 無，離線 | 0.2 MB `.deb`（僅引擎） | GPL-3.0 |
-| [ChiaKey](https://github.com/chiakich/ChiaKey) | macOS（穩定）、Windows（預覽）、iOS（實驗核心） | Yahoo KeyKey 系列、bigram；另有倉頡、速成、`.cin` | 僅限注音自然相容之字元 | 記錄選字；可匯入 KeyKey 詞庫 | 未說明 | macOS `.pkg` 50.2 MB | BSD-3-Clause |
+| [千秋輸入法](https://github.com/chiakich/ChiaKey) | macOS（穩定）、Windows（預覽）、iOS（實驗核心） | Yahoo KeyKey 系列、bigram；另有倉頡、速成、`.cin` | 僅限注音自然相容之字元 | 記錄選字；可匯入 KeyKey 詞庫 | 未說明 | macOS `.pkg` 50.2 MB | BSD-3-Clause |
 | [Bopomix](https://github.com/lmanchu/bopomix) | macOS 13+、Apple Silicon | 小麥注音引擎分支（Swift）、僅大千 | 有：無法構成音節之字母直接視為英文；支援 Tab 補完英文 | 本機學習英文詞 | 無；句級 AI 重排研究中，尚未實裝 | `.dmg` 6.6 MB | MIT |
 | [KeyKey（琦琦）](https://github.com/polobread/KeyKey/releases) | macOS、Windows、Linux（fcitx5）、iOS、Android | Yahoo 2012 程式碼、30 組領域詞庫；另有倉頡 | 未宣稱 | 智慧詞組組字與學習 | 標明不存取網路 | macOS `.pkg.zip` 38.2 MB | 混合授權：Yahoo 原始碼 BSD-3-Clause、各平台前端 MIT；v1.3.1（2026-10-02） |
 | [ZingIME（晶晶）](https://zingime.com/) | macOS、Apple Silicon | 注音、40 萬以上詞彙 | 有（主打功能）：同一模式可直接輸入中英，支援 Tab 補完英文 | 未說明 | 裝置端模型選字，不依賴雲端（待核實） | `.dmg` 271.6 MiB | 商用付費、提供 14 天試用（待核實） |
@@ -26,7 +26,7 @@
 
 `Y`＝專案明確說明；`-`＝未找到說明；`n/a`＝不適用。
 
-| 能力 | Ari | ChiaKey | Bopomix | KeyKey | ZingIME | 唯音 | 小麥 | Rime | Misstype |
+| 能力 | Ari | 千秋輸入法 | Bopomix | KeyKey | ZingIME | 唯音 | 小麥 | Rime | Misstype |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 注音 | Y | Y | Y（大千） | Y | Y | Y | Y（大千） | Y（方案） | Y（大千） |
 | 其他排列（Eten、許氏、Dvorak…） | Y（11） | - | - | - | - | Y（最多） | - | - | - |
