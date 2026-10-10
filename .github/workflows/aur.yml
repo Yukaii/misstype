@@ -21,7 +21,7 @@ on:
   workflow_dispatch:
     inputs:
       publish:
-        description: Push to AUR (main only; otherwise preview only)
+        description: Push to AUR (main or ci/aur-publishing; otherwise preview only)
         type: boolean
         default: false
 
@@ -75,9 +75,13 @@ jobs:
     needs: prepare
     if: >-
       github.repository == 'Yukaii/misstype' &&
-      github.ref == 'refs/heads/main' &&
-      (github.event_name == 'push' ||
-       (github.event_name == 'workflow_dispatch' && inputs.publish))
+      ((github.ref == 'refs/heads/main' &&
+        (github.event_name == 'push' ||
+         (github.event_name == 'workflow_dispatch' && inputs.publish))) ||
+       (github.ref == 'refs/heads/ci/aur-publishing' &&
+        ((github.event_name == 'workflow_dispatch' && inputs.publish) ||
+         (github.event_name == 'push' &&
+          contains(github.event.head_commit.message, '[publish-aur]')))))
     runs-on: ubuntu-latest
     timeout-minutes: 10
     concurrency:

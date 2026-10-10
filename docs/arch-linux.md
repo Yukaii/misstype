@@ -197,7 +197,8 @@ One-time setup by the AUR maintainer and GitHub administrator:
    published PKGBUILD and preview artifact; it is not private package metadata.
 3. Add repository secret `AUR_SSH_PRIVATE_KEY` containing the entire private
    key, including its BEGIN/END lines. No GitHub environment is required.
-   The workflow restricts publishing to upstream `main` and passes the private
+   The workflow restricts publishing to upstream `main` and the explicit
+   `ci/aur-publishing` test branch, and passes the private
    key only to the publishing step. Protect `main` with review requirements
    to control changes to the workflow and publisher.
 4. Ensure the account owns or co-maintains `fcitx5-misstype-git`, or that the
@@ -209,8 +210,13 @@ upstream CI this key trusts its repository administrators with the AUR
 account's package-write permissions. Revoke only the CI key by removing its
 public key from the AUR profile and deleting the GitHub secret.
 
-Test a branch by pushing a packaging/workflow change; its AUR workflow only
-prepares the preview and skips publishing, even if `publish=true` is supplied.
+Test a branch by pushing a packaging/workflow change; ordinary branch pushes
+only prepare the preview and skip publishing. The `ci/aur-publishing` branch
+also supports an explicit real-publish test: include `[publish-aur]` in the
+tip commit's message on a relevant push, or manually dispatch that branch
+with `publish=true`. This writes to the real AUR package, not a staging server.
+The marker allows testing before the new workflow is merged to `main`.
+Other branches and forks cannot publish.
 For a new workflow, GitHub enables manual dispatch after the workflow exists
 on the default branch. After merging, a relevant push to `main` automatically
 publishes. To retry or preview manually:

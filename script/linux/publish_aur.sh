@@ -5,8 +5,9 @@ package=${1:?usage: publish_aur.sh <prepared-package-directory>}
 : "${AUR_SSH_PRIVATE_KEY:?Set repository secret AUR_SSH_PRIVATE_KEY}"
 : "${AUR_MAINTAINER:?Set repository secret AUR_MAINTAINER (Name <email>)}"
 : "${RUNNER_TEMP:?Run in GitHub Actions}"
-[[ ${GITHUB_REPOSITORY:-} == Yukaii/misstype && ${GITHUB_REF:-} == refs/heads/main ]] || {
-    echo 'AUR publication is restricted to Yukaii/misstype main.' >&2
+[[ ${GITHUB_REPOSITORY:-} == Yukaii/misstype &&
+   ( ${GITHUB_REF:-} == refs/heads/main || ${GITHUB_REF:-} == refs/heads/ci/aur-publishing ) ]] || {
+    echo 'AUR publication is restricted to Yukaii/misstype main or ci/aur-publishing.' >&2
     exit 1
 }
 for file in PKGBUILD .SRCINFO cxx20.patch LICENSE; do
