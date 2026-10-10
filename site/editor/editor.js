@@ -15,6 +15,7 @@ import { chord, isApple, matches, modifierBits } from "./keys.js";
 import { parseMarkdown, schema, toMarkdown, wordCount } from "./model.js";
 import { createDictionary } from "./dictionary.js";
 import { createLearning } from "./learning.js";
+import { tick } from "./haptics.js";
 import { VirtualKeyboard } from "./keyboard.js";
 import { Palette } from "./palette.js";
 import { preeditKey, preeditPlugin, setPreedit } from "./preedit.js";
@@ -228,8 +229,12 @@ function sendKey(type, code, key, shift) {
 }
 
 const vk = new VirtualKeyboard(vkEl, {
-  shift(down) { sendKey(down ? "keydown" : "keyup", "ShiftLeft", "Shift", down); },
+  shift(down) {
+    if (down && settings.haptics) tick();
+    sendKey(down ? "keydown" : "keyup", "ShiftLeft", "Shift", down);
+  },
   press(code, key, shift) {
+    if (settings.haptics) tick();
     const e = sendKey("keydown", code, key, shift);
     // Neither the decoder nor a keymap took it: it is plain text.
     if (!e.defaultPrevented && key.length === 1) {
