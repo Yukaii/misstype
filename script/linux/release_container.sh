@@ -13,7 +13,7 @@ case "$DISTRO" in
 ubuntu24.04)
     apt-get update
     apt-get install -y sudo git dpkg-dev fcitx5-config-qt fcitx5-frontend-gtk3 fcitx5-frontend-qt5
-    script/linux/bootstrap.sh
+    bash script/linux/bootstrap.sh
     script/linux/test_all.sh
     script/linux/package_deb.sh "$VERSION"
     apt-get install -y ./dist/*.deb
