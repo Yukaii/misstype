@@ -233,16 +233,18 @@ dialog.sheet h3 span { margin-left: 6px; color: var(--muted); font-weight: norma
 .vk[data-platform="android"][data-shift="true"] .vk-key[data-special="shift"] { background: #c2d7ff; color: #001a41; }
 .vk[data-platform="android"] .vk-key:not([data-special]).down::before { border-radius: 14px; }
 
-body.vk-on { padding-bottom: var(--vk-h, 0px); }
-body.vk-on .status { bottom: var(--vk-h, 0px); }
-body.vk-on #toast { bottom: calc(var(--vk-h, 0px) + 56px); }
+/* Stack, bottom up: keyboard, candidate bar (--cb-h), status strip. */
+body.vk-on { --cb-h: 48px; padding-bottom: calc(var(--vk-h, 0px) + var(--cb-h)); }
+body.vk-on .status { bottom: calc(var(--vk-h, 0px) + var(--cb-h)); }
+body.vk-on #toast { bottom: calc(var(--vk-h, 0px) + var(--cb-h) + 56px); }
 @media (max-height: 480px) { .vk { --vk-row-gap: 5px; --vk-h-key: 34px; padding-top: 4px; } .vk-key:not([data-special]).down::before { height: 40px; } }
 
 /* With the on-screen keyboard the candidates dock above it as one row that
    scrolls sideways (like the system candidate bar) instead of floating. */
 .candidate-panel.docked {
   left: 0 !important; right: 0; top: auto !important; bottom: var(--vk-h, 0px); width: auto; max-width: none;
-  max-height: none !important; padding: 6px max(8px, env(safe-area-inset-left)); border-radius: 0; border-width: 1px 0 0;
+  max-height: none !important; height: var(--cb-h, 48px); box-sizing: border-box; padding: 4px max(8px, env(safe-area-inset-left));
+  border-radius: 0; border-width: 1px 0 0;
   overflow: hidden; z-index: 31;
 }
 .candidate-panel.docked .candidate-list {
@@ -250,5 +252,5 @@ body.vk-on #toast { bottom: calc(var(--vk-h, 0px) + 56px); }
   scrollbar-width: none; -webkit-overflow-scrolling: touch;
 }
 .candidate-panel.docked .candidate-list::-webkit-scrollbar { display: none; }
-.candidate-panel.docked .candidate-item { flex: none; width: auto; gap: 6px; padding: 8px 12px; font-size: 20px; }
+.candidate-panel.docked .candidate-item { flex: none; width: auto; gap: 6px; padding: 5px 12px; font-size: 20px; }
 .candidate-panel.docked .candidate-footer { display: none; }

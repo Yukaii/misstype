@@ -86,6 +86,7 @@ the selection or the character before the caret itself (a synthetic event has
 no browser default). With the keyboard up the candidates dock above it as one row of all
 candidates that scrolls sideways (`.candidate-panel.docked`, as in the system
 candidate bar) instead of floating at the caret; the page arrows are hidden.
+The bar keeps its slot, so the stack is keyboard, candidate bar, status strip.
 Keyboard taps keep the editor focused. A pressed key shows a preview bubble. The look follows
 the platform (`data-platform`, from the user agent): iOS-style keys by
 default, Gboard-style rounded keys and a tinted Enter on Android; both follow
