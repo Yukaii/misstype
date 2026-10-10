@@ -32,3 +32,4 @@ linux/aur/mcbopomofo-README.md
 # Zig port (docs/zig-port.md) build products.
 core-zig/.zig-cache/
 core-zig/zig-out/
+.vercel/

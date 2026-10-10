@@ -34,7 +34,9 @@ same list, so there is one place to update. Keys used (standard layout):
 
 Deployed by `.github/workflows/pages.yml` once Pages is enabled (see the
 workflow header). The download button points at GitHub Releases `latest`,
-which only works for visitors once the repository is public.
+which only works for visitors once the repository is public. The same build
+is also deployed to Vercel (PR previews, production from `main`); see
+[`docs/vercel.md`](../docs/vercel.md).
 
 ## Markdown editor (PWA)
 
