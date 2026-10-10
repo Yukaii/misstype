@@ -83,8 +83,16 @@ Download `Misstype-<version>.dmg` from [GitHub Releases](https://github.com/Yuka
 
 Supported as an fcitx5 addon sharing the same core as macOS. See the [Linux port](docs/linux-port.md) for install and status.
 
-For Arch Linux / Omarchy, see [package build, installation and removal](docs/arch-linux.md).
-An AUR submission candidate is available in `linux/aur/PKGBUILD`.
+On Arch Linux / Omarchy, install [`fcitx5-misstype-git`](https://aur.archlinux.org/packages/fcitx5-misstype-git) from AUR:
+
+```sh
+yay -S fcitx5-misstype-git
+```
+
+This package builds the latest upstream Git source rather than a fixed release.
+Restart fcitx5 after installation and add **Misstype** in `fcitx5-configtool`.
+See [package build, activation and removal](docs/arch-linux.md) for details;
+the recipe lives in `linux/aur/PKGBUILD`.
 
 To build from source see [Development, build and release](docs/development.md).
 

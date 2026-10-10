@@ -79,13 +79,19 @@
 
 到 [GitHub Releases](https://github.com/Yukaii/misstype/releases/latest) 下載 `Misstype-<版本>.dmg`，開啟後執行 **Install Misstype**。輸入法安裝在你的使用者資料夾，不需要管理者密碼，之後會透過內建的 Sparkle 自動更新。第一次安裝後，登出再登入，即可在 macOS 選單列的輸入法選單或「系統設定 → 鍵盤 → 輸入方式」中選擇 **隨打注音**（英文系統顯示為 `Misstype Bopomofo`）。
 
-專案公開後，發布流程會自動附上 GitHub Actions 建置來源證明（attestation），供使用者核對下載檔、建置 workflow 與來源 commit；[驗證方式與適用版本](docs/release.md#verify-build-provenance)列在發布文件中。
+發布流程會自動附上 GitHub Actions 建置來源證明（attestation），供使用者核對下載檔、建置 workflow 與來源 commit；[驗證方式與適用版本](docs/release.md#verify-build-provenance)列在發布文件中。
 
 ### Linux
 
 以 fcitx5 外掛支援 Linux，與 macOS 版共用同一個核心。安裝與進度見 [Linux 移植說明](docs/linux-port.md)。
 
-Arch Linux / Omarchy 的套件建置、安裝與移除方式請參閱 [安裝說明](docs/arch-linux.md)。AUR 投稿用的套件配方位於 `linux/aur/PKGBUILD`（尚未發布至 AUR）。
+Arch Linux / Omarchy 可從 AUR 安裝 [`fcitx5-misstype-git`](https://aur.archlinux.org/packages/fcitx5-misstype-git)：
+
+```sh
+yay -S fcitx5-misstype-git
+```
+
+這是從最新上游 Git 原始碼建置的套件，不固定於某個發布版本。安裝後重新啟動 fcitx5，並在 `fcitx5-configtool` 中加入 **Misstype**。套件建置、啟用與移除方式請參閱 [安裝說明](docs/arch-linux.md)；套件配方位於 `linux/aur/PKGBUILD`。
 
 從原始碼建置請見[開發、建置與發布](docs/development.md)。
 

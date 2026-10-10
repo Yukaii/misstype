@@ -8,8 +8,8 @@ pkgbase = fcitx5-misstype-git
 	license = MIT
 	license = BSD-3-Clause
 	license = CC-BY-4.0
-	license = Unicode-3.0
 	license = CC-BY-SA-4.0
+	license = Unicode-3.0
 	makedepends = git
 	makedepends = cmake
 	makedepends = ninja
@@ -51,7 +51,6 @@ pkgbase = fcitx5-misstype-git
 	sha256sums = d8bf3ebec541c3dde967d536e05a33a2b8d5e4c4aeea1205feb4f0867220169a
 	sha256sums = 5351ff405b1126ef555791dd4d9798a48e3e9a501a9fc481a9da957752cfb458
 	sha256sums = 6dac94bbaab952f27dec7b79c9dff062f6f31ab4d471770e13a132516aed8e6a
-
 	source_x86_64 = https://ziglang.org/download/0.17.0/zig-x86_64-linux-0.17.0.tar.xz
 	sha256sums_x86_64 = 1cbe9df9f27e6b78d14ccbca43b6703a404ef79ef1c463de901d7f088d4e2026
 	source_aarch64 = https://ziglang.org/download/0.17.0/zig-aarch64-linux-0.17.0.tar.xz

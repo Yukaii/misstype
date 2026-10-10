@@ -93,6 +93,13 @@ Linux data moves from `~/.local/share/mistype` to `~/.local/share/misstype`.
 
 ## Cutting a release
 
+After a successful stable publication, Release calls the reusable AUR workflow
+to synchronize `fcitx5-misstype-git` packaging from the exact release commit.
+Artifact-only runs and prereleases skip this step. The VCS recipe continues to
+build upstream Git HEAD; this does not turn it into a release-pinned package
+or create version-only AUR commits. Relevant packaging pushes to `main` also
+synchronize between releases. Setup and retry commands: [AUR publication](arch-linux.md#aur-publication).
+
 Commit and push changes first. The normal path is **Actions → Tag release →
 Run workflow**, selecting `major`, `minor`, or `patch` (default `patch`).
 It creates an annotated tag at the current remote `main` HEAD, then invokes
