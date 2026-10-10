@@ -96,7 +96,15 @@ the recipe lives in `linux/aur/PKGBUILD`.
 
 #### IBus (experimental)
 
-On IBus desktops (GNOME, for example) you can use the IBus engine instead. It shares the same core and ships a settings window (the Preferences button in `ibus-setup`, or run `/usr/libexec/ibus-setup-misstype`); settings are the same `misstype.conf` the fcitx5 addon uses and apply immediately. There is **no prebuilt IBus package yet**, so install from source, and do not install it next to the fcitx5 package:
+On IBus desktops (GNOME, for example) you can use the IBus engine instead. It shares the same core and ships a settings window (the Preferences button in `ibus-setup`, or run `/usr/libexec/ibus-setup-misstype`); settings are the same `misstype.conf` the fcitx5 addon uses and apply immediately. Do not install it next to the fcitx5 package. Releases attach `MisstypeIBus-*` packages (Ubuntu 24.04 `.deb`, Fedora `.rpm`, Arch `.pkg.tar.zst`) for versions after v0.0.1; download from the [latest Release](https://github.com/Yukaii/misstype/releases/latest), for example:
+
+```sh
+sudo apt install ./MisstypeIBus-*-ubuntu24.04-*.deb          # Ubuntu 24.04
+sudo dnf install ./MisstypeIBus-*-fedora*.rpm                # Fedora
+sudo pacman -U ./MisstypeIBus-*-arch-*.pkg.tar.zst           # Arch
+```
+
+Or install from source:
 
 ```sh
 git clone https://github.com/Yukaii/misstype.git && cd misstype
@@ -105,7 +113,7 @@ sudo cmake --install build/ibus
 ibus restart     # then add Misstype (Chinese) under Settings → Keyboard → Input Sources
 ```
 
-On Arch Linux you can also build `linux/aur-ibus/PKGBUILD` with `makepkg -si` (not on the AUR yet). See the [IBus port](docs/ibus-port.md) for what is and is not verified. Tracking: [#63](https://github.com/Yukaii/misstype/issues/63).
+On Arch Linux you can also build `linux/aur-ibus/PKGBUILD` with `makepkg -si` (`ibus-misstype-git` is not on the AUR yet). See the [IBus port](docs/ibus-port.md) for what is and is not verified. Tracking: [#63](https://github.com/Yukaii/misstype/issues/63).
 
 To build from source see [Development, build and release](docs/development.md).
 

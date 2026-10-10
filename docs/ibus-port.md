@@ -71,9 +71,11 @@ that passes.
   Linux matrix in `.github/workflows/ci.yml`.
 - **I5 Desktop acceptance.** GNOME Wayland + X11, GTK and Qt apps, a browser,
   a terminal. Same checklist as L6.
-- **I6 Packaging.** Arch recipe `linux/aur-ibus/PKGBUILD` (`ibus-misstype-git`,
-  conflicts with the fcitx5 package, not published yet, `makepkg` run not yet
-  verified; see `arch-linux.md`). The engine's CMake install is self-contained
+- **I6 Packaging.** Release packages: the Release workflow builds, installs and
+  removes `.deb` / `.rpm` / Arch packages for the engine (`MisstypeIBus-*`,
+  `script/linux/package_{deb,rpm,arch}.sh <version> ibus`), conflicting with the
+  fcitx5 packages. Arch recipe `linux/aur-ibus/PKGBUILD` (`ibus-misstype-git`,
+  not published to the AUR yet; see `arch-linux.md`). The engine's CMake install is self-contained
   (lexicon, `misstypectl`, licences). `.deb` later (see backlog in
   `linux-port.md`).
 

@@ -62,7 +62,9 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: linux-${{ matrix.distro }}
-          path: dist/Misstype-*
+          path: |
+            dist/Misstype-*
+            dist/MisstypeIBus-*
           if-no-files-found: error
 
   release:
@@ -177,8 +179,11 @@ jobs:
           subject-path: |
             dist/Misstype-*.dmg*
             dist/Misstype-*.deb*
+            dist/MisstypeIBus-*.deb*
             dist/Misstype-*.pkg.tar.zst*
+            dist/MisstypeIBus-*.pkg.tar.zst*
             dist/Misstype-*.rpm*
+            dist/MisstypeIBus-*.rpm*
             dist/MisstypeIME-*.zip*
             dist/appcast.xml
 
@@ -200,8 +205,11 @@ jobs:
           path: |
             dist/Misstype-*.dmg*
             dist/Misstype-*.deb*
+            dist/MisstypeIBus-*.deb*
             dist/Misstype-*.pkg.tar.zst*
+            dist/MisstypeIBus-*.pkg.tar.zst*
             dist/Misstype-*.rpm*
+            dist/MisstypeIBus-*.rpm*
             dist/MisstypeIME-*.zip*
             dist/appcast.xml
             dist/build-provenance.sigstore.json
@@ -215,6 +223,7 @@ jobs:
           [[ "$VERSION" == *-* ]] && PRERELEASE="--prerelease"
           ASSETS=(dist/Misstype-*.dmg dist/Misstype-*.dmg.sha256 dist/MisstypeIME-*.zip dist/MisstypeIME-*.zip.sha256)
           ASSETS+=(dist/Misstype-*.deb dist/Misstype-*.deb.sha256 dist/Misstype-*.pkg.tar.zst dist/Misstype-*.pkg.tar.zst.sha256 dist/Misstype-*.rpm dist/Misstype-*.rpm.sha256)
+          ASSETS+=(dist/MisstypeIBus-*.deb dist/MisstypeIBus-*.deb.sha256 dist/MisstypeIBus-*.pkg.tar.zst dist/MisstypeIBus-*.pkg.tar.zst.sha256 dist/MisstypeIBus-*.rpm dist/MisstypeIBus-*.rpm.sha256)
           [[ -f dist/build-provenance.sigstore.json ]] && ASSETS+=(dist/build-provenance.sigstore.json)
           [[ -f dist/appcast.xml ]] && ASSETS+=(dist/appcast.xml)
           # Upload every asset before publication locks an immutable release.

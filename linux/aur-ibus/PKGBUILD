@@ -1,5 +1,6 @@
 # AUR packaging recipe for the IBus engine; see docs/arch-linux.md. Not
-# published yet (the fcitx5 recipe in ../aur is).
+# published yet (the fcitx5 recipe in ../aur is). Release builds use it through
+# script/linux/package_arch.sh <version> ibus.
 pkgname=ibus-misstype-git
 pkgver=0.1.r212.g5135a1f
 pkgrel=1
@@ -7,9 +8,9 @@ pkgdesc='Offline, fuzzy Zhuyin input method for IBus'
 arch=('x86_64' 'aarch64')
 url='https://github.com/Yukaii/misstype'
 license=('MIT' 'BSD-3-Clause' 'CC-BY-4.0' 'CC-BY-SA-4.0' 'Unicode-3.0')
-depends=('ibus' 'gcc-libs' 'glibc')
+# gtk4: the engine's <setup> tool (Preferences in ibus-setup) links it.
+depends=('ibus' 'gtk4' 'gcc-libs' 'glibc')
 makedepends=('git' 'cmake' 'ninja' 'python' 'gtk4')
-optdepends=('gtk4: settings window (Preferences in ibus-setup) and dictionary editor')
 provides=('ibus-misstype')
 # Both packages ship libMisstypeCAPI.so, the lexicon and misstypectl.
 conflicts=('ibus-misstype' 'fcitx5-misstype-git' 'fcitx5-misstype')

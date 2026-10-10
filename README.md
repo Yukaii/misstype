@@ -95,7 +95,15 @@ yay -S fcitx5-misstype-git
 
 #### IBus（實驗性）
 
-使用 IBus 的桌面（如 GNOME）可改用 IBus 引擎，共用同一個核心，並附設定視窗（`ibus-setup` 的「偏好設定」按鈕，或直接執行 `/usr/libexec/ibus-setup-misstype`）；設定與 fcitx5 版是同一份 `misstype.conf`，修改後立即生效。IBus 版目前**尚無預先建置的套件**，需從原始碼安裝，且與 fcitx5 套件不能同時安裝：
+使用 IBus 的桌面（如 GNOME）可改用 IBus 引擎，共用同一個核心，並附設定視窗（`ibus-setup` 的「偏好設定」按鈕，或直接執行 `/usr/libexec/ibus-setup-misstype`）；設定與 fcitx5 版是同一份 `misstype.conf`，修改後立即生效。IBus 版與 fcitx5 套件不能同時安裝。發布流程會另外附上 `MisstypeIBus-*` 套件（Ubuntu 24.04 `.deb`、Fedora `.rpm`、Arch `.pkg.tar.zst`），v0.0.1 之後的版本才有；從[最新 Release](https://github.com/Yukaii/misstype/releases/latest)下載後，例如：
+
+```sh
+sudo apt install ./MisstypeIBus-*-ubuntu24.04-*.deb          # Ubuntu 24.04
+sudo dnf install ./MisstypeIBus-*-fedora*.rpm                # Fedora
+sudo pacman -U ./MisstypeIBus-*-arch-*.pkg.tar.zst           # Arch
+```
+
+或從原始碼安裝：
 
 ```sh
 git clone https://github.com/Yukaii/misstype.git && cd misstype
@@ -104,7 +112,7 @@ sudo cmake --install build/ibus
 ibus restart     # 再到「設定 → 鍵盤 → 輸入來源」加入 Misstype（Chinese）
 ```
 
-Arch Linux 也可用 `linux/aur-ibus/PKGBUILD` 自行 `makepkg -si`（尚未發布到 AUR）。細節與已驗證／未驗證項目見 [IBus 移植說明](docs/ibus-port.md)。進度追蹤：[#63](https://github.com/Yukaii/misstype/issues/63)。
+Arch Linux 也可用 `linux/aur-ibus/PKGBUILD` 自行 `makepkg -si`（`ibus-misstype-git` 尚未發布到 AUR）。細節與已驗證／未驗證項目見 [IBus 移植說明](docs/ibus-port.md)。進度追蹤：[#63](https://github.com/Yukaii/misstype/issues/63)。
 
 從原始碼建置請見[開發、建置與發布](docs/development.md)。
 
