@@ -29,7 +29,44 @@ permissions:
   attestations: write
 
 jobs:
+  linux:
+    name: Linux package (${{ matrix.distro }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - distro: ubuntu24.04
+            image: ubuntu:24.04
+          - distro: arch
+            image: archlinux:base
+          - distro: fedora43
+            image: fedora:43
+    env:
+      VERSION: ${{ github.event_name == 'push' && github.ref_name || inputs.version }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Build and test native package
+        env:
+          IMAGE: ${{ matrix.image }}
+          DISTRO: ${{ matrix.distro }}
+        run: |
+          mkdir -p dist
+          docker run --rm -e VERSION -e DISTRO \
+            -v "$PWD":/src:ro -v "$PWD/dist":/output "$IMAGE" \
+            bash /src/script/linux/release_container.sh
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: linux-${{ matrix.distro }}
+          path: dist/Misstype-*
+          if-no-files-found: error
+
   release:
+    needs: linux
     runs-on: macos-26
     env:
       VERSION: ${{ github.event_name == 'push' && github.ref_name || inputs.version }}
@@ -121,6 +158,13 @@ jobs:
           NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
         run: ./script/package_release.sh "$VERSION"
 
+      - name: Collect tested Linux packages
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: linux-*
+          path: dist
+          merge-multiple: true
+
       # Package includes signing, notarization/stapling, and final checksums.
       # Attest these exact downloadable bytes; no packaging runs afterwards.
       - name: Attest final release artifacts
@@ -132,6 +176,9 @@ jobs:
         with:
           subject-path: |
             dist/Misstype-*.dmg*
+            dist/Misstype-*.deb*
+            dist/Misstype-*.pkg.tar.zst*
+            dist/Misstype-*.rpm*
             dist/MisstypeIME-*.zip*
             dist/appcast.xml
 
@@ -152,6 +199,9 @@ jobs:
           name: Misstype-${{ env.VERSION }}
           path: |
             dist/Misstype-*.dmg*
+            dist/Misstype-*.deb*
+            dist/Misstype-*.pkg.tar.zst*
+            dist/Misstype-*.rpm*
             dist/MisstypeIME-*.zip*
             dist/appcast.xml
             dist/build-provenance.sigstore.json
@@ -164,6 +214,7 @@ jobs:
           PRERELEASE=""
           [[ "$VERSION" == *-* ]] && PRERELEASE="--prerelease"
           ASSETS=(dist/Misstype-*.dmg dist/Misstype-*.dmg.sha256 dist/MisstypeIME-*.zip dist/MisstypeIME-*.zip.sha256)
+          ASSETS+=(dist/Misstype-*.deb dist/Misstype-*.deb.sha256 dist/Misstype-*.pkg.tar.zst dist/Misstype-*.pkg.tar.zst.sha256 dist/Misstype-*.rpm dist/Misstype-*.rpm.sha256)
           [[ -f dist/build-provenance.sigstore.json ]] && ASSETS+=(dist/build-provenance.sigstore.json)
           [[ -f dist/appcast.xml ]] && ASSETS+=(dist/appcast.xml)
           # Upload every asset before publication locks an immutable release.

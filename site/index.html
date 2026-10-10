@@ -120,7 +120,13 @@
       </ol>
       <div class="other linux-install" id="linux">
         <h3>Linux（fcitx5）</h3>
-        <p>目前請從原始碼安裝。Arch Linux／Omarchy 先安裝建置工具：</p>
+        <p>從<a href="https://github.com/Yukaii/misstype/releases/latest">最新 Release</a>下載對應套件：</p>
+        <p><code>sudo pacman -U ./Misstype-*-arch-*.pkg.tar.zst</code></p>
+        <p>Ubuntu 24.04：</p>
+        <p><code>sudo apt install ./Misstype-*-ubuntu24.04-*.deb</code></p>
+        <p>Fedora：</p>
+        <p><code>sudo dnf install ./Misstype-*-fedora*.rpm</code></p>
+        <p class="sub">若沒有適合的套件，才從原始碼安裝。Arch Linux／Omarchy 先安裝建置工具：</p>
         <p><code>sudo pacman -S --needed base-devel cmake ninja git</code></p>
         <p>Ubuntu 24.04 先安裝 Git：</p>
         <p><code>sudo apt-get update &amp;&amp; sudo apt-get install -y git</code></p>
@@ -135,9 +141,9 @@
           <summary>複製這段給 coding agent 代為安裝</summary>
           <pre><code>請在這台 Linux 電腦安裝 Misstype：
 1. 先偵測發行版與架構；需要 sudo 時先告訴我並取得同意。
-2. 從 https://github.com/Yukaii/misstype.git clone 專案。
-3. Arch／Omarchy 安裝 base-devel、cmake、ninja、git；Ubuntu 24.04 執行 script/linux/bootstrap.sh。
-4. 在專案根目錄執行 script/linux/install_ime.sh。
+2. 優先從最新 Release 下載並安裝對應的 Arch、Ubuntu 24.04 或 Fedora 套件；若沒有相符套件，再 clone https://github.com/Yukaii/misstype.git。
+3. 從原始碼安裝時，Arch／Omarchy 安裝 base-devel、cmake、ninja、git；Ubuntu 24.04 執行 script/linux/bootstrap.sh。
+4. 從專案根目錄執行 script/linux/install_ime.sh。
 5. 確認 fcitx5 正在執行，並用 fcitx5-configtool 將 Misstype 加入輸入法群組。
 6. 重新啟動或重新登入後，用 fcitx5 的快捷鍵切換，輸入 su3cl3 確認預覽為「你好」。
 若目前環境不符合支援條件，請說明原因並停止，不要刪除既有輸入法。</code></pre>
