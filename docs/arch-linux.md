@@ -172,6 +172,61 @@ makepkg --printsrcinfo > .SRCINFO
 After publication, users can install with
 `omarchy pkg aur add fcitx5-misstype-git` (or `yay -S fcitx5-misstype-git`).
 
+### Automated synchronization and branch preview
+
+`.github/workflows/aur.yml` validates packaging on relevant branch pushes
+and PRs and uploads an `aur-package` preview containing only `PKGBUILD`,
+`.SRCINFO`, `cxx20.patch`, and the packaging license (`LICENSE`, MIT).
+It regenerates `.SRCINFO` in a credential-free Arch container and requires
+it to match the committed metadata. This is a metadata check, not a full
+package build; run `makepkg` with its `check()` suite before publication.
+Hypothesis: these four files are enough to synchronize the AUR recipe
+without exposing credentials to PKGBUILD execution. The smallest check is
+a branch preview, inspection of its artifact, then an initial publish and
+an unchanged repeat run (which should make no AUR commit).
+
+One-time setup by the AUR maintainer and GitHub administrator:
+
+1. Generate a dedicated Ed25519 SSH key, separate from personal keys:
+   `ssh-keygen -t ed25519 -f ~/.ssh/aur-misstype-ci -C 'misstype AUR automation'`.
+   Use an empty passphrase for unattended CI. Append its public key to the
+   AUR account's SSH keys, one key per line. The private key must stay private.
+2. In GitHub **Settings → Secrets and variables → Actions → Repository secrets**,
+   set `AUR_MAINTAINER` to the public contact, e.g.
+   `Your Name <you at example dot org>`. This contact is included in the
+   published PKGBUILD and preview artifact; it is not private package metadata.
+3. Add repository secret `AUR_SSH_PRIVATE_KEY` containing the entire private
+   key, including its BEGIN/END lines. No GitHub environment is required.
+   The workflow restricts publishing to upstream `main` and passes the private
+   key only to the publishing step. Protect `main` with review requirements
+   to control changes to the workflow and publisher.
+4. Ensure the account owns or co-maintains `fcitx5-misstype-git`, or that the
+   name is available for the initial push. Initial publication can be done
+   manually as above or by the workflow's first authorized push.
+
+AUR SSH keys are account-wide, not restricted to a single package. Giving
+upstream CI this key trusts its repository administrators with the AUR
+account's package-write permissions. Revoke only the CI key by removing its
+public key from the AUR profile and deleting the GitHub secret.
+
+Test a branch by pushing a packaging/workflow change; its AUR workflow only
+prepares the preview and skips publishing, even if `publish=true` is supplied.
+For a new workflow, GitHub enables manual dispatch after the workflow exists
+on the default branch. After merging, a relevant push to `main` automatically
+publishes. To retry or preview manually:
+
+```sh
+gh workflow run aur.yml --ref main                    # preview only
+gh workflow run aur.yml --ref main -f publish=true    # publish
+```
+
+Publishing uses strict SSH host checking against AUR's published Ed25519
+fingerprint, an explicit file list, and normal non-force pushes. It skips
+unchanged packaging and does not bump `pkgver` for upstream commits/releases:
+this is a VCS package. Update pinned source URLs/hashes when manifests change.
+The workflow intentionally operates independently of the macOS/Linux binary
+release workflow so packaging fixes can be delivered between releases.
+
 ## Verification record (2026-10-05)
 
 This record predates upstream's Mistype → Misstype rename. The current
