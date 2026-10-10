@@ -16,6 +16,10 @@ if(NOT EXISTS "${MISSTYPE_CAPI_DIR}/libMisstypeCAPI.so")
     message(FATAL_ERROR "Set -DMISSTYPE_CAPI_DIR=<dir containing libMisstypeCAPI.so> (script/linux/build_capi.sh)")
 endif()
 
+# Resources installed by `cmake --install` (script/prepare_lexicon.py output), so
+# the engine package is complete without the fcitx5 one.
+set(MISSTYPE_LEXICON_DIR "${MISSTYPE_ROOT}/.cache/mcbopomofo" CACHE PATH "Directory with lexicon.tsv and toneless.tsv")
+
 set(MISSTYPE_DATADIR "${CMAKE_INSTALL_FULL_DATADIR}/misstype")
 set(MISSTYPE_CAPI_INSTALL_DIR "${CMAKE_INSTALL_FULL_LIBDIR}/misstype")
 set(MISSTYPE_IBUS_EXEC "${CMAKE_INSTALL_FULL_LIBEXECDIR}/ibus-engine-misstype")
@@ -60,6 +64,22 @@ install(FILES "${MISSTYPE_ROOT}/linux/fcitx5/data/icons/misstype-symbolic.svg"
     DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/symbolic/apps")
 install(FILES "${MISSTYPE_ROOT}/Resources/MisstypeIcon.svg"
     DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps" RENAME misstype.svg)
+
+install(FILES
+    "${MISSTYPE_LEXICON_DIR}/lexicon.tsv"
+    "${MISSTYPE_LEXICON_DIR}/toneless.tsv"
+    "${MISSTYPE_ROOT}/Resources/local_phrases.tsv"
+    DESTINATION "${CMAKE_INSTALL_DATADIR}/misstype")
+# Optional English word list (mixed typing); absent = feature off. CC BY-SA, see THIRD_PARTY_NOTICES.md.
+if(EXISTS "${MISSTYPE_ROOT}/.cache/frequencywords/english.tsv")
+    install(FILES "${MISSTYPE_ROOT}/.cache/frequencywords/english.tsv" DESTINATION "${CMAKE_INSTALL_DATADIR}/misstype")
+endif()
+install(FILES "${MISSTYPE_ROOT}/LICENSE" "${MISSTYPE_ROOT}/THIRD_PARTY_NOTICES.md" DESTINATION "${CMAKE_INSTALL_DOCDIR}")
+install(DIRECTORY "${MISSTYPE_ROOT}/third_party/" DESTINATION "${CMAKE_INSTALL_DOCDIR}/third_party")
+# misstypectl (settings + dictionary CLI), which the settings window drives.
+if(EXISTS "${MISSTYPE_CAPI_DIR}/misstypectl")
+    install(PROGRAMS "${MISSTYPE_CAPI_DIR}/misstypectl" DESTINATION "${CMAKE_INSTALL_BINDIR}")
+endif()
 
 # Headless conformance test against a real ibus-daemon (script/linux/test_ibus.sh).
 add_executable(test-misstype-ibus test/test_ibus.c)

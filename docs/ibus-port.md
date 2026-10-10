@@ -71,7 +71,10 @@ that passes.
   Linux matrix in `.github/workflows/ci.yml`.
 - **I5 Desktop acceptance.** GNOME Wayland + X11, GTK and Qt apps, a browser,
   a terminal. Same checklist as L6.
-- **I6 Packaging.** Extend `linux/aur/PKGBUILD`; `.deb` later (see backlog in
+- **I6 Packaging.** Arch recipe `linux/aur-ibus/PKGBUILD` (`ibus-misstype-git`,
+  conflicts with the fcitx5 package, not published yet, `makepkg` run not yet
+  verified; see `arch-linux.md`). The engine's CMake install is self-contained
+  (lexicon, `misstypectl`, licences). `.deb` later (see backlog in
   `linux-port.md`).
 
 ## Open questions
