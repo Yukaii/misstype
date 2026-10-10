@@ -1,3 +1,12 @@
 {
-  "git": { "deploymentEnabled": false }
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "installCommand": "cd site && npm ci",
+  "buildCommand": "script/build_site_assets.sh && cd site && npm run build",
+  "outputDirectory": "site/dist",
+  "headers": [
+    {
+      "source": "/(embed.js|misstype.wasm|lexicon.tsv|toneless.tsv|english.tsv)",
+      "headers": [{ "key": "Access-Control-Allow-Origin", "value": "*" }]
+    }
+  ]
 }

@@ -5,11 +5,6 @@ name: Pages
 # Deploy is off until Pages is set up: enable Pages with source "GitHub
 # Actions" in the repository settings, then set the repository variable
 # PAGES_ENABLED=true. A manual run (workflow_dispatch) deploys regardless.
-#
-# The same build also goes to Vercel (landing page, /en/ and /editor/ are one
-# static site): a preview per pull request, production from main. Off until
-# the repository variable VERCEL_ENABLED=true and the secrets VERCEL_TOKEN,
-# VERCEL_ORG_ID and VERCEL_PROJECT_ID exist (docs/vercel.md).
 on:
   push:
     branches: [main]
@@ -24,7 +19,6 @@ on:
       - "LICENSE"
       - "THIRD_PARTY_NOTICES.md"
       - "third_party/**"
-      - "script/vercel_output_config.json"
       - ".github/workflows/pages.yml"
   pull_request:
     paths:
@@ -38,7 +32,6 @@ on:
       - "LICENSE"
       - "THIRD_PARTY_NOTICES.md"
       - "third_party/**"
-      - "script/vercel_output_config.json"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -88,11 +81,6 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site/dist
-      - uses: actions/upload-artifact@v4
-        with:
-          name: site-dist
-          path: site/dist
-          retention-days: 1
 
   deploy:
     needs: build
@@ -110,48 +98,3 @@ jobs:
       - uses: actions/configure-pages@v5
       - id: deployment
         uses: actions/deploy-pages@v4
-
-  # Prebuilt deploy: Vercel gets site/dist exactly as built above, so its
-  # build image never needs Zig or the lexicon download. The project's own
-  # Git integration must stay disconnected (root vercel.json also turns it
-  # off) or Vercel would build the bare repository a second time.
-  vercel:
-    needs: build
-    # Same-repository runs only: fork PRs have no secrets.
-    if: >-
-      vars.VERCEL_ENABLED == 'true' &&
-      (github.event_name != 'pull_request' ||
-      github.event.pull_request.head.repo.full_name == github.repository)
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    env:
-      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-      PRODUCTION: ${{ github.ref == 'refs/heads/main' }}
-    environment:
-      name: ${{ github.ref == 'refs/heads/main' && 'vercel-production' || 'vercel-preview' }}
-      url: ${{ steps.deploy.outputs.url }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - uses: actions/download-artifact@v4
-        with:
-          name: site-dist
-          path: .vercel/output/static
-      - name: Write Build Output config
-        run: cp script/vercel_output_config.json .vercel/output/config.json
-      - id: deploy
-        name: Deploy
-        run: |
-          flags=""
-          [ "$PRODUCTION" = "true" ] && flags="--prod"
-          url=$(npx --yes vercel@63 deploy --prebuilt $flags --token "$VERCEL_TOKEN")
-          echo "url=$url" >> "$GITHUB_OUTPUT"
-          echo "### Vercel $([ -n "$flags" ] && echo production || echo preview)" >> "$GITHUB_STEP_SUMMARY"
-          echo "$url" >> "$GITHUB_STEP_SUMMARY"
-          echo "- landing: $url/" >> "$GITHUB_STEP_SUMMARY"
-          echo "- editor: $url/editor/" >> "$GITHUB_STEP_SUMMARY"
