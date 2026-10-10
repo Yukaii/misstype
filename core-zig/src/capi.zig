@@ -604,6 +604,46 @@ pub export fn misstype_key_from_mac(code: i32, label: ?*?[*:0]const u8) callconv
     return kindToC(kind);
 }
 
+/// Windows set-1 scan codes (the `lParam` bits 16-23 of a key message, which
+/// match PS/2 set 1 and, below 0x58, Linux evdev). `0xE000 | scan` is the same
+/// key behind the E0 prefix (the extended flag, bit 24): arrows, the right
+/// Ctrl/Alt, the Windows keys. Labels reuse the evdev block: set-1 codes and
+/// evdev codes agree for the main block, which keymap_test.zig pins.
+fn windowsLabel(code: i32) ?[*:0]const u8 {
+    if (code < 0 or code > 0x58) return null;
+    return evdevLabel(code);
+}
+
+pub export fn misstype_key_from_windows(code: i32, label: ?*?[*:0]const u8) callconv(.c) c_int {
+    if (windowsLabel(code)) |l| {
+        if (label) |out| out.* = l;
+        return kindToC(.character);
+    }
+    if (label) |out| out.* = null;
+    const kind: KeyKind = switch (code) {
+        0x39 => .space,
+        0x1C, 0xE01C => .enter, // Return, numpad Enter
+        0x0F => .tab,
+        0x0E => .backspace,
+        0xE053 => .forward_delete,
+        0x01 => .escape,
+        0xE04B => .left,
+        0xE04D => .right,
+        0xE048 => .up,
+        0xE050 => .down,
+        0xE049 => .page_up,
+        0xE051 => .page_down,
+        0x2A => .shift_left,
+        0x36 => .shift_right,
+        // Ctrl, Alt, Caps Lock, right Ctrl/Alt, the Windows keys. The E0 2A
+        // and E0 36 "fake shifts" that numpad navigation can inject stay
+        // `other` so they never reach the Shift-tap toggle.
+        0x1D, 0x38, 0x3A, 0xE01D, 0xE038, 0xE05B, 0xE05C => .modifier,
+        else => .other,
+    };
+    return kindToC(kind);
+}
+
 export fn misstype_engine_set_key_bindings(engine_: ?*Engine, text: ?[*:0]const u8) callconv(.c) void {
     const engine = engine_ orelse return;
     engine.bindings = core.keybindings.Bindings.parse(span(text) orelse "");

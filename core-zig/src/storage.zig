@@ -52,9 +52,13 @@ fn getenv(name: [:0]const u8) ?[]const u8 {
 }
 
 /// Directory of the user data files: ~/Library/Application Support/Misstype
-/// on macOS, $XDG_DATA_HOME/misstype (absolute only, default
-/// ~/.local/share/misstype) elsewhere.
+/// on macOS, %APPDATA%\Misstype on Windows, $XDG_DATA_HOME/misstype (absolute
+/// only, default ~/.local/share/misstype) elsewhere.
 pub fn dataDirectory(gpa: Allocator) ![]u8 {
+    if (builtin.os.tag == .windows) {
+        const appdata = getenv("APPDATA") orelse getenv("USERPROFILE") orelse "";
+        return std.fmt.allocPrint(gpa, "{s}\\Misstype", .{appdata});
+    }
     const home = getenv("HOME") orelse "";
     if (builtin.os.tag == .macos) return std.fmt.allocPrint(gpa, "{s}/Library/Application Support/Misstype", .{home});
     if (getenv("XDG_DATA_HOME")) |xdg| if (xdg.len > 0 and xdg[0] == '/') return std.fmt.allocPrint(gpa, "{s}/misstype", .{xdg});
