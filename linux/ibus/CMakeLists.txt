@@ -16,6 +16,10 @@ if(NOT EXISTS "${MISSTYPE_CAPI_DIR}/libMisstypeCAPI.so")
     message(FATAL_ERROR "Set -DMISSTYPE_CAPI_DIR=<dir containing libMisstypeCAPI.so> (script/linux/build_capi.sh)")
 endif()
 
+# Resources installed by `cmake --install` (script/prepare_lexicon.py output), so
+# the engine package is complete without the fcitx5 one.
+set(MISSTYPE_LEXICON_DIR "${MISSTYPE_ROOT}/.cache/mcbopomofo" CACHE PATH "Directory with lexicon.tsv and toneless.tsv")
+
 set(MISSTYPE_DATADIR "${CMAKE_INSTALL_FULL_DATADIR}/misstype")
 set(MISSTYPE_CAPI_INSTALL_DIR "${CMAKE_INSTALL_FULL_LIBDIR}/misstype")
 set(MISSTYPE_IBUS_EXEC "${CMAKE_INSTALL_FULL_LIBEXECDIR}/ibus-engine-misstype")
@@ -35,13 +39,47 @@ set_target_properties(ibus-engine-misstype PROPERTIES
     BUILD_RPATH "${MISSTYPE_CAPI_DIR}"
     INSTALL_RPATH "${MISSTYPE_CAPI_INSTALL_DIR}")
 
+# Settings window (GTK4 over `misstypectl config`), shown by ibus-setup and GNOME
+# Settings through the engine's <setup> element. Optional: without GTK4 the
+# engine still reads the file (edit it with misstypectl config).
+set(MISSTYPE_IBUS_SETUP_LINE "")
+pkg_check_modules(GTK4 QUIET IMPORTED_TARGET gtk4)
+if(GTK4_FOUND)
+    add_executable(ibus-setup-misstype tools/setup.c)
+    target_compile_options(ibus-setup-misstype PRIVATE -Wall -Wextra)
+    target_link_libraries(ibus-setup-misstype PRIVATE PkgConfig::GTK4)
+    install(TARGETS ibus-setup-misstype RUNTIME DESTINATION "${CMAKE_INSTALL_LIBEXECDIR}")
+    set(MISSTYPE_IBUS_SETUP_LINE "      <setup>${CMAKE_INSTALL_FULL_LIBEXECDIR}/ibus-setup-misstype</setup>\n")
+else()
+    message(STATUS "GTK4 not found: ibus-setup-misstype not built (misstypectl config still works)")
+endif()
+
 configure_file(data/misstype.xml.in "${CMAKE_BINARY_DIR}/data/misstype.xml" @ONLY)
 
 install(TARGETS ibus-engine-misstype RUNTIME DESTINATION "${CMAKE_INSTALL_LIBEXECDIR}")
 install(FILES "${CMAKE_BINARY_DIR}/data/misstype.xml" DESTINATION "${CMAKE_INSTALL_DATADIR}/ibus/component")
 install(PROGRAMS "${MISSTYPE_CAPI_DIR}/libMisstypeCAPI.so" DESTINATION "${CMAKE_INSTALL_LIBDIR}/misstype")
+# The single-character 隨 icon the fcitx5 addon uses (engine icon, as in its inputmethod conf).
+install(FILES "${MISSTYPE_ROOT}/linux/fcitx5/data/icons/misstype-symbolic.svg"
+    DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/symbolic/apps")
 install(FILES "${MISSTYPE_ROOT}/Resources/MisstypeIcon.svg"
     DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps" RENAME misstype.svg)
+
+install(FILES
+    "${MISSTYPE_LEXICON_DIR}/lexicon.tsv"
+    "${MISSTYPE_LEXICON_DIR}/toneless.tsv"
+    "${MISSTYPE_ROOT}/Resources/local_phrases.tsv"
+    DESTINATION "${CMAKE_INSTALL_DATADIR}/misstype")
+# Optional English word list (mixed typing); absent = feature off. CC BY-SA, see THIRD_PARTY_NOTICES.md.
+if(EXISTS "${MISSTYPE_ROOT}/.cache/frequencywords/english.tsv")
+    install(FILES "${MISSTYPE_ROOT}/.cache/frequencywords/english.tsv" DESTINATION "${CMAKE_INSTALL_DATADIR}/misstype")
+endif()
+install(FILES "${MISSTYPE_ROOT}/LICENSE" "${MISSTYPE_ROOT}/THIRD_PARTY_NOTICES.md" DESTINATION "${CMAKE_INSTALL_DOCDIR}")
+install(DIRECTORY "${MISSTYPE_ROOT}/third_party/" DESTINATION "${CMAKE_INSTALL_DOCDIR}/third_party")
+# misstypectl (settings + dictionary CLI), which the settings window drives.
+if(EXISTS "${MISSTYPE_CAPI_DIR}/misstypectl")
+    install(PROGRAMS "${MISSTYPE_CAPI_DIR}/misstypectl" DESTINATION "${CMAKE_INSTALL_BINDIR}")
+endif()
 
 # Headless conformance test against a real ibus-daemon (script/linux/test_ibus.sh).
 add_executable(test-misstype-ibus test/test_ibus.c)

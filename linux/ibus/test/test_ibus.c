@@ -1,5 +1,5 @@
 // Headless conformance test for the IBus adapter: docs/cross-platform.md
-// scenarios C1-C15 and the delivery rules LR1-LR3, driven through a real
+// scenarios C1-C15 and the delivery rules LR1-LR5, driven through a real
 // ibus-daemon (script/linux/test_ibus.sh starts it and the engine). The test
 // is an IBus client plus the panel: it sends key events with the evdev codes
 // real clients send and reads the signals the daemon forwards.
@@ -361,6 +361,30 @@ static void run_all(void) {
     CHECK(strcmp(preedit(), "你好") == 0, "%s", preedit());
     clear();
     pass("C13");
+
+    // LR5: rewriting the settings file (misstypectl config set, the settings
+    // window) reaches the running engine without a restart.
+    const char *conf = g_getenv("MISSTYPE_CONFIG");
+    if (conf) {
+        gchar *before = NULL;
+        CHECK(g_file_get_contents(conf, &before, NULL, NULL), "read %s", conf);
+        type("su3");
+        CHECK(c.page_size == 8, "default page size: %u", c.page_size);
+        clear();
+        gchar *changed = g_strconcat(before ? before : "", "CandidatesPerPage=4\n", NULL);
+        CHECK(g_file_set_contents(conf, changed, -1, NULL), "write %s", conf);
+        for (int i = 0; i < 10; ++i) { // rate limit 50 ms + debounce 150 ms
+            g_usleep(60000);
+            pump();
+        }
+        type("su3");
+        CHECK(c.page_size == 4, "page size after the file changed: %u", c.page_size);
+        clear();
+        g_file_set_contents(conf, before ? before : "", -1, NULL);
+        g_free(changed);
+        g_free(before);
+        pass("LR5");
+    }
 
     // LR1: a key release is never swallowed and changes nothing.
     type("su3");

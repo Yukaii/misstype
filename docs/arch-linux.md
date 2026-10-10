@@ -18,6 +18,30 @@ smoke test, fcitx5 headless conformance), followed by the real-lexicon smoke
 check and desktop checks below. Decode is offline; packaging changes no
 candidate scoring or per-keystroke latency.
 
+## IBus instead of fcitx5
+
+`linux/aur-ibus/PKGBUILD` builds `ibus-misstype-git`, the IBus engine
+(`docs/ibus-port.md`) with its settings window. It is built from the same
+sources and data as the fcitx5 package, so the two **conflict** (both ship
+`libMisstypeCAPI.so`, the lexicon and `misstypectl`); install one. It is not
+published on the AUR yet. Build it from a checkout like the fcitx5 one:
+
+```sh
+export MISSTYPE_SOURCE_URL="file://$(git rev-parse --show-toplevel)"
+cd linux/aur-ibus && makepkg -s
+sudo pacman -U ./ibus-misstype-git-*.pkg.tar.zst
+ibus restart    # then add Misstype under Input Sources / ibus-setup
+```
+
+On Omarchy, fcitx5 owns the input method (`omarchy-fcitx5.service`,
+`XMODIFIERS=@im=fcitx`); switch it off before using IBus, see
+[`ibus-port.md`](ibus-port.md#install-from-source). `check()` runs the Zig
+suite and the C ABI smoke test; the headless IBus suite runs in CI
+(`script/linux/test_ibus.sh`). Packaging is **unverified** with `makepkg` on a
+clean chroot: the recipe was checked with `bash -n` and the CMake install was
+staged with `DESTDIR` (engine, `<setup>` tool, lexicon, `misstypectl`,
+licences, icons).
+
 ## Quick install from a checkout
 
 For testing a branch on your own desktop, from the repository root:

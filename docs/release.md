@@ -91,6 +91,15 @@ Linux data moves from `~/.local/share/mistype` to `~/.local/share/misstype`.
    and Gatekeeper blocks opening it on other Macs until
    `xattr -dr com.apple.quarantine`.
 
+## Linux packages
+
+The `linux` job builds, installs and removes native packages per distro
+(`script/linux/release_container.sh`) for the fcitx5 addon (`Misstype-<v>-…`)
+and for the IBus engine (`MisstypeIBus-<v>-…`: `.deb`, `.rpm`, Arch
+`.pkg.tar.zst`, plus `.sha256`). The two conflict with each other, so the
+container installs and removes them one at a time. The AUR job still
+synchronizes only `fcitx5-misstype-git`.
+
 ## Cutting a release
 
 After a successful stable publication, Release calls the reusable AUR workflow

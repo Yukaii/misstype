@@ -38,6 +38,7 @@ int main(int argc, char **argv) {
         misstype_engine_set_user_dictionary_path(core, NULL);
         misstype_engine_set_channel_path(core, NULL);
         misstype_ibus_apply_config(core);
+        misstype_ibus_watch_config(core);
     } else {
         // Never crash and never filter: every key passes through.
         g_printerr("misstype: cannot load lexicon.tsv from %s\n", resources);
@@ -55,7 +56,7 @@ int main(int argc, char **argv) {
                                                       "Misstype", "https://github.com/Yukaii/misstype", "", "misstype");
         ibus_component_add_engine(component, ibus_engine_desc_new("misstype", "Misstype (隨打注音)",
                                                                   "Zhuyin with optional tones and typo repair",
-                                                                  "zh_TW", "MIT", "Misstype", "misstype", "us"));
+                                                                  "zh_TW", "MIT", "Misstype", "misstype-symbolic", "us"));
         if (!ibus_bus_register_component(bus, component)) g_printerr("misstype: cannot register the component\n");
         g_object_unref(component);
     }

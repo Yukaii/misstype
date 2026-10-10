@@ -28,6 +28,10 @@ void misstype_ibus_set_core(misstype_engine *core);
 /// Loads the shared settings file into the core (config.c).
 void misstype_ibus_apply_config(misstype_engine *core);
 
+/// Re-applies the settings file whenever it changes (misstypectl, the settings
+/// window), so no engine restart is needed.
+void misstype_ibus_watch_config(misstype_engine *core);
+
 G_END_DECLS
 
 #endif
