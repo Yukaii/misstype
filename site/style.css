@@ -385,6 +385,13 @@ kbd {
 .steps p { margin: 0; }
 .steps .sub { color: var(--muted); font-size: 15px; }
 .other { margin: 28px 0 0; color: var(--muted); }
+.linux-install h3 { margin: 0 0 8px; color: var(--ink); font-size: 1.05em; }
+.linux-install p { margin: 0 0 8px; }
+.linux-install code { color: var(--ink); }
+.agent-prompt { margin-top: 14px; }
+.agent-prompt summary { cursor: pointer; color: var(--ink); }
+.agent-prompt pre { margin: 10px 0 0; padding: 12px 14px; overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--ink); font: 13px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; }
+.agent-prompt pre code { color: inherit; }
 #install h2 { margin-bottom: 24px; }
 
 /* Honest notes */

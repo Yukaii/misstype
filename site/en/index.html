@@ -116,7 +116,31 @@
         <li><div><p>Open it and double-click “Install Misstype”. No password needed.</p></div></li>
         <li><div><p>Log out and back in, then pick “Misstype Bopomofo” from the input menu.</p><p class="sub">Not there? System Settings → Keyboard → Input Sources → +</p></div></li>
       </ol>
-      <p class="other" id="linux">Linux (fcitx5): see <a href="https://github.com/Yukaii/misstype/blob/main/docs/linux-port.md">here</a>.</p>
+      <div class="other linux-install" id="linux">
+        <h3>Linux (fcitx5)</h3>
+        <p>On Arch Linux or Omarchy, install the build tools:</p>
+        <p><code>sudo pacman -S --needed base-devel cmake ninja git</code></p>
+        <p>On Ubuntu 24.04, install Git first:</p>
+        <p><code>sudo apt-get update &amp;&amp; sudo apt-get install -y git</code></p>
+        <p>Then clone the project and enter its directory:</p>
+        <p><code>git clone https://github.com/Yukaii/misstype.git &amp;&amp; cd misstype</code></p>
+        <p>On Ubuntu 24.04, prepare the remaining build environment with:</p>
+        <p><code>script/linux/bootstrap.sh</code></p>
+        <p>Then, from the project root, run:</p>
+        <p><code>script/linux/install_ime.sh</code></p>
+        <p class="sub">When it finishes, log out and back in, open <code>fcitx5-configtool</code>, add “Misstype”, and switch to it with your fcitx5 shortcut.</p>
+        <details class="agent-prompt">
+          <summary>Copy this prompt for a coding agent</summary>
+          <pre><code>Install Misstype on this Linux computer:
+1. Detect the distro and architecture; ask before running commands that need sudo.
+2. Clone https://github.com/Yukaii/misstype.git.
+3. On Arch/Omarchy install base-devel, cmake, ninja, and git; on Ubuntu 24.04 run script/linux/bootstrap.sh.
+4. From the project root, run script/linux/install_ime.sh.
+5. Confirm fcitx5 is running and add Misstype to the input-method group with fcitx5-configtool.
+6. Restart or log in again, switch to Misstype with the fcitx5 shortcut, and type su3cl3 to verify the preedit is “你好”.
+If the environment is unsupported, explain why and stop without removing existing input methods.</code></pre>
+        </details>
+      </div>
     </div>
   </section>
 
