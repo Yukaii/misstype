@@ -101,7 +101,8 @@ const view = createView();
 // the caret clear of them when ProseMirror scrolls it into view.
 function keepCaretClear() {
   const top = $(".chrome").offsetHeight + 12;
-  const bottom = $(".status").offsetHeight + vkHeight() + 24;
+  // The docked candidate bar sits right above the keyboard.
+  const bottom = $(".status").offsetHeight + vkHeight() + (vkEl.hidden ? 0 : 56) + 24;
   view.setProps({ scrollMargin: { top, bottom, left: 8, right: 8 }, scrollThreshold: { top, bottom, left: 8, right: 8 } });
 }
 
@@ -217,6 +218,8 @@ function applyVirtualKeyboard() {
   const on = virtualKeyboardWanted();
   vkEl.hidden = !on;
   document.body.classList.toggle("vk-on", on);
+  panel.setDocked(on);
+  if (imeState) panel.render(imeState, caretRect());
   // Without this the system keyboard would pop up over ours.
   view.setProps({ attributes: on ? { inputmode: "none" } : {} });
   document.documentElement.style.setProperty("--vk-h", `${vkHeight()}px`);

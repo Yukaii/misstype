@@ -237,3 +237,18 @@ body.vk-on { padding-bottom: var(--vk-h, 0px); }
 body.vk-on .status { bottom: var(--vk-h, 0px); }
 body.vk-on #toast { bottom: calc(var(--vk-h, 0px) + 56px); }
 @media (max-height: 480px) { .vk { --vk-row-gap: 5px; --vk-h-key: 34px; padding-top: 4px; } .vk-key:not([data-special]).down::before { height: 40px; } }
+
+/* With the on-screen keyboard the candidates dock above it as one row that
+   scrolls sideways (like the system candidate bar) instead of floating. */
+.candidate-panel.docked {
+  left: 0 !important; right: 0; top: auto !important; bottom: var(--vk-h, 0px); width: auto; max-width: none;
+  max-height: none !important; padding: 6px max(8px, env(safe-area-inset-left)); border-radius: 0; border-width: 1px 0 0;
+  overflow: hidden; z-index: 31;
+}
+.candidate-panel.docked .candidate-list {
+  flex-direction: row; flex-wrap: nowrap; gap: 6px; overflow-x: auto; overscroll-behavior-x: contain;
+  scrollbar-width: none; -webkit-overflow-scrolling: touch;
+}
+.candidate-panel.docked .candidate-list::-webkit-scrollbar { display: none; }
+.candidate-panel.docked .candidate-item { flex: none; width: auto; gap: 6px; padding: 8px 12px; font-size: 20px; }
+.candidate-panel.docked .candidate-footer { display: none; }
