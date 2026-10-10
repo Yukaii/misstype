@@ -24,6 +24,9 @@
 
 全程在本地運算、不需網路。專案仍在實驗階段，先用軟體驗證打字方式，再決定是否製作專用硬體。
 
+> [!TIP]
+> 不用安裝，直接[在瀏覽器試打](https://misstype.yukai.dev/editor/)：線上編輯器跑的是同一個 Zig 核心（WebAssembly）。
+
 > [!IMPORTANT]
 > 本專案完全使用 LLM 開發，之後也會持續交給 LLM 開發、交付與測試。歡迎貢獻 bug 與 feature prompt；一般的貢獻同樣絕讚歡迎，不過要有被關掉、完全重改的心理準備 XD
 
@@ -69,6 +72,8 @@
 完整比較（平台、授權、安裝檔大小等）見[競品比較與功能研究](docs/competitors.md)。
 
 ## 安裝
+
+想先試試看？[線上編輯器](https://misstype.yukai.dev/editor/)不用安裝就能打。
 
 ### macOS
 

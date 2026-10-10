@@ -24,6 +24,9 @@ Misstype is a Zhuyin (Bopomofo) input method built around two things:
 
 Everything runs locally; no network is needed. The project is still experimental: it validates the typing model in software before deciding on custom hardware.
 
+> [!TIP]
+> No install needed: [try it in your browser](https://misstype.yukai.dev/editor/). The online editor runs the same Zig core (WebAssembly).
+
 > [!IMPORTANT]
 > This project is developed entirely with LLMs, and will keep being developed, delivered and tested by LLMs. Bug reports and feature prompts are welcome, and regular contributions are very welcome too, but be prepared for them to be closed and redone from scratch XD
 
@@ -69,6 +72,8 @@ Based on each project's public description (snapshot 2026-10-04, not hands-on te
 For the full comparison (platforms, licenses, download sizes) see [Competitor comparison](docs/competitors-en.md).
 
 ## Install
+
+Want to try it first? The [online editor](https://misstype.yukai.dev/editor/) needs no install.
 
 ### macOS
 
