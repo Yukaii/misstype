@@ -25,7 +25,7 @@ acceptance) still needs a human or a VM with a display.
 behavior as macOS, built from the same `MisstypeCore`, and verified headlessly
 in CI against the conformance scenarios in `docs/cross-platform.md`.
 
-**Non-goals for this plan:** IBus (sketched in `docs/ibus-port.md`), a
+**Non-goals for this plan:** IBus (built separately, see `docs/ibus-port.md`), a
 settings UI, distro packages. See the backlog (L7). (Jev, remote assistance, was removed from the product on
 2026-10-09.)
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Bare-metal Linux test layers (no Docker): the Zig core suites, the C ABI, and
-# the fcitx5 addon headless conformance tests. CI runs the same layers inside
+# Bare-metal Linux test layers (no Docker): the Zig core suites, the C ABI, the
+# fcitx5 addon and the IBus engine headless conformance tests. CI runs the same layers inside
 # the container (script/linux/dev.sh), minus Docker.
 #
 # Provision first: script/linux/bootstrap.sh
@@ -40,4 +40,5 @@ zig=$(script/zig/bootstrap.sh)
 (cd core-zig && "$zig" build test && "$zig" build test -Doptimize=ReleaseFast)
 script/linux/test_capi.sh
 script/linux/test_fcitx5.sh
+script/linux/test_ibus.sh
 echo "ALL LINUX TESTS OK"

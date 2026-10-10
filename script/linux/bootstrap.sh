@@ -9,7 +9,7 @@ cd "$(dirname "$0")/../.."
 # Same native build packages as the dev image.
 APT_PKGS="cmake make g++ pkg-config extra-cmake-modules gettext python3 curl xz-utils \
     fcitx5 libfcitx5core-dev libfcitx5config-dev libfcitx5utils-dev \
-    fcitx5-modules-dev libgtk-4-dev"
+    fcitx5-modules-dev libgtk-4-dev ibus libibus-1.0-dev libglib2.0-dev xvfb dbus-x11"
 # Another apt user (unattended-upgrades, a provisioner) may hold the lock.
 for i in $(seq 1 30); do
     if ! fuser /var/lib/apt/lists/lock >/dev/null 2>&1; then break; fi

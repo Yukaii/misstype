@@ -26,7 +26,7 @@ task plan that applies it to Linux (fcitx5).
 │ CandidatesPanel              │              │ CommonCandidateList                     │
 └──────────────────────────────┘              └─────────────────────────────────────────┘
                      web: misstype.wasm (wasm32-wasi) → site demo, video renderer
-                                   future: Windows TSF, IBus — same C ABI
+                                   Linux IBus: linux/ibus; future: Windows TSF — same C ABI
 ```
 
 **Rule: behavior lives in the core; adapters only do I/O.** An adapter
@@ -141,12 +141,12 @@ platforms.
 
 ### Platform delivery rules
 
-| Situation | macOS (IMK) | Linux (fcitx5) |
-|---|---|---|
-| Key release / modifier-only change | return `consumed` (always true) | pass to the session, **never** `filterAndAccept()` |
-| Bare modifier press (Ctrl alone…) | return `consumed` (true) | pass to the session, **never** filter |
-| Any other press | return `consumed` | `filterAndAccept()` iff `consumed` |
-| Focus out with a composition | `commit()`, insert | fcitx5 itself inserts client-side preedit on focus out: the engine only clears its session (a second insert would duplicate the text). Without client preedit, or when switching input method, the engine inserts. Client `reset` discards |
+| Situation | macOS (IMK) | Linux (fcitx5) | Linux (IBus) |
+|---|---|---|---|
+| Key release / modifier-only change | return `consumed` (always true) | pass to the session, **never** `filterAndAccept()` | pass to the session, return FALSE |
+| Bare modifier press (Ctrl alone…) | return `consumed` (true) | pass to the session, **never** filter | pass to the session, return FALSE |
+| Any other press | return `consumed` | `filterAndAccept()` iff `consumed` | return `consumed` |
+| Focus out with a composition | `commit()`, insert | fcitx5 itself inserts client-side preedit on focus out: the engine only clears its session (a second insert would duplicate the text). Without client preedit, or when switching input method, the engine inserts. Client `reset` discards | the preedit is drawn with `IBUS_ENGINE_PREEDIT_COMMIT`, so the daemon inserts it on focus out (also for clients without preedit support, tested): the engine only clears its session. `reset` hides the preedit first and discards |
 
 Filtering releases or bare modifiers on X11/Wayland can desynchronize the
 application's own modifier state; the session never changes the composition
@@ -204,7 +204,7 @@ demand and a headless C1–C15 pass, never on a calendar.
 | 1 | macOS (IMK) | shipped | this document |
 | 2 | Linux fcitx5 | shipped, conformant | `docs/linux-port.md` |
 | 3 | Windows (TSF) | sketch | `docs/windows-port.md` |
-| 4 | Linux IBus | sketch | `docs/ibus-port.md` |
+| 4 | Linux IBus | engine + headless C1–C15 | `docs/ibus-port.md` |
 | 5 | Mobile (touch surface) | survey | `docs/mobile-ime-survey.md`; validates the touch layer rather than reaching users |
 
 Windows ranks above IBus because it reaches more people; IBus is the cheaper

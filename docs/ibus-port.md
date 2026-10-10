@@ -1,9 +1,11 @@
 # IBus port: sketch
 
-Status (2026-10-10): **sketch, not started.** Drafted after deciding the
-platform order in `docs/cross-platform.md` (Platform priority). Nothing here
-is verified on a machine yet; "Spike" lists what must be checked before
-committing to a task.
+Status (2026-10-10): **adapter and headless suite landed** (`linux/ibus/`,
+`script/linux/test_ibus.sh`): C1–C15 plus delivery rules LR1–LR4 pass against a
+real ibus-daemon (Ubuntu 24.04, ibus 1.5.29) with the engine process, in the
+Linux dev image and CI (inside `script/linux/test_all.sh`). **Not verified:**
+a real desktop (GNOME Shell's candidate popup, Wayland sessions, GTK/Qt
+clients, browsers) and distro packaging; those are I5 and I6 below.
 
 **Goal:** Misstype runs as an IBus engine (GNOME's default on Ubuntu, Fedora
 and Debian) with the same behavior as macOS and fcitx5, over the same C ABI,
@@ -42,23 +44,30 @@ the same three jobs: translate key events, apply `misstype_key_result`, draw
 Mirror the numbering of `docs/linux-port.md`; each task ends with a command
 that passes.
 
-- **I0 Spike (half a day).** On Ubuntu 24.04 GNOME (Wayland) and an X11
+- **I0 Spike (half a day).** *Mostly answered by the headless suite; the
+  desktop items stay open.* Verified: the engine receives the evdev code the
+  client sent (upstream ibus clients send `hardware_keycode - 8`), releases
+  arrive with `IBUS_RELEASE_MASK`, preedit carets are in characters, and the
+  daemon commits a `PREEDIT_COMMIT` preedit on focus out for clients with and
+  without preedit support. Still open: how GNOME draws the lookup table, and
+  Wayland compositors that send keysyms without scancodes (the engine falls
+  back to the keysym). On Ubuntu 24.04 GNOME (Wayland) and an X11
   session, log `process_key_event` arguments for a few keys. Answer: keycode
   numbering, release delivery, whether Shift/modifier-only events arrive, how
   preedit carets are measured, whether `focus_out` also commits client-side
   preedit, how GNOME draws the lookup table. Write the results into this file.
-- **I1 Engine skeleton.** `linux/ibus/` (C++ or C with GLib, decide by the
+- **I1 Engine skeleton (done).** `linux/ibus/` (C++ or C with GLib, decide by the
   spike: `libibus` has no maintained C++ binding). Component XML under
   `/usr/share/ibus/component/misstype.xml`, an `--ibus` launch mode for the
   engine binary, build in the existing Docker image (`script/linux/dev.sh`).
-- **I2 Conformance harness.** C1–C15 headless. IBus has no `testfrontend` like
+- **I2 Conformance harness (done).** C1–C15 headless. IBus has no `testfrontend` like
   fcitx5, so drive the engine class directly with a fake `IBusEngine` sink
   that records commit / preedit / lookup-table calls, plus one smoke test
   through a real `ibus-daemon` in the container if it runs headless.
-- **I3 Settings and data.** Reuse `MisstypeConfig` keys through
+- **I3 Settings and data (done, shared file).** Reuse `MisstypeConfig` keys through
   `misstypectl config` (keep the key list in `core-zig/src/ctl.zig` in step);
   nothing new in the ABI.
-- **I4 CI.** Add the IBus suite to `script/linux/test_all.sh` and the existing
+- **I4 CI (done).** Add the IBus suite to `script/linux/test_all.sh` and the existing
   Linux matrix in `.github/workflows/ci.yml`.
 - **I5 Desktop acceptance.** GNOME Wayland + X11, GTK and Qt apps, a browser,
   a terminal. Same checklist as L6.
@@ -74,3 +83,17 @@ that passes.
   growing a panel of our own.
 - Wayland sessions without an IBus-aware compositor path behave differently
   per desktop; test GNOME and KDE once before claiming support.
+
+## Install (from source)
+
+```sh
+script/linux/build.sh           # builds build/ibus next to build/fcitx5
+sudo cmake --install build/ibus # engine, component XML, libMisstypeCAPI.so
+ibus restart                    # then add Misstype under Settings → Keyboard → Input Sources → Chinese
+```
+
+Settings: the engine reads the same ini file as the fcitx5 addon
+(`$XDG_CONFIG_HOME/fcitx5/conf/misstype.conf`, edited by `misstypectl config`),
+with the same keys and defaults; `MISSTYPE_CONFIG` overrides the path. Lone
+Shift always toggles 中/英 (IBus has no competing Shift trigger). A native IBus
+settings surface does not exist yet.

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component>
+  <name>org.freedesktop.IBus.Misstype</name>
+  <description>Misstype (隨打注音)</description>
+  <exec>@MISSTYPE_IBUS_EXEC@ --ibus</exec>
+  <version>0.1</version>
+  <author>Misstype</author>
+  <license>MIT</license>
+  <homepage>https://github.com/Yukaii/misstype</homepage>
+  <textdomain>misstype</textdomain>
+  <engines>
+    <engine>
+      <name>misstype</name>
+      <language>zh_TW</language>
+      <license>MIT</license>
+      <author>Misstype</author>
+      <icon>misstype</icon>
+      <layout>us</layout>
+      <longname>Misstype (隨打注音)</longname>
+      <description>Zhuyin with optional tones and typo repair</description>
+      <symbol>隨</symbol>
+      <rank>0</rank>
+    </engine>
+  </engines>
+</component>
