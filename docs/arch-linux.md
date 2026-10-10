@@ -2,8 +2,15 @@
 
 Misstype is an fcitx5 addon. The recipe in `linux/aur/PKGBUILD` builds
 `fcitx5-misstype-git` from upstream Git and packages every system file for
-pacman-managed installation/removal. It is an **AUR submission candidate**;
-it has not been published to the AUR.
+pacman-managed installation/removal. It is published on
+[AUR](https://aur.archlinux.org/packages/fcitx5-misstype-git):
+
+```sh
+yay -S fcitx5-misstype-git
+```
+
+This VCS package builds the latest upstream Git source, not a fixed release.
+After installation, follow [Install and enable](#install-and-enable).
 
 Hypothesis: the existing Linux addon can run against Arch's fcitx5 without
 adapter changes. The smallest falsification is `makepkg` (Zig tests, C ABI
@@ -169,7 +176,7 @@ separate AUR Git repository. Generate metadata after recipe/version changes:
 makepkg --printsrcinfo > .SRCINFO
 ```
 
-After publication, users can install with
+Users can install with
 `omarchy pkg aur add fcitx5-misstype-git` (or `yay -S fcitx5-misstype-git`).
 
 ### Automated synchronization and branch preview
@@ -197,8 +204,8 @@ One-time setup by the AUR maintainer and GitHub administrator:
    published PKGBUILD and preview artifact; it is not private package metadata.
 3. Add repository secret `AUR_SSH_PRIVATE_KEY` containing the entire private
    key, including its BEGIN/END lines. No GitHub environment is required.
-   The workflow restricts publishing to upstream `main` and the explicit
-   `ci/aur-publishing` test branch, and passes the private
+   The workflow restricts publishing to upstream `main` and published stable
+   version tags, and passes the private
    key only to the publishing step. Protect `main` with review requirements
    to control changes to the workflow and publisher.
 4. Ensure the account owns or co-maintains `fcitx5-misstype-git`, or that the
@@ -210,13 +217,9 @@ upstream CI this key trusts its repository administrators with the AUR
 account's package-write permissions. Revoke only the CI key by removing its
 public key from the AUR profile and deleting the GitHub secret.
 
-Test a branch by pushing a packaging/workflow change; ordinary branch pushes
-only prepare the preview and skip publishing. The `ci/aur-publishing` branch
-also supports an explicit real-publish test: include `[publish-aur]` in the
-tip commit's message on a relevant push, or manually dispatch that branch
-with `publish=true`. This writes to the real AUR package, not a staging server.
-The marker allows testing before the new workflow is merged to `main`.
-Other branches and forks cannot publish.
+Test a branch by pushing a packaging/workflow change; branches and PRs
+only prepare the preview and skip publishing. There are no branch-publishing
+exceptions or commit-message overrides. Forks cannot publish.
 For a new workflow, GitHub enables manual dispatch after the workflow exists
 on the default branch. After merging, a relevant push to `main` automatically
 publishes. To retry or preview manually:
@@ -224,14 +227,38 @@ publishes. To retry or preview manually:
 ```sh
 gh workflow run aur.yml --ref main                    # preview only
 gh workflow run aur.yml --ref main -f publish=true    # publish
+# Retry the packaging from an already published stable version tag:
+gh workflow run aur.yml --ref v0.3.0 -f publish=true
 ```
 
 Publishing uses strict SSH host checking against AUR's published Ed25519
 fingerprint, an explicit file list, and normal non-force pushes. It skips
 unchanged packaging and does not bump `pkgver` for upstream commits/releases:
 this is a VCS package. Update pinned source URLs/hashes when manifests change.
-The workflow intentionally operates independently of the macOS/Linux binary
-release workflow so packaging fixes can be delivered between releases.
+Release calls this reusable workflow after successfully publishing a stable
+GitHub Release, using the exact release commit. Both direct tag pushes and
+the Tag release workflow's explicit Release dispatch use this path; no
+`release: published` event is needed (events created by `GITHUB_TOKEN` would
+not trigger another workflow). Artifact-only runs, prereleases, and failed
+releases do not publish to AUR. Relevant `main` pushes still synchronize
+packaging fixes between releases. AUR failures do not undo an already
+published GitHub Release; fix the cause and retry the AUR workflow.
+
+## AUR verification (2026-10-10)
+
+- Initial publication from PR #55's temporary branch test succeeded; AUR lists
+  `fcitx5-misstype-git` with maintainer `pastleo`. The temporary branch
+  publication exception was removed after testing.
+- `yay --aur -S --noconfirm fcitx5-misstype-git` downloaded public sources,
+  verified every non-VCS SHA-256 checksum, and built upstream `bf0c118` as
+  `fcitx5-misstype-git-0.1.r250.gbf0c118-1-x86_64.pkg.tar.zst`.
+- Zig ReleaseFast checks completed successfully; the C ABI smoke check reported
+  35 exports matching the header and `CAPI OK`; fcitx5's headless test passed.
+- The agent's installation step stopped at the interactive sudo password;
+  the contributor subsequently confirmed `yay -S` installation succeeded.
+- The stable-release reusable-workflow integration still needs its first
+  post-merge Release run. The unchanged-publication no-op has not been
+  independently confirmed here.
 
 ## Verification record (2026-10-05)
 

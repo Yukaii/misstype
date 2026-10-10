@@ -6,10 +6,25 @@ package=${1:?usage: publish_aur.sh <prepared-package-directory>}
 : "${AUR_MAINTAINER:?Set repository secret AUR_MAINTAINER (Name <email>)}"
 : "${RUNNER_TEMP:?Run in GitHub Actions}"
 [[ ${GITHUB_REPOSITORY:-} == Yukaii/misstype &&
-   ( ${GITHUB_REF:-} == refs/heads/main || ${GITHUB_REF:-} == refs/heads/ci/aur-publishing ) ]] || {
-    echo 'AUR publication is restricted to Yukaii/misstype main or ci/aur-publishing.' >&2
+   ( ${GITHUB_REF:-} == refs/heads/main ||
+     ${GITHUB_REF:-} =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$ ) ]] || {
+    echo 'AUR publication requires Yukaii/misstype main or a stable version tag.' >&2
     exit 1
 }
+[[ $(git rev-parse HEAD) == "$GITHUB_SHA" ]] || {
+    echo 'Checkout does not match the requested source commit.' >&2
+    exit 1
+}
+if [[ $GITHUB_REF == refs/tags/* ]]; then
+    # Direct dispatches must satisfy the same published-release contract as
+    # the reusable workflow called after Release. No drafts or prereleases.
+    published=$(gh release view "${GITHUB_REF#refs/tags/}" --repo "$GITHUB_REPOSITORY" \
+        --json isDraft,isPrerelease --jq '(.isDraft == false and .isPrerelease == false)')
+    [[ $published == true ]] || {
+        echo 'AUR tag publication requires a published stable GitHub Release.' >&2
+        exit 1
+    }
+fi
 for file in PKGBUILD .SRCINFO cxx20.patch LICENSE; do
     [[ -f $package/$file && ! -L $package/$file ]]
 done
