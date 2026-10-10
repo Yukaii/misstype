@@ -3,7 +3,8 @@
 const escapeHtml = (s) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[c]));
 
 export class CandidatePanel {
-  constructor(root, { onPick, onPage }) {
+  constructor(root, { onPick, onPage, bottomInset = () => 0 }) {
+    this.bottomInset = bottomInset;
     this.el = document.createElement("div");
     this.el.className = "candidate-panel";
     this.el.hidden = true;
@@ -40,6 +41,12 @@ export class CandidatePanel {
     this.el.dataset.theme = theme;
   }
 
+  /** Docked: one horizontally scrollable row just above the on-screen keyboard. */
+  setDocked(docked) {
+    this.docked = docked;
+    this.el.classList.toggle("docked", docked);
+  }
+
   hide() {
     this.el.hidden = true;
   }
@@ -52,20 +59,33 @@ export class CandidatePanel {
     this.prev.disabled = state.page === 0;
     this.next.disabled = state.page + 1 >= state.pageCount;
     this.pageEl.textContent = `${state.page + 1}/${state.pageCount}`;
-    this.list.innerHTML = (state.pageCandidates || []).map((cand, i) => `
-      <div class="candidate-item${i === state.pageSelected ? " selected" : ""}" data-index="${state.page * state.pageSize + i}">
+    const base = state.page * state.pageSize;
+    // Docked shows every candidate and scrolls; floating shows the current page.
+    const items = this.docked ? state.candidates : (state.pageCandidates || []);
+    const first = this.docked ? 0 : base;
+    this.list.innerHTML = items.map((cand, i) => {
+      const global = first + i, onPage = global - base;
+      const selected = global === base + state.pageSelected;
+      const key = state.keysActive && onPage >= 0 && onPage < state.pageSize ? (keys[onPage] || String(onPage + 1)).toUpperCase() : "";
+      return `
+      <div class="candidate-item${selected ? " selected" : ""}" data-index="${global}">
         <span class="candidate-text">${escapeHtml(cand)}</span>
-        <span class="candidate-key">${state.keysActive ? escapeHtml((keys[i] || String(i + 1)).toUpperCase()) : ""}</span>
-      </div>`).join("");
+        <span class="candidate-key">${escapeHtml(key)}</span>
+      </div>`;
+    }).join("");
     this.el.hidden = false;
+    if (this.docked) this.list.querySelector(".selected")?.scrollIntoView({ inline: "nearest", block: "nearest" });
     this.place(rect);
   }
 
   place(rect) {
-    if (this.el.hidden || !rect) return;
+    if (this.el.hidden || !rect || this.docked) return;
     const vv = window.visualViewport;
     const left0 = vv?.offsetLeft || 0, top0 = vv?.offsetTop || 0;
-    const width = vv?.width || innerWidth, height = vv?.height || innerHeight;
+    const width = vv?.width || innerWidth;
+    // The on-screen keyboard covers the bottom of the layout viewport; stay above it.
+    const height = (vv?.height || innerHeight) - this.bottomInset();
+    this.el.style.maxHeight = `${Math.max(80, height - 16)}px`;
     const w = this.el.offsetWidth, h = this.el.offsetHeight;
     const left = Math.max(left0 + 8, Math.min(rect.left, left0 + width - w - 8));
     let top = rect.bottom + 8;

@@ -101,7 +101,8 @@ const view = createView();
 // the caret clear of them when ProseMirror scrolls it into view.
 function keepCaretClear() {
   const top = $(".chrome").offsetHeight + 12;
-  const bottom = $(".status").offsetHeight + vkHeight() + 24;
+  // The docked candidate bar sits right above the keyboard.
+  const bottom = $(".status").offsetHeight + vkHeight() + (vkEl.hidden ? 0 : 56) + 24;
   view.setProps({ scrollMargin: { top, bottom, left: 8, right: 8 }, scrollThreshold: { top, bottom, left: 8, right: 8 } });
 }
 
@@ -115,6 +116,7 @@ function runAction(id) {
 const panel = new CandidatePanel(app, {
   onPick: (index) => { ime?.pick(index); sync(); view.focus(); },
   onPage: (code) => { ime?.key(code, code, 0, 0); sync(); view.focus(); },
+  bottomInset: () => vkHeight(),
 });
 
 function caretRect() {
@@ -216,6 +218,8 @@ function applyVirtualKeyboard() {
   const on = virtualKeyboardWanted();
   vkEl.hidden = !on;
   document.body.classList.toggle("vk-on", on);
+  panel.setDocked(on);
+  if (imeState) panel.render(imeState, caretRect());
   // Without this the system keyboard would pop up over ours.
   view.setProps({ attributes: on ? { inputmode: "none" } : {} });
   document.documentElement.style.setProperty("--vk-h", `${vkHeight()}px`);
@@ -228,6 +232,21 @@ function sendKey(type, code, key, shift) {
   return e;
 }
 
+/** Backspace's browser default: the selection, else the character before the caret. */
+function deleteBackward() {
+  const { selection } = view.state;
+  if (!selection.empty) {
+    view.dispatch(view.state.tr.deleteSelection().scrollIntoView());
+    return;
+  }
+  const { $from } = selection;
+  if ($from.parentOffset === 0) return;
+  const before = $from.parent.textBetween(Math.max(0, $from.parentOffset - 16), $from.parentOffset, "\n", "\ufffc");
+  const last = Array.from(before).pop() || "";
+  if (!last) return;
+  view.dispatch(view.state.tr.delete($from.pos - last.length, $from.pos).scrollIntoView());
+}
+
 const vk = new VirtualKeyboard(vkEl, {
   shift(down) {
     if (down && settings.haptics) tick();
@@ -236,12 +255,19 @@ const vk = new VirtualKeyboard(vkEl, {
   press(code, key, shift) {
     if (settings.haptics) tick();
     const e = sendKey("keydown", code, key, shift);
-    // Neither the decoder nor a keymap took it: it is plain text.
-    if (!e.defaultPrevented && key.length === 1) {
+    if (!e.defaultPrevented) {
+      // Neither the decoder nor a keymap took it. A hardware key would now do
+      // its browser default, which a synthetic event does not: do it here.
       const { from, to } = view.state.selection;
-      const insert = () => view.state.tr.insertText(key, from, to);
-      if (!view.someProp("handleTextInput", (f) => f(view, from, to, key, insert))) view.dispatch(insert().scrollIntoView());
+      if (key.length === 1) {
+        const insert = () => view.state.tr.insertText(key, from, to);
+        if (!view.someProp("handleTextInput", (f) => f(view, from, to, key, insert))) view.dispatch(insert().scrollIntoView());
+      } else if (code === "Backspace") {
+        deleteBackward();
+      }
     }
+    // Tapping a key must never leave the editor (and the caret) unfocused.
+    if (!view.hasFocus()) view.focus();
   },
 });
 

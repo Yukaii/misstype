@@ -24,6 +24,8 @@ export class VirtualKeyboard {
     el.addEventListener("pointerup", (e) => this.up(e));
     el.addEventListener("pointercancel", (e) => this.up(e));
     el.addEventListener("contextmenu", (e) => e.preventDefault());
+    // iOS ignores preventDefault on pointerdown for focus; these keep the editor focused.
+    for (const type of ["touchstart", "mousedown"]) el.addEventListener(type, (e) => e.preventDefault(), { passive: false });
   }
 
   build() {
