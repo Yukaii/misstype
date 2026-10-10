@@ -135,6 +135,13 @@
         <p>Then, from the project root, run:</p>
         <p><code>script/linux/install_ime.sh</code></p>
         <p class="sub">When it finishes, log out and back in, open <code>fcitx5-configtool</code>, add “Misstype”, and switch to it with your fcitx5 shortcut.</p>
+        <details class="agent-prompt" id="ibus">
+          <summary>Use IBus instead (GNOME and others, experimental)</summary>
+          <p class="sub">The IBus engine shares the same core and has a Preferences window. There is no prebuilt package yet, so install from source, and not alongside the fcitx5 package. Clone the project (above), then from its root run:</p>
+          <p><code>script/linux/build.sh &amp;&amp; sudo cmake --install build/ibus</code></p>
+          <p><code>ibus restart</code></p>
+          <p class="sub">Then add Misstype (Chinese) under Settings → Keyboard → Input Sources. Preferences are the Misstype entry in <code>ibus-setup</code>, or run <code>/usr/libexec/ibus-setup-misstype</code>. See the <a href="https://github.com/Yukaii/misstype/blob/main/docs/ibus-port.md">IBus port notes</a>.</p>
+        </details>
         <details class="agent-prompt">
           <summary>Copy this prompt for a coding agent</summary>
           <pre><code>Install Misstype on this Linux computer:

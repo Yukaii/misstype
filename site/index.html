@@ -139,6 +139,13 @@
         <p>接著在專案根目錄執行：</p>
         <p><code>script/linux/install_ime.sh</code></p>
         <p class="sub">安裝完成後重新登入，開啟 <code>fcitx5-configtool</code>，加入「Misstype」輸入法，再用 fcitx5 的快捷鍵切換。</p>
+        <details class="agent-prompt" id="ibus">
+          <summary>改用 IBus（GNOME 等，實驗性）</summary>
+          <p class="sub">IBus 版共用同一個核心，附偏好設定視窗；目前沒有預先建置的套件，需從原始碼安裝，且不能與 fcitx5 套件同時安裝。先 clone 專案（見上），在專案根目錄執行：</p>
+          <p><code>script/linux/build.sh &amp;&amp; sudo cmake --install build/ibus</code></p>
+          <p><code>ibus restart</code></p>
+          <p class="sub">接著到「設定 → 鍵盤 → 輸入來源」加入 Misstype（Chinese）。偏好設定在 <code>ibus-setup</code> 的 Misstype 項目，或執行 <code>/usr/libexec/ibus-setup-misstype</code>。詳見 <a href="https://github.com/Yukaii/misstype/blob/main/docs/ibus-port.md">IBus 移植說明</a>。</p>
+        </details>
         <details class="agent-prompt">
           <summary>複製這段給 coding agent 代為安裝</summary>
           <pre><code>請在這台 Linux 電腦安裝 Misstype：

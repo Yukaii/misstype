@@ -94,6 +94,19 @@ Restart fcitx5 after installation and add **Misstype** in `fcitx5-configtool`.
 See [package build, activation and removal](docs/arch-linux.md) for details;
 the recipe lives in `linux/aur/PKGBUILD`.
 
+#### IBus (experimental)
+
+On IBus desktops (GNOME, for example) you can use the IBus engine instead. It shares the same core and ships a settings window (the Preferences button in `ibus-setup`, or run `/usr/libexec/ibus-setup-misstype`); settings are the same `misstype.conf` the fcitx5 addon uses and apply immediately. There is **no prebuilt IBus package yet**, so install from source, and do not install it next to the fcitx5 package:
+
+```sh
+git clone https://github.com/Yukaii/misstype.git && cd misstype
+script/linux/build.sh
+sudo cmake --install build/ibus
+ibus restart     # then add Misstype (Chinese) under Settings → Keyboard → Input Sources
+```
+
+On Arch Linux you can also build `linux/aur-ibus/PKGBUILD` with `makepkg -si` (not on the AUR yet). See the [IBus port](docs/ibus-port.md) for what is and is not verified. Tracking: [#63](https://github.com/Yukaii/misstype/issues/63).
+
 To build from source see [Development, build and release](docs/development.md).
 
 ## Usage
