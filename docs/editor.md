@@ -81,7 +81,10 @@ a lone Shift tap is the usual 中/英 toggle, and the caps follow the decoder's
 mode. Presses are replayed as `KeyboardEvent`s on the editor, so the decoder,
 settings and ProseMirror keymaps see what a hardware keyboard would send;
 unclaimed printable keys are inserted as text. The system keyboard is
-suppressed with `inputmode="none"` while ours is up. Backspace repeats.
+suppressed with `inputmode="none"` while ours is up. Backspace repeats, and a pressed key shows a preview bubble. The look follows
+the platform (`data-platform`, from the user agent): iOS-style keys by
+default, Gboard-style rounded keys and a tinted Enter on Android; both follow
+the light/dark switch.
 Settings → 螢幕鍵盤: auto (default), always, off. In auto the keyboard hides
 once a real key event arrives (iPad with a hardware keyboard).
 Checked with the unit test and a production build only; not yet driven on a
@@ -124,6 +127,6 @@ the native macOS and Linux versions and the privacy note.
   Markdown shortcuts (`# `, `- `, `**bold**`) only trigger in English mode;
   the toolbar and palette work in either.
 - The Markdown schema has no strikethrough, tables or task lists.
-- The on-screen keyboard has no key-preview popup, one-shot Shift (tap Shift then a letter) or number/symbol layers; Shift is hold-only because a tap is 中/英.
+- The on-screen keyboard has no one-shot Shift (tap Shift then a letter) or number/symbol layers; Shift is hold-only because a tap is 中/英.
 - Not tried on a real iPad or in an installed home-screen app; the offline
   path is verified with Chromium only.

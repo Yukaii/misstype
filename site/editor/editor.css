@@ -180,29 +180,60 @@ dialog.sheet h3 span { margin-left: 6px; color: var(--muted); font-weight: norma
 .learned .tool { padding: 2px 8px; font-size: 13px; }
 
 /* On-screen keyboard (touch devices without a keyboard). Fixed to the bottom;
-   --vk-h (set from its height) lifts the status strip and toast above it. */
+   --vk-h (set from its height) lifts the status strip and toast above it.
+   Styled after the system keyboard: data-platform is "ios" (default) or "android". */
 .vk[hidden] { display: none; }
 .vk {
+  --vk-bg: #d1d4db; --vk-key: #fff; --vk-key-alt: #acb3bf; --vk-text: #000; --vk-edge: #898a8d; --vk-press: #acb3bf;
+  --vk-radius: 5px; --vk-gap: 6px; --vk-row-gap: 11px; --vk-h-key: 42px;
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; box-sizing: border-box;
-  display: grid; gap: 6px; padding: 8px max(4px, env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) max(4px, env(safe-area-inset-left));
-  background: color-mix(in srgb, var(--card) 70%, var(--paper) 30%); border-top: 1px solid var(--line);
+  display: grid; gap: var(--vk-row-gap); padding: 8px max(3px, env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(3px, env(safe-area-inset-left));
+  background: var(--vk-bg); color: var(--vk-text);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Noto Sans TC", "PingFang TC", sans-serif;
   user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: none;
 }
-.vk-row { display: flex; gap: 5px; justify-content: center; }
+:root[data-scheme="dark"] .vk { --vk-bg: #2b2b2e; --vk-key: #6b6b6e; --vk-key-alt: #454548; --vk-text: #fff; --vk-edge: #1a1a1c; --vk-press: #8e8e91; }
+.vk-row { display: flex; gap: var(--vk-gap); justify-content: center; }
 .vk-key {
-  position: relative; flex: 1 1 0; min-width: 0; height: 44px; padding: 0;
-  display: grid; place-items: center; font: inherit; font-size: 19px; line-height: 1;
-  color: var(--ink); background: var(--card); border: 1px solid var(--line); border-radius: 7px;
-  box-shadow: 0 1px 0 color-mix(in srgb, var(--line) 75%, #000 25%);
+  position: relative; flex: 1 1 0; min-width: 0; height: var(--vk-h-key); padding: 0;
+  display: grid; place-items: center; font: inherit; font-size: 22px; font-weight: 400; line-height: 1;
+  color: var(--vk-text); background: var(--vk-key); border: 0; border-radius: var(--vk-radius);
+  box-shadow: 0 1px 0 var(--vk-edge);
   touch-action: none; -webkit-tap-highlight-color: transparent;
 }
-.vk-key.down { background: var(--mark-bg); transform: translateY(1px); box-shadow: none; }
-.vk-key[data-special] { background: color-mix(in srgb, var(--line) 45%, var(--card)); font-size: 15px; }
-.vk-key[data-special="space"] { background: var(--card); color: var(--muted); }
-.vk-key[data-special="enter"] { font-size: 14px; }
-.vk[data-shift="true"] .vk-key[data-special="shift"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
-.vk-hint { position: absolute; top: 3px; right: 5px; font-size: 10px; color: var(--muted); }
+.vk-key[data-special] { background: var(--vk-key-alt); font-size: 16px; }
+.vk-key[data-special="space"] { background: var(--vk-key); font-size: 15px; }
+.vk-key[data-special="shift"], .vk-key[data-special="backspace"] { font-size: 20px; }
+.vk-key.down { background: var(--vk-press); }
+.vk-key[data-special="space"].down, .vk-key[data-special="enter"].down { background: var(--vk-press); }
+.vk[data-shift="true"] .vk-key[data-special="shift"] { background: var(--vk-key); }
+.vk-hint { position: absolute; top: 2px; right: 4px; font-size: 9px; opacity: .55; }
+/* Key preview bubble above the pressed key. */
+.vk-key:not([data-special]).down::before {
+  content: attr(data-preview); position: absolute; left: 50%; bottom: 100%; z-index: 2;
+  transform: translate(-50%, 4px); min-width: 130%; height: 52px; display: grid; place-items: center;
+  font-size: 30px; background: var(--vk-key); color: var(--vk-text); border-radius: 8px;
+  box-shadow: 0 1px 6px rgba(0,0,0,.35); pointer-events: none;
+}
+
+/* Android (Gboard-like): flatter, rounder keys and a tinted action key. */
+.vk[data-platform="android"] {
+  --vk-bg: #eef0f4; --vk-key: #fdfdff; --vk-key-alt: #dde1ea; --vk-text: #1b1c1f; --vk-press: #c9d3ea;
+  --vk-radius: 10px; --vk-gap: 5px; --vk-row-gap: 8px; --vk-h-key: 46px;
+  font-family: Roboto, "Noto Sans TC", "Google Sans", sans-serif;
+}
+:root[data-scheme="dark"] .vk[data-platform="android"] { --vk-bg: #1e1f22; --vk-key: #35373b; --vk-key-alt: #2a2c30; --vk-text: #e3e3e6; --vk-press: #4b5468; }
+.vk[data-platform="android"] .vk-key { box-shadow: none; font-size: 21px; }
+.vk[data-platform="android"] .vk-key[data-special] { font-size: 16px; }
+.vk[data-platform="android"] .vk-key[data-special="space"] { border-radius: 999px; }
+.vk[data-platform="android"] .vk-key[data-special="enter"] { background: #c2d7ff; color: #001a41; border-radius: 999px; }
+:root[data-scheme="dark"] .vk[data-platform="android"] .vk-key[data-special="enter"] { background: #3d5a99; color: #dbe6ff; }
+.vk[data-platform="android"] .vk-key[data-special="shift"],
+.vk[data-platform="android"] .vk-key[data-special="backspace"] { border-radius: 999px; }
+.vk[data-platform="android"][data-shift="true"] .vk-key[data-special="shift"] { background: #c2d7ff; color: #001a41; }
+.vk[data-platform="android"] .vk-key:not([data-special]).down::before { border-radius: 14px; }
+
 body.vk-on { padding-bottom: var(--vk-h, 0px); }
 body.vk-on .status { bottom: var(--vk-h, 0px); }
 body.vk-on #toast { bottom: calc(var(--vk-h, 0px) + 56px); }
-@media (max-height: 480px) { .vk { gap: 4px; padding-top: 4px; padding-bottom: calc(4px + env(safe-area-inset-bottom)); } .vk-key { height: 34px; } }
+@media (max-height: 480px) { .vk { --vk-row-gap: 5px; --vk-h-key: 34px; padding-top: 4px; } .vk-key:not([data-special]).down::before { height: 40px; } }

@@ -69,6 +69,7 @@ export class VirtualKeyboard {
       const [m, h] = capLabels(key, state);
       main.textContent = m;
       hint.textContent = h;
+      button.dataset.preview = m;
       button.setAttribute("aria-label", key.special ? key.label : keyText(key, this.shift));
     }
   }

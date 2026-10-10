@@ -200,6 +200,7 @@ function keyUp(e) {
 // replayed as ordinary KeyboardEvents on the editor, so the decoder, settings
 // and ProseMirror's keymaps see exactly what a hardware keyboard would send.
 const vkEl = $("#vk");
+vkEl.dataset.platform = /Android/i.test(navigator.userAgent) ? "android" : "ios";
 const touchOnly = matchMedia("(pointer: coarse) and (hover: none)");
 let hardwareKeyboardSeen = false;
 
