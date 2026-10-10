@@ -35,11 +35,29 @@ set_target_properties(ibus-engine-misstype PROPERTIES
     BUILD_RPATH "${MISSTYPE_CAPI_DIR}"
     INSTALL_RPATH "${MISSTYPE_CAPI_INSTALL_DIR}")
 
+# Settings window (GTK4 over `misstypectl config`), shown by ibus-setup and GNOME
+# Settings through the engine's <setup> element. Optional: without GTK4 the
+# engine still reads the file (edit it with misstypectl config).
+set(MISSTYPE_IBUS_SETUP_LINE "")
+pkg_check_modules(GTK4 QUIET IMPORTED_TARGET gtk4)
+if(GTK4_FOUND)
+    add_executable(ibus-setup-misstype tools/setup.c)
+    target_compile_options(ibus-setup-misstype PRIVATE -Wall -Wextra)
+    target_link_libraries(ibus-setup-misstype PRIVATE PkgConfig::GTK4)
+    install(TARGETS ibus-setup-misstype RUNTIME DESTINATION "${CMAKE_INSTALL_LIBEXECDIR}")
+    set(MISSTYPE_IBUS_SETUP_LINE "      <setup>${CMAKE_INSTALL_FULL_LIBEXECDIR}/ibus-setup-misstype</setup>\n")
+else()
+    message(STATUS "GTK4 not found: ibus-setup-misstype not built (misstypectl config still works)")
+endif()
+
 configure_file(data/misstype.xml.in "${CMAKE_BINARY_DIR}/data/misstype.xml" @ONLY)
 
 install(TARGETS ibus-engine-misstype RUNTIME DESTINATION "${CMAKE_INSTALL_LIBEXECDIR}")
 install(FILES "${CMAKE_BINARY_DIR}/data/misstype.xml" DESTINATION "${CMAKE_INSTALL_DATADIR}/ibus/component")
 install(PROGRAMS "${MISSTYPE_CAPI_DIR}/libMisstypeCAPI.so" DESTINATION "${CMAKE_INSTALL_LIBDIR}/misstype")
+# The single-character 隨 icon the fcitx5 addon uses (engine icon, as in its inputmethod conf).
+install(FILES "${MISSTYPE_ROOT}/linux/fcitx5/data/icons/misstype-symbolic.svg"
+    DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/symbolic/apps")
 install(FILES "${MISSTYPE_ROOT}/Resources/MisstypeIcon.svg"
     DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps" RENAME misstype.svg)
 

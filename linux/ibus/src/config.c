@@ -118,3 +118,40 @@ void misstype_ibus_apply_config(misstype_engine *core) {
     misstype_engine_set_channel_learning(core, c.channel_learning);
     g_free(c.candidate_keys);
 }
+
+// Live reload: `misstypectl config set` and the settings window rewrite the
+// file, so watch it and re-apply (writes arrive as several events, and editors
+// replace the file by rename; one debounced reload covers both).
+static misstype_engine *watched_core;
+static guint reload_timer;
+
+static gboolean reload_now(gpointer unused) {
+    (void)unused;
+    reload_timer = 0;
+    misstype_ibus_apply_config(watched_core);
+    return G_SOURCE_REMOVE;
+}
+
+static void on_config_changed(GFileMonitor *m, GFile *f, GFile *other, GFileMonitorEvent event, gpointer unused) {
+    (void)m;
+    (void)f;
+    (void)other;
+    (void)unused;
+    if (event == G_FILE_MONITOR_EVENT_ATTRIBUTE_CHANGED || event == G_FILE_MONITOR_EVENT_PRE_UNMOUNT) return;
+    if (reload_timer) g_source_remove(reload_timer);
+    reload_timer = g_timeout_add(150, reload_now, NULL);
+}
+
+void misstype_ibus_watch_config(misstype_engine *core) {
+    if (!core) return;
+    watched_core = core;
+    char *path = config_path();
+    GFile *file = g_file_new_for_path(path);
+    GFileMonitor *monitor = g_file_monitor_file(file, G_FILE_MONITOR_WATCH_MOVES, NULL, NULL);
+    if (monitor) {
+        g_file_monitor_set_rate_limit(monitor, 50); // GIO's default coalesces events for 800 ms
+        g_signal_connect(monitor, "changed", G_CALLBACK(on_config_changed), NULL); // lives for the process
+    }
+    g_object_unref(file);
+    g_free(path);
+}

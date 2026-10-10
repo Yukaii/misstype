@@ -1,7 +1,7 @@
 # IBus port: sketch
 
 Status (2026-10-10): **adapter and headless suite landed** (`linux/ibus/`,
-`script/linux/test_ibus.sh`): C1–C15 plus delivery rules LR1–LR4 pass against a
+`script/linux/test_ibus.sh`): C1–C15 plus delivery rules LR1–LR5 pass against a
 real ibus-daemon (Ubuntu 24.04, ibus 1.5.29) with the engine process, in the
 Linux dev image and CI (inside `script/linux/test_all.sh`). **Not verified:**
 a real desktop (GNOME Shell's candidate popup, Wayland sessions, GTK/Qt
@@ -95,5 +95,20 @@ ibus restart                    # then add Misstype under Settings → Keyboard 
 Settings: the engine reads the same ini file as the fcitx5 addon
 (`$XDG_CONFIG_HOME/fcitx5/conf/misstype.conf`, edited by `misstypectl config`),
 with the same keys and defaults; `MISSTYPE_CONFIG` overrides the path. Lone
-Shift always toggles 中/英 (IBus has no competing Shift trigger). A native IBus
-settings surface does not exist yet.
+Shift always toggles 中/英 (IBus has no competing Shift trigger), so
+`ShiftTogglesEnglish` has no effect here.
+
+- **Settings window** (`ibus-setup-misstype`, GTK4, `linux/ibus/tools/setup.c`):
+  declared with `<setup>` in the component XML, so `ibus-setup` and GNOME
+  Settings show a Preferences button for Misstype; run it directly otherwise.
+  It owns no settings logic: it lists with `misstypectl config list` and writes
+  with `misstypectl config set --no-reload`, so validation stays in the Zig
+  core. Its rows mirror `settings` in `core-zig/src/ctl.zig`; keep them in
+  step. Built only when GTK4 is present (the engine does not need it).
+- **Live reload**: the engine watches the file (`config.c`), so a change from
+  the window, `misstypectl config set` or an editor applies to running
+  sessions within a fraction of a second, no `ibus restart`. Headless
+  scenario LR5 rewrites the file under a running engine and checks the page
+  size.
+- Still not available: the candidate list's look (it is the shell's or
+  `ibus-ui-gtk3`'s), and custom key bindings (also missing from the fcitx5 page).

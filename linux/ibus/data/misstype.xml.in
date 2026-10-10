@@ -14,12 +14,12 @@
       <language>zh_TW</language>
       <license>MIT</license>
       <author>Misstype</author>
-      <icon>misstype</icon>
+      <icon>misstype-symbolic</icon>
       <layout>us</layout>
       <longname>Misstype (隨打注音)</longname>
       <description>Zhuyin with optional tones and typo repair</description>
       <symbol>隨</symbol>
       <rank>0</rank>
-    </engine>
+@MISSTYPE_IBUS_SETUP_LINE@    </engine>
   </engines>
 </component>
