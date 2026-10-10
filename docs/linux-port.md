@@ -601,7 +601,7 @@ Backlog (not scheduled):
   `docs/ibus-port.md`; platform order in `docs/cross-platform.md`.
 - Library size (~56–71 MB): `-Xlinker --gc-sections`, strip at install, or a
   Foundation-free core.
-- Packaging: AUR recipe in `linux/aur/PKGBUILD` (publication pending;
+- Packaging: AUR recipe in `linux/aur/PKGBUILD` (published on the AUR as `fcitx5-misstype-git`;
   [Arch guide](arch-linux.md)); `.deb`, Flatpak (fcitx5 addon in a Flatpak runtime needs
   research).
 
