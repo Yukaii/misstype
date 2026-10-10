@@ -70,6 +70,30 @@ shared with this page when on the same origin) and exposes `learned()`,
 Checked with the wasm tests and a production build; the pane itself has not
 been driven in a browser yet.
 
+## On-screen keyboard
+
+Touch devices without a keyboard (`(pointer: coarse) and (hover: none)`) get
+a mini QWERTY with a number row (`keyboard.js`, layout and cap labels in
+`vkeys.js`, tested by `tests/editor_vkeys_test.mjs`). Keys carry the standard
+Zhuyin layout: Zhuyin large with the Latin letter as a corner hint. Holding
+Shift (second thumb) swaps the caps to uppercase letters and shifted symbols;
+a lone Shift tap is the usual 中/英 toggle, and the caps follow the decoder's
+mode. Presses are replayed as `KeyboardEvent`s on the editor, so the decoder,
+settings and ProseMirror keymaps see what a hardware keyboard would send;
+unclaimed printable keys are inserted as text. The system keyboard is
+suppressed with `inputmode="none"` while ours is up. Backspace repeats, and a pressed key shows a preview bubble. The look follows
+the platform (`data-platform`, from the user agent): iOS-style keys by
+default, Gboard-style rounded keys and a tinted Enter on Android; both follow
+the light/dark switch.
+Key presses give a haptic tick (`haptics.js`, setting 按鍵震動回饋, default on):
+`navigator.vibrate` on Android, and on iOS Safari 17.4+ a hidden
+`<input type=checkbox switch>` clicked from the handler (undocumented; silent
+if unsupported). Neither has been felt on a real device yet.
+Settings → 螢幕鍵盤: auto (default), always, off. In auto the keyboard hides
+once a real key event arrives (iPad with a hardware keyboard).
+Checked with the unit test and a production build only; not yet driven on a
+phone or in an emulator.
+
 ## Offline
 
 `vite.config.js` (`editorPwa`) emits `editor/sw.js` with the list of built files
@@ -107,5 +131,6 @@ the native macOS and Linux versions and the privacy note.
   Markdown shortcuts (`# `, `- `, `**bold**`) only trigger in English mode;
   the toolbar and palette work in either.
 - The Markdown schema has no strikethrough, tables or task lists.
+- The on-screen keyboard has no one-shot Shift (tap Shift then a letter) or number/symbol layers; Shift is hold-only because a tap is 中/英.
 - Not tried on a real iPad or in an installed home-screen app; the offline
   path is verified with Chromium only.

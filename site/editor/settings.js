@@ -14,6 +14,8 @@ export const DEFAULTS = {
   candidateTheme: "system",
   fontSize: 18,
   wrap: "comfortable",
+  virtualKeyboard: "auto",
+  haptics: true,
 };
 
 export const IME_KEYS = ["pageSize", "shiftToggle", "returnConfirmsSelection", "autoShowCandidates", "userLearning", "channelLearning"];

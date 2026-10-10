@@ -76,7 +76,7 @@ jobs:
         with:
           name: site-assets
           path: site/public
-      - run: npm ci && node ../tests/editor_markdown_test.mjs && npm run build
+      - run: npm ci && node ../tests/editor_markdown_test.mjs && node ../tests/editor_vkeys_test.mjs && npm run build
         working-directory: site
       - uses: actions/upload-pages-artifact@v3
         with:
