@@ -14,6 +14,7 @@ import { CandidatePanel } from "./candidates.js";
 import { chord, isApple, matches, modifierBits } from "./keys.js";
 import { parseMarkdown, schema, toMarkdown, wordCount } from "./model.js";
 import { createDictionary } from "./dictionary.js";
+import { createLearning } from "./learning.js";
 import { Palette } from "./palette.js";
 import { preeditKey, preeditPlugin, setPreedit } from "./preedit.js";
 import { registerServiceWorker } from "./pwa.js";
@@ -134,6 +135,7 @@ function sync(fromKey = false) {
   if (text) tr = tr.insertText(text).scrollIntoView();
   view.dispatch(setPreedit(tr, imeState.preedit ? imeState : null));
   dictionary.persistIfChanged(ime);
+  learning.persistIfChanged(ime);
   panel.render(imeState, caretRect());
   const english = imeState.english;
   modeLabel.textContent = english || imeState.latinActive ? "英" : "中";
@@ -215,6 +217,7 @@ async function loadIme() {
       englishUrl: at("english.tsv"),
     });
     dictionary.restore(ime);
+    learning.restore(ime);
     applyImeSettings();
     document.body.classList.add("ime-ready");
     $("#status").textContent = "隨打注音已就緒";
@@ -295,6 +298,8 @@ function setSetting(key, value) {
 
 const dictionary = createDictionary({ getIme: () => ime, toast, onClose: () => view.focus() });
 
+const learning = createLearning({ getIme: () => ime, toast, onClose: () => view.focus() });
+
 const act = (id) => () => runAction(id);
 
 const commands = [
@@ -308,6 +313,7 @@ const commands = [
   { id: "import", title: "匯入 Markdown 檔", keywords: "import open file 開啟", combo: "Mod-o", chord: chord("Mod-o"), run: importFile },
   { id: "mode", title: "切換中／英", keywords: "english chinese mode 中英", combo: "Mod-Shift-e", chord: chord("Mod-Shift-e") + " · 輕按 Shift", run: toggleMode },
   { id: "dictionary", title: "我的詞庫", keywords: "dictionary words phrases user 詞庫 詞彙", combo: "Mod-Shift-d", chord: chord("Mod-Shift-d"), run: () => dictionary.open() },
+  { id: "learning", title: "學習資料", keywords: "learning learned phrases slips forget 學習 學到的詞 打錯", run: () => learning.open() },
   { id: "about", title: "關於", keywords: "about info help 說明 介紹", run: () => openAbout() },
   { id: "settings", title: "設定", keywords: "settings options preferences 選項", combo: "Mod-,", chord: chord("Mod-,"), run: () => openSettings() },
   { id: "layout", title: "候選窗：直式／橫式", keywords: "candidate layout vertical horizontal",
@@ -332,7 +338,7 @@ const palette = new Palette(() => commands);
 palette.onClose = () => view.focus();
 
 document.addEventListener("keydown", (e) => {
-  if (palette.isOpen || settingsDialog.open || aboutDialog.open || dictionary.isOpen || e.isComposing) return;
+  if (palette.isOpen || settingsDialog.open || aboutDialog.open || dictionary.isOpen || learning.isOpen || e.isComposing) return;
   const command = commands.find((c) => c.combo && matches(e, c.combo))
     || (e.key === "F1" && commands[0]);
   if (!command) return;
@@ -388,6 +394,7 @@ function openSettings() {
     if (el.type === "checkbox") el.checked = value;
     else el.value = String(value);
   }
+  syncLearningOptions();
   settingsDialog.showModal();
   // Land on the candidates-per-page select (focused, list closed).
   settingsDialog.querySelector('[data-setting="pageSize"]').focus();
@@ -398,12 +405,21 @@ settingsDialog.addEventListener("change", (e) => {
   if (!el) return;
   const raw = el.type === "checkbox" ? el.checked : el.value;
   setSetting(el.dataset.setting, typeof settings[el.dataset.setting] === "number" ? Number(raw) : raw);
+  syncLearningOptions();
 });
+// Slip learning builds on phrase learning, as on desktop.
+function syncLearningOptions() {
+  settingsDialog.querySelector('[data-setting="channelLearning"]').disabled = !settings.userLearning;
+}
 settingsDialog.addEventListener("close", () => view.focus());
 settingsDialog.addEventListener("pointerdown", (e) => { if (e.target === settingsDialog) settingsDialog.close(); });
 settingsDialog.querySelector("[data-open-dictionary]").addEventListener("click", () => {
   settingsDialog.close();
   dictionary.open();
+});
+settingsDialog.querySelector("[data-open-learning]").addEventListener("click", () => {
+  settingsDialog.close();
+  learning.open();
 });
 settingsDialog.querySelector("[data-close]").addEventListener("click", () => settingsDialog.close());
 

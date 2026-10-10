@@ -29,12 +29,17 @@ import { enable } from "misstype-wasm/enable";
 
 const ms = await enable({
   assets: "/assets/",          // folder with the four asset files
-  settings: { pageSize: 7 },   // pageSize, shiftToggle, returnConfirmsSelection, autoShowCandidates
+  settings: { pageSize: 7 },   // pageSize, shiftToggle, returnConfirmsSelection, autoShowCandidates,
+                               // userLearning (default on), channelLearning (default off)
   layout: "horizontal",        // candidate list: "vertical" | "horizontal"
   theme: "auto",               // "auto" | "light" | "dark"
   storageKey: "my-words",      // localStorage key for the user dictionary; null = memory only
+  learningKey: "my-learned",   // learned phrases (slips go to "my-learned-slips"); null = memory only
 });
 ms.toggleEnglish();
+ms.learned();                  // { phrases: [{ reading, text, count, updatedAt }], slips: [...] }
+ms.forgetLearned(reading, text); ms.clearLearned(); ms.clearSlips();
+ms.setSetting("userLearning", false);   // stop learning from picks
 ms.destroy();                  // remove listeners and the window
 ```
 
@@ -42,7 +47,8 @@ Behaviour: consumed keys never reach the page; finished text is inserted with
 `insertText` (undo and `input` handlers work); the pre-edit and candidates sit
 in a shadow-DOM window at the caret; a lone Shift tap switches 中/英 with a flash
 beside the cursor; Shift+←/→ marks a phrase and Enter files it in the user
-dictionary (saved to `localStorage`). It does not touch fields in cross-origin
+dictionary and the candidates you pick on purpose are remembered (both saved
+to `localStorage`; typing-slip learning is off unless you enable it). It does not touch fields in cross-origin
 iframes (load the script inside the frame) and cannot help where the page has
 its own key handling that runs before the capture phase.
 
@@ -81,7 +87,8 @@ for custom UI integration. The package does not send input to a server.
 Modifier bits are Shift=1, Control=2, Alt=4, Meta=8, CapsLock=16; phase is
 0 for keydown and 1 for keyup. Settings supported by the current WASM module
 are `autoShowCandidates`, `returnConfirmsSelection`, `shiftToggle` (booleans)
-and `pageSize` (4–10). Loading an English lexicon does not enable automatic
+and `pageSize` (4–10), plus `userLearning` (default on) and `channelLearning`
+(default off, experimental). Loading an English lexicon does not enable automatic
 mixed-English recognition in the current WASM API.
 
 User dictionary (the desktop IMEs' `user_dictionary.tsv`, vChewing user data):
@@ -90,6 +97,13 @@ User dictionary (the desktop IMEs' `user_dictionary.tsv`, vChewing user data):
 keeps no files: save `userDictionaryText()` whenever `userDictionaryCount()`
 changes (a phrase filed with Shift+←/→ and Return) and call
 `setUserDictionary` with it at start.
+
+Learning (the desktop `user_lexicon.json` and `channel_model.json`):
+`learnedCount()`, `learnedPhrases()`, `forgetLearned(reading, text)`,
+`clearLearned()`, `learnedData()` / `loadLearned(json)`, and for typing slips
+`channelCount()`, `channelPairs()`, `clearChannel()`, `channelData()` /
+`loadChannel(json)`. Save the two `*Data()` strings whenever
+`learningRevision()` changes and load them at start; the module keeps no files.
 
 To validate from the repository root:
 

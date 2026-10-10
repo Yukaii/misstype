@@ -188,6 +188,10 @@ export fn misstype_wasm_set_setting(key_ptr: [*]const u8, key_len: usize, value:
         e.settings.shift_toggle = value != 0;
     } else if (std.mem.eql(u8, key, "pageSize")) {
         e.settings.page_size = session_mod.clampPageSize(value);
+    } else if (std.mem.eql(u8, key, "userLearning")) {
+        e.settings.user_learning = value != 0;
+    } else if (std.mem.eql(u8, key, "channelLearning")) {
+        e.settings.channel_learning = value != 0;
     }
 }
 
@@ -349,4 +353,152 @@ export fn misstype_wasm_import_user_dictionary(source_ptr: [*]const u8, source_l
     jsonString(&dictionary_reply, result.text) catch return null;
     dictionary_reply.print(gpa, ",\"added\":{d},\"duplicates\":{d},\"skipped\":{d}}}", .{ result.added, result.duplicates, result.skipped }) catch return null;
     return dictionaryReply();
+}
+
+// MARK: - Learning
+//
+// What the decoder learns from explicit picks (`user_lexicon.json`) and, when
+// enabled, from typing slips (`channel_model.json`): the same JSON the desktop
+// IMEs keep. The module has no storage of its own: the host saves
+// `learned_data` / `channel_data` when `learning_revision` changes and feeds
+// them back with `load_learned` / `load_channel` at start.
+
+/// Alive until the next learning call.
+var learning_reply: std.ArrayList(u8) = .empty;
+
+fn learningReply() ?[*:0]const u8 {
+    learning_reply.append(gpa, 0) catch return null;
+    return @ptrCast(learning_reply.items.ptr);
+}
+
+/// Changes whenever a phrase is learned or forgotten, or a typing slip noted.
+export fn misstype_wasm_learning_revision() i32 {
+    const e = engine orelse return 0;
+    return @bitCast(e.learning_revision);
+}
+
+export fn misstype_wasm_learned_count() i32 {
+    const e = engine orelse return 0;
+    return @intCast(e.user_lexicon.count());
+}
+
+/// The learned phrases as the desktop `user_lexicon.json`.
+export fn misstype_wasm_learned_data() ?[*:0]const u8 {
+    learning_reply.clearRetainingCapacity();
+    if (engine) |e| {
+        const data = e.user_lexicon.encode(gpa) catch return null;
+        defer gpa.free(data);
+        learning_reply.appendSlice(gpa, data) catch return null;
+    }
+    return learningReply();
+}
+
+/// Replaces the learned phrases; 1 on success, 0 (nothing changed) if `data`
+/// is not a learned-phrases file.
+export fn misstype_wasm_load_learned(data_ptr: [*]const u8, data_len: usize) i32 {
+    const e = engine orelse return 0;
+    e.installUserLexicon(bytes(data_ptr, data_len)) catch return 0;
+    return 1;
+}
+
+/// `[{"reading":"ㄋㄧㄏㄠ","text":"你好","count":n,"updatedAt":secs}]`, newest first.
+export fn misstype_wasm_learned_phrases() ?[*:0]const u8 {
+    learning_reply.clearRetainingCapacity();
+    learning_reply.append(gpa, '[') catch return null;
+    if (engine) |e| {
+        const Row = struct { key: []const u8, text: []const u8, record: core.user_lexicon.Record };
+        var rows: std.ArrayList(Row) = .empty;
+        defer rows.deinit(gpa);
+        var it = e.user_lexicon.entries.iterator();
+        while (it.next()) |entry| {
+            var texts = entry.value_ptr.iterator();
+            while (texts.next()) |t| rows.append(gpa, .{ .key = entry.key_ptr.*, .text = t.key_ptr.*, .record = t.value_ptr.* }) catch return null;
+        }
+        std.mem.sort(Row, rows.items, {}, struct {
+            fn newer(_: void, a: Row, b: Row) bool {
+                return a.record.updated_at > b.record.updated_at;
+            }
+        }.newer);
+        for (rows.items, 0..) |row, i| {
+            if (i > 0) learning_reply.append(gpa, ',') catch return null;
+            learning_reply.appendSlice(gpa, "{\"reading\":") catch return null;
+            jsonString(&learning_reply, row.key) catch return null;
+            learning_reply.appendSlice(gpa, ",\"text\":") catch return null;
+            jsonString(&learning_reply, row.text) catch return null;
+            learning_reply.print(gpa, ",\"count\":{d},\"updatedAt\":{d}}}", .{ row.record.count, row.record.updated_at }) catch return null;
+        }
+    }
+    learning_reply.append(gpa, ']') catch return null;
+    return learningReply();
+}
+
+/// Forgets one learned phrase.
+export fn misstype_wasm_forget_learned(key_ptr: [*]const u8, key_len: usize, text_ptr: [*]const u8, text_len: usize) void {
+    const e = engine orelse return;
+    e.forgetLearned(bytes(key_ptr, key_len), bytes(text_ptr, text_len)) catch {};
+}
+
+export fn misstype_wasm_clear_learned() void {
+    const e = engine orelse return;
+    e.clearUserLexicon() catch {};
+}
+
+export fn misstype_wasm_channel_count() i32 {
+    const e = engine orelse return 0;
+    return @intCast(e.channel_learner.pairCount());
+}
+
+/// The learned typing slips as the desktop `channel_model.json`.
+export fn misstype_wasm_channel_data() ?[*:0]const u8 {
+    learning_reply.clearRetainingCapacity();
+    if (engine) |e| {
+        const data = e.channel_learner.encode(gpa) catch return null;
+        defer gpa.free(data);
+        learning_reply.appendSlice(gpa, data) catch return null;
+    }
+    return learningReply();
+}
+
+export fn misstype_wasm_load_channel(data_ptr: [*]const u8, data_len: usize) i32 {
+    const e = engine orelse return 0;
+    e.installChannel(bytes(data_ptr, data_len)) catch return 0;
+    return 1;
+}
+
+/// `[{"typed":"ㄥ","intended":"ㄣ","cost":c}]`, cheapest (most likely) first;
+/// `exp(-cost)` is how often the slip happens.
+export fn misstype_wasm_channel_pairs() ?[*:0]const u8 {
+    learning_reply.clearRetainingCapacity();
+    learning_reply.append(gpa, '[') catch return null;
+    if (engine) |e| if (e.channel_learner.model()) |model| {
+        const Pair = struct { typed: u8, intended: u8, cost: f64 };
+        var pairs: std.ArrayList(Pair) = .empty;
+        defer pairs.deinit(gpa);
+        for (model.rows, 0..) |row, typed| for (row) |sub| {
+            pairs.append(gpa, .{ .typed = @intCast(typed), .intended = sub.intended, .cost = sub.raw }) catch return null;
+        };
+        std.mem.sort(Pair, pairs.items, {}, struct {
+            fn cheaper(_: void, a: Pair, b: Pair) bool {
+                if (a.cost != b.cost) return a.cost < b.cost;
+                return (@as(u16, a.typed) << 8 | a.intended) < (@as(u16, b.typed) << 8 | b.intended);
+            }
+        }.cheaper);
+        for (pairs.items, 0..) |p, i| {
+            if (i > 0) learning_reply.append(gpa, ',') catch return null;
+            const typed = [1]u8{p.typed};
+            const intended = [1]u8{p.intended};
+            learning_reply.appendSlice(gpa, "{\"typed\":") catch return null;
+            jsonString(&learning_reply, core.keyboard.symbol(p.typed) orelse &typed) catch return null;
+            learning_reply.appendSlice(gpa, ",\"intended\":") catch return null;
+            jsonString(&learning_reply, core.keyboard.symbol(p.intended) orelse &intended) catch return null;
+            learning_reply.print(gpa, ",\"cost\":{d}}}", .{p.cost}) catch return null;
+        }
+    };
+    learning_reply.append(gpa, ']') catch return null;
+    return learningReply();
+}
+
+export fn misstype_wasm_clear_channel() void {
+    const e = engine orelse return;
+    e.clearChannel();
 }

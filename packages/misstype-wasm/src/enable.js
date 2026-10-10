@@ -25,6 +25,8 @@ const DEFAULT_SETTINGS = {
   shiftToggle: true,
   returnConfirmsSelection: true,
   autoShowCandidates: true,
+  userLearning: true,
+  channelLearning: false,
 };
 
 const MIRRORED = [
@@ -118,10 +120,13 @@ function insertText(el, text) {
  * @param {object} [options]
  * @param {string} [options.assets] Base URL of `misstype.wasm`, `lexicon.tsv`, `toneless.tsv`, `english.tsv`.
  * @param {string} [options.selector] Which elements to enable (default: text fields and contenteditable).
- * @param {object} [options.settings] pageSize (4–10), shiftToggle, returnConfirmsSelection, autoShowCandidates.
+ * @param {object} [options.settings] pageSize (4–10), shiftToggle, returnConfirmsSelection, autoShowCandidates,
+ *   userLearning (remember explicit picks, default on), channelLearning (learn typing slips, experimental, default off).
  * @param {"vertical"|"horizontal"} [options.layout]
  * @param {"auto"|"light"|"dark"} [options.theme]
  * @param {string|null} [options.storageKey] localStorage key for the user dictionary (`null`: keep it in memory only).
+ * @param {string|null} [options.learningKey] localStorage key for the learned phrases; learned typing slips go to
+ *   `<key>-slips` (`null`: keep them in memory only).
  * @param {(on: boolean) => void} [options.onNativeIme] Called when a system IME seems to be taking the keys.
  */
 export async function enable(options = {}) {
@@ -129,6 +134,7 @@ export async function enable(options = {}) {
   const at = (name) => new URL(name, assets).href;
   const selector = options.selector ?? DEFAULT_SELECTOR;
   const storageKey = options.storageKey === undefined ? "misstype-user-dictionary" : options.storageKey;
+  const learningKey = options.learningKey === undefined ? "misstype-learned" : options.learningKey;
   const settings = { ...DEFAULT_SETTINGS, ...options.settings };
   let layout = options.layout ?? "vertical";
 
@@ -138,12 +144,21 @@ export async function enable(options = {}) {
     tonelessUrl: at("toneless.tsv"),
     englishUrl: at("english.tsv"),
   });
-  const readStored = () => {
-    try { return storageKey ? localStorage.getItem(storageKey) || "" : ""; } catch { return ""; }
+  const readStored = (key) => {
+    try { return key ? localStorage.getItem(key) || "" : ""; } catch { return ""; }
   };
-  const stored = readStored();
+  const writeStored = (key, text) => {
+    try { if (key) localStorage.setItem(key, text); } catch { /* storage unavailable */ }
+  };
+  const stored = readStored(storageKey);
   if (stored) ime.setUserDictionary(stored);
   let knownWords = ime.userDictionaryCount();
+  const slipsKey = learningKey && `${learningKey}-slips`;
+  const learnedPhrases = readStored(learningKey);
+  if (learnedPhrases) ime.loadLearned(learnedPhrases);
+  const learnedSlips = readStored(slipsKey);
+  if (learnedSlips) ime.loadChannel(learnedSlips);
+  let knownLearning = ime.learningRevision();
   const applySettings = () => { for (const [k, v] of Object.entries(settings)) ime.setSetting(k, v); };
   applySettings();
 
@@ -249,7 +264,12 @@ export async function enable(options = {}) {
     if (text && active) insertText(active, text);
     if (ime.userDictionaryCount() !== knownWords) {
       knownWords = ime.userDictionaryCount();
-      try { if (storageKey) localStorage.setItem(storageKey, ime.userDictionaryText()); } catch { /* storage unavailable */ }
+      writeStored(storageKey, ime.userDictionaryText());
+    }
+    if (ime.learningRevision() !== knownLearning) {
+      knownLearning = ime.learningRevision();
+      writeStored(learningKey, ime.learnedCount() ? ime.learnedData() : "");
+      writeStored(slipsKey, ime.channelCount() ? ime.channelData() : "");
     }
     // As on desktop: opening or closing an English run inside a Chinese
     // composition (latinToggled) and a mode change both flash. The flags
@@ -337,7 +357,27 @@ export async function enable(options = {}) {
       sync();
       if (active) flash(state.english, caretBox(active));
     },
-    /** Changes a decoder setting (`pageSize`, `shiftToggle`, `returnConfirmsSelection`, `autoShowCandidates`). */
+    /** What has been learned: `{ phrases: [{ reading, text, count, updatedAt }], slips: [{ typed, intended, cost }] }`. */
+    learned() {
+      return { phrases: ime.learnedPhrases(), slips: ime.channelPairs() };
+    },
+    /** Forgets one learned phrase (`reading` as listed by `learned()`). */
+    forgetLearned(reading, text) {
+      ime.forgetLearned(reading, text);
+      sync();
+    },
+    /** Forgets every learned phrase. */
+    clearLearned() {
+      ime.clearLearned();
+      sync();
+    },
+    /** Forgets every learned typing slip. */
+    clearSlips() {
+      ime.clearChannel();
+      sync();
+    },
+    /** Changes a decoder setting (`pageSize`, `shiftToggle`, `returnConfirmsSelection`, `autoShowCandidates`,
+     *  `userLearning`, `channelLearning`). */
     setSetting(name, value) {
       settings[name] = value;
       ime.setSetting(name, value);

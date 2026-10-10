@@ -52,6 +52,24 @@ editor notices the count change and saves the canonical text (which drops
 comments, as on desktop). Opening Settings focuses the candidates-per-page
 select (list closed).
 
+## Learning
+
+Settings has a 學習 group: remember explicit candidate picks (`userLearning`,
+default on) and learn typing slips (`channelLearning`, experimental, needs the
+first). 管理⋯ (or the palette's 學習資料) opens a pane listing the learned
+phrases (reading, text, count) with per-phrase 忘記, Import/Export of the
+desktop `user_lexicon.json`, Clear, and the learned slips (`ㄥ → ㄣ`, about how
+often) with Clear. The wasm module has no files, so it exposes
+`learningRevision`, `learnedData`/`loadLearned`, `channelData`/`loadChannel`
+and friends (core: `wasm.zig`, `Engine.learning_revision`); `learning.js`
+saves both JSON blobs to `localStorage` when the revision changes and restores
+them at start. The drop-in layer (`enable`, `embed.js`) does the same with
+`learningKey` (default `misstype-learned`, slips in `misstype-learned-slips`,
+shared with this page when on the same origin) and exposes `learned()`,
+`forgetLearned`, `clearLearned`, `clearSlips`. Before this, picks were learned in memory but lost on reload.
+Checked with the wasm tests and a production build; the pane itself has not
+been driven in a browser yet.
+
 ## Offline
 
 `vite.config.js` (`editorPwa`) emits `editor/sw.js` with the list of built files

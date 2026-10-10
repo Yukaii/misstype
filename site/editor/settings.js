@@ -1,4 +1,4 @@
-// Options for the editor, kept in localStorage. The first four map one to one
+// Options for the editor, kept in localStorage. The first six map one to one
 // onto the wasm module's settings (packages/misstype-wasm README); the rest
 // are presentation only.
 const KEY = "misstype-editor-settings";
@@ -8,13 +8,15 @@ export const DEFAULTS = {
   shiftToggle: true,
   returnConfirmsSelection: true,
   autoShowCandidates: true,
+  userLearning: true,
+  channelLearning: false,
   candidateLayout: "vertical",
   candidateTheme: "system",
   fontSize: 18,
   wrap: "comfortable",
 };
 
-export const IME_KEYS = ["pageSize", "shiftToggle", "returnConfirmsSelection", "autoShowCandidates"];
+export const IME_KEYS = ["pageSize", "shiftToggle", "returnConfirmsSelection", "autoShowCandidates", "userLearning", "channelLearning"];
 
 export function loadSettings() {
   try {
