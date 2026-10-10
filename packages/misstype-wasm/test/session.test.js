@@ -55,3 +55,65 @@ test("user dictionary: set, check, import, and the decoder uses added words", as
   assert.equal(ime.setUserDictionary(""), true);
   assert.equal(ime.userDictionaryCount(), 0);
 });
+
+test("learning: an explicit pick is learned, saved, restored, forgotten, and can be turned off", async () => {
+  const load = () => MisstypeWasm.load({
+    wasmUrl: `data:application/wasm;base64,${wasm.toString("base64")}`,
+    lexiconUrl: `data:text/plain;base64,${lexicon.toString("base64")}`,
+  });
+  const typeAndPick = (ime) => {
+    ime.setSetting("autoShowCandidates", true);
+    for (const key of "su3") ime.key(/[0-9]/.test(key) ? `Digit${key}` : `Key${key.toUpperCase()}`, key);
+    assert.equal(ime.state().preedit, "你");
+    ime.pick(1);
+    ime.commit();
+    return ime.takeCommitted();
+  };
+
+  const ime = await load();
+  assert.equal(ime.learnedCount(), 0);
+  const before = ime.learningRevision();
+  assert.equal(typeAndPick(ime), "妳");
+  assert.equal(ime.learnedCount(), 1);
+  assert.notEqual(ime.learningRevision(), before);
+  const [phrase] = ime.learnedPhrases();
+  assert.equal(phrase.text, "妳");
+  assert.equal(phrase.reading, "ㄋㄧ");
+  assert.equal(phrase.count, 1);
+
+  // A fresh module restores it from the saved JSON and ranks it first.
+  const data = ime.learnedData();
+  const restored = await load();
+  assert.equal(restored.loadLearned("not json"), false);
+  assert.equal(restored.learnedCount(), 0);
+  assert.equal(restored.loadLearned(data), true);
+  assert.equal(restored.learnedCount(), 1);
+  restored.setSetting("autoShowCandidates", true);
+  for (const key of "su3") restored.key(/[0-9]/.test(key) ? `Digit${key}` : `Key${key.toUpperCase()}`, key);
+  assert.equal(restored.state().preedit, "妳");
+
+  restored.forgetLearned(phrase.reading, phrase.text);
+  assert.equal(restored.learnedCount(), 0);
+  assert.equal(ime.loadLearned(data), true);
+  ime.clearLearned();
+  assert.equal(ime.learnedCount(), 0);
+
+  const off = await load();
+  off.setSetting("userLearning", false);
+  typeAndPick(off);
+  assert.equal(off.learnedCount(), 0);
+});
+
+test("typing slips: empty by default, round-trips, and clears", async () => {
+  const ime = await MisstypeWasm.load({
+    wasmUrl: `data:application/wasm;base64,${wasm.toString("base64")}`,
+    lexiconUrl: `data:text/plain;base64,${lexicon.toString("base64")}`,
+  });
+  assert.equal(ime.channelCount(), 0);
+  assert.deepEqual(ime.channelPairs(), []);
+  assert.equal(ime.loadChannel("nope"), false);
+  assert.equal(ime.loadChannel(ime.channelData()), true);
+  ime.clearChannel();
+  assert.equal(ime.channelCount(), 0);
+  ime.setSetting("channelLearning", true);
+});

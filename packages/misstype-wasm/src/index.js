@@ -139,6 +139,65 @@ export class MisstypeWasm {
       this._withString(text, (tp, tl) => this.exports.misstype_wasm_import_user_dictionary(sp, sl, tp, tl)))));
   }
 
+  // Learning: what the decoder picks up from explicit candidate picks
+  // (`user_lexicon.json`) and, with `channelLearning`, from typing slips
+  // (`channel_model.json`). Same JSON as the desktop IMEs. The module keeps no
+  // files: save `learnedData()` / `channelData()` when `learningRevision()`
+  // changes and hand them back with `loadLearned` / `loadChannel` at start.
+  // Settings: `userLearning` (default on), `channelLearning` (default off).
+
+  learningRevision() {
+    return this.exports.misstype_wasm_learning_revision();
+  }
+
+  learnedCount() {
+    return this.exports.misstype_wasm_learned_count();
+  }
+
+  learnedData() {
+    return this._read(this.exports.misstype_wasm_learned_data());
+  }
+
+  /** Replaces the learned phrases; false (nothing changed) if `data` is not a learned-phrases file. */
+  loadLearned(data) {
+    return this._withString(data, (ptr, len) => this.exports.misstype_wasm_load_learned(ptr, len)) === 1;
+  }
+
+  /** `[{ reading, text, count, updatedAt }]`, newest first. */
+  learnedPhrases() {
+    return JSON.parse(this._read(this.exports.misstype_wasm_learned_phrases()));
+  }
+
+  forgetLearned(reading, text) {
+    this._withString(reading, (kp, kl) =>
+      this._withString(text, (tp, tl) => this.exports.misstype_wasm_forget_learned(kp, kl, tp, tl)));
+  }
+
+  clearLearned() {
+    this.exports.misstype_wasm_clear_learned();
+  }
+
+  channelCount() {
+    return this.exports.misstype_wasm_channel_count();
+  }
+
+  channelData() {
+    return this._read(this.exports.misstype_wasm_channel_data());
+  }
+
+  loadChannel(data) {
+    return this._withString(data, (ptr, len) => this.exports.misstype_wasm_load_channel(ptr, len)) === 1;
+  }
+
+  /** `[{ typed, intended, cost }]`, most likely first; `exp(-cost)` is how often the slip happens. */
+  channelPairs() {
+    return JSON.parse(this._read(this.exports.misstype_wasm_channel_pairs()));
+  }
+
+  clearChannel() {
+    this.exports.misstype_wasm_clear_channel();
+  }
+
   takeCommitted() {
     const state = this.state();
     const text = state.lastCommit || "";

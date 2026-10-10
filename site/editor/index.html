@@ -83,6 +83,12 @@
       <label>我的詞庫 <button class="tool" type="button" data-open-dictionary>編輯詞庫⋯</button></label>
     </fieldset>
     <fieldset>
+      <legend>學習</legend>
+      <label class="check"><input type="checkbox" data-setting="userLearning"> 記住我主動選的候選字</label>
+      <label class="check"><input type="checkbox" data-setting="channelLearning"> 學習我常打錯的鍵（實驗性）</label>
+      <label>學到的資料 <button class="tool" type="button" data-open-learning>管理⋯</button></label>
+    </fieldset>
+    <fieldset>
       <legend>外觀</legend>
       <label>候選窗排列
         <select data-setting="candidateLayout"><option value="vertical">直式</option><option value="horizontal">橫式</option></select>
@@ -133,6 +139,30 @@
       <button class="tool" type="button" data-dict="revert">還原</button>
       <button class="tool primary" type="button" data-dict="save">儲存</button>
       <button class="tool" type="button" data-close>關閉</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="learning" class="sheet wide" aria-labelledby="learn-title">
+  <form method="dialog" onsubmit="return false">
+    <h2 id="learn-title">學習資料</h2>
+    <p class="hint">你在候選窗主動選的字（Tab、方向鍵、選字鍵或點選）會被記住，下次排在前面。只存在這個瀏覽器裡。</p>
+    <h3>學到的詞 <span id="learn-phrase-count"></span></h3>
+    <ul class="learned" id="learn-phrases"></ul>
+    <div class="dict-actions">
+      <button class="tool" type="button" data-learn="import-phrases">匯入⋯</button>
+      <button class="tool" type="button" data-learn="export-phrases">匯出</button>
+      <button class="tool" type="button" data-learn="clear-phrases">全部清除</button>
+    </div>
+    <h3>學到的打錯習慣 <span id="learn-slip-count"></span></h3>
+    <p class="hint">例如把 ㄣ 打成 ㄥ。只記鍵與次數，不記內容；需在設定中開啟。</p>
+    <ul class="learned" id="learn-slips"></ul>
+    <div class="dict-actions">
+      <button class="tool" type="button" data-learn="clear-slips">全部清除</button>
+    </div>
+    <p class="hint" id="learn-note" role="status"></p>
+    <div class="dict-actions">
+      <button class="tool primary" type="button" data-close>完成</button>
     </div>
   </form>
 </dialog>

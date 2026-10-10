@@ -307,6 +307,9 @@ pub const Engine = struct {
     user_lexicon_path: ?[]u8 = null,
     channel_learner: channel_mod.ChannelLearner,
     channel_path: ?[]u8 = null,
+    /// Bumped whenever learned phrases or typing slips change, so a host with
+    /// no files (wasm) knows when to save them.
+    learning_revision: u32 = 0,
     english_lexicon: ?*english_mod.EnglishLexicon = null,
     user_dictionary: UserDictionary,
     user_dictionary_path: ?[]u8 = null,
@@ -416,6 +419,7 @@ pub const Engine = struct {
     }
 
     pub fn clearChannel(self: *Engine) void {
+        self.learning_revision +%= 1;
         self.channel_learner.deinit();
         self.channel_learner = .init(self.gpa);
         self.saveChannel();
@@ -430,12 +434,14 @@ pub const Engine = struct {
 
     fn observeChannel(self: *Engine, evidence: *const channel_mod.Evidence) !void {
         if (evidence.isEmpty()) return;
+        self.learning_revision +%= 1;
         try self.channel_learner.observe(evidence);
         self.saveChannel();
     }
 
     fn learn(self: *Engine, words: []const user_lexicon.LearnedWord) !void {
         if (words.len == 0) return;
+        self.learning_revision +%= 1;
         const now = storage.nowUnix(self.io);
         for (words) |w| try self.user_lexicon.record(w.key, w.text, now);
         try self.saveUserLexicon();
@@ -449,8 +455,33 @@ pub const Engine = struct {
         _ = storage.writeAtomic(self.io, self.gpa, path, data);
     }
 
+    /// Replaces the learned phrases with `data` (the `encode` JSON); nothing
+    /// changes if it does not parse.
+    pub fn installUserLexicon(self: *Engine, data: []const u8) !void {
+        const decoded = try UserLexicon.decode(self.gpa, data);
+        self.user_lexicon.deinit();
+        self.user_lexicon = decoded;
+    }
+
+    /// Replaces the learned typing slips with `data`; nothing changes if it
+    /// does not parse.
+    pub fn installChannel(self: *Engine, data: []const u8) !void {
+        const decoded = try channel_mod.ChannelLearner.decode(self.gpa, data);
+        self.channel_learner.deinit();
+        self.channel_learner = decoded;
+    }
+
+    /// Drops one learned (reading key, text) pair.
+    pub fn forgetLearned(self: *Engine, key: []const u8, text: []const u8) !void {
+        if (!self.user_lexicon.contains(key, text)) return;
+        self.learning_revision +%= 1;
+        self.user_lexicon.removeText(key, text);
+        try self.saveUserLexicon();
+    }
+
     /// Forgets every learned phrase, on disk too.
     pub fn clearUserLexicon(self: *Engine) !void {
+        self.learning_revision +%= 1;
         self.user_lexicon.deinit();
         self.user_lexicon = .init(self.gpa);
         try self.saveUserLexicon();

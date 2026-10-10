@@ -167,3 +167,14 @@ dialog.sheet.wide { width: min(640px, calc(100vw - 24px)); }
 .status-link:hover { color: var(--ink); }
 #about p { margin: 0; font-size: 15px; line-height: 1.7; }
 #about a { color: var(--mark); }
+
+/* Learned phrases and typing slips. */
+dialog.sheet h3 { margin: 0; font-size: 15px; }
+dialog.sheet h3 span { margin-left: 6px; color: var(--muted); font-weight: normal; font-size: 13px; }
+.learned { list-style: none; margin: 0; padding: 0; max-height: 220px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
+.learned li { display: flex; align-items: center; gap: 12px; padding: 5px 10px; border-bottom: 1px solid var(--line); font-size: 15px; }
+.learned li:last-child { border-bottom: 0; }
+.learned .learn-text { min-width: 4em; }
+.learned .learn-reading { color: var(--muted); font-size: 13px; }
+.learned .learn-times { margin-left: auto; color: var(--muted); font-size: 13px; }
+.learned .tool { padding: 2px 8px; font-size: 13px; }

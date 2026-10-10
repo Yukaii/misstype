@@ -118,7 +118,7 @@ pub const UserLexicon = struct {
         freeTexts(self.gpa, &texts);
     }
 
-    fn removeText(self: *UserLexicon, key: []const u8, text: []const u8) void {
+    pub fn removeText(self: *UserLexicon, key: []const u8, text: []const u8) void {
         const texts = self.entries.getPtr(key) orelse return;
         const kv = texts.fetchOrderedRemove(text) orelse return;
         self.gpa.free(kv.key);
