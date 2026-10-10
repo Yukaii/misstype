@@ -102,7 +102,7 @@ const view = createView();
 function keepCaretClear() {
   const top = $(".chrome").offsetHeight + 12;
   // The docked candidate bar sits right above the keyboard.
-  const bottom = $(".status").offsetHeight + vkHeight() + (vkEl.hidden ? 0 : 56) + 24;
+  const bottom = $(".status").offsetHeight + vkHeight() + (vkEl.hidden ? 0 : 48) + 24;
   view.setProps({ scrollMargin: { top, bottom, left: 8, right: 8 }, scrollThreshold: { top, bottom, left: 8, right: 8 } });
 }
 

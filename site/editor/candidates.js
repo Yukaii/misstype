@@ -45,10 +45,13 @@ export class CandidatePanel {
   setDocked(docked) {
     this.docked = docked;
     this.el.classList.toggle("docked", docked);
+    this.hide();
   }
 
   hide() {
-    this.el.hidden = true;
+    // The docked bar keeps its slot (empty) so the status strip above it does not jump.
+    if (this.docked) this.list.textContent = "";
+    this.el.hidden = !this.docked;
   }
 
   /** Draws `state` (the wasm session view); `rect` is the caret box on screen. */
