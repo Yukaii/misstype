@@ -15,6 +15,7 @@ import { chord, isApple, matches, modifierBits } from "./keys.js";
 import { parseMarkdown, schema, toMarkdown, wordCount } from "./model.js";
 import { createDictionary } from "./dictionary.js";
 import { createLearning } from "./learning.js";
+import { VirtualKeyboard } from "./keyboard.js";
 import { Palette } from "./palette.js";
 import { preeditKey, preeditPlugin, setPreedit } from "./preedit.js";
 import { registerServiceWorker } from "./pwa.js";
@@ -99,7 +100,7 @@ const view = createView();
 // the caret clear of them when ProseMirror scrolls it into view.
 function keepCaretClear() {
   const top = $(".chrome").offsetHeight + 12;
-  const bottom = $(".status").offsetHeight + 24;
+  const bottom = $(".status").offsetHeight + vkHeight() + 24;
   view.setProps({ scrollMargin: { top, bottom, left: 8, right: 8 }, scrollThreshold: { top, bottom, left: 8, right: 8 } });
 }
 
@@ -139,6 +140,7 @@ function sync(fromKey = false) {
   panel.render(imeState, caretRect());
   const english = imeState.english;
   modeLabel.textContent = english || imeState.latinActive ? "英" : "中";
+  vk.setEnglish(Boolean(english || imeState.latinActive));
   // As on desktop: a Shift tap or backtick that opens or closes an English run
   // inside a Chinese composition (latinToggled) and a mode change both flash.
   // The flags describe the last key, so only a key event may read them.
@@ -192,6 +194,63 @@ function keyUp(e) {
   sync(true);
 }
 
+// ------------------------------------------------------- virtual keyboard
+
+// Touch devices without a keyboard get an on-screen mini QWERTY. Its keys are
+// replayed as ordinary KeyboardEvents on the editor, so the decoder, settings
+// and ProseMirror's keymaps see exactly what a hardware keyboard would send.
+const vkEl = $("#vk");
+const touchOnly = matchMedia("(pointer: coarse) and (hover: none)");
+let hardwareKeyboardSeen = false;
+
+const vkHeight = () => (vkEl.hidden ? 0 : vkEl.offsetHeight);
+
+function virtualKeyboardWanted() {
+  const mode = settings.virtualKeyboard;
+  return mode === "on" || (mode === "auto" && touchOnly.matches && !hardwareKeyboardSeen);
+}
+
+function applyVirtualKeyboard() {
+  const on = virtualKeyboardWanted();
+  vkEl.hidden = !on;
+  document.body.classList.toggle("vk-on", on);
+  // Without this the system keyboard would pop up over ours.
+  view.setProps({ attributes: on ? { inputmode: "none" } : {} });
+  document.documentElement.style.setProperty("--vk-h", `${vkHeight()}px`);
+  keepCaretClear();
+}
+
+function sendKey(type, code, key, shift) {
+  const e = new KeyboardEvent(type, { code, key, shiftKey: shift, bubbles: true, cancelable: true });
+  view.dom.dispatchEvent(e);
+  return e;
+}
+
+const vk = new VirtualKeyboard(vkEl, {
+  shift(down) { sendKey(down ? "keydown" : "keyup", "ShiftLeft", "Shift", down); },
+  press(code, key, shift) {
+    const e = sendKey("keydown", code, key, shift);
+    // Neither the decoder nor a keymap took it: it is plain text.
+    if (!e.defaultPrevented && key.length === 1) {
+      const { from, to } = view.state.selection;
+      const insert = () => view.state.tr.insertText(key, from, to);
+      if (!view.someProp("handleTextInput", (f) => f(view, from, to, key, insert))) view.dispatch(insert().scrollIntoView());
+    }
+  },
+});
+
+// A real keyboard showed up (iPad with a Magic Keyboard, say): give the screen back.
+document.addEventListener("keydown", (e) => {
+  if (!e.isTrusted || e.isComposing || e.keyCode === 229 || e.key === "Unidentified" || hardwareKeyboardSeen) return;
+  hardwareKeyboardSeen = true;
+  if (settings.virtualKeyboard === "auto") applyVirtualKeyboard();
+}, true);
+touchOnly.addEventListener("change", applyVirtualKeyboard);
+new ResizeObserver(() => {
+  document.documentElement.style.setProperty("--vk-h", `${vkHeight()}px`);
+  keepCaretClear();
+}).observe(vkEl);
+
 function applyImeSettings() {
   if (!ime) return;
   for (const key of IME_KEYS) ime.setSetting(key, settings[key]);
@@ -204,6 +263,7 @@ function applyAppearance() {
   app.dataset.theme = settings.candidateTheme;
   document.documentElement.style.setProperty("--editor-size", `${settings.fontSize}px`);
   app.dataset.wrap = settings.wrap;
+  applyVirtualKeyboard();
 }
 
 async function loadIme() {
