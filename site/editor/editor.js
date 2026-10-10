@@ -247,10 +247,17 @@ function deleteBackward() {
   view.dispatch(view.state.tr.delete($from.pos - last.length, $from.pos).scrollIntoView());
 }
 
+// Touching a key can blur the editor (iOS ignores preventDefault for focus), and
+// the blur handler below settles the composition, which would commit the
+// pre-edit. Keys of our own keyboard are not "leaving the editor".
+let vkTouchUntil = 0;
+vkEl.addEventListener("pointerdown", () => { vkTouchUntil = performance.now() + 600; }, true);
+
 const vk = new VirtualKeyboard(vkEl, {
   shift(down) {
     if (down && settings.haptics) tick();
     sendKey(down ? "keydown" : "keyup", "ShiftLeft", "Shift", down);
+    if (!view.hasFocus()) view.focus();
   },
   press(code, key, shift) {
     if (settings.haptics) tick();
@@ -528,7 +535,11 @@ const host = view.dom;
 host.addEventListener("keydown", keyDown, true);
 host.addEventListener("keyup", keyUp, true);
 host.addEventListener("pointerdown", flush, true);
-host.addEventListener("focusout", () => setTimeout(() => { if (!host.contains(document.activeElement)) flush(); }));
+host.addEventListener("focusout", () => setTimeout(() => {
+  if (host.contains(document.activeElement)) return;
+  if (performance.now() < vkTouchUntil) { view.focus(); return; }
+  flush();
+}));
 host.addEventListener("compositionstart", flush);
 addEventListener("resize", () => panel.place(caretRect()));
 visualViewport?.addEventListener("resize", () => panel.place(caretRect()));
