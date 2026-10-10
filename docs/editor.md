@@ -81,7 +81,10 @@ a lone Shift tap is the usual 中/英 toggle, and the caps follow the decoder's
 mode. Presses are replayed as `KeyboardEvent`s on the editor, so the decoder,
 settings and ProseMirror keymaps see what a hardware keyboard would send;
 unclaimed printable keys are inserted as text. The system keyboard is
-suppressed with `inputmode="none"` while ours is up. Backspace repeats, and a pressed key shows a preview bubble. The look follows
+suppressed with `inputmode="none"` while ours is up. Backspace repeats and, when neither the decoder nor a keymap takes it, deletes
+the selection or the character before the caret itself (a synthetic event has
+no browser default). The candidate window is placed above the keyboard, and
+keyboard taps keep the editor focused. A pressed key shows a preview bubble. The look follows
 the platform (`data-platform`, from the user agent): iOS-style keys by
 default, Gboard-style rounded keys and a tinted Enter on Android; both follow
 the light/dark switch.

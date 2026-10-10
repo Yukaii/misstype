@@ -3,7 +3,8 @@
 const escapeHtml = (s) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[c]));
 
 export class CandidatePanel {
-  constructor(root, { onPick, onPage }) {
+  constructor(root, { onPick, onPage, bottomInset = () => 0 }) {
+    this.bottomInset = bottomInset;
     this.el = document.createElement("div");
     this.el.className = "candidate-panel";
     this.el.hidden = true;
@@ -65,7 +66,10 @@ export class CandidatePanel {
     if (this.el.hidden || !rect) return;
     const vv = window.visualViewport;
     const left0 = vv?.offsetLeft || 0, top0 = vv?.offsetTop || 0;
-    const width = vv?.width || innerWidth, height = vv?.height || innerHeight;
+    const width = vv?.width || innerWidth;
+    // The on-screen keyboard covers the bottom of the layout viewport; stay above it.
+    const height = (vv?.height || innerHeight) - this.bottomInset();
+    this.el.style.maxHeight = `${Math.max(80, height - 16)}px`;
     const w = this.el.offsetWidth, h = this.el.offsetHeight;
     const left = Math.max(left0 + 8, Math.min(rect.left, left0 + width - w - 8));
     let top = rect.bottom + 8;
