@@ -3,7 +3,7 @@
 //   cd site && npm ci && node ../tests/editor_vkeys_test.mjs
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ROWS, capLabels, keyText } from "../site/editor/vkeys.js";
+import { INDENT, ROWS, capLabels, keyText } from "../site/editor/vkeys.js";
 
 const keys = ROWS.flat();
 const byCode = new Map(keys.map((k) => [k.code, k]));
@@ -21,6 +21,16 @@ test("all 37 Zhuyin symbols and 5 tone marks appear exactly once", () => {
   const symbols = keys.map((k) => k.zhuyin).filter(Boolean).sort();
   const expected = [..."ㄅㄆㄇㄈㄉㄊㄋㄌㄍㄎㄏㄐㄑㄒㄓㄔㄕㄖㄗㄘㄙㄧㄨㄩㄚㄛㄜㄝㄞㄟㄠㄡㄢㄣㄤㄥㄦ", "ˇ", "ˋ", "ˊ", "˙"].sort();
   assert.deepEqual(symbols, expected);
+});
+
+test("rows match the iOS Zhuyin keyboard", () => {
+  const zhuyin = (r) => r.map((k) => k.zhuyin ?? k.special).join("");
+  assert.deepEqual(ROWS.map((r) => r.length), [11, 10, 10, 11, 3]);
+  assert.equal(INDENT.length, ROWS.length);
+  assert.equal(zhuyin(ROWS[0]), "ㄅㄉˇˋㄓˊ˙ㄚㄞㄢㄦ");
+  assert.equal(zhuyin(ROWS[1]), "ㄆㄊㄍㄐㄔㄗㄧㄛㄟㄣ");
+  assert.equal(zhuyin(ROWS[2]), "ㄇㄋㄎㄑㄕㄘㄨㄜㄠㄤ");
+  assert.equal(zhuyin(ROWS[3]), "ㄈㄌㄏㄒㄖㄙㄩㄝㄡㄥbackspace");
 });
 
 test("Zhuyin leads in Chinese mode; Shift or English shows Latin", () => {

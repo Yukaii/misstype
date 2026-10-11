@@ -73,7 +73,7 @@ been driven in a browser yet.
 ## On-screen keyboard
 
 Touch devices without a keyboard (`(pointer: coarse) and (hover: none)`) get
-a mini QWERTY with a number row (`keyboard.js`, layout and cap labels in
+a Zhuyin keyboard laid out like iOS's (rows of 11, 10, 10 and 11 keys, rows two and three staggered, Shift / space / Enter below; `keyboard.js`, layout and cap labels in
 `vkeys.js`, tested by `tests/editor_vkeys_test.mjs`). Keys carry the standard
 Zhuyin layout: Zhuyin large with the Latin letter as a corner hint. Holding
 Shift (second thumb) swaps the caps to uppercase letters and shifted symbols;
