@@ -39,7 +39,12 @@ for _ in $(seq 100); do ibus list-engine >/dev/null 2>&1 && break; sleep 0.2; do
 
 "$ROOT/build/ibus/ibus-engine-misstype" &
 engine_pid=$!
-sleep 1
-kill -0 "$engine_pid" || { echo "the misstype engine exited" >&2; exit 1; }
+# Registration with the daemon is asynchronous (slow on Fedora): poll until it
+# accepts the engine instead of sleeping a fixed time.
+for _ in $(seq 100); do
+    kill -0 "$engine_pid" 2>/dev/null || { echo "the misstype engine exited" >&2; exit 1; }
+    ibus engine misstype >/dev/null 2>&1 && break
+    sleep 0.2
+done
 
 "$ROOT/build/ibus/test-misstype-ibus"
