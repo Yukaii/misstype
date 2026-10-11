@@ -4,7 +4,7 @@
 
   <h1>Misstype (隨打注音)</h1>
 
-  <p>A Zhuyin input method with optional tones and automatic typo repair.<br>Zig core · macOS (IMK) and Linux (fcitx5) · offline · MIT</p>
+  <p>A Zhuyin input method with optional tones and automatic typo repair.<br>Zig core · macOS (IMK) and Linux (fcitx5, IBus) · offline · MIT</p>
 
   <p>
   <a href="https://github.com/Yukaii/misstype/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Yukaii/misstype/actions/workflows/ci.yml/badge.svg"></a>
@@ -128,6 +128,7 @@ Key bindings and behavior (continuous typing, candidates, symbols, user dictiona
 | `core-zig/` | The single decoder and editing `Session`, exposed through a C ABI and a wasm32-wasi build |
 | `Sources/` | macOS only: IMK adapter, Settings UI, installer (no decoding rules) |
 | `linux/fcitx5/` | fcitx5 addon and GTK dictionary editor over the same core |
+| `linux/ibus/` | IBus engine and settings window over the same core |
 | `packages/misstype-wasm/` | npm browser bindings |
 | `src/misstype/` | Python capture/touch prototype (reference for touch semantics only) |
 | `tests/`, `tools/` | Golden files, replay fixtures, measurement scripts |
@@ -140,7 +141,7 @@ Misstype's own code is **MIT** (see [`LICENSE`](LICENSE)). Third-party code and
 dictionary data keep their own licenses: McBopomofo (MIT), libtabe (BSD-style),
 the National Academy for Educational Research word-frequency table (CC BY 4.0),
 and the English word list (CC BY-SA 4.0); the macOS build uses Sparkle and the
-Linux build links fcitx5. See [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)
+Linux builds link fcitx5 or IBus. See [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)
 for sources, licenses and where each applies.
 
 The demo video's narration and background music (`video/public/voice/`,

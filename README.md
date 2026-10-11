@@ -4,7 +4,7 @@
 
   <h1>隨打注音 (Misstype)</h1>
 
-  <p>免聲調、自動修正的注音輸入法。<br>Zig 核心 · macOS (IMK) 與 Linux (fcitx5) · 離線 · MIT</p>
+  <p>免聲調、自動修正的注音輸入法。<br>Zig 核心 · macOS (IMK) 與 Linux (fcitx5、IBus) · 離線 · MIT</p>
 
   <p>
   <a href="https://github.com/Yukaii/misstype/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Yukaii/misstype/actions/workflows/ci.yml/badge.svg"></a>
@@ -127,6 +127,7 @@ Arch Linux 也可用 `linux/aur-ibus/PKGBUILD` 自行 `makepkg -si`（`ibus-miss
 | `core-zig/` | 唯一的解碼與編輯 `Session` 實作，透過 C ABI 與 wasm32-wasi 對外 |
 | `Sources/` | 僅 macOS：IMK 轉接層、設定介面、安裝程式（不含解碼規則） |
 | `linux/fcitx5/` | 共用同一核心的 fcitx5 外掛與 GTK 詞庫編輯器 |
+| `linux/ibus/` | 共用同一核心的 IBus 引擎與設定視窗 |
 | `packages/misstype-wasm/` | npm 瀏覽器綁定 |
 | `src/misstype/` | Python 捕捉／觸控原型（僅作為觸控語意的參考） |
 | `tests/`、`tools/` | Golden 檔、重播測試資料、量測腳本 |
@@ -136,6 +137,6 @@ Arch Linux 也可用 `linux/aur-ibus/PKGBUILD` 自行 `makepkg -si`（`ibus-miss
 ## 授權條款
 
 Misstype 自有程式碼採用 **MIT 授權條款**（詳見 [`LICENSE`](LICENSE)）。
-第三方程式碼與詞庫依各自授權：小麥注音為 MIT、libtabe 為 BSD 風格授權、國家教育研究院詞頻資料為 CC BY 4.0、英文詞表為 CC BY-SA 4.0；macOS 使用 Sparkle，Linux 連結 fcitx5。完整來源、授權及適用範圍見 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。
+第三方程式碼與詞庫依各自授權：小麥注音為 MIT、libtabe 為 BSD 風格授權、國家教育研究院詞頻資料為 CC BY 4.0、英文詞表為 CC BY-SA 4.0；macOS 使用 Sparkle，Linux 連結 fcitx5 或 IBus。完整來源、授權及適用範圍見 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。
 
 示範影片的旁白與背景音樂（`video/public/voice/`、`video/public/music/`、`site/media/demo*.mp4`）**不是** MIT：它們由 ElevenLabs 免費方案生成，僅限非商業用途，並須標示 ElevenLabs 的出處。詳見同一份授權清單。
