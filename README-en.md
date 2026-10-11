@@ -94,6 +94,12 @@ Restart fcitx5 after installation and add **Misstype** in `fcitx5-configtool`.
 See [package build, activation and removal](docs/arch-linux.md) for details;
 the recipe lives in `linux/aur/PKGBUILD`.
 
+For prebuilt, release-pinned **x86_64** packages, use `yay -S fcitx5-misstype-bin`
+(or `yay -S ibus-misstype-bin` for IBus) after their initial AUR publication.
+These download the release binary without compiling Zig/C++; `-git` continues
+to build latest upstream source. Until publication, the binary recipes can be
+installed with `makepkg -si`. See [binary installation and status](docs/arch-linux.md#prebuilt-release-packages--bin).
+
 #### IBus (experimental)
 
 On IBus desktops (GNOME, for example) you can use the IBus engine instead. It shares the same core and ships a settings window (the Preferences button in `ibus-setup`, or run `/usr/libexec/ibus-setup-misstype`); settings are the same `misstype.conf` the fcitx5 addon uses and apply immediately. Do not install it next to the fcitx5 package. Releases attach `MisstypeIBus-*` packages (Ubuntu 24.04 `.deb`, Fedora `.rpm`, Arch `.pkg.tar.zst`) for versions after v0.0.1; download from the [latest Release](https://github.com/Yukaii/misstype/releases/latest), for example:

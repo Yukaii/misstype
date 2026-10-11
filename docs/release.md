@@ -97,8 +97,13 @@ The `linux` job builds, installs and removes native packages per distro
 (`script/linux/release_container.sh`) for the fcitx5 addon (`Misstype-<v>-…`)
 and for the IBus engine (`MisstypeIBus-<v>-…`: `.deb`, `.rpm`, Arch
 `.pkg.tar.zst`, plus `.sha256`). The two conflict with each other, so the
-container installs and removes them one at a time. The AUR job still
-synchronizes only `fcitx5-misstype-git`.
+container installs and removes them one at a time. After stable publication,
+the AUR jobs synchronize VCS recipes (IBus requires initial authorization) and
+generate release-pinned `fcitx5-misstype-bin` / `ibus-misstype-bin` recipes from
+the published Arch x86_64 assets. Binary publication requires per-package
+initial authorization; checksums/provenance and current-Arch install/remove
+checks run before pushing. A daily binary compatibility check detects rolling
+Arch library changes. Setup: [binary AUR publication](arch-linux.md#binary-publication-and-rolling-arch-compatibility).
 
 ## Cutting a release
 

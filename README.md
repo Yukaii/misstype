@@ -93,6 +93,11 @@ yay -S fcitx5-misstype-git
 
 這是從最新上游 Git 原始碼建置的套件，不固定於某個發布版本。安裝後重新啟動 fcitx5，並在 `fcitx5-configtool` 中加入 **Misstype**。套件建置、啟用與移除方式請參閱 [安裝說明](docs/arch-linux.md)；套件配方位於 `linux/aur/PKGBUILD`。
 
+預編譯、固定發布版本的 **x86_64** 套件首次發布到 AUR 後，可用
+`yay -S fcitx5-misstype-bin`（IBus 桌面則選 `yay -S ibus-misstype-bin`）。
+`-bin` 直接下載發布檔，不需編譯 Zig/C++；`-git` 仍從最新原始碼建置。
+發布前可在二進位套件配方目錄用 `makepkg -si` 安裝；詳見[安裝與發布狀態](docs/arch-linux.md#prebuilt-release-packages--bin)。
+
 #### IBus（實驗性）
 
 使用 IBus 的桌面（如 GNOME）可改用 IBus 引擎，共用同一個核心，並附設定視窗（`ibus-setup` 的「偏好設定」按鈕，或直接執行 `/usr/libexec/ibus-setup-misstype`）；設定與 fcitx5 版是同一份 `misstype.conf`，修改後立即生效。IBus 版與 fcitx5 套件不能同時安裝。發布流程會另外附上 `MisstypeIBus-*` 套件（Ubuntu 24.04 `.deb`、Fedora `.rpm`、Arch `.pkg.tar.zst`），v0.0.1 之後的版本才有；從[最新 Release](https://github.com/Yukaii/misstype/releases/latest)下載後，例如：

@@ -237,6 +237,24 @@ jobs:
           security delete-keychain "$RUNNER_TEMP/signing.keychain-db" 2>/dev/null || true
           rm -f "$RUNNER_TEMP/notary.p8" "$RUNNER_TEMP/sparkle_ed.key"
 
+  aur-bin:
+    name: Verify and synchronize binary AUR packaging
+    needs: release
+    if: >-
+      github.repository == 'Yukaii/misstype' &&
+      (github.event_name == 'push' || inputs.publish) &&
+      startsWith(github.ref, 'refs/tags/v') &&
+      !contains(github.ref_name, '-')
+    permissions:
+      contents: read
+    uses: ./.github/workflows/aur-bin.yml
+    with:
+      tag: ${{ github.ref_name }}
+      publish: true
+    secrets:
+      AUR_MAINTAINER: ${{ secrets.AUR_MAINTAINER }}
+      AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+
   aur:
     name: Synchronize AUR packaging
     needs: release

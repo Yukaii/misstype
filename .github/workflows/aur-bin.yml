@@ -1,0 +1,157 @@
+name: AUR binaries
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        required: true
+      publish:
+        type: boolean
+        default: false
+    secrets:
+      AUR_MAINTAINER:
+        required: true
+      AUR_SSH_PRIVATE_KEY:
+        required: true
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published stable release tag (blank uses the recipe version)
+        type: string
+        default: ''
+      publish:
+        description: Push to AUR (dispatch at the same stable release tag)
+        type: boolean
+        default: false
+      publish_fcitx5_bin:
+        description: Authorize the first fcitx5-misstype-bin publication
+        type: boolean
+        default: false
+      publish_ibus_bin:
+        description: Authorize the first ibus-misstype-bin publication
+        type: boolean
+        default: false
+  push:
+    paths: ['linux/aur-*-bin/**', 'script/linux/*aur_bin*', 'script/linux/publish_aur.sh', 'tests/test_aur_bin.py', 'tests/aur-bin/**', '.github/workflows/aur-bin.yml']
+  pull_request:
+    paths: ['linux/aur-*-bin/**', 'script/linux/*aur_bin*', 'script/linux/publish_aur.sh', 'tests/test_aur_bin.py', 'tests/aur-bin/**', '.github/workflows/aur-bin.yml']
+  # Detect rolling Arch ABI changes against the latest published stable release.
+  schedule:
+    - cron: '23 7 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - package: fcitx5-misstype-bin
+            recipe: linux/aur-fcitx5-bin
+            prefix: Misstype
+          - package: ibus-misstype-bin
+            recipe: linux/aur-ibus-bin
+            prefix: MisstypeIBus
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Download and verify published release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+          RECIPE: ${{ matrix.recipe }}
+          PREFIX: ${{ matrix.prefix }}
+        run: |
+          python3 tests/test_aur_bin.py
+          python3 tests/test_aur_publish.py
+          if [[ "$GITHUB_EVENT_NAME" == schedule ]]; then
+            TAG=$(gh release view --repo Yukaii/misstype --json tagName --jq .tagName)
+          elif [[ -z $TAG ]]; then
+            TAG=v$(sed -n 's/^pkgver=//p' "$RECIPE/PKGBUILD")
+          fi
+          [[ $TAG =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ $(gh release view "$TAG" --repo Yukaii/misstype --json isDraft,isPrerelease --jq '(.isDraft == false and .isPrerelease == false)') == true ]]
+          mkdir -p "$RUNNER_TEMP/assets" "$RUNNER_TEMP/aur-package"
+          asset="$PREFIX-${TAG#v}-arch-x86_64.pkg.tar.zst"
+          gh release download "$TAG" --repo Yukaii/misstype --pattern "$asset*" --dir "$RUNNER_TEMP/assets"
+          if [[ $(gh api repos/Yukaii/misstype --jq .visibility) == public ]]; then
+            gh attestation verify "$RUNNER_TEMP/assets/$asset" --repo Yukaii/misstype --signer-workflow Yukaii/misstype/.github/workflows/release.yml --source-ref "refs/tags/$TAG"
+          fi
+          python3 script/linux/prepare_aur_bin.py "$RECIPE" "$RUNNER_TEMP/assets" "$TAG" "$RUNNER_TEMP/aur-package"
+          cp LICENSE "$RUNNER_TEMP/aur-package/"
+      - name: Repackage, install and check on current Arch without credentials
+        env:
+          AUR_MAINTAINER: ${{ secrets.AUR_MAINTAINER }}
+          RECIPE: ${{ matrix.recipe }}
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          path = Path(os.environ['RUNNER_TEMP']) / 'aur-package/PKGBUILD'
+          maintainer = os.environ['AUR_MAINTAINER']
+          if '\n' in maintainer or '\r' in maintainer:
+              raise SystemExit('AUR_MAINTAINER must be a single line')
+          if maintainer:
+              path.write_text('# Maintainer: ' + maintainer + '\n' + path.read_text())
+          PY
+          docker run --rm -v "$PWD:/src:ro" -v "$RUNNER_TEMP/aur-package:/package" \
+            -v "$RUNNER_TEMP/assets:/assets:ro" archlinux:base \
+            bash /src/script/linux/test_aur_bin.sh /package /assets /src
+          # Branch previews use the committed version; release jobs generate newer metadata.
+          if [[ ( "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF" != refs/tags/* ) || "$GITHUB_EVENT_NAME" == pull_request ]]; then
+            diff -u "$RECIPE/.SRCINFO" "$RUNNER_TEMP/aur-package/.SRCINFO"
+          fi
+          printf '### Binary AUR verification\n\n${{ matrix.package }}: checksum/provenance verified; current Arch repackaging, payload comparison, library resolution, installed C ABI, adapter conformance and install/remove checks passed. Only test drivers compile, never Zig or the adapter.\n' >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: aur-package-${{ matrix.package }}
+          path: ${{ runner.temp }}/aur-package/
+          include-hidden-files: true
+          retention-days: 7
+
+  publish:
+    needs: prepare
+    if: >-
+      github.repository == 'Yukaii/misstype' &&
+      startsWith(github.ref, 'refs/tags/v') &&
+      !contains(github.ref_name, '-') &&
+      inputs.tag == github.ref_name &&
+      inputs.publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [fcitx5-misstype-bin, ibus-misstype-bin]
+    concurrency:
+      group: aur-${{ matrix.package }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: aur-package-${{ matrix.package }}
+          path: ${{ runner.temp }}/aur-package
+      - name: Synchronize binary packaging to AUR
+        if: >-
+          (matrix.package == 'fcitx5-misstype-bin' &&
+            (vars.AUR_FCITX5_BIN_PUBLISHED == 'true' ||
+             (github.event_name == 'workflow_dispatch' && inputs.publish_fcitx5_bin))) ||
+          (matrix.package == 'ibus-misstype-bin' &&
+            (vars.AUR_IBUS_BIN_PUBLISHED == 'true' ||
+             (github.event_name == 'workflow_dispatch' && inputs.publish_ibus_bin)))
+        env:
+          AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+          AUR_MAINTAINER: ${{ secrets.AUR_MAINTAINER }}
+          GH_TOKEN: ${{ github.token }}
+        run: bash script/linux/publish_aur.sh "$RUNNER_TEMP/aur-package" "${{ matrix.package }}"

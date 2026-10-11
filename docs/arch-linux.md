@@ -42,6 +42,117 @@ passed on 2026-10-11, including `check()` (Zig ReleaseFast tests and C ABI
 smoke test). See the verification record below; desktop acceptance is still
 open.
 
+## Prebuilt release packages (`-bin`)
+
+The recipes in `linux/aur-fcitx5-bin` and `linux/aur-ibus-bin` repackage
+checksum-pinned GitHub Release assets without compiling Zig or the adapter.
+They support **x86_64 only**; the `-git` recipes remain the source-build option.
+Choose one frontend: all variants conflict because they share the core, data
+and CLI. After the maintainer's initial AUR publication, install with:
+
+```sh
+yay -S fcitx5-misstype-bin     # Arch / Omarchy, fcitx5
+yay -S ibus-misstype-bin       # IBus desktop; choose this instead
+```
+
+Until those names are published, use `makepkg -si` in the corresponding recipe
+directory, or download the native Arch asset from the latest Release and use
+`pacman -U`. Restart your input framework and follow the activation and desktop
+spot checks below. Remove with `pacman -Rns fcitx5-misstype-bin` (or
+`ibus-misstype-bin`); personal learning data stays in your home directory.
+
+Hypothesis: repackaging the tested release payload gives the same offline IME
+without a user-side compiler/toolchain download. The smallest falsification is
+`script/linux/test_aur_bin.sh` in a disposable current Arch container: makepkg,
+payload-path comparison, pacman install/remove, every ELF's `ldd`, the installed
+C ABI/session smoke fixture, CLI tests and frontend headless conformance. CI
+compiles only the test drivers, never the installed core or adapter. Only the license-directory package
+name changes; the executables, data and addon are unchanged. Decoding quality
+and per-key latency are therefore unchanged by packaging.
+
+### Binary publication and rolling-Arch compatibility
+
+Release calls `.github/workflows/aur-bin.yml` **after** publishing a stable
+release. Preparation downloads each asset and `.sha256`, verifies the checksum
+and (for a public upstream) GitHub provenance from `release.yml` at that tag,
+updates `pkgver`/checksum, and generates `.SRCINFO` with makepkg. The preview
+artifact contains the exact AUR files. PKGBUILD execution and installation run
+in a container without AUR credentials; only the publisher receives the SSH key.
+The committed recipes are a reproducible v0.4.2 baseline; later versions and
+checksums are generated in the preview/AUR repository, without committing
+version-only updates upstream.
+
+The AUR account/key must own or be able to create **each** binary package base.
+Reuse `AUR_MAINTAINER` and `AUR_SSH_PRIVATE_KEY` from the VCS setup. First
+publication requires an explicit manual dispatch at a published stable tag
+containing this workflow, with the matching `tag` input:
+
+```sh
+# Replace vX.Y.Z with a published stable tag containing aur-bin.yml.
+gh workflow run aur-bin.yml --repo Yukaii/misstype --ref vX.Y.Z \
+  -f tag=vX.Y.Z -f publish=true -f publish_fcitx5_bin=true -f publish_ibus_bin=true
+```
+
+After confirming each package on AUR, set repository Actions variables
+`AUR_FCITX5_BIN_PUBLISHED=true` and `AUR_IBUS_BIN_PUBLISHED=true` separately.
+Future stable releases then synchronize them automatically. Branch pushes,
+PRs and ordinary manual dispatches only verify/upload previews. Retry with the
+same command and `publish=true`, omitting first-publication flags after setup.
+Artifact-only releases and prereleases cannot publish binary AUR packages.
+The publisher refuses to downgrade an existing AUR version or `pkgrel`, so an
+older release retry cannot overwrite a newer release or maintainer rebuild.
+
+A daily scheduled run downloads the latest stable release and installs it on
+fully updated Arch, checking library resolution, installed-core fixtures and
+headless conformance against the installed frontend.
+Failures appear in Actions and its normal workflow notifications; they never
+publish packages. Maintainers should triage an ABI failure within one day and
+cut a new patch release against current Arch before recommending `-bin` again.
+Published assets are immutable: never replace them or move the tag. Users can
+use `-git` to rebuild against current libraries while awaiting that release.
+This monitor does not replace Omarchy/GNOME desktop acceptance.
+
+### Binary verification record (2026-10-11)
+
+Both v0.4.2 Arch release assets passed SHA-256 and GitHub attestation verification
+(upstream `release.yml`, source ref `refs/tags/v0.4.2`). In separate fresh rootless
+Podman containers based on `archlinux:base-devel`, updated with `pacman -Syu`:
+
+- `makepkg --cleanbuild --force` repackaged each asset as `0.4.2-1` with no Zig
+  download or core/adapter compilation. Generated `.SRCINFO` matches both
+  committed recipes.
+- `pacman -Qkk`: fcitx5 88 files, IBus 84 files, **0 altered files**. Payload
+  lists match the source-built release packages after renaming the license
+  directory. Install and `pacman -Rns` removal passed for both.
+- `ldd` resolves all shipped ELF binaries/libraries. The fcitx5 addon links
+  `libFcitx5{Core,Config,Utils}`, the private core, C++/GCC and libc runtimes;
+  IBus links `libibus`, GLib/GObject/GIO and the same core/runtimes. GTK tools
+  link GTK4/GLib (optional for fcitx5, required for IBus). The core and CLI
+  require libc, not Swift or libcurl. Transitive libraries' Arch owners are
+  recorded in the test log.
+- Installed C ABI smoke fixture passed; each installed CLI passed 11 tests.
+  Test-only drivers against installed release addons passed: fcitx5 reports
+  all 19 scenarios; IBus reports C1–C15 and LR1–LR5, `IBUS OK`.
+- Python suite: 85 tests, one macOS-only skip. Focused pinning/publisher tests,
+  shellcheck on the packaging scripts and actionlint on `aur-bin.yml` passed.
+  Release workflow structure validates with actionlint's shellcheck disabled;
+  its pre-existing macOS keychain script has an unrelated SC2046 warning.
+
+To replay after downloading the two Arch assets and `.sha256` files:
+
+```sh
+python3 script/linux/prepare_aur_bin.py linux/aur-fcitx5-bin /path/to/assets v0.4.2 /path/to/prepared-fcitx5
+python3 script/linux/prepare_aur_bin.py linux/aur-ibus-bin /path/to/assets v0.4.2 /path/to/prepared-ibus
+# Repeat with prepared-ibus for the other frontend. No host sudo is needed.
+podman run --rm --user root -v "$PWD:/src:ro" \
+  -v /path/to/prepared-fcitx5:/package -v /path/to/assets:/assets:ro \
+  docker.io/library/archlinux:base-devel \
+  bash /src/script/linux/test_aur_bin.sh /package /assets /src
+```
+
+The first upstream workflow/AUR push and Omarchy/GNOME desktop activation,
+candidate placement and typing spot checks remain maintainer/manual acceptance.
+
 ## Quick install from a checkout
 
 For testing a branch on your own desktop, from the repository root:

@@ -6,7 +6,7 @@ name=${2:-fcitx5-misstype-git}
 files=(PKGBUILD .SRCINFO LICENSE)
 case $name in
 fcitx5-misstype-git) files+=(cxx20.patch) ;;
-ibus-misstype-git) ;;
+ibus-misstype-git|fcitx5-misstype-bin|ibus-misstype-bin) ;;
 *) echo "Unsupported AUR package: $name" >&2; exit 1 ;;
 esac
 : "${AUR_SSH_PRIVATE_KEY:?Set repository secret AUR_SSH_PRIVATE_KEY}"
@@ -32,6 +32,13 @@ if [[ $GITHUB_REF == refs/tags/* ]]; then
         exit 1
     }
 fi
+if [[ $name == *-bin ]]; then
+    [[ $GITHUB_REF =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+        echo 'Binary AUR publication requires a stable release tag.' >&2
+        exit 1
+    }
+    [[ $(grep '^[[:space:]]*pkgver = ' "$package/.SRCINFO" | xargs) == "pkgver = ${GITHUB_REF#refs/tags/v}" ]]
+fi
 for file in "${files[@]}"; do
     [[ -f $package/$file && ! -L $package/$file ]]
 done
@@ -55,6 +62,25 @@ unset AUR_SSH_PRIVATE_KEY
 printf -v GIT_SSH_COMMAND 'ssh -i %q -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=%q' "$work/key" "$work/known_hosts"
 export GIT_SSH_COMMAND
 git clone "ssh://aur@aur.archlinux.org/$name.git" "$work/repo"
+if [[ $name == *-bin && -f $work/repo/.SRCINFO ]]; then
+    # An older Release retry must not undo a newer release or maintainer rebuild.
+    python3 - "$work/repo/.SRCINFO" "$package/.SRCINFO" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+def version(path):
+    text = Path(path).read_text()
+    ver = re.search(r'^\s*pkgver = ([0-9]+)\.([0-9]+)\.([0-9]+)$', text, re.M)
+    rel = re.search(r'^\s*pkgrel = ([0-9]+)$', text, re.M)
+    if not ver or not rel:
+        raise SystemExit('Cannot compare binary AUR release metadata')
+    return tuple(map(int, ver.groups())) + (int(rel[1]),)
+
+if version(sys.argv[2]) < version(sys.argv[1]):
+    raise SystemExit('Refusing to downgrade the binary AUR package')
+PY
+fi
 for file in "${files[@]}"; do
     install -m644 "$package/$file" "$work/repo/$file"
 done

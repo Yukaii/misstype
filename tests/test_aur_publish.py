@@ -91,6 +91,22 @@ ssh-keyscan() { echo 'TEST: reached SSH boundary' >&2; return 73; }
         self.assertEqual(result.returncode, 73)
         self.assertIn("TEST: reached SSH boundary", result.stderr)
 
+    def test_binary_packages_require_matching_published_release_tag(self):
+        for name in ("fcitx5-misstype-bin", "ibus-misstype-bin"):
+            (self.package / ".SRCINFO").write_text(
+                f"pkgbase = {name}\n\tpkgver = 0.4.2\npkgname = {name}\n"
+            )
+            for ref, published, expected in (
+                ("refs/heads/main", "true", 1),
+                ("refs/tags/v0.4.1", "true", 1),
+                ("refs/tags/v0.4.2", "false", 1),
+                ("refs/tags/v0.4.2", "true", 73),
+            ):
+                with self.subTest(name=name, ref=ref, published=published):
+                    result = self.run_publisher(name=name, GITHUB_REF=ref, TEST_RELEASE_PUBLISHED=published)
+                    self.assertEqual(result.returncode, expected, result.stderr)
+                    self.assertEqual("SSH boundary" in result.stderr, expected == 73)
+
     def test_unsupported_name_and_mismatched_metadata_never_reach_ssh(self):
         for name in ("../other", "unknown-package", "ibus-misstype-git"):
             with self.subTest(name=name):
@@ -111,7 +127,11 @@ ssh-keyscan() { echo 'TEST: reached SSH boundary' >&2; return 73; }
 git() {
     printf '%s\\n' "$*" >> "$TEST_GIT_LOG"
     if [[ $1 == rev-parse ]]; then printf '%s\\n' "$TEST_CHECKOUT_SHA";
-    elif [[ $1 == clone ]]; then mkdir -p "$3";
+    elif [[ $1 == clone ]]; then
+        mkdir -p "$3"
+        if [[ -n ${TEST_REMOTE_VERSION:-} ]]; then
+            printf '\tpkgver = %s\n\tpkgrel = %s\n' "$TEST_REMOTE_VERSION" "$TEST_REMOTE_PKGREL" > "$3/.SRCINFO"
+        fi
     elif [[ $3 == diff && $4 == --cached && $5 == --quiet ]]; then
         return "$TEST_DIFF_STATUS"
     fi
@@ -124,8 +144,10 @@ ssh-keygen() { echo '256 SHA256:RFzBCUItH9LZS0cKB5UE6ceAYhBD5C8GeOBip8Z11+4 test
         for name, files in (
             ("fcitx5-misstype-git", "PKGBUILD .SRCINFO LICENSE cxx20.patch"),
             ("ibus-misstype-git", "PKGBUILD .SRCINFO LICENSE"),
+            ("fcitx5-misstype-bin", "PKGBUILD .SRCINFO LICENSE"),
+            ("ibus-misstype-bin", "PKGBUILD .SRCINFO LICENSE"),
         ):
-            (self.package / ".SRCINFO").write_text(f"pkgbase = {name}\npkgname = {name}\n")
+            (self.package / ".SRCINFO").write_text(f"pkgbase = {name}\n\tpkgver = 0.4.2\n\tpkgrel = 1\npkgname = {name}\n")
             for changed in (False, True):
                 with self.subTest(name=name, changed=changed):
                     log = work / f"{name}-{changed}.log"
@@ -134,6 +156,7 @@ ssh-keygen() { echo '256 SHA256:RFzBCUItH9LZS0cKB5UE6ceAYhBD5C8GeOBip8Z11+4 test
                         name=name, TEST_GIT_LOG=str(log),
                         TEST_DIFF_STATUS=str(int(changed)),
                         GITHUB_STEP_SUMMARY=str(summary),
+                        GITHUB_REF="refs/tags/v0.4.2" if name.endswith("-bin") else "refs/heads/main",
                     )
                     self.assertEqual(result.returncode, 0, result.stderr)
                     commands = log.read_text()
@@ -143,6 +166,21 @@ ssh-keygen() { echo '256 SHA256:RFzBCUItH9LZS0cKB5UE6ceAYhBD5C8GeOBip8Z11+4 test
                     self.assertNotIn("--force", commands)
                     if changed:
                         self.assertIn(f"https://aur.archlinux.org/packages/{name}", summary.read_text())
+            if name.endswith("-bin"):
+                for version, pkgrel in (("0.4.3", "1"), ("0.4.2", "2")):
+                    with self.subTest(name=name, remote_version=version, pkgrel=pkgrel):
+                        log = work / "downgrade.log"
+                        if log.exists():
+                            log.unlink()
+                        result = self.run_publisher(
+                            name=name, GITHUB_REF="refs/tags/v0.4.2",
+                            TEST_GIT_LOG=str(log), TEST_DIFF_STATUS="1",
+                            TEST_REMOTE_VERSION=version, TEST_REMOTE_PKGREL=pkgrel,
+                            GITHUB_STEP_SUMMARY=str(work / "summary"),
+                        )
+                        self.assertEqual(result.returncode, 1)
+                        self.assertIn("Refusing to downgrade", result.stderr)
+                        self.assertNotIn("push origin", log.read_text())
 
     def test_missing_or_symlinked_payload_never_reaches_ssh(self):
         license = self.package / "LICENSE"
