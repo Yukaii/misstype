@@ -18,9 +18,9 @@ class BinaryRecipeTests(unittest.TestCase):
         self.work = Path(self.temp.name)
         self.output = self.work / "output"
 
-    def asset(self, prefix="Misstype"):
-        name = f"{prefix}-1.2.3-arch-x86_64.pkg.tar.zst"
-        payload = b"synthetic release payload"
+    def asset(self, prefix="Misstype", arch="x86_64"):
+        name = f"{prefix}-1.2.3-arch-{arch}.pkg.tar.zst"
+        payload = b"synthetic release payload " + arch.encode()
         (self.work / name).write_bytes(payload)
         digest = hashlib.sha256(payload).hexdigest()
         checksum = self.work / (name + ".sha256")
@@ -34,10 +34,39 @@ class BinaryRecipeTests(unittest.TestCase):
                 module.prepare(ROOT / f"linux/aur-{flavor}-bin", self.work, "v1.2.3", self.output)
                 text = (self.output / "PKGBUILD").read_text()
                 self.assertIn("pkgver=1.2.3\npkgrel=1", text)
-                self.assertIn(f"sha256sums=('{digest}')", text)
+                self.assertIn(f"sha256sums_x86_64=('{digest}')", text)
                 self.assertNotIn("makedepends=", text)
                 self.assertNotIn("build()", text)
                 self.assertNotIn("SKIP", text)
+
+    def test_aarch64_asset_is_pinned_when_published(self):
+        for flavor, prefix in (("fcitx5", "Misstype"), ("ibus", "MisstypeIBus")):
+            with self.subTest(flavor=flavor):
+                _, x86, _ = self.asset(prefix)
+                name, arm, checksum = self.asset(prefix, "aarch64")
+                module.prepare(ROOT / f"linux/aur-{flavor}-bin", self.work, "v1.2.3", self.output)
+                text = (self.output / "PKGBUILD").read_text()
+                self.assertIn("arch=('x86_64' 'aarch64')", text)
+                self.assertIn(f"sha256sums_x86_64=('{x86}')", text)
+                self.assertIn(f"sha256sums_aarch64=('{arm}')", text)
+                self.assertNotIn("0" * 64, text)
+
+    def test_release_without_aarch64_asset_drops_the_architecture(self):
+        self.asset()
+        module.prepare(ROOT / "linux/aur-fcitx5-bin", self.work, "v1.2.3", self.output)
+        text = (self.output / "PKGBUILD").read_text()
+        self.assertIn("arch=('x86_64')\n", text)
+        self.assertNotIn("source_aarch64", text)
+        self.assertNotIn("sha256sums_aarch64", text)
+        self.assertNotIn("Placeholder", text)
+
+    def test_corrupt_aarch64_payload_fails_even_when_x86_64_is_valid(self):
+        self.asset()
+        name, _, checksum = self.asset(arch="aarch64")
+        checksum.write_text(f"{'0' * 64}  {name}\n")
+        with self.assertRaises(ValueError):
+            module.prepare(ROOT / "linux/aur-fcitx5-bin", self.work, "v1.2.3", self.output)
+        self.assertFalse(self.output.exists())
 
     def test_corrupt_payload_wrong_filename_and_malformed_checksum_fail(self):
         name, digest, checksum = self.asset()

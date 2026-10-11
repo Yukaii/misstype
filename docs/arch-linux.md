@@ -46,7 +46,10 @@ open.
 
 The recipes in `linux/aur-fcitx5-bin` and `linux/aur-ibus-bin` repackage
 checksum-pinned GitHub Release assets without compiling Zig or the adapter.
-They support **x86_64 only**; the `-git` recipes remain the source-build option.
+They support **x86_64** and, for releases that publish
+`…-arch-aarch64.pkg.tar.zst` assets, **aarch64** (Arch Linux ARM, Omarchy ARM).
+Earlier releases are x86_64 only, and the generated recipe then lists only
+`x86_64`; the `-git` recipes remain the source-build option.
 Choose one frontend: all variants conflict because they share the core, data
 and CLI. After the maintainer's initial AUR publication, install with:
 
@@ -102,8 +105,15 @@ Artifact-only releases and prereleases cannot publish binary AUR packages.
 The publisher refuses to downgrade an existing AUR version or `pkgrel`, so an
 older release retry cannot overwrite a newer release or maintainer rebuild.
 
+The aarch64 asset is built by the `Linux package (arch-aarch64)` release leg on
+an `ubuntu-24.04-arm` runner inside the official Arch Linux ARM rootfs (imported
+as a Docker image; ARM has no Docker Hub Arch image), and `aur-bin.yml` verifies
+and installs it there with the same `test_aur_bin.sh`. That path has not yet run
+in CI: the first release after it merges is its test. The ARM runner needs
+GitHub's arm64 runner availability for this repository.
+
 A daily scheduled run downloads the latest stable release and installs it on
-fully updated Arch, checking library resolution, installed-core fixtures and
+fully updated Arch (both architectures when the release has them), checking library resolution, installed-core fixtures and
 headless conformance against the installed frontend.
 Failures appear in Actions and its normal workflow notifications; they never
 publish packages. Maintainers should triage an ABI failure within one day and

@@ -21,9 +21,10 @@ pkgbase = ibus-misstype-bin
 	conflicts = fcitx5-misstype-bin
 	conflicts = fcitx5-mistype-git
 	noextract = MisstypeIBus-0.4.2-arch-x86_64.pkg.tar.zst
+	noextract = MisstypeIBus-0.4.2-arch-aarch64.pkg.tar.zst
 	options = !strip
 	options = !debug
-	source = https://github.com/Yukaii/misstype/releases/download/v0.4.2/MisstypeIBus-0.4.2-arch-x86_64.pkg.tar.zst
-	sha256sums = ce40929f879c4bbc11d6f267aa262021db39379ea424bd4cf3d3bfe592baff15
+	source_x86_64 = https://github.com/Yukaii/misstype/releases/download/v0.4.2/MisstypeIBus-0.4.2-arch-x86_64.pkg.tar.zst
+	sha256sums_x86_64 = ce40929f879c4bbc11d6f267aa262021db39379ea424bd4cf3d3bfe592baff15
 
 pkgname = ibus-misstype-bin

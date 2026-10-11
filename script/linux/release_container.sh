@@ -19,6 +19,14 @@ ubuntu24.04)
     script/linux/package_deb.sh "$VERSION" ibus
     ;;
 arch)
+    if [[ $(uname -m) == aarch64 ]]; then
+        # Arch Linux ARM rootfs: trust its keyring, and skip free-space checks
+        # (no real disk behind the container) and the board kernel packages.
+        pacman-key --init
+        pacman-key --populate archlinuxarm
+        sed -i 's/^CheckSpace/#CheckSpace/' /etc/pacman.conf
+        pacman -Rdd --noconfirm linux-aarch64 linux-aarch64-headers 2>/dev/null || true
+    fi
     pacman -Syu --noconfirm --needed base-devel git cmake ninja python gtk4 fcitx5 fcitx5-configtool fcitx5-gtk fcitx5-qt ibus
     useradd -m builder
     chown -R builder:builder /w
