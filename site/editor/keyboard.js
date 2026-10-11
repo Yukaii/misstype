@@ -1,4 +1,4 @@
-// On-screen mini QWERTY with a number row, for touch devices that have no
+// On-screen Zhuyin keyboard (iOS layout), for touch devices that have no
 // physical keyboard. It only draws keys and reports presses; editor.js feeds
 // them through the same keydown path as a hardware keyboard, so the decoder,
 // settings and fall-through to ProseMirror behave identically.

@@ -142,6 +142,6 @@ the native macOS and Linux versions and the privacy note.
   Markdown shortcuts (`# `, `- `, `**bold**`) only trigger in English mode;
   the toolbar and palette work in either.
 - The Markdown schema has no strikethrough, tables or task lists.
-- The on-screen keyboard has no one-shot Shift (tap Shift then a letter) or number/symbol layers; Shift is hold-only because a tap is 中/英.
+- The on-screen keyboard has no one-shot Shift (tap Shift then a letter) or number/symbol layers; Shift is hold-only because a tap is 中/英. With no number row, digits and symbols are the top row's English-mode (or Shift) caps.
 - Not tried on a real iPad or in an installed home-screen app; the offline
   path is verified with Chromium only.

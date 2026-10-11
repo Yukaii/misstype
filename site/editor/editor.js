@@ -200,7 +200,7 @@ function keyUp(e) {
 
 // ------------------------------------------------------- virtual keyboard
 
-// Touch devices without a keyboard get an on-screen mini QWERTY. Its keys are
+// Touch devices without a keyboard get an on-screen Zhuyin keyboard. Its keys are
 // replayed as ordinary KeyboardEvents on the editor, so the decoder, settings
 // and ProseMirror's keymaps see exactly what a hardware keyboard would send.
 const vkEl = $("#vk");
