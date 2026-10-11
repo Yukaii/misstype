@@ -87,6 +87,10 @@ no browser default). With the keyboard up the candidates dock above it as one ro
 candidates that scrolls sideways (`.candidate-panel.docked`, as in the system
 candidate bar) instead of floating at the caret; the page arrows are hidden.
 The bar keeps its slot, so the stack is keyboard, candidate bar, status strip.
+A chevron at the bar's right end dismisses the keyboard (it commits the
+pre-edit and blurs the editor, text stays); the keyboard comes back when the
+editor takes focus again, and `inputmode="none"` stays so the system keyboard
+never appears in between.
 Keyboard taps keep the editor focused; a blur they cause never commits the
 pre-edit, so Shift behaves as on a hardware keyboard. A pressed key shows a preview bubble. The look follows
 the platform (`data-platform`, from the user agent): iOS-style keys by
