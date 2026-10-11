@@ -101,7 +101,11 @@ Key presses give a haptic tick (`haptics.js`, setting 按鍵震動回饋, defaul
 `<input type=checkbox switch>` clicked from the handler (undocumented; silent
 if unsupported). Neither has been felt on a real device yet.
 Settings → 螢幕鍵盤: auto (default), always, off. In auto the keyboard hides
-once a real key event arrives (iPad with a hardware keyboard).
+once a real key event arrives (iPad with a hardware keyboard), and that is
+remembered (`localStorage` `misstype-hardware-keyboard`) so it does not come
+back on the next load. Picking "auto" again in Settings forgets it. The very
+first visit still shows the keyboard until one real key is pressed: a page
+cannot ask whether a hardware keyboard is attached.
 Checked with the unit test and a production build only; not yet driven on a
 phone or in an emulator.
 
