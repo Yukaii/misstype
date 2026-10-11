@@ -186,7 +186,7 @@ dialog.sheet h3 span { margin-left: 6px; color: var(--muted); font-weight: norma
 .vk {
   --vk-bg: #d1d4db; --vk-key: #fff; --vk-key-alt: #acb3bf; --vk-text: #000; --vk-edge: #898a8d; --vk-press: #acb3bf;
   --vk-radius: 5px; --vk-gap: 6px; --vk-row-gap: 11px; --vk-h-key: 42px;
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; box-sizing: border-box;
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 32; box-sizing: border-box; /* above the docked candidate bar (31), so key bubbles of the top row draw over it */
   display: grid; gap: var(--vk-row-gap); padding: 8px max(3px, env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(3px, env(safe-area-inset-left));
   background: var(--vk-bg); color: var(--vk-text);
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Noto Sans TC", "PingFang TC", sans-serif;
