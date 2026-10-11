@@ -29,6 +29,13 @@ test("an empty note parses to one empty paragraph", () => {
   assert.equal(toMarkdown(doc), "");
 });
 
+test("empty paragraphs survive a round trip", () => {
+  const doc = parseMarkdown("a\n\n&nbsp;\n\n&nbsp;\n\nb");
+  assert.deepEqual(doc.content.content.map((n) => n.content.size), [1, 0, 0, 1]);
+  assert.equal(toMarkdown(doc), "a\n\n&nbsp;\n\n&nbsp;\n\nb");
+  assert.equal(toMarkdown(parseMarkdown(toMarkdown(doc))), toMarkdown(doc));
+});
+
 test("word count treats each Han character as a word", () => {
   assert.deepEqual(wordCount(parseMarkdown("你好 hello world")), { chars: 2, words: 2, total: 4 });
 });
