@@ -1,0 +1,32 @@
+name: Label issues
+
+# The bug form's Platform dropdown cannot set labels itself; map it here.
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  issues: write
+
+jobs:
+  platform:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Apply platform label from the form
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.issue.number }}
+          BODY: ${{ github.event.issue.body }}
+        run: |
+          # Issue forms render the answer under "### Platform".
+          answer=$(printf '%s\n' "$BODY" | awk '/^### Platform/{f=1;next} /^###/{f=0} f&&NF{print;exit}')
+          case "$answer" in
+            "macOS IME")      label=platform/macos ;;
+            "Linux fcitx5")   label=platform/linux-fcitx ;;
+            "Linux IBus")     label=platform/linux-ibus ;;
+            "Web / wasm")     label=platform/web ;;
+            "Touch prototype") label=platform/touch ;;
+            *) echo "no platform label for: '$answer'"; exit 0 ;;
+          esac
+          gh issue edit "$NUMBER" --add-label "$label"

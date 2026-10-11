@@ -10,7 +10,7 @@ body:
     id: platform
     attributes:
       label: Platform
-      options: [macOS IME, Linux fcitx5, Web / wasm, Touch prototype, Other]
+      options: [macOS IME, Linux fcitx5, Linux IBus, Web / wasm, Touch prototype, Other]
     validations:
       required: true
   - type: input
