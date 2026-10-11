@@ -1,8 +1,8 @@
-// On-screen mini QWERTY with a number row, for touch devices that have no
+// On-screen Zhuyin keyboard (iOS layout), for touch devices that have no
 // physical keyboard. It only draws keys and reports presses; editor.js feeds
 // them through the same keydown path as a hardware keyboard, so the decoder,
 // settings and fall-through to ProseMirror behave identically.
-import { ROWS, capLabels, keyText } from "./vkeys.js";
+import { INDENT, ROWS, capLabels, keyText } from "./vkeys.js";
 
 const REPEAT_DELAY = 420;
 const REPEAT_EVERY = 55;
@@ -30,9 +30,10 @@ export class VirtualKeyboard {
 
   build() {
     this.el.textContent = "";
-    for (const keys of ROWS) {
+    ROWS.forEach((keys, i) => {
       const rowEl = document.createElement("div");
       rowEl.className = "vk-row";
+      rowEl.style.setProperty("--vk-indent", String(INDENT[i] ?? 0));
       for (const key of keys) {
         const b = document.createElement("button");
         b.type = "button";
@@ -40,7 +41,8 @@ export class VirtualKeyboard {
         b.dataset.code = key.code;
         if (key.special) b.dataset.special = key.special;
         b.tabIndex = -1;
-        b.style.flexGrow = String(key.wide ?? 1);
+        if (key.fill) b.style.flex = "1 1 0";
+        else if (key.wide) b.style.setProperty("--vk-span", String(key.wide));
         const main = document.createElement("span");
         main.className = "vk-main";
         const hint = document.createElement("span");
@@ -51,7 +53,7 @@ export class VirtualKeyboard {
         rowEl.append(b);
       }
       this.el.append(rowEl);
-    }
+    });
     this.render();
   }
 

@@ -3,13 +3,14 @@
 const escapeHtml = (s) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[c]));
 
 export class CandidatePanel {
-  constructor(root, { onPick, onPage, bottomInset = () => 0 }) {
+  constructor(root, { onPick, onPage, onDismiss, bottomInset = () => 0 }) {
     this.bottomInset = bottomInset;
     this.el = document.createElement("div");
     this.el.className = "candidate-panel";
     this.el.hidden = true;
     this.el.innerHTML = `
       <div class="candidate-list"></div>
+      <button class="candidate-dismiss" type="button" aria-label="收合鍵盤"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg></button>
       <div class="candidate-footer">
         <span class="candidate-title">候選字</span>
         <div class="candidate-page-nav">
@@ -29,6 +30,7 @@ export class CandidatePanel {
       const item = e.target.closest(".candidate-item");
       if (item) onPick(Number(item.dataset.index));
     });
+    this.el.querySelector(".candidate-dismiss").addEventListener("click", () => onDismiss?.());
     for (const b of [this.prev, this.next]) b.addEventListener("click", () => onPage(b.dataset.page));
   }
 

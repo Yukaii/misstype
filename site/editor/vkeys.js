@@ -1,4 +1,4 @@
-// Layout of the on-screen keyboard (Dachen / standard Zhuyin on a QWERTY grid).
+// Layout of the on-screen keyboard (Dachen / standard Zhuyin, laid out like the iOS keyboard).
 // Data only, so tests/editor_vkeys_test.mjs can check it without a DOM.
 //
 // Each key is sent to the decoder as the physical key it stands for: `code`
@@ -10,11 +10,14 @@ const row = (spec) => spec.map(([code, lower, zhuyin, upper]) => ({
   code, lower, zhuyin, upper: upper ?? lower.toUpperCase(),
 }));
 
+// Rows follow the iOS Zhuyin keyboard: 11, 10, 10 and 11 keys (ㄦ ends the top
+// row, ㄤ row three, and ㄝ ㄡ ㄥ share the last row with Backspace), then a
+// bottom row. `wide` is in key widths; `fill` takes the rest of the row.
 export const ROWS = [
   row([
     ["Digit1", "1", "ㄅ", "!"], ["Digit2", "2", "ㄉ", "@"], ["Digit3", "3", "ˇ", "#"], ["Digit4", "4", "ˋ", "$"],
     ["Digit5", "5", "ㄓ", "%"], ["Digit6", "6", "ˊ", "^"], ["Digit7", "7", "˙", "&"], ["Digit8", "8", "ㄚ", "*"],
-    ["Digit9", "9", "ㄞ", "("], ["Digit0", "0", "ㄢ", ")"],
+    ["Digit9", "9", "ㄞ", "("], ["Digit0", "0", "ㄢ", ")"], ["Minus", "-", "ㄦ", "_"],
   ]),
   row([
     ["KeyQ", "q", "ㄆ"], ["KeyW", "w", "ㄊ"], ["KeyE", "e", "ㄍ"], ["KeyR", "r", "ㄐ"], ["KeyT", "t", "ㄔ"],
@@ -25,20 +28,21 @@ export const ROWS = [
     ["KeyH", "h", "ㄘ"], ["KeyJ", "j", "ㄨ"], ["KeyK", "k", "ㄜ"], ["KeyL", "l", "ㄠ"], ["Semicolon", ";", "ㄤ", ":"],
   ]),
   [
-    { code: "ShiftLeft", special: "shift", label: "⇧", wide: 1.4 },
     ...row([
       ["KeyZ", "z", "ㄈ"], ["KeyX", "x", "ㄌ"], ["KeyC", "c", "ㄏ"], ["KeyV", "v", "ㄒ"], ["KeyB", "b", "ㄖ"],
-      ["KeyN", "n", "ㄙ"], ["KeyM", "m", "ㄩ"],
+      ["KeyN", "n", "ㄙ"], ["KeyM", "m", "ㄩ"], ["Comma", ",", "ㄝ", "<"], ["Period", ".", "ㄡ", ">"], ["Slash", "/", "ㄥ", "?"],
     ]),
-    { code: "Backspace", special: "backspace", label: "⌫", wide: 1.4, repeat: true },
+    { code: "Backspace", special: "backspace", label: "⌫", repeat: true },
   ],
   [
-    ...row([["Minus", "-", "ㄦ", "_"], ["Comma", ",", "ㄝ", "<"]]),
-    { code: "Space", special: "space", label: "空白", text: " ", wide: 4 },
-    ...row([["Period", ".", "ㄡ", ">"], ["Slash", "/", "ㄥ", "?"]]),
-    { code: "Enter", special: "enter", label: "換行", wide: 1.6 },
+    { code: "ShiftLeft", special: "shift", label: "⇧", wide: 1.5 },
+    { code: "Space", special: "space", label: "空白", text: " ", fill: true },
+    { code: "Enter", special: "enter", label: "換行", wide: 3.15 },
   ],
 ];
+
+/** Row start offsets in key pitches (key + gap): the iOS keyboard staggers rows two and three. */
+export const INDENT = [0, 0.35, 0.65, 0, 0];
 
 /** What the key prints on its cap: [main, hint]. Chinese mode leads with Zhuyin; Shift or English shows Latin. */
 export function capLabels(key, { shift = false, english = false } = {}) {

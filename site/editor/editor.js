@@ -116,6 +116,7 @@ function runAction(id) {
 const panel = new CandidatePanel(app, {
   onPick: (index) => { ime?.pick(index); sync(); view.focus(); },
   onPage: (code) => { ime?.key(code, code, 0, 0); sync(); view.focus(); },
+  onDismiss: dismissKeyboard,
   bottomInset: () => vkHeight(),
 });
 
@@ -199,13 +200,15 @@ function keyUp(e) {
 
 // ------------------------------------------------------- virtual keyboard
 
-// Touch devices without a keyboard get an on-screen mini QWERTY. Its keys are
+// Touch devices without a keyboard get an on-screen Zhuyin keyboard. Its keys are
 // replayed as ordinary KeyboardEvents on the editor, so the decoder, settings
 // and ProseMirror's keymaps see exactly what a hardware keyboard would send.
 const vkEl = $("#vk");
 vkEl.dataset.platform = /Android/i.test(navigator.userAgent) ? "android" : "ios";
 const touchOnly = matchMedia("(pointer: coarse) and (hover: none)");
 let hardwareKeyboardSeen = false;
+// Dismissed with the chevron: hidden until the editor takes focus again, as the system keyboard does.
+let vkDismissed = false;
 
 const vkHeight = () => (vkEl.hidden ? 0 : vkEl.offsetHeight);
 
@@ -215,15 +218,23 @@ function virtualKeyboardWanted() {
 }
 
 function applyVirtualKeyboard() {
-  const on = virtualKeyboardWanted();
+  const wanted = virtualKeyboardWanted();
+  const on = wanted && !vkDismissed;
   vkEl.hidden = !on;
   document.body.classList.toggle("vk-on", on);
   panel.setDocked(on);
   if (imeState) panel.render(imeState, caretRect());
-  // Without this the system keyboard would pop up over ours.
-  view.setProps({ attributes: on ? { inputmode: "none" } : {} });
+  // Without this the system keyboard would pop up over ours, dismissed or not.
+  view.setProps({ attributes: wanted ? { inputmode: "none" } : {} });
   document.documentElement.style.setProperty("--vk-h", `${vkHeight()}px`);
   keepCaretClear();
+}
+
+function dismissKeyboard() {
+  flush();
+  vkDismissed = true;
+  view.dom.blur();
+  applyVirtualKeyboard();
 }
 
 function sendKey(type, code, key, shift) {
@@ -541,6 +552,11 @@ host.addEventListener("focusout", () => setTimeout(() => {
   flush();
 }));
 host.addEventListener("compositionstart", flush);
+host.addEventListener("focusin", () => {
+  if (!vkDismissed) return;
+  vkDismissed = false;
+  applyVirtualKeyboard();
+});
 addEventListener("resize", () => panel.place(caretRect()));
 visualViewport?.addEventListener("resize", () => panel.place(caretRect()));
 

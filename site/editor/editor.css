@@ -185,17 +185,23 @@ dialog.sheet h3 span { margin-left: 6px; color: var(--muted); font-weight: norma
 .vk[hidden] { display: none; }
 .vk {
   --vk-bg: #d1d4db; --vk-key: #fff; --vk-key-alt: #acb3bf; --vk-text: #000; --vk-edge: #898a8d; --vk-press: #acb3bf;
-  --vk-radius: 5px; --vk-gap: 6px; --vk-row-gap: 11px; --vk-h-key: 42px;
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; box-sizing: border-box;
-  display: grid; gap: var(--vk-row-gap); padding: 8px max(3px, env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(3px, env(safe-area-inset-left));
+  --vk-radius: 5px; --vk-gap: 6px; --vk-row-gap: 8px; --vk-side: max(6px, env(safe-area-inset-left), env(safe-area-inset-right));
+  /* Eleven keys across, like the iOS Zhuyin keyboard; capped so an iPad's keys do not balloon. */
+  --vk-u: min(calc((100vw - 2 * var(--vk-side) - 10 * var(--vk-gap)) / 11), 62px); --vk-h-key: calc(var(--vk-u) * 1.28);
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 32; box-sizing: border-box; /* above the docked candidate bar (31), so key bubbles of the top row draw over it */
+  display: grid; gap: var(--vk-row-gap); padding: 8px var(--vk-side) calc(6px + env(safe-area-inset-bottom)) var(--vk-side);
   background: var(--vk-bg); color: var(--vk-text);
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Noto Sans TC", "PingFang TC", sans-serif;
   user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: none;
 }
 :root[data-scheme="dark"] .vk { --vk-bg: #2b2b2e; --vk-key: #6b6b6e; --vk-key-alt: #454548; --vk-text: #fff; --vk-edge: #1a1a1c; --vk-press: #8e8e91; }
-.vk-row { display: flex; gap: var(--vk-gap); justify-content: center; }
+.vk-row {
+  display: flex; gap: var(--vk-gap); box-sizing: border-box; margin: 0 auto;
+  width: calc(11 * var(--vk-u) + 10 * var(--vk-gap));
+  padding-left: calc(var(--vk-indent, 0) * (var(--vk-u) + var(--vk-gap)));
+}
 .vk-key {
-  position: relative; flex: 1 1 0; min-width: 0; height: var(--vk-h-key); padding: 0;
+  position: relative; flex: none; width: calc(var(--vk-u) * var(--vk-span, 1)); min-width: 0; height: var(--vk-h-key); padding: 0;
   display: grid; place-items: center; font: inherit; font-size: 22px; font-weight: 400; line-height: 1;
   color: var(--vk-text); background: var(--vk-key); border: 0; border-radius: var(--vk-radius);
   box-shadow: 0 1px 0 var(--vk-edge);
@@ -219,7 +225,7 @@ dialog.sheet h3 span { margin-left: 6px; color: var(--muted); font-weight: norma
 /* Android (Gboard-like): flatter, rounder keys and a tinted action key. */
 .vk[data-platform="android"] {
   --vk-bg: #eef0f4; --vk-key: #fdfdff; --vk-key-alt: #dde1ea; --vk-text: #1b1c1f; --vk-press: #c9d3ea;
-  --vk-radius: 10px; --vk-gap: 5px; --vk-row-gap: 8px; --vk-h-key: 46px;
+  --vk-radius: 10px; --vk-gap: 5px; --vk-row-gap: 8px; --vk-h-key: calc(var(--vk-u) * 1.4);
   font-family: Roboto, "Noto Sans TC", "Google Sans", sans-serif;
 }
 :root[data-scheme="dark"] .vk[data-platform="android"] { --vk-bg: #1e1f22; --vk-key: #35373b; --vk-key-alt: #2a2c30; --vk-text: #e3e3e6; --vk-press: #4b5468; }
@@ -237,7 +243,7 @@ dialog.sheet h3 span { margin-left: 6px; color: var(--muted); font-weight: norma
 body.vk-on { --cb-h: 48px; padding-bottom: calc(var(--vk-h, 0px) + var(--cb-h)); }
 body.vk-on .status { bottom: calc(var(--vk-h, 0px) + var(--cb-h)); }
 body.vk-on #toast { bottom: calc(var(--vk-h, 0px) + var(--cb-h) + 56px); }
-@media (max-height: 480px) { .vk { --vk-row-gap: 5px; --vk-h-key: 34px; padding-top: 4px; } .vk-key:not([data-special]).down::before { height: 40px; } }
+@media (max-height: 480px) { .vk { --vk-row-gap: 5px; --vk-h-key: min(34px, calc(var(--vk-u) * 1.28)); padding-top: 4px; } .vk-key:not([data-special]).down::before { height: 40px; } }
 
 /* With the on-screen keyboard the candidates dock above it as one row that
    scrolls sideways (like the system candidate bar) instead of floating. */
@@ -247,10 +253,21 @@ body.vk-on #toast { bottom: calc(var(--vk-h, 0px) + var(--cb-h) + 56px); }
   border-radius: 0; border-width: 1px 0 0;
   overflow: hidden; z-index: 31;
 }
+.candidate-panel.docked { display: flex; align-items: center; gap: 4px; }
 .candidate-panel.docked .candidate-list {
+  flex: 1 1 auto; min-width: 0;
   flex-direction: row; flex-wrap: nowrap; gap: 6px; overflow-x: auto; overscroll-behavior-x: contain;
   scrollbar-width: none; -webkit-overflow-scrolling: touch;
 }
 .candidate-panel.docked .candidate-list::-webkit-scrollbar { display: none; }
 .candidate-panel.docked .candidate-item { flex: none; width: auto; gap: 6px; padding: 5px 12px; font-size: 20px; }
 .candidate-panel.docked .candidate-footer { display: none; }
+
+/* Dismiss-keyboard chevron: the right end of the docked bar, like the system keyboard's. */
+.candidate-dismiss { display: none; }
+.candidate-panel.docked .candidate-dismiss {
+  display: grid; place-items: center; flex: none; width: 40px; height: 38px; padding: 0;
+  border: 0; border-radius: 6px; background: transparent; color: var(--pg-key); cursor: pointer;
+}
+.candidate-dismiss svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.candidate-dismiss:active { background: var(--pg-highlight); }
