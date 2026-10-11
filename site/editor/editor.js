@@ -206,7 +206,15 @@ function keyUp(e) {
 const vkEl = $("#vk");
 vkEl.dataset.platform = /Android/i.test(navigator.userAgent) ? "android" : "ios";
 const touchOnly = matchMedia("(pointer: coarse) and (hover: none)");
-let hardwareKeyboardSeen = false;
+// Remembered across visits: an iPad with a keyboard should not flash ours on every load.
+const HW_KEYBOARD_KEY = "misstype-hardware-keyboard";
+const storedHardwareKeyboard = () => {
+  try { return localStorage.getItem(HW_KEYBOARD_KEY) === "1"; } catch { return false; }
+};
+const rememberHardwareKeyboard = (seen) => {
+  try { seen ? localStorage.setItem(HW_KEYBOARD_KEY, "1") : localStorage.removeItem(HW_KEYBOARD_KEY); } catch { /* private mode */ }
+};
+let hardwareKeyboardSeen = storedHardwareKeyboard();
 // Dismissed with the chevron: hidden until the editor takes focus again, as the system keyboard does.
 let vkDismissed = false;
 
@@ -293,6 +301,7 @@ const vk = new VirtualKeyboard(vkEl, {
 document.addEventListener("keydown", (e) => {
   if (!e.isTrusted || e.isComposing || e.keyCode === 229 || e.key === "Unidentified" || hardwareKeyboardSeen) return;
   hardwareKeyboardSeen = true;
+  rememberHardwareKeyboard(true);
   if (settings.virtualKeyboard === "auto") applyVirtualKeyboard();
 }, true);
 touchOnly.addEventListener("change", applyVirtualKeyboard);
@@ -402,6 +411,11 @@ function toggleMode() {
 function setSetting(key, value) {
   settings[key] = value;
   saveSettings(settings);
+  // Choosing "auto" again starts keyboard detection over.
+  if (key === "virtualKeyboard" && value === "auto") {
+    hardwareKeyboardSeen = false;
+    rememberHardwareKeyboard(false);
+  }
   applyAppearance();
   if (IME_KEYS.includes(key)) applyImeSettings();
 }
