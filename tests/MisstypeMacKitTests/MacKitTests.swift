@@ -90,4 +90,41 @@ final class MacKitTests: XCTestCase {
         XCTAssertEqual(preeditWithCursor("你好", caretUTF16: -2), "|你好")
         XCTAssertEqual(preeditWithCursor("", caretUTF16: 0), "|")
     }
+
+    // MARK: Custom panel theme
+
+    func testThemeColorsReadTheOldSharedFormAndKeepLightDarkApart() {
+        var shared = ThemeColors(text: "1e1e2e,cdd6f4,cba6f7,313244")
+        XCTAssertTrue(shared.linked)
+        XCTAssertEqual(shared.hex(1, dark: false), shared.hex(1, dark: true))
+        XCTAssertEqual(shared.text, "1e1e2e,cdd6f4,cba6f7,313244")
+
+        // Linked edits reach both halves; unlinked ones only the shown half.
+        shared.set(0, dark: true, to: "#fff")
+        XCTAssertEqual(shared.light[0], "#fff")
+        shared.setLinked(false, keeping: true)
+        shared.set(0, dark: false, to: "eee")
+        XCTAssertEqual(shared.hex(0, dark: true), "#fff")
+        XCTAssertEqual(ThemeColors(text: shared.text), shared)
+        XCTAssertTrue(shared.text.contains("|"))
+
+        // Linking keeps the half that was showing.
+        shared.setLinked(true, keeping: true)
+        XCTAssertEqual(shared.hex(0, dark: false), "#fff")
+        XCTAssertEqual(shared.text.contains("|"), false)
+    }
+
+    func testThemeColorsFallBackPerSlotAndStrictRejectsPartials() {
+        let partial = ThemeColors(text: "zzz,ffffff")
+        XCTAssertFalse(partial.isValid(0, dark: false))
+        XCTAssertEqual(partial.resolved(0, dark: false), 0x1e1e2e) // default slot
+        XCTAssertEqual(partial.resolved(1, dark: false), 0xffffff)
+        XCTAssertEqual(partial.resolved(3, dark: true), 0x313244)
+        XCTAssertNil(ThemeColors(strict: "zzz,ffffff"))
+        XCTAssertNil(ThemeColors(strict: "000,111,222,33"))
+        XCTAssertNotNil(ThemeColors(strict: "000,#111111,222,333|444,555,666,777"))
+        XCTAssertEqual(ThemeColors.parse("#abc"), 0xaabbcc)
+        XCTAssertEqual(ThemeColors.hexString(0x0a0b0c), "0a0b0c")
+        XCTAssertEqual(ThemeColors(light: [1, 2, 3, 4], dark: [5, 6, 7, 8]).light[3], "000004")
+    }
 }

@@ -122,7 +122,6 @@
 "Background" = "背景";
 "Text" = "文字";
 "Highlighted row" = "選択中の行";
-"Hex colors such as #1e1e2e. Used for both light and dark." = "#1e1e2e のような 16 進カラー。ライト／ダーク共通です。";
 "Language" = "言語";
 "Interface language" = "表示言語";
 "Candidate font" = "候補のフォント";
@@ -134,3 +133,17 @@
 "Search" = "検索";
 "Forget this phrase" = "この語句を忘れる";
 "No matches" = "一致なし";
+"Choose…" = "選択…";
+"Done" = "完了";
+"Same colors in light and dark" = "ライトとダークで同じ色を使う";
+"Edits apply to light and dark." = "変更はライトとダークの両方に反映されます。";
+"Editing the dark colors." = "ダークの色を編集中です。";
+"Editing the light colors." = "ライトの色を編集中です。";
+"Not a hex color; the default is used." = "16 進カラーではないため、既定値を使います。";
+"Start from…" = "ここから始める…";
+"Copy" = "コピー";
+"Paste" = "ペースト";
+"Reset" = "リセット";
+"Copied the theme text." = "テーマをコピーしました。";
+"Pasted the theme." = "テーマをペーストしました。";
+"The clipboard does not hold a theme: four hex colors, or two such lists separated by |." = "クリップボードにテーマがありません。16 進カラー 4 つ、または | で区切った 2 組が必要です。";

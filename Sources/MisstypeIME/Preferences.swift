@@ -275,6 +275,7 @@ enum PanelTheme: String, CaseIterable {
     case system, solarized, nord, gruvbox, catppuccin, custom
 
     struct Palette: Equatable {
+        /// Background, text, key, highlighted row: the custom editor's slot order.
         var colors: [NSColor] { [background, text, key, highlight] }
         var background: NSColor
         var text: NSColor
@@ -298,14 +299,14 @@ enum PanelTheme: String, CaseIterable {
 
     /// Published palette values (Solarized, Nord, Gruvbox, Catppuccin
     /// Latte/Mocha); nil = system colors.
-    func palette(dark: Bool) -> Palette? {
+    func palette(dark: Bool, custom: CustomTheme = .current) -> Palette? {
         func c(_ hex: UInt32) -> NSColor {
             NSColor(srgbRed: CGFloat(hex >> 16 & 0xff) / 255, green: CGFloat(hex >> 8 & 0xff) / 255,
                     blue: CGFloat(hex & 0xff) / 255, alpha: 1)
         }
         switch (self, dark) {
         case (.system, _): return nil
-        case (.custom, _): return CustomTheme.current.palette
+        case (.custom, _): return custom.palette(dark: dark)
         case (.solarized, false):
             return Palette(background: c(0xfdf6e3), text: c(0x586e75), key: c(0x268bd2), dimKey: c(0x93a1a1), highlight: c(0xeee8d5))
         case (.solarized, true):
@@ -326,48 +327,40 @@ enum PanelTheme: String, CaseIterable {
     }
 }
 
-/// The user's own panel colors: four hex values (background, text, selection
-/// key, highlighted row) stored as one "bg,text,key,highlight" string and
-/// used for both light and dark. Anything unparsable falls back to the
-/// default value of that slot, so a half-typed hex never breaks the panel.
+/// The user's own panel colors (`ThemeColors` holds the text model and its
+/// tests); this adds the NSColor palette the panel draws with.
 struct CustomTheme: Equatable {
-    static let defaultText = "1e1e2e,cdd6f4,cba6f7,313244"
     static let userDefaultsKey = "MisstypeCustomTheme"
+    static let defaultText = ThemeColors.defaultText
 
-    /// Background, text, key, highlight, as typed (no "#").
-    var hex: [String]
+    var colors: ThemeColors
 
     static var current: CustomTheme {
         CustomTheme(text: UserDefaults.standard.string(forKey: userDefaultsKey) ?? defaultText)
     }
 
-    init(text: String) {
-        let defaults = Self.defaultText.split(separator: ",").map(String.init)
-        let parts = text.split(separator: ",", omittingEmptySubsequences: false).map(String.init)
-        hex = defaults.indices.map { parts.indices.contains($0) ? parts[$0] : defaults[$0] }
-    }
+    init(text: String) { colors = ThemeColors(text: text) }
+    init(colors: ThemeColors) { self.colors = colors }
 
-    var text: String { hex.joined(separator: ",") }
-
-    /// 3- or 6-digit hex, optional leading "#"; nil when it is neither.
-    static func parse(_ string: String) -> UInt32? {
-        var digits = string.trimmingCharacters(in: .whitespaces)
-        if digits.hasPrefix("#") { digits.removeFirst() }
-        if digits.count == 3 { digits = digits.map { "\($0)\($0)" }.joined() }
-        guard digits.count == 6 else { return nil }
-        return UInt32(digits, radix: 16)
-    }
-
-    var palette: PanelTheme.Palette {
-        let fallback = Self.defaultText.split(separator: ",").map { Self.parse(String($0)) ?? 0 }
-        func color(_ i: Int) -> NSColor {
-            let v = Self.parse(hex[i]) ?? fallback[i]
-            return NSColor(srgbRed: CGFloat(v >> 16 & 0xff) / 255, green: CGFloat(v >> 8 & 0xff) / 255,
-                           blue: CGFloat(v & 0xff) / 255, alpha: 1)
-        }
+    func palette(dark: Bool) -> PanelTheme.Palette {
+        func color(_ slot: Int) -> NSColor { NSColor(rgb: colors.resolved(slot, dark: dark)) }
         let text = color(1), background = color(0)
         // Dim labels (Zhuyin still typing) are the text color faded into the background.
         let dim = text.blended(withFraction: 0.55, of: background) ?? text
         return PanelTheme.Palette(background: background, text: text, key: color(2), dimKey: dim, highlight: color(3))
+    }
+}
+
+extension NSColor {
+    convenience init(rgb: UInt32) {
+        self.init(srgbRed: CGFloat(rgb >> 16 & 0xff) / 255, green: CGFloat(rgb >> 8 & 0xff) / 255,
+                  blue: CGFloat(rgb & 0xff) / 255, alpha: 1)
+    }
+
+    /// 0xRRGGBB in sRGB (alpha dropped).
+    var rgb: UInt32 {
+        let c = usingColorSpace(.sRGB) ?? self
+        func byte(_ v: CGFloat) -> UInt32 { UInt32((min(max(v, 0), 1) * 255).rounded()) }
+        return byte(c.redComponent) << 16 | byte(c.greenComponent) << 8 | byte(c.blueComponent)
     }
 }

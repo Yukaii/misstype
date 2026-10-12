@@ -122,7 +122,6 @@
 "Background" = "背景";
 "Text" = "文字";
 "Highlighted row" = "反白列";
-"Hex colors such as #1e1e2e. Used for both light and dark." = "16 進位色碼，例如 #1e1e2e。淺色與深色共用。";
 "Language" = "語言";
 "Interface language" = "介面語言";
 "Candidate font" = "候選字型";
@@ -134,3 +133,17 @@
 "Search" = "搜尋";
 "Forget this phrase" = "忘記此詞";
 "No matches" = "沒有符合項目";
+"Choose…" = "選擇…";
+"Done" = "完成";
+"Same colors in light and dark" = "淺色與深色使用相同顏色";
+"Edits apply to light and dark." = "修改會同時套用到淺色與深色。";
+"Editing the dark colors." = "正在編輯深色模式的顏色。";
+"Editing the light colors." = "正在編輯淺色模式的顏色。";
+"Not a hex color; the default is used." = "不是 16 進位色碼，將使用預設值。";
+"Start from…" = "以此為起點…";
+"Copy" = "拷貝";
+"Paste" = "貼上";
+"Reset" = "重設";
+"Copied the theme text." = "已拷貝主題文字。";
+"Pasted the theme." = "已貼上主題。";
+"The clipboard does not hold a theme: four hex colors, or two such lists separated by |." = "剪貼簿中沒有主題：需要四個 16 進位色碼，或以 | 分隔的兩組色碼。";
