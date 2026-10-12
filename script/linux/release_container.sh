@@ -60,7 +60,8 @@ verify() {
     fedora43:ibus) dnf install -y ./dist/MisstypeIBus-*.rpm ;;
     esac
     misstypectl --help
-    library=$(find /usr/lib /usr/lib64 -path '*/misstype/libMisstypeCAPI.so' -print 2>/dev/null | head -n1)
+    # Not every distro has /usr/lib64 (Arch Linux ARM does not); glob only what exists.
+    library=$(find /usr/lib* -path '*/misstype/libMisstypeCAPI.so' -print -quit)
     [[ -n $library ]]
     ldd "$library" > build/package-dependencies.txt
     if grep -E 'not found|libswift' build/package-dependencies.txt; then exit 1; fi
