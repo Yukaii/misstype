@@ -63,13 +63,9 @@ jobs:
           fetch-depth: 0
       - name: Import Arch Linux ARM rootfs
         if: matrix.name == 'arch-aarch64'
-        run: |
-          curl -fsSL --retry 3 https://os.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz \
-            | docker import --change "ENV PATH=$ARM_PATH" - "$IMAGE"
+        run: bash script/linux/import_alarm_rootfs.sh "$IMAGE"
         env:
           IMAGE: ${{ matrix.image }}
-          # `docker import` of a bare rootfs sets no PATH, so bash is not found.
-          ARM_PATH: /usr/local/sbin:/usr/local/bin:/usr/bin
       - name: Build and test native package
         env:
           IMAGE: ${{ matrix.image }}
