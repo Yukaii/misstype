@@ -77,7 +77,8 @@ else
     # shellcheck disable=SC2046
     cc "$root/linux/ibus/test/test_ibus.c" $(pkg-config --cflags --libs ibus-1.0) \
         -o ibus-conformance/build/ibus/test-misstype-ibus
-    dbus-uuidgen --ensure=/etc/machine-id
+    # The Arch Linux ARM rootfs ships an empty file, which --ensure leaves alone.
+    [[ -s /etc/machine-id ]] || dbus-uuidgen > /etc/machine-id
     xvfb-run -a dbus-run-session -- bash ibus-conformance/script/linux/test_ibus.sh --inner
 fi
 pacman -Rns --noconfirm "$name"
