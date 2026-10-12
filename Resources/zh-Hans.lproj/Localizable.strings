@@ -122,7 +122,6 @@
 "Background" = "背景";
 "Text" = "文字";
 "Highlighted row" = "高亮行";
-"Hex colors such as #1e1e2e. Used for both light and dark." = "16 进制色值，例如 #1e1e2e。浅色与深色共用。";
 "Language" = "语言";
 "Interface language" = "界面语言";
 "Candidate font" = "候选字体";
@@ -134,3 +133,17 @@
 "Search" = "搜索";
 "Forget this phrase" = "忘记此词";
 "No matches" = "没有匹配项";
+"Choose…" = "选择…";
+"Done" = "完成";
+"Same colors in light and dark" = "浅色与深色使用相同颜色";
+"Edits apply to light and dark." = "修改会同时应用到浅色与深色。";
+"Editing the dark colors." = "正在编辑深色模式的颜色。";
+"Editing the light colors." = "正在编辑浅色模式的颜色。";
+"Not a hex color; the default is used." = "不是十六进制色值，将使用默认值。";
+"Start from…" = "以此为起点…";
+"Copy" = "拷贝";
+"Paste" = "粘贴";
+"Reset" = "重置";
+"Copied the theme text." = "已拷贝主题文本。";
+"Pasted the theme." = "已粘贴主题。";
+"The clipboard does not hold a theme: four hex colors, or two such lists separated by |." = "剪贴板中没有主题：需要四个十六进制色值，或以 | 分隔的两组色值。";
