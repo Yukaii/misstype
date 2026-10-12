@@ -22,7 +22,7 @@ function editorPwa() {
         for (const name of readdirSync(dir)) {
           const full = join(dir, name);
           if (statSync(full).isDirectory()) {
-            if (!["media", "en"].includes(name) || dir !== outDir) walk(full);
+            if (!["media", "en", "story"].includes(name) || dir !== outDir) walk(full);
           } else files.push(relative(outDir, full).split("\\").join("/"));
         }
       };
@@ -62,6 +62,8 @@ export default defineConfig({
         main: resolve(here, "index.html"),
         en: resolve(here, "en/index.html"),
         editor: resolve(here, "editor/index.html"),
+        story: resolve(here, "story/index.html"),
+        enStory: resolve(here, "en/story/index.html"),
       },
     },
   },
