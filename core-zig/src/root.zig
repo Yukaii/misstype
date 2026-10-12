@@ -11,6 +11,7 @@ pub const candidate = @import("candidate.zig");
 pub const user_lexicon = @import("user_lexicon.zig");
 pub const user_dictionary = @import("user_dictionary.zig");
 pub const channel = @import("channel.zig");
+pub const homophone = @import("homophone.zig");
 pub const lexicon = @import("lexicon.zig");
 pub const english = @import("english.zig");
 pub const layout = @import("layout.zig");

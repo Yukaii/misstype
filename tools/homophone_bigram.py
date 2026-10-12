@@ -66,6 +66,13 @@ class Lex:
             by_reading.setdefault(reading, set()).add(word)
         self.ambiguous = {w for w, rs in self.readings.items()
                           if any(len(by_reading[r]) > 1 for r in rs)}
+        # the homophone group's default: the best-scoring word sharing a reading
+        self.default: dict[str, str] = {}
+        for w, rs in self.readings.items():
+            alts = {a for r in rs for a in by_reading[r]}
+            top = max(alts, key=lambda a: (self.score[a], a))
+            if top != w:
+                self.default[w] = top
 
     def segment(self, text: str) -> list[str]:
         n = len(text)
@@ -141,8 +148,37 @@ def build(args):
     print(f"tokens {total:,}  pairs kept {len(keep):,}  words {len(words):,}  -> {out}")
 
 
+def fnv_key(previous: str, current: str) -> int:
+    h = 0xcbf29ce484222325
+    for b in previous.encode():
+        h = ((h ^ b) * 0x100000001b3) & 0xFFFFFFFFFFFFFFFF
+    h = ((h ^ 0xFF) * 0x100000001b3) & 0xFFFFFFFFFFFFFFFF
+    for b in current.encode():
+        h = ((h ^ b) * 0x100000001b3) & 0xFFFFFFFFFFFFFFFF
+    return h >> 24
+
+
+def export(args):
+    """Write the table `core-zig/src/homophone.zig` reads."""
+    import struct
+    bg = Bigram(Path(args.pairs).expanduser(), args.min_count, args.cap, args.smooth)
+    kept = bg.prune(args.top_pairs, rank=args.rank)
+    entries = {}
+    for (a, b), v in bg.value.items():
+        q = int(round(v * 4))
+        if q:
+            entries[fnv_key(a, b)] = q & 0xFF
+    blob = b"MSHB" + struct.pack("<III", 1, len(entries), 4) + b"".join(
+        struct.pack("<Q", (key << 8) | entries[key]) for key in sorted(entries))
+    out = Path(args.out).expanduser()
+    out.write_bytes(blob)
+    print(f"pairs {kept:,} -> {len(entries):,} entries, {len(blob):,} bytes -> {out}")
+
+
 class Bigram:
-    def __init__(self, path: Path, min_count: int, cap: float, smooth: float = 0.0):
+    def __init__(self, path: Path, min_count: int, cap: float, smooth: float = 0.0,
+                 default: dict[str, str] | None = None, signed: bool = False):
+        self.default, self.signed = default, signed
         self.uni: dict[str, int] = {}
         self.pair: dict[tuple[str, str], int] = {}
         self.total = 1
@@ -155,20 +191,53 @@ class Bigram:
             elif len(f) == 3:
                 self.pair[(f[0], f[1])] = int(f[2])
         self.min_count, self.cap, self.smooth = min_count, cap, smooth
+        self.value: dict[tuple[str, str], float] | None = None
+
+    def prune(self, keep: int, step: float = 0.25, rank: str = "pmi") -> int:
+        """Keep the `keep` pairs with the largest |capped PMI| and quantize
+        them to `step`; returns how many survive (non-zero after rounding)."""
+        scored = []
+        for (a, b), c in self.pair.items():
+            if c < self.min_count:
+                continue
+            v = max(-self.cap, min(self.cap, self.pmi(a, b, c)))
+            weight = {"pmi": abs(v), "count": c, "impact": c * abs(v), "sqrt": math.sqrt(c) * abs(v)}[rank]
+            scored.append((weight, a, b, v))
+        scored.sort(reverse=True)
+        self.value = {}
+        for _, a, b, v in scored[:keep]:
+            q = round(v / step) * step
+            if q:
+                self.value[(a, b)] = q
+        return len(self.value)
+
+    def pmi(self, a: str, b: str, c: int) -> float:
+        ua, ub = self.uni.get(a, 1), self.uni.get(b, 1)
+        pb = (ub + 1) / self.total
+        # add-m on observed and expected counts: a handful of sightings
+        # of a rare word cannot produce a huge association
+        return math.log((c + self.smooth) / (ua * pb + self.smooth))
 
     def bonus(self, words: list[str]) -> float:
         s = 0.0
         for a, b in zip(words, words[1:]):
+            if self.value is not None:
+                s += self.value.get((a, b), 0.0)
+                continue
             c = self.pair.get((a, b), 0)
             if c < self.min_count:
                 continue
-            ua, ub = self.uni.get(a, 1), self.uni.get(b, 1)
-            pb = (ub + 1) / self.total
-            # add-m on observed and expected counts: a handful of sightings
-            # of a rare word cannot produce a huge association
-            expected = ua * pb
-            pmi = math.log((c + self.smooth) / (expected + self.smooth))
-            s += max(-self.cap, min(self.cap, pmi))
+            if self.default is None:
+                s += max(-self.cap, min(self.cap, self.pmi(a, b, c)))
+                continue
+            # promotion only: how much more `b` follows `a` than the group
+            # default does; the default itself (and unseen pairs) get 0
+            d = self.default.get(b)
+            if d is None:
+                continue
+            delta = self.pmi(a, b, c) - self.pmi(a, d, self.pair.get((a, d), 0))
+            if delta > 0 or self.signed:
+                s += max(-self.cap, min(self.cap, delta))
         return s
 
 
@@ -185,9 +254,10 @@ def same_class(top: str, cand: str, lex: Lex) -> bool:
     return True
 
 
-def decode(binary, resources, keys):
+def decode(binary, resources, keys, env=None):
     proc = subprocess.run([binary, "--resources", str(resources), "--decode", keys],
-                          capture_output=True, text=True, timeout=120, check=True)
+                          capture_output=True, text=True, timeout=120, check=True,
+                          env=None if env is None else {**os.environ, **env})
     rows = []
     for line in proc.stdout.splitlines()[1:]:
         f = line.split("\t")
@@ -266,10 +336,33 @@ def evaluate(args):
         decoded = list(pool.map(lambda c: decode(binary, resources, c[2]), cases))
     base_hit = [bool(r) and r[0][0] == c[3] for r, c in zip(decoded, cases)]
     print(f"cases {len(cases)}  baseline top-1 {sum(base_hit)}")
+    if args.native:
+        # the Zig core's own rerank over resources/homophone.bin
+        base_n = list(ThreadPoolExecutor(os.cpu_count() or 4).map(
+            lambda c: decode(binary, resources, c[2], {"MISSTYPE_NO_HOMOPHONE": "1"}), cases))
+        hit0 = [bool(r) and r[0][0] == c[3] for r, c in zip(base_n, cases)]
+        print(f"native baseline top-1 {sum(hit0)}/{len(cases)}")
+        for weight in args.weights:
+            res = list(ThreadPoolExecutor(os.cpu_count() or 4).map(
+                lambda c: decode(binary, resources, c[2], {"MISSTYPE_HOMOPHONE_WEIGHT": str(weight)}), cases))
+            hit1 = [bool(r) and r[0][0] == c[3] for r, c in zip(res, cases)]
+            fixed = [c for c, a, b in zip(cases, hit0, hit1) if b and not a]
+            broken = [c for c, a, b in zip(cases, hit0, hit1) if a and not b]
+            print(f"native w={weight}: +{len(fixed)}/-{len(broken)}")
+            if args.verbose:
+                for c in fixed:
+                    print("    +", c[0], c[1], c[3])
+                for c, r in zip(cases, res):
+                    if c in broken:
+                        print("    -", c[0], c[1], c[3], "->", r[0][0])
+        return
     pairs = Path(args.pairs).expanduser()
     for min_count, cap, smooth in itertools.product(args.min_counts, args.caps, args.smooths):
-        bg = Bigram(pairs, min_count, cap, smooth)
-        for weight in args.weights:
+        bg = Bigram(pairs, min_count, cap, smooth, lex.default if args.promo or args.signed else None, args.signed)
+        for keep in args.top_pairs or [0]:
+          if keep:
+            print(f"top {keep:,} -> {bg.prune(keep, rank=args.rank):,} pairs")
+          for weight in args.weights:
             fixed, broken = [], []
             for rows, c, hit in zip(decoded, cases, base_hit):
                 new = rerank(rows, lex, bg, weight)
@@ -296,6 +389,14 @@ def main():
     b.add_argument("--groups", type=int, default=10**9, help="row groups to read")
     b.add_argument("--jobs", type=int, default=os.cpu_count() or 4)
     b.add_argument("--keep", type=int, default=3, help="drop pairs seen fewer times")
+    x = sub.add_parser("export")
+    x.add_argument("--pairs", required=True)
+    x.add_argument("--out", required=True)
+    x.add_argument("--min-count", type=int, default=3)
+    x.add_argument("--cap", type=float, default=4.0)
+    x.add_argument("--smooth", type=float, default=3.0)
+    x.add_argument("--rank", default="pmi", choices=["pmi", "count", "impact", "sqrt"])
+    x.add_argument("--top-pairs", type=int, default=400000)
     e = sub.add_parser("eval")
     e.add_argument("--pairs", required=True)
     e.add_argument("--resources", default=str(ROOT / "site/public"))
@@ -304,11 +405,16 @@ def main():
     e.add_argument("--smooths", type=float, nargs="+", default=[0.0, 20.0, 100.0])
     e.add_argument("--weights", type=float, nargs="+", default=[0.5, 1.0, 2.0])
     e.add_argument("--shard", nargs="+", help="parquet shard the pairs came from; drop sentences found verbatim")
+    e.add_argument("--promo", action="store_true", help="promotion-only, relative to the homophone default")
+    e.add_argument("--signed", action="store_true", help="relative to the homophone default, demotions kept")
+    e.add_argument("--native", action="store_true", help="evaluate the Zig core's rerank (resources/homophone.bin)")
+    e.add_argument("--rank", default="pmi", choices=["pmi", "count", "impact", "sqrt"])
+    e.add_argument("--top-pairs", type=int, nargs="+", help="keep only the K largest |PMI| pairs")
     e.add_argument("--cv-count", type=int, default=0)
     e.add_argument("--extra", nargs="*", default=[], help="TEXT=KEYS cases")
     e.add_argument("--verbose", action="store_true")
     args = parser.parse_args()
-    build(args) if args.cmd == "build" else evaluate(args)
+    {"build": build, "export": export, "eval": evaluate}[args.cmd](args)
 
 
 if __name__ == "__main__":
