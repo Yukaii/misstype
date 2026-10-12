@@ -108,12 +108,7 @@ jobs:
           cp LICENSE "$RUNNER_TEMP/aur-package/"
       - name: Import Arch Linux ARM rootfs
         if: steps.download.outputs.skip != 'true' && matrix.arch == 'aarch64'
-        env:
-          # `docker import` of a bare rootfs sets no PATH, so bash is not found.
-          ARM_PATH: /usr/local/sbin:/usr/local/bin:/usr/bin
-        run: |
-          curl -fsSL --retry 3 https://os.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz \
-            | docker import --change "ENV PATH=$ARM_PATH" - "${{ matrix.image }}"
+        run: bash script/linux/import_alarm_rootfs.sh "${{ matrix.image }}"
       - name: Repackage, install and check on current Arch without credentials
         if: steps.download.outputs.skip != 'true'
         env:
