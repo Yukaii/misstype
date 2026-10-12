@@ -93,10 +93,10 @@ yay -S fcitx5-misstype-git
 
 這是從最新上游 Git 原始碼建置的套件，不固定於某個發布版本。安裝後重新啟動 fcitx5，並在 `fcitx5-configtool` 中加入 **Misstype**。套件建置、啟用與移除方式請參閱 [安裝說明](docs/arch-linux.md)；套件配方位於 `linux/aur/PKGBUILD`。
 
-預編譯、固定發布版本的 **x86_64** 套件首次發布到 AUR 後，可用
+也有預編譯、固定發布版本的套件，支援 **x86_64** 與 **aarch64**：
 `yay -S fcitx5-misstype-bin`（IBus 桌面則選 `yay -S ibus-misstype-bin`）。
 `-bin` 直接下載發布檔，不需編譯 Zig/C++；`-git` 仍從最新原始碼建置。
-發布前可在二進位套件配方目錄用 `makepkg -si` 安裝；詳見[安裝與發布狀態](docs/arch-linux.md#prebuilt-release-packages--bin)。
+詳見[安裝與發布狀態](docs/arch-linux.md#prebuilt-release-packages--bin)。
 
 #### IBus（實驗性）
 
@@ -117,7 +117,7 @@ sudo cmake --install build/ibus
 ibus restart     # 再到「設定 → 鍵盤 → 輸入來源」加入 Misstype（Chinese）
 ```
 
-Arch Linux 也可用 `linux/aur-ibus/PKGBUILD` 自行 `makepkg -si`（`ibus-misstype-git` 尚未發布到 AUR）。細節與已驗證／未驗證項目見 [IBus 移植說明](docs/ibus-port.md)。進度追蹤：[#63](https://github.com/Yukaii/misstype/issues/63)。
+Arch Linux 可從 AUR 安裝 `ibus-misstype-bin`（預編譯）或 `ibus-misstype-git`（從原始碼建置，配方為 `linux/aur-ibus/PKGBUILD`）。細節與已驗證／未驗證項目見 [IBus 移植說明](docs/ibus-port.md)。進度追蹤：[#63](https://github.com/Yukaii/misstype/issues/63)。
 
 從原始碼建置請見[開發、建置與發布](docs/development.md)。
 

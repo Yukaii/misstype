@@ -94,11 +94,10 @@ Restart fcitx5 after installation and add **Misstype** in `fcitx5-configtool`.
 See [package build, activation and removal](docs/arch-linux.md) for details;
 the recipe lives in `linux/aur/PKGBUILD`.
 
-For prebuilt, release-pinned **x86_64** packages, use `yay -S fcitx5-misstype-bin`
-(or `yay -S ibus-misstype-bin` for IBus) after their initial AUR publication.
-These download the release binary without compiling Zig/C++; `-git` continues
-to build latest upstream source. Until publication, the binary recipes can be
-installed with `makepkg -si`. See [binary installation and status](docs/arch-linux.md#prebuilt-release-packages--bin).
+Prebuilt, release-pinned packages for **x86_64** and **aarch64** are also
+available: `yay -S fcitx5-misstype-bin` (or `yay -S ibus-misstype-bin` for IBus).
+They download the release binary without compiling Zig/C++; `-git` continues
+to build latest upstream source. See [binary installation and status](docs/arch-linux.md#prebuilt-release-packages--bin).
 
 #### IBus (experimental)
 
@@ -119,7 +118,7 @@ sudo cmake --install build/ibus
 ibus restart     # then add Misstype (Chinese) under Settings → Keyboard → Input Sources
 ```
 
-On Arch Linux you can also build `linux/aur-ibus/PKGBUILD` with `makepkg -si` (`ibus-misstype-git` is not on the AUR yet). See the [IBus port](docs/ibus-port.md) for what is and is not verified. Tracking: [#63](https://github.com/Yukaii/misstype/issues/63).
+On Arch Linux, install `ibus-misstype-bin` (prebuilt) or `ibus-misstype-git` (built from source; recipe `linux/aur-ibus/PKGBUILD`) from the AUR. See the [IBus port](docs/ibus-port.md) for what is and is not verified. Tracking: [#63](https://github.com/Yukaii/misstype/issues/63).
 
 To build from source see [Development, build and release](docs/development.md).
 
