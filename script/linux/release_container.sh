@@ -25,6 +25,8 @@ arch)
         pacman-key --init
         pacman-key --populate archlinuxarm
         sed -i 's/^CheckSpace/#CheckSpace/' /etc/pacman.conf
+        # pacman's download sandbox needs Landlock, which the runner's container denies.
+        sed -i '/^\[options\]/a DisableSandbox' /etc/pacman.conf
         pacman -Rdd --noconfirm linux-aarch64 linux-aarch64-headers 2>/dev/null || true
     fi
     pacman -Syu --noconfirm --needed base-devel git cmake ninja python gtk4 fcitx5 fcitx5-configtool fcitx5-gtk fcitx5-qt ibus
