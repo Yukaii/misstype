@@ -266,7 +266,11 @@ Verified 2026-10-04 on macOS 27 (arm64 host, ad-hoc signed, local feed on
   apply after 120 s, TIS restart, 0.0.4 → 0.0.5, signature valid afterwards.
   `immediateInstallationBlock` alone did **not** quit the `LSUIElement` app
   (Autoupdate waited forever), so `UpdateController` terminates the process
-  itself 3 s after calling it. Scheduled checks respect `SULastCheckTime`
+  itself 3 s after calling it. The same holds for the **Install** button in
+  Sparkle's window (Settings ▸ Check for Updates): Autoupdate parked for
+  1h44m on 2026-10-12 until the IME was quit by hand, so the forced quit
+  hangs off `updater(_:willInstallUpdate:)`, which fires on both paths.
+  Scheduled checks respect `SULastCheckTime`
   (24 h), so repeating a test needs that key removed from the container prefs.
 - First install on a clean account (`--yes` and GUI): the source was usable
   **without logging out** on this macOS. The logout path is kept as the

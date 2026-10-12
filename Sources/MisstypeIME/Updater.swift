@@ -69,9 +69,19 @@ final class UpdateController: NSObject, SPUUpdaterDelegate {
         Runtime.debugLog("[update] applying downloaded update while idle")
         self.installNow = nil
         installNow()
-        // Autoupdate swaps the bundle once this process is gone. Measured on
-        // macOS 27: the block alone does not quit an LSUIElement input method,
-        // so the install would wait forever. TIS restarts us on demand.
+        quitForInstall()
+    }
+
+    /// Autoupdate swaps the bundle once this process is gone. Measured on
+    /// macOS 27: neither the immediate-install block nor Sparkle's own
+    /// "Install" button quits an LSUIElement input method, so the install
+    /// would wait forever (seen 2026-10-12: Autoupdate parked for 1h44m).
+    /// TIS restarts us on demand.
+    private var quitScheduled = false
+    private func quitForInstall() {
+        guard !quitScheduled else { return }
+        quitScheduled = true
+        Runtime.debugLog("[update] quitting so the installer can swap the bundle")
         DispatchQueue.main.asyncAfter(deadline: .now() + 3) { NSApp.terminate(nil) }
     }
 
@@ -86,6 +96,12 @@ final class UpdateController: NSObject, SPUUpdaterDelegate {
             self.installNow = immediateInstallationBlock
         }
         return true
+    }
+
+    /// Fires on every path that starts an install — the idle apply above and
+    /// the "Install" button in Sparkle's window from Settings.
+    nonisolated func updater(_ updater: SPUUpdater, willInstallUpdate item: SUAppcastItem) {
+        Task { @MainActor in self.quitForInstall() }
     }
 
     nonisolated func updaterShouldRelaunchApplication(_ updater: SPUUpdater) -> Bool { false }
