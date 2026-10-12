@@ -17,6 +17,8 @@ if [[ $(uname -m) == aarch64 ]]; then
     pacman-key --init
     pacman-key --populate archlinuxarm
     sed -i 's/^CheckSpace/#CheckSpace/' /etc/pacman.conf
+    # pacman's download sandbox needs Landlock, which the runner's container denies.
+    sed -i '/^\[options\]/a DisableSandbox' /etc/pacman.conf
     pacman -Rdd --noconfirm linux-aarch64 linux-aarch64-headers 2>/dev/null || true
 fi
 pacman -Syu --noconfirm --needed base-devel python "$frontend" gtk4 cmake extra-cmake-modules \
