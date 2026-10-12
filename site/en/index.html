@@ -118,12 +118,14 @@
       </ol>
       <div class="other linux-install" id="linux">
         <h3>Linux (fcitx5)</h3>
-        <p>Download the matching package from the <a href="https://github.com/Yukaii/misstype/releases/latest">latest Release</a>:</p>
-        <p><code>sudo pacman -U ./Misstype-*-arch-*.pkg.tar.zst</code></p>
-        <p>Ubuntu 24.04:</p>
+        <p>On Arch Linux or Omarchy, install the prebuilt package from the <a href="https://aur.archlinux.org/packages/fcitx5-misstype-bin">AUR</a> (x86_64 and aarch64):</p>
+        <p><code>yay -S fcitx5-misstype-bin</code></p>
+        <p class="sub">For IBus use <code>yay -S ibus-misstype-bin</code>. <code>-bin</code> is pinned to a release and needs no compiler; <code>fcitx5-misstype-git</code> builds the latest source.</p>
+        <p>Other distributions: download the matching package from the <a href="https://github.com/Yukaii/misstype/releases/latest">latest Release</a>. Ubuntu 24.04:</p>
         <p><code>sudo apt install ./Misstype-*-ubuntu24.04-*.deb</code></p>
         <p>Fedora:</p>
         <p><code>sudo dnf install ./Misstype-*-fedora*.rpm</code></p>
+        <p class="sub">You can also install the Arch package from a Release directly: <code>sudo pacman -U ./Misstype-*-arch-*.pkg.tar.zst</code></p>
         <p class="sub">If no package matches your system, build from source. On Arch Linux or Omarchy, install the build tools:</p>
         <p><code>sudo pacman -S --needed base-devel cmake ninja git</code></p>
         <p>On Ubuntu 24.04, install Git first:</p>
@@ -152,7 +154,7 @@
           <summary>Copy this prompt for a coding agent</summary>
           <pre><code>Install Misstype on this Linux computer:
 1. Detect the distro and architecture; ask before running commands that need sudo.
-2. Prefer the matching Arch, Ubuntu 24.04, or Fedora package from the latest Release; if none matches, clone https://github.com/Yukaii/misstype.git.
+2. On Arch/Omarchy prefer the AUR package fcitx5-misstype-bin (x86_64 and aarch64; yay or paru); otherwise use the matching Ubuntu 24.04 or Fedora package from the latest Release; if none matches, clone https://github.com/Yukaii/misstype.git.
 3. For a source install, use base-devel, cmake, ninja, and git on Arch/Omarchy; on Ubuntu 24.04 run script/linux/bootstrap.sh.
 4. From the project root, run script/linux/install_ime.sh.
 5. Confirm fcitx5 is running and add Misstype to the input-method group with fcitx5-configtool.
