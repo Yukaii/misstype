@@ -30,18 +30,29 @@ permissions:
 
 jobs:
   linux:
-    name: Linux package (${{ matrix.distro }})
-    runs-on: ubuntu-24.04
+    name: Linux package (${{ matrix.name }})
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
         include:
-          - distro: ubuntu24.04
+          - name: ubuntu24.04
+            distro: ubuntu24.04
+            runner: ubuntu-24.04
             image: ubuntu:24.04
-          - distro: arch
+          - name: arch
+            distro: arch
+            runner: ubuntu-24.04
             image: archlinux:base
-          - distro: fedora43
+          # Arch Linux ARM has no Docker Hub image; the rootfs is imported below.
+          - name: arch-aarch64
+            distro: arch
+            runner: ubuntu-24.04-arm
+            image: archlinuxarm:latest
+          - name: fedora43
+            distro: fedora43
+            runner: ubuntu-24.04
             image: fedora:43
     env:
       VERSION: ${{ github.event_name == 'push' && github.ref_name || inputs.version }}
@@ -50,6 +61,13 @@ jobs:
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
+      - name: Import Arch Linux ARM rootfs
+        if: matrix.name == 'arch-aarch64'
+        run: |
+          curl -fsSL --retry 3 https://os.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz \
+            | docker import - "$IMAGE"
+        env:
+          IMAGE: ${{ matrix.image }}
       - name: Build and test native package
         env:
           IMAGE: ${{ matrix.image }}
@@ -61,7 +79,7 @@ jobs:
             bash /src/script/linux/release_container.sh
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: linux-${{ matrix.distro }}
+          name: linux-${{ matrix.name }}
           path: |
             dist/Misstype-*
             dist/MisstypeIBus-*

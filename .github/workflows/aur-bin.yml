@@ -45,11 +45,14 @@ permissions:
 
 jobs:
   prepare:
-    runs-on: ubuntu-latest
+    name: prepare (${{ matrix.package }}, ${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
+        package: [fcitx5-misstype-bin, ibus-misstype-bin]
+        arch: [x86_64, aarch64]
         include:
           - package: fcitx5-misstype-bin
             recipe: linux/aur-fcitx5-bin
@@ -57,15 +60,24 @@ jobs:
           - package: ibus-misstype-bin
             recipe: linux/aur-ibus-bin
             prefix: MisstypeIBus
+          - arch: x86_64
+            runner: ubuntu-latest
+            image: archlinux:base
+          # Arch Linux ARM has no Docker Hub image; the rootfs is imported below.
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+            image: archlinuxarm:latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
       - name: Download and verify published release
+        id: download
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag }}
+          ARCH: ${{ matrix.arch }}
           RECIPE: ${{ matrix.recipe }}
           PREFIX: ${{ matrix.prefix }}
         run: |
@@ -79,14 +91,28 @@ jobs:
           [[ $TAG =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
           [[ $(gh release view "$TAG" --repo Yukaii/misstype --json isDraft,isPrerelease --jq '(.isDraft == false and .isPrerelease == false)') == true ]]
           mkdir -p "$RUNNER_TEMP/assets" "$RUNNER_TEMP/aur-package"
-          asset="$PREFIX-${TAG#v}-arch-x86_64.pkg.tar.zst"
-          gh release download "$TAG" --repo Yukaii/misstype --pattern "$asset*" --dir "$RUNNER_TEMP/assets"
+          # Releases cut before aarch64 packaging have no such asset; the recipe
+          # then ships x86_64 only and this leg has nothing to verify.
+          gh release download "$TAG" --repo Yukaii/misstype --pattern "$PREFIX-${TAG#v}-arch-*.pkg.tar.zst*" --dir "$RUNNER_TEMP/assets"
+          if [[ $ARCH != x86_64 && ! -f "$RUNNER_TEMP/assets/$PREFIX-${TAG#v}-arch-$ARCH.pkg.tar.zst" ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::$TAG has no $ARCH asset for $PREFIX; skipping."
+            exit 0
+          fi
           if [[ $(gh api repos/Yukaii/misstype --jq .visibility) == public ]]; then
-            gh attestation verify "$RUNNER_TEMP/assets/$asset" --repo Yukaii/misstype --signer-workflow Yukaii/misstype/.github/workflows/release.yml --source-ref "refs/tags/$TAG"
+            for asset in "$RUNNER_TEMP"/assets/*.pkg.tar.zst; do
+              gh attestation verify "$asset" --repo Yukaii/misstype --signer-workflow Yukaii/misstype/.github/workflows/release.yml --source-ref "refs/tags/$TAG"
+            done
           fi
           python3 script/linux/prepare_aur_bin.py "$RECIPE" "$RUNNER_TEMP/assets" "$TAG" "$RUNNER_TEMP/aur-package"
           cp LICENSE "$RUNNER_TEMP/aur-package/"
+      - name: Import Arch Linux ARM rootfs
+        if: steps.download.outputs.skip != 'true' && matrix.arch == 'aarch64'
+        run: |
+          curl -fsSL --retry 3 https://os.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz \
+            | docker import - "${{ matrix.image }}"
       - name: Repackage, install and check on current Arch without credentials
+        if: steps.download.outputs.skip != 'true'
         env:
           AUR_MAINTAINER: ${{ secrets.AUR_MAINTAINER }}
           RECIPE: ${{ matrix.recipe }}
@@ -102,16 +128,17 @@ jobs:
               path.write_text('# Maintainer: ' + maintainer + '\n' + path.read_text())
           PY
           docker run --rm -v "$PWD:/src:ro" -v "$RUNNER_TEMP/aur-package:/package" \
-            -v "$RUNNER_TEMP/assets:/assets:ro" archlinux:base \
+            -v "$RUNNER_TEMP/assets:/assets:ro" "${{ matrix.image }}" \
             bash /src/script/linux/test_aur_bin.sh /package /assets /src
           # Branch previews use the committed version; release jobs generate newer metadata.
           if [[ ( "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF" != refs/tags/* ) || "$GITHUB_EVENT_NAME" == pull_request ]]; then
             diff -u "$RECIPE/.SRCINFO" "$RUNNER_TEMP/aur-package/.SRCINFO"
           fi
-          printf '### Binary AUR verification\n\n${{ matrix.package }}: checksum/provenance verified; current Arch repackaging, payload comparison, library resolution, installed C ABI, adapter conformance and install/remove checks passed. Only test drivers compile, never Zig or the adapter.\n' >> "$GITHUB_STEP_SUMMARY"
+          printf '### Binary AUR verification\n\n${{ matrix.package }} (${{ matrix.arch }}): checksum/provenance verified; current Arch repackaging, payload comparison, library resolution, installed C ABI, adapter conformance and install/remove checks passed. Only test drivers compile, never Zig or the adapter.\n' >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: steps.download.outputs.skip != 'true'
         with:
-          name: aur-package-${{ matrix.package }}
+          name: aur-package-${{ matrix.package }}-${{ matrix.arch }}
           path: ${{ runner.temp }}/aur-package/
           include-hidden-files: true
           retention-days: 7
@@ -140,7 +167,7 @@ jobs:
           persist-credentials: false
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          name: aur-package-${{ matrix.package }}
+          name: aur-package-${{ matrix.package }}-x86_64
           path: ${{ runner.temp }}/aur-package
       - name: Synchronize binary packaging to AUR
         if: >-

@@ -11,12 +11,20 @@ fcitx5-misstype-bin) frontend=fcitx5 ;;
 ibus-misstype-bin) frontend=ibus ;;
 *) echo 'Unknown binary package' >&2; exit 1 ;;
 esac
+if [[ $(uname -m) == aarch64 ]]; then
+    # Arch Linux ARM rootfs: trust its keyring, skip free-space checks and the
+    # board kernel packages a container does not need.
+    pacman-key --init
+    pacman-key --populate archlinuxarm
+    sed -i 's/^CheckSpace/#CheckSpace/' /etc/pacman.conf
+    pacman -Rdd --noconfirm linux-aarch64 linux-aarch64-headers 2>/dev/null || true
+fi
 pacman -Syu --noconfirm --needed base-devel python "$frontend" gtk4 cmake extra-cmake-modules \
     xorg-server-xvfb xorg-xauth dbus
 id builder >/dev/null 2>&1 || useradd -m builder
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
-cp "$package/PKGBUILD" "$assets/"*.pkg.tar.zst "$work/"
+cp "$package/PKGBUILD" "$assets/"*-arch-"$(uname -m)".pkg.tar.zst "$work/"
 chown -R builder:builder "$work"
 cd "$work"
 runuser -u builder -- makepkg --printsrcinfo > "$package/.SRCINFO"
@@ -29,8 +37,8 @@ pacman -Qkk "$name"
 pacman -Qlp "$binary"
 # Compare payload paths after the sole intentional change: license directory.
 case $name in
-fcitx5-misstype-bin) original=("$assets/"Misstype-*.pkg.tar.zst) ;;
-ibus-misstype-bin) original=("$assets/"MisstypeIBus-*.pkg.tar.zst) ;;
+fcitx5-misstype-bin) original=("$assets/"Misstype-*-arch-"$(uname -m)".pkg.tar.zst) ;;
+ibus-misstype-bin) original=("$assets/"MisstypeIBus-*-arch-"$(uname -m)".pkg.tar.zst) ;;
 esac
 [[ ${#original[@]} == 1 ]]
 tar -tf "${original[0]}" | sed -n '/^usr\//p' | sed "s/${name%-bin}-git/$name/g" | sort > expected-files
