@@ -14,7 +14,7 @@
 <link rel="icon" href="../icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="manifest" href="manifest.webmanifest" vite-ignore>
-<script>(function(){try{var m=localStorage.getItem("misstype-theme");document.documentElement.dataset.scheme=m==="dark"||m==="light"?m:matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"}catch(e){}})()</script>
+<script>(function(){try{var m=localStorage.getItem("misstype-theme");document.documentElement.dataset.scheme=m==="dark"||m==="light"?m:m==="auto"?matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light":"light"}catch(e){}})()</script>
 <link rel="stylesheet" href="../style.css">
 </head>
 <body class="app">

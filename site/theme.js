@@ -1,18 +1,18 @@
 // Light / dark for the page. `data-scheme` on <html> is the scheme in effect
 // (style.css and the keyboard read it); the button in the nav cycles
-// auto → light → dark and remembers the choice. The head snippet in each page
-// sets data-scheme before first paint so a dark visitor never sees a flash.
+// light → dark → auto and remembers the choice. The head snippet in each page
+// sets data-scheme before first paint so a visitor never sees a flash.
 const KEY = "misstype-theme";
 const root = document.documentElement;
 const query = matchMedia("(prefers-color-scheme: dark)");
 const button = document.querySelector(".theme-toggle");
-const ORDER = ["auto", "light", "dark"];
+const ORDER = ["light", "dark", "auto"];
 
 const stored = () => {
   try { return localStorage.getItem(KEY); } catch { return null; }
 };
 let chosen = stored();
-const mode = () => (ORDER.includes(chosen) ? chosen : "auto");
+const mode = () => (ORDER.includes(chosen) ? chosen : "light");
 
 function apply() {
   const m = mode();
