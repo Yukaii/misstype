@@ -1,6 +1,8 @@
+#define _POSIX_C_SOURCE 200809L
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include <misstype.h>
 
 #define ASSERT(cond, msg) do { if (!(cond)) { fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, msg); exit(1); } } while (0)
@@ -491,6 +493,30 @@ static void retype_ni(misstype_session *s) {
     misstype_string_free(r.commit);
 }
 
+/* Learned phrases list newest first and forget one pair at a time. */
+void run_learned(const char *res) {
+    char path[] = "/tmp/misstype-learned-XXXXXX";
+    int fd = mkstemp(path);
+    ASSERT(fd >= 0, "temp file");
+    const char *json = "{\"version\":2,\"entries\":{\"ㄋㄧ\":{\"你\":{\"count\":2,\"updatedAt\":100}},"
+                       "\"ㄏㄠ\":{\"好\":{\"count\":1,\"updatedAt\":200}}}}";
+    ASSERT(write(fd, json, strlen(json)) == (ssize_t)strlen(json), "write lexicon");
+    close(fd);
+    misstype_engine *eng = misstype_engine_new(res, path);
+    ASSERT(misstype_engine_learned_phrase_count(eng) == 2, "two learned phrases");
+    char *list = misstype_engine_learned_phrases(eng);
+    ASSERT(strcmp(list, "ㄏㄠ\t好\t1\t200\nㄋㄧ\t你\t2\t100\n") == 0, "newest first");
+    misstype_string_free(list);
+    misstype_engine_forget_learned_phrase(eng, "ㄏㄠ", "好");
+    ASSERT(misstype_engine_learned_phrase_count(eng) == 1, "one forgotten");
+    list = misstype_engine_learned_phrases(eng);
+    ASSERT(strcmp(list, "ㄋㄧ\t你\t2\t100\n") == 0, "other pair kept");
+    misstype_string_free(list);
+    printf("learned listed=2 forgotten=1\n");
+    misstype_engine_free(eng);
+    unlink(path);
+}
+
 void run_channel(const char *res) {
     misstype_engine *eng = misstype_engine_new(res, "");
     misstype_engine_set_channel_path(eng, ""); /* memory only */
@@ -582,6 +608,7 @@ int main(int argc, char **argv) {
         run_c13(res);
         run_settings(res);
         run_channel(res);
+        run_learned(res);
         run_repair_strength(res);
         run_page_size(res);
         test_keymap();

@@ -22,6 +22,8 @@ final class CandidatesPanel: NSPanel {
     private let body = NSView(frame: .zero)
     private var lastAnchor: NSRect?
     private let footer = NSTextField(labelWithString: "")
+    /// Space between a row's highlight edge and its label, on both sides.
+    private static let rowPadding: CGFloat = 8
 
     init(onPick: @escaping (Int) -> Void) {
         self.onPick = onPick
@@ -36,7 +38,7 @@ final class CandidatesPanel: NSPanel {
         animationBehavior = .none
 
         body.wantsLayer = true
-        body.layer?.cornerRadius = 10
+        body.layer?.cornerRadius = CGFloat(style.cornerRadius)
         contentView = body
         applyColors()
 
@@ -127,6 +129,7 @@ final class CandidatesPanel: NSPanel {
         case .dark: appearance = NSAppearance(named: .darkAqua)
         }
         for height in rowHeights { height.constant = rowHeight }
+        body.layer?.cornerRadius = CGFloat(next.cornerRadius)
     }
 
     private var highlightColor: CGColor {
@@ -161,16 +164,20 @@ final class CandidatesPanel: NSPanel {
         let key = labeled && keyLabels.indices.contains(index) ? keyLabels[index] : " "
         let digit = NSMutableAttributedString(
             string: "\(key)  ",
-            attributes: [.font: NSFont.monospacedSystemFont(ofSize: style.fontSize - 2, weight: .regular),
+            attributes: [.font: style.keyFont,
                          .foregroundColor: keysActive ? palette?.key ?? NSColor.secondaryLabelColor
                                                       : palette?.dimKey ?? NSColor.quaternaryLabelColor])
         let body = NSAttributedString(
             string: text,
-            attributes: [.font: NSFont.systemFont(ofSize: style.fontSize),
+            attributes: [.font: style.wordFont,
                          .foregroundColor: palette?.text ?? NSColor.labelColor])
         digit.append(body)
         let paragraph = NSMutableParagraphStyle()
         paragraph.alignment = .left
+        // The button cell draws flush left; the indent keeps the key label off
+        // the highlight's edge (measured back in `update`).
+        paragraph.firstLineHeadIndent = Self.rowPadding
+        paragraph.headIndent = Self.rowPadding
         paragraph.lineBreakMode = .byTruncatingHead
         digit.addAttribute(.paragraphStyle, value: paragraph, range: NSRange(location: 0, length: digit.length))
         return digit
@@ -245,11 +252,11 @@ final class CandidatesPanel: NSPanel {
                 row.attributedTitle = rowTitle(index: index, text: display[index], labeled: pageIndex == page)
                 row.isHidden = false
                 row.wantsLayer = true
-                row.layer?.cornerRadius = 6
+                row.layer?.cornerRadius = style.rowCornerRadius
                 row.layer?.backgroundColor = global == selected ? highlightColor : CGColor.clear
                 // Measured from the strings, not fittingSize: rows are pinned
                 // to the column width, so their fitting size ignores content.
-                widest = max(widest, ceil(row.attributedTitle.size().width) + 12)
+                widest = max(widest, ceil(row.attributedTitle.size().width) + 12 + 2 * Self.rowPadding)
             }
             grid.arrangedSubviews[column].isHidden = shown.isEmpty
             columnWidths[column].constant = widest
