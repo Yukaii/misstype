@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readdirSync, readFileSync, statSync, writeFileSync, copyFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync, writeFileSync, copyFileSync, mkdirSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { defineConfig } from "vite";
 
@@ -36,6 +36,7 @@ function editorPwa() {
       const source = readFileSync(join(here, "editor/sw.template.js"), "utf8")
         .replace("__PRECACHE__", JSON.stringify(precache))
         .replace("__VERSION__", hash.digest("hex").slice(0, 12));
+      mkdirSync(join(outDir, "editor"), { recursive: true });
       writeFileSync(join(outDir, "editor/sw.js"), source);
       copyFileSync(join(here, "editor/manifest.webmanifest"), join(outDir, "editor/manifest.webmanifest"));
       copyFileSync(join(here, "editor/icon.png"), join(outDir, "editor/icon.png"));
