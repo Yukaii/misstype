@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>隨打注音：開發故事與技術報告</title>
-<meta name="description" content="從深夜客運上的摸黑打字想法，到 Jev 模型的啟發、Zig 核心重寫與 WebAssembly 離線編輯器的技術演化歷程。">
-<meta property="og:title" content="隨打注音：開發故事與技術報告">
-<meta property="og:description" content="從深夜客運摸黑打字、分離式觸控板原型，到 Zig 效能核心與 WASM 離線編輯器的誕生。">
+<title>隨打注音是怎麼來的？開發故事與技術小記</title>
+<meta name="description" content="從深夜客運摸黑打字、分離式觸控板原型，到 Zig 核心重寫與 WebAssembly 離線編輯器的折騰歷程。">
+<meta property="og:title" content="隨打注音是怎麼來的？">
+<meta property="og:description" content="從深夜客運摸黑打字，到 Zig 核心與網頁版編輯器的折騰小記。">
 <meta property="og:image" content="../icon.png">
 <link rel="icon" href="../icon.svg" type="image/svg+xml">
 <link rel="alternate" hreflang="en" href="../en/story/" vite-ignore>
@@ -21,7 +21,7 @@
   <nav>
     <a class="nav-link" href="../#install" aria-label="下載" title="下載"><svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v7.5M4.8 7.2 8 10.4l3.2-3.2M3 13h10"/></svg><span class="nav-label">下載</span></a>
     <a class="nav-link" href="../editor/" aria-label="編輯器" title="編輯器"><svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M10.8 2.7 13.3 5.2 5.6 12.9 2.7 13.3 3.1 10.4z"/></svg><span class="nav-label">編輯器</span></a>
-    <a class="nav-link" href="./" aria-label="開發故事" title="開發故事與技術報告"><svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 2.5h10a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1zm2 3h6M5 8.5h6M5 11.5h4"/></svg><span class="nav-label">故事</span></a>
+    <a class="nav-link" href="./" aria-label="故事" title="開發故事與技術小記"><svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 2.5h10a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1zm2 3h6M5 8.5h6M5 11.5h4"/></svg><span class="nav-label">故事</span></a>
     <a class="nav-link" href="https://github.com/Yukaii/misstype" aria-label="GitHub" title="GitHub"><svg class="nav-icon nav-fill" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg><span class="nav-label">GitHub</span></a>
     <a class="nav-link" href="../en/story/" lang="en" hreflang="en" aria-label="English" title="English"><svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.6"/><path d="M2.4 8h11.2M8 2.4c-2.2 2.1-2.2 9.1 0 11.2M8 2.4c2.2 2.1 2.2 9.1 0 11.2"/></svg><span class="nav-label">English</span></a>
     <button class="theme-toggle" type="button" data-label-auto="跟隨系統" data-label-light="淺色" data-label-dark="深色" aria-label="切換淺色／深色">
@@ -33,188 +33,116 @@
 <main class="wrap">
   <article>
     <header class="story-header">
-      <span class="story-tag">技術報告與演化史</span>
-      <h1>隨打注音：背後的故事與技術演化</h1>
-      <div class="story-meta">
-        <span>作者：Yukai Huang</span>
-        <span>·</span>
-        <span>更新：2026 年 10 月</span>
-        <span>·</span>
-        <span>技術棧：Zig / WebAssembly / C ABI</span>
-      </div>
+      <span class="story-tag">Behind the Scenes</span>
+      <h1>隨打注音是怎麼來的？</h1>
       <p class="story-lede">
-        這是一個關於「摸黑打字」的妄想、分離式觸控板原型、Jev 模型的啟發，到最終決定親手重寫注音輸入法核心，並將它移植到 Zig 與 WebAssembly 的完整技術歷程。
+        從深夜客運摸黑打字、分離式觸控板，到 Zig 核心重寫與網頁版編輯器的折騰小記。
       </p>
     </header>
 
     <div class="story-body">
-      <h2>1. 起源：深夜長途客運上的摸黑打字</h2>
+      <h2>深夜客運上的摸黑打字</h2>
       <p>
-        這一切的起點，是一次深夜長途客運的旅程。
+        這件事最早是在一次深夜的長途客運上發生的。
       </p>
       <p>
-        夜深了，國道客運的車廂熄了頂燈，周圍的乘客大多已經沉沉入睡。窗外是一望無際的黑夜與偶爾掠過的路燈，車內安靜得只剩下引擎的低鳴。在這個時候，腦海裡總會湧現許多想法、待整理的筆記，或是想回覆的訊息。
+        車廂熄了燈，四周都在睡覺。腦子裡突然冒出一堆想寫下來的靈感和雜記，但我根本不想打開頭頂那顆刺眼的閱讀燈，既會吵到旁邊的人，在黑暗裡亮著也特別累。
       </p>
       <p>
-        但我不想、也不能打開頭頂上刺眼的閱讀燈——那樣做既會干擾周圍熟睡的乘客，也會在黑暗中顯得突兀且疲累。然而，如果試著摸黑在筆電或手機上打字，下場通常慘不忍睹：看不見鍵盤的實體鍵帽位置，雙手只要稍微偏離基準鍵，敲出來的全是一堆無法識別的亂碼；在手機螢幕上觸控盲打更是如此，手指只要位移幾公釐，每個字都要狂按退格鍵刪掉重來。
-      </p>
-      <blockquote>
-        <p>「如果能在完全不開燈、完全不用眼睛看鍵盤的前提下，單純依賴肌肉記憶就能把心裡的想法流暢敲出來，該有多好？」</p>
-      </blockquote>
-      <p>
-        一個念頭油然而生：最理想的輸入硬體，或許是<strong>兩塊小巧的獨立分離式觸控板</strong>。雙手各拿一塊，或者自然地搭放在大腿兩側。大腦只需要維持大致的相對方位感，手指憑著肌肉記憶隨意敲擊平面，就能完成輸入。
+        可是摸黑盲打手機或筆電？手只要稍微移位一公釐，敲出來的全是一堆亂碼。那時候就在想：如果兩手各拿一塊巴掌大的獨立小觸控板，放在大腿兩邊，完全不用看鍵盤，光靠肌肉記憶隨便敲敲就能打出字，該有多好？
       </p>
 
-      <h2>2. 原型探索：分離式觸控表面與空間不確定性</h2>
+      <h2>做了原型，才發現事情沒那麼簡單</h2>
       <p>
-        有了這個想法後，我開始動手製作第一版原型（專案早期的 M0–M2 階段）。
+        於是我開始動手做原型（最初的 M0–M2 階段）。
       </p>
       <p>
-        但很快就碰到了核心難題：<strong>缺乏實體按鍵邊界時，輸入本質上就是充滿雜訊與不確定性的</strong>。
-      </p>
-      <p>
-        在實體機械鍵盤上，一顆鍵要麼按下了，要麼沒按下；但在平滑的觸控板上，敲擊只是一組連續的 <code>(x, y)</code> 座標。當你憑著肌肉記憶盲打時：
+        但平滑的觸控板沒有實體鍵帽的物理邊界。敲擊只是連續的 <code>(x, y)</code> 座標：
       </p>
       <ul>
-        <li>手指可能落在目標按鍵周圍幾公釐的模糊邊界內（鄰近鍵偏移）。</li>
-        <li>雙手同時敲擊時，左右手的時間戳記經常會有些微顛倒（順序打反 / Transposition）。</li>
-        <li>有時滑步太快，中間某個音節符號可能漏敲或力道過輕未觸發（漏打符號）。</li>
+        <li>手指常落在按鍵邊界周圍（按到隔壁鍵）。</li>
+        <li>兩隻手打快時，時間順序很容易顛倒（順序打反）。</li>
+        <li>滑太快漏敲某個音節符號（漏按符號）。</li>
       </ul>
       <p>
-        這意味著，輸入法核心不能再依賴過去那種「精確字碼比對」的死板邏輯。它必須具備機率解碼（Probabilistic Decoding）能力，將帶有空間不確定性、時間抖動的語音信號流，轉化為合理的自然語言句子。
+        這表示輸入法根本不能只做死板的精確字碼匹配，它得能吃下這些充滿不確定性的模糊輸入，並猜出整句話。
       </p>
 
-      <h2>3. 關鍵啟發：Jev 模型與智慧選字浪潮</h2>
+      <h2>Jev 模型與日本工程師的啟發</h2>
       <p>
-        就在我思索如何構建這個容錯解碼層時，AI 領域迎來了一波輕量化推理模型的革新——特別是 Typesafe AI 發布的 <strong>Jev 模型</strong>。
+        剛好那陣子 Typesafe AI 發表了 Jev 模型，專注於極速 token 選擇與約束候選排名。
       </p>
       <p>
-        Jev 這類專注於極速 token 選擇、結構化約束候選排名的推理架構，帶來了強烈的啟發：
-        <strong>輸入法的候選字消歧與自動重排，不正是小型語言模型與機率格網（Lattice）最天造地設的應用場景嗎？</strong>
+        我心想：這不就超適合拿來做輸入法的自動選字與候選重排嗎？
       </p>
       <p>
-        幾乎在同一時期，社群中一位日本工程師展示了一套創新的輸入法——它利用模型即時偵測輸入脈絡，讓使用者在同一個輸入流中自由混打日文與英文，完全不需要手動按鍵切換模式。
-      </p>
-      <p>
-        這兩個信號徹底打通了我的思路：幾十年來，我們習以為常的輸入法架構（敲精確按鍵、跳出候選字框、手動逐字翻頁挑選）本質上是 1990 年代計算資源受限下的妥協產物，而不是人類思維的最佳輸入型態。
+        不久後，又看到社群上有位日本工程師用模型偵測上下文，做出了可以在同一個輸入流中自動混打日文和英文的輸入法，完全不需要手動按鍵切換。這讓我更確定了一件事：傳統輸入法那種「敲固定按鍵、跳選字框、手動翻頁選字」的 90 年代交互，早就該換個方式了。
       </p>
 
-      <h2>4. 頓悟與轉向：先解決注音輸入法二十年的痛苦</h2>
+      <h2>為什麼不先做注音？</h2>
       <p>
-        在做硬體原型的過程中，我突然被一個更根本的問題擊中了：
+        折騰硬體折騰到一半，突然一個念頭打醒我：
       </p>
       <blockquote>
-        <p>「我每天在電腦上打幾千幾萬字的繁體中文注音輸入法，體驗明明就這麼痛苦，為什麼我不先親手把軟體輸入法的體驗做好？」</p>
+        <p>「我每天在電腦上打注音打得這麼痛苦，為什麼不乾脆先幫注音做一個好用的輸入法？」</p>
       </blockquote>
       <p>
-        台灣使用者每天使用的注音輸入法，長年存在幾大難以忍受的痛點：
-      </p>
-      <ol>
-        <li>
-          <strong>強制要求敲擊聲調</strong>：注音本體集中在鍵盤主打字區，但聲調（ˊ ˇ ˋ ˙）卻被硬生生丟在最上方的數字列或標點區。每敲一個字，手指就得大幅度往上拉扯。如果不敲聲調，傳統輸入法就無法判定音節切換，甚至直接報錯。
-        </li>
-        <li>
-          <strong>對錯誤零容忍</strong>：打字速度一快，兩指順序打反（例如按快把「ㄐㄧㄣ」打成 <code>urp</code> 而非 <code>rup</code>）、手指不小心擦到隔壁鍵、或是少按了一個介音，傳統輸入法會立刻亮起紅字或跳出一堆牛頭不對馬嘴的亂碼，逼得你只能無奈狂按 Backspace 刪掉整串重打。
-        </li>
-        <li>
-          <strong>思緒被反覆切碎</strong>：寫作與思考講求流暢的心流（flow）。但現有輸入法逼你每打兩三個字，就得停下視線去看候選字窗、按方向鍵挑字、按確認鍵。思緒就在一次次的選字中被切得粉碎。
-        </li>
-      </ol>
-      <p>
-        之前的硬體想法至此有了全新的聚焦：<strong>何不先為注音使用者打造一個真正順手的現代輸入法？</strong>
-      </p>
-      <p>
-        目標非常明確：<strong>不需要打聲調、順序打反能猜到、按到鄰鍵能救回、漏打符號能修復，整句話一口氣打完自然呈現。</strong>
-      </p>
-      <p>
-        說做就做——我放下了硬體外殼的折騰，開始全心撰寫輸入法解碼引擎。第一版原型誕生後，那種「手隨便敲、字自動對」的暢快感，超出了最初的預期。「隨打注音（Misstype）」正式啟程。
-      </p>
-
-      <h2>5. 技術躍遷：核心徹底重寫為 Zig</h2>
-      <p>
-        最初的解碼概念先在 Python 上驗證，隨後在 macOS 上以 Swift 實作了 <code>MisstypeCore</code>。
-      </p>
-      <p>
-        Swift 在 macOS 原生環境下表現不錯，但當專案進一步擴展到 Linux（支援 fcitx5 與 IBus 架構）、並追求在不同作業系統間無縫複用時，架構層面的硬傷開始浮現：
+        現有的注音輸入法用起來真的常常讓人煩躁：
       </p>
       <ul>
-        <li><strong>執行環境沉重</strong>：在 Linux 上執行 Swift 依賴龐大的 Swift runtime，CI 與套件體積動輒以 GB 計算，跨平台編譯極其痛苦。</li>
-        <li><strong>記憶體配置開銷</strong>：輸入法要求每次按鍵都在微秒級別內回應。每次按鍵背後要跑波束搜尋（Beam Search）、晶格生成（Lattice Construction）與字頻加權。Swift 的 ARC 自動引用計數與頻繁的堆積配置在極高頻率下產生了可觀的開銷。</li>
+        <li><strong>強迫打聲調</strong>：聲調鍵散落在最上方的數字列，每打一個字手指就要大幅往上拉扯。</li>
+        <li><strong>打錯一個鍵就完蛋</strong>：打快時順序反了（像按快把「ㄐㄧㄣ」打成 <code>urp</code>）、按到隔壁鍵，整串直接壞掉，只能狂按退格鍵。</li>
+        <li><strong>思緒一直被打斷</strong>：打兩三個字就要停下來看候選清單選字，原本想寫的事情都被切碎了。</li>
       </ul>
       <p>
-        為了達成真正的零依賴、極致效能與跨平台自由，我做了一個關鍵決定：<strong>將整個輸入法核心用 Zig 徹底重寫（<code>core-zig/</code>）</strong>。
+        那不如先做一個：<strong>不用打聲調、順序打反能猜到、按到鄰鍵能救回、整句一口氣打完</strong>的輸入法。
+      </p>
+      <p>
+        動手做了第一個版本，沒想到手感意外地順，隨打注音就正式啟程了。
       </p>
 
-      <div class="story-card">
-        <h3>為什麼選擇 Zig？</h3>
-        <table class="story-table">
-          <thead>
-            <tr>
-              <th>面向</th>
-              <th>Swift 原型時代</th>
-              <th>Zig 核心（現行架構）</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td><strong>C ABI 匯出</strong></td>
-              <td>需要 <code>@_cdecl</code> 與封裝膠水層</td>
-              <td>原生支援 C 呼叫約定，直接匯出 <code>misstype.h</code></td>
-            </tr>
-            <tr>
-              <td><strong>跨平台編譯</strong></td>
-              <td>Linux 需專用 3.7GB Docker 映像檔</td>
-              <td>單一固定版本編譯器，一鍵跨編譯 x86_64 / aarch64 / wasm</td>
-            </tr>
-            <tr>
-              <td><strong>記憶體模型</strong></td>
-              <td>ARC 引用計數，分散配置與釋放</td>
-              <td><strong>Arena 配置器</strong>：單次解碼全走 Arena，解碼完畢 O(1) 瞬時釋放</td>
-            </tr>
-            <tr>
-              <td><strong>解碼延遲</strong></td>
-              <td>約 1ms ~ 25ms（含排程與物件開銷）</td>
-              <td><strong>0.1ms ~ 0.5ms</strong>（純本地運算，完全感受不到延遲）</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
+      <h2>用 Zig 重寫核心：追求極致速度與乾淨架構</h2>
       <p>
-        重寫後的 Zig 核心帶來了無比純粹的架構：macOS 的輸入法適配器（IMK）與 Linux 的 fcitx5 / IBus 模組，全部直接連結同一個編譯好的共享庫。沒有虛擬機、沒有垃圾回收卡頓、沒有跨平台行為差異。
-      </p>
-
-      <h2>6. 跨越邊界：WebAssembly 與離線 Markdown 編輯器</h2>
-      <p>
-        當核心完全用無外部相依的 Zig 實作後，一個強大的可能性自然解鎖了：<strong>將核心編譯成 WebAssembly（<code>wasm32-wasi</code>）</strong>。
-      </p>
-      <p>
-        這直接解決了一個長年困擾許多使用者的現實限制：
-      </p>
-      <blockquote>
-        <p>在 iPadOS 等封閉平台上，如果外接實體硬體鍵盤，蘋果作業系統強制限制使用者只能使用官方輸入法，完全無法安裝任何第三方輸入法擴充套件。</p>
-      </blockquote>
-      <p>
-        但我既然有了能在瀏覽器內高效運行的 WASM 核心，為什麼不直接做一個自帶輸入法的編輯器？
-      </p>
-      <p>
-        這就是 <a href="../editor/">隨打注音 Markdown 編輯器</a>（PWA）的由來。
+        最初的解碼原型先用 Python 和 Swift 寫。在 macOS 上還行，但當我想把輸入法搬到 Linux（fcitx5 / IBus）時，問題就來了：
       </p>
       <ul>
-        <li><strong>瀏覽器原生輸入攔截</strong>：編輯器基於 ProseMirror 構建，透過 JavaScript 捕獲實體按鍵事件，直接餵給背景的 <code>misstype.wasm</code>。</li>
-        <li><strong>離線運行能力</strong>：整合 Service Worker 與離線快取，第一次載入後完全不需要網路，即使在無網路的飛機或偏遠旅途中也能穩定寫作。</li>
-        <li><strong>隨處可用，免安裝</strong>：不論是在學校電腦、公司受限的終端機、朋友的筆電，甚至是不給裝輸入法的裝置上，只要打開網頁，立刻擁有完整的隨打注音體驗。</li>
+        <li>Swift 在 Linux 上的環境和 runtime 超級龐大，跨平台編譯痛苦萬分。</li>
+        <li>輸入法要求每次按鍵都必須在毫秒內反應，Swift 的 ARC 記憶體分配在頻繁搜尋晶格時開銷很大。</li>
+      </ul>
+      <p>
+        於是決定：<strong>用 Zig 把整個輸入法核心徹底重寫（<code>core-zig/</code>）</strong>。
+      </p>
+      <p>
+        換成 Zig 之後爽度大增：
+      </p>
+      <ul>
+        <li><strong>單一工具鏈</strong>：同一個編譯器，一鍵跨編譯 macOS、Linux（x86_64 / aarch64）跟 WebAssembly。</li>
+        <li><strong>乾淨的 C ABI</strong>：直接匯出 <code>misstype.h</code>，macOS 和 Linux 原生層直接 link，零膠水層包袱。</li>
+        <li><strong>Arena 記憶體配置</strong>：每次按鍵解碼所需的記憶體全由 arena 分配，解碼完瞬間 O(1) 一次釋放，完全沒有記憶體洩漏或碎片。</li>
+        <li><strong>極致速度</strong>：整句長句解碼只要 0.1ms 到 0.5ms，按鍵反應完全沒有任何遲鈍感。</li>
       </ul>
 
-      <h2>7. 結語：為自己的雙手而造</h2>
+      <h2>WebAssembly 與網頁編輯器：哪裡都能隨手打</h2>
       <p>
-        回頭看這趟旅程，從深夜客運上因為無法開燈而萌生的分離式觸控板奇想，到看見新一代模型時對智慧輸入法的想像，再到決定回歸繁體中文注音輸入的核心痛點；從 Swift 原型、Zig 重寫，一路走到能在瀏覽器隨處運行的 WebAssembly。
+        核心用乾淨的 Zig 寫完後，順手把它編譯成了 WebAssembly（<code>wasm32-wasi</code>）。
       </p>
       <p>
-        隨打注音從一開始就不是為了滿足商業指標而生的產物，而是為了解決自己每天真實遭遇的打字痛苦。它可能還有不完美的地方，字典也還在持續調整，但每一次敲下鍵盤、不用管聲調、就算按錯順序也能瞬間拼出想要的那句話時，那種順暢與自由感，就是這一切折騰最好的回報。
+        這順便解決了一個大問題：在 iPad 上外接實體鍵盤時，系統根本不准你裝任何第三方輸入法。
       </p>
       <p>
-        如果你也厭倦了被聲調與候選字框綁架的打字節奏，歡迎下載試用，或直接打開線上編輯器敲下第一行字。
+        但既然 WASM 可以在瀏覽器裡跑得飛快，那我何不直接寫一個內建隨打注音的 <a href="../editor/">Markdown 編輯器</a>？
+      </p>
+      <ul>
+        <li><strong>零安裝</strong>：不用下載任何軟體、不用管管理者權限，在任何別人的電腦、公用機台或 iPad 上打開瀏覽器就能直接打。</li>
+        <li><strong>支援離線</strong>：做成 PWA，第一次打開後就快取到本地，沒網路也能順順寫。</li>
+      </ul>
+
+      <h2>寫在最後</h2>
+      <p>
+        回頭看，這整個專案就是從深夜客運上一個「不想開燈又想打字」的念頭開始，一路折騰原型、被模型啟發，最後轉向解決自己每天真實面對的注音痛點。
+      </p>
+      <p>
+        如果你也跟我一樣，打字時不想管聲調、手滑按錯也想被溫柔包容，歡迎載來玩玩看，或者直接在線上編輯器敲敲看！
       </p>
 
       <div class="story-nav-bar">
@@ -228,7 +156,7 @@
 <footer>
   <div class="wrap">
     <p>自有程式碼採 MIT 授權；第三方程式碼與詞庫依各自授權。</p>
-    <p><a href="https://github.com/Yukaii/misstype">原始碼</a> · <a href="./">開發故事與技術報告</a> · <a href="../licenses.html">授權與第三方聲明</a> · <a href="../en/story/" lang="en" hreflang="en">English</a></p>
+    <p><a href="https://github.com/Yukaii/misstype">原始碼</a> · <a href="./">開發故事</a> · <a href="../licenses.html">授權與第三方聲明</a> · <a href="../en/story/" lang="en" hreflang="en">English</a></p>
   </div>
 </footer>
 
