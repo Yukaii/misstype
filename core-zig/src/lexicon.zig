@@ -90,7 +90,7 @@ pub const Lexicon = struct {
     /// Optional homophone word-bigram table (null = byte-identical decode).
     homophone: ?homophone.Table = null,
     /// Nats of table bonus per unit of difference between two homophones.
-    homophone_weight: f64 = 0.5,
+    homophone_weight: f64 = 1.0,
     /// Touched nodes and what they held before the user overlay.
     pristine: std.ArrayList(Pristine) = .empty,
     user_word_count: usize = 0,
@@ -112,10 +112,12 @@ pub const Lexicon = struct {
         return self;
     }
 
-    /// `bytes` (a `homophone.zig` file) must outlive the lexicon. Rejects a
+    /// Copies `bytes` (a `homophone.zig` file) into the lexicon. Rejects a
     /// malformed table and leaves the decoder as it was.
     pub fn setHomophoneTable(self: *Lexicon, bytes: []const u8) !void {
-        self.homophone = try homophone.Table.parse(bytes);
+        _ = try homophone.Table.parse(bytes);
+        const owned = try self.arena.allocator().dupe(u8, bytes);
+        self.homophone = try homophone.Table.parse(owned);
     }
 
     pub fn destroy(self: *Lexicon) void {

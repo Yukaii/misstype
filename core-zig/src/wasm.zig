@@ -68,6 +68,14 @@ export fn misstype_wasm_init(lexicon_ptr: [*]const u8, lexicon_len: usize, tonel
     return 1;
 }
 
+/// Optional homophone word-bigram table (homophone.bin); 0 on a malformed
+/// file, which leaves decoding as it was. Copied, so the caller may free.
+export fn misstype_wasm_load_homophone(ptr: [*]const u8, len: usize) i32 {
+    const e = engine orelse return 0;
+    e.decoder.setHomophoneTable(bytes(ptr, len)) catch return 0;
+    return 1;
+}
+
 export fn misstype_wasm_load_english(tsv_ptr: [*]const u8, tsv_len: usize) i32 {
     const e = engine orelse return 0;
     const lexicon = core.english.EnglishLexicon.create(gpa, bytes(tsv_ptr, tsv_len)) catch return 0;

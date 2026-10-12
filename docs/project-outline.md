@@ -320,6 +320,27 @@ our unigram (not corpus frequency), prune to a few MB, check toned/toneless
 split, port to the Zig core behind a nil-by-default seam and run the wasm
 size budget. Licence of a table derived from HPLT web text is undecided.
 
+Follow-up (shipped as an optional seam, 2026-10-12, `core-zig/src/homophone.zig`).
+The Python rerank above re-segmented candidates itself and compared any
+two words. The core version is stricter: a candidate is in the top-1's
+class only when its alignment has the same syllable spans and every word
+comes from the same trie node (same reading), and only then gains
+`weight * (bonus - top bonus)`; nothing else moves, so no repair or
+segmentation is overridden. Table: sorted 8-byte entries (40-bit FNV-1a key,
+i8 value in 0.25 nat), binary-searched in place, 8 bytes/pair, the top K by
+sqrt(count)*|capped add-3 PMI|. Native gate (`eval --native`, 4 HPLT shards,
+Common Voice zh-TW 400 sentences x toned/toneless + 160 synthetic cases,
+960 cases, baseline top-1 610): 100k pairs (0.8 MB) +9/-0; 200k (1.6 MB)
++17/-0 at weight 0.75, +19/-0 at 1.0, +19/-1 at 1.5, +19/-3 at 2.0, +19/-5
+at 3.0 (breaks: 與→語, 的→地, 零→齡); 400k (3.2 MB) +12/-0 at 0.5 and
++13/-0 at 0.75 on a 560-case subset; 1.2M (9.6 MB) +14/-0; all 3M (24 MB)
++14/-0. 200k at weight 1.0 is the knee and the default weight. Latency
+(60 toned sentences, 200k table): 7.15 -> 7.18 ms mean decode, max
+unchanged; resident +1.5 MB. Without `homophone.bin` decode is byte
+identical (replay and parity gates MATCH). Not wired into any adapter's
+packaging yet; the table is not committed (derived from HPLT web text,
+licence undecided).
+
 Pilot (triage, NOT a finding yet, `--jev-mode trust`, n=5, threshold 0.6
 read post-hoc): one boolean on offline top-1 ("候選1是最正確的嗎")
 separates 10/10 — right top-1 trusts 0.82+ (hide-panel), wrong top-1

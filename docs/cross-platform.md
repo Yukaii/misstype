@@ -136,8 +136,11 @@ shortcut runs.
 
 Resource files are identical on every platform: `lexicon.tsv` (required),
 `local_phrases.tsv`, `toneless.tsv`, all produced by
-`script/prepare_lexicon.py`. The learned-phrase JSON is portable across
-platforms.
+`script/prepare_lexicon.py`. `homophone.bin` is an optional binary table
+(`core-zig/src/homophone.zig`, built by `tools/homophone_bigram.py`); when
+the adapter finds it next to the lexicon it loads it and when it is absent
+or malformed decoding is unchanged. The learned-phrase JSON is portable
+across platforms.
 
 ### Platform delivery rules
 

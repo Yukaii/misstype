@@ -16,6 +16,11 @@ pub fn read(io: Io, gpa: Allocator, path: []const u8) ?[]u8 {
     return data;
 }
 
+/// Whole file as raw bytes (binary resources; `read` only accepts UTF-8).
+pub fn readBytes(io: Io, gpa: Allocator, path: []const u8) ?[]u8 {
+    return Io.Dir.cwd().readFileAlloc(io, path, gpa, .unlimited) catch null;
+}
+
 /// Write via a temporary file and rename, creating the directory first.
 pub fn writeAtomic(io: Io, gpa: Allocator, path: []const u8, data: []const u8) bool {
     const cwd = Io.Dir.cwd();
