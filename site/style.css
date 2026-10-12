@@ -453,6 +453,147 @@ kbd {
 .agent-prompt pre { margin: 10px 0 0; padding: 12px 14px; overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--ink); font: 13px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; }
 .agent-prompt pre code { color: inherit; }
 
+/* Emphasized Agent prompt card */
+.agent-card {
+  margin-top: 24px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 2px 8px rgba(38, 44, 52, .04);
+  overflow: hidden;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.agent-card:hover {
+  border-color: var(--muted);
+}
+.agent-card[open] {
+  box-shadow: 0 4px 16px rgba(38, 44, 52, .06);
+}
+.agent-card-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--card);
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+}
+.agent-card-summary::-webkit-details-marker {
+  display: none;
+}
+.agent-card-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+  font-weight: 600;
+  font-size: 15px;
+}
+.agent-icon {
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  fill: none;
+}
+.agent-card-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 5px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .12s ease, border-color .12s ease, color .12s ease, transform .08s ease;
+  user-select: none;
+}
+.copy-btn:hover {
+  background: var(--card);
+  border-color: var(--ink);
+  color: var(--ink);
+}
+.copy-btn:active {
+  transform: translateY(1px);
+}
+.copy-btn svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  fill: none;
+}
+.copy-btn .icon-check {
+  display: none;
+}
+.copy-btn.copied {
+  color: var(--ok);
+  border-color: var(--ok);
+  background: var(--card);
+}
+.copy-btn.copied .icon-copy {
+  display: none;
+}
+.copy-btn.copied .icon-check {
+  display: inline-block;
+}
+.agent-chevron {
+  display: inline-flex;
+  align-items: center;
+  color: var(--muted);
+  transition: transform .2s ease;
+}
+.agent-chevron svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  fill: none;
+}
+.agent-card[open] .agent-chevron svg {
+  transform: rotate(180deg);
+}
+.agent-card-body {
+  border-top: 1px solid var(--line);
+  background: var(--paper);
+}
+.agent-card pre {
+  margin: 0;
+  padding: 12px 16px;
+  overflow-x: auto;
+  border: none;
+  background: transparent;
+  color: var(--ink);
+  font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.agent-card pre code {
+  color: inherit;
+}
+@media (max-width: 540px) {
+  .agent-card-summary {
+    flex-wrap: wrap;
+  }
+  .agent-card-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
+
 /* Honest notes */
 
 .notes p { max-width: 38em; }

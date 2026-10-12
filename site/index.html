@@ -180,9 +180,23 @@ sudo pacman -U ./MisstypeIBus-*-arch-*.pkg.tar.zst
 # script/linux/build.sh &amp;&amp; sudo cmake --install build/ibus</code></pre>
           <p class="sub">安裝後執行 <code>ibus restart</code>，至「系統設定 → 鍵盤 → 輸入來源」加入 Misstype（Chinese）。偏好設定可透過 <code>ibus-setup</code> 或 <code>/usr/libexec/ibus-setup-misstype</code> 開啟。詳見 <a href="https://github.com/Yukaii/misstype/blob/main/docs/ibus-port.md">IBus 移植說明</a>。</p>
         </details>
-        <details class="agent-prompt">
-          <summary>複製這段給 coding agent 代為安裝</summary>
-          <pre><code>請在這台 Linux 電腦安裝 Misstype：
+        <details class="agent-card" open>
+          <summary class="agent-card-summary">
+            <div class="agent-card-title">
+              <svg class="agent-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="4" width="11" height="9" rx="2"/><circle cx="6" cy="8.5" r="1"/><circle cx="10" cy="8.5" r="1"/><path d="M8 1.5v2.5M6 1.5h4"/></svg>
+              <span>複製這段給 coding agent 代為安裝</span>
+            </div>
+            <div class="agent-card-actions">
+              <button class="copy-btn" type="button" aria-label="複製提示詞" data-copied="已複製！">
+                <svg class="icon-copy" viewBox="0 0 16 16" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.6"/><path d="M10.5 3.8V4A1.5 1.5 0 0 0 9 2.5H4.5A1.5 1.5 0 0 0 3 4v4.5A1.5 1.5 0 0 0 4.5 10h1"/></svg>
+                <svg class="icon-check" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5 6.5 11.5 12.5 4.5"/></svg>
+                <span class="copy-label">複製提示詞</span>
+              </button>
+              <span class="agent-chevron" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></svg></span>
+            </div>
+          </summary>
+          <div class="agent-card-body">
+            <pre><code>請在這台 Linux 電腦安裝 Misstype：
 1. 先偵測發行版與架構；需要 sudo 時先告訴我並取得同意。
 2. Arch／Omarchy 優先用 AUR 預編譯套件 fcitx5-misstype-bin（x86_64 與 aarch64；yay 或 paru，沒有的話 git clone 後 makepkg -si），也可選 fcitx5-misstype-git 從原始碼建置；Ubuntu 24.04 或 Fedora 從最新 Release 下載對應套件；若沒有相符套件，再 clone https://github.com/Yukaii/misstype.git。
 3. 從原始碼安裝時，Arch／Omarchy 安裝 base-devel、cmake、ninja、git；Ubuntu 24.04 執行 script/linux/bootstrap.sh。
@@ -190,6 +204,7 @@ sudo pacman -U ./MisstypeIBus-*-arch-*.pkg.tar.zst
 5. 確認 fcitx5 正在執行，並用 fcitx5-configtool 將 Misstype 加入輸入法群組。
 6. 重新啟動或重新登入後，用 fcitx5 的快捷鍵切換，輸入 su3cl3 確認預覽為「你好」。
 若目前環境不符合支援條件，請說明原因並停止，不要刪除既有輸入法。</code></pre>
+          </div>
         </details>
       </div>
     </div>
@@ -216,5 +231,6 @@ sudo pacman -U ./MisstypeIBus-*-arch-*.pkg.tar.zst
 <script type="module" src="./hero-figure.js"></script>
 <script type="module" src="./video.js"></script>
 <script type="module" src="./theme.js"></script>
+<script type="module" src="./copy.js"></script>
 </body>
 </html>
