@@ -41,6 +41,9 @@ enum MisstypePrefs {
             "MisstypeKeyBindings": "",
             "MisstypeCursorCandidates": CursorCandidates.covering.rawValue,
             "MisstypeCandidateFontSize": PanelStyle.defaultFontSize,
+            "MisstypeCandidateFontFamily": "",
+            "MisstypeCandidateKeyFontFamily": "",
+            "MisstypePanelCornerRadius": PanelStyle.defaultCornerRadius,
             "MisstypePanelAppearance": PanelStyle.Appearance.system.rawValue,
             "MisstypePanelTheme": PanelTheme.system.rawValue,
             "MisstypeUILanguage": "",
@@ -84,6 +87,9 @@ enum MisstypePrefs {
         let defaults = UserDefaults.standard
         return PanelStyle(
             fontSize: PanelStyle.clampFontSize(defaults.double(forKey: "MisstypeCandidateFontSize")),
+            fontFamily: defaults.string(forKey: "MisstypeCandidateFontFamily") ?? "",
+            keyFontFamily: defaults.string(forKey: "MisstypeCandidateKeyFontFamily") ?? "",
+            cornerRadius: PanelStyle.clampCornerRadius(defaults.double(forKey: "MisstypePanelCornerRadius")),
             appearance: PanelStyle.Appearance(rawValue: defaults.string(forKey: "MisstypePanelAppearance") ?? "") ?? .system,
             theme: PanelTheme(rawValue: defaults.string(forKey: "MisstypePanelTheme") ?? "") ?? .system,
             grid: defaults.bool(forKey: "MisstypeCandidateGrid"))
@@ -223,9 +229,41 @@ struct PanelStyle: Equatable {
         size == 0 ? defaultFontSize : min(max(size, fontSizes.lowerBound), fontSizes.upperBound)
     }
 
+    static let defaultCornerRadius: Double = 10
+    static let cornerRadii: ClosedRange<Double> = 0...20
+    static func clampCornerRadius(_ radius: Double) -> Double {
+        min(max(radius, cornerRadii.lowerBound), cornerRadii.upperBound)
+    }
+
     var fontSize: Double = defaultFontSize
+    /// Font family of the candidate words; "" = the system font.
+    var fontFamily = ""
+    /// Font family of the selection-key labels; "" = the system monospaced font.
+    var keyFontFamily = ""
+    /// Panel corner radius; the highlighted row's follows (`rowCornerRadius`).
+    var cornerRadius: Double = defaultCornerRadius
     var appearance: Appearance = .system
     var theme: PanelTheme = .system
+    /// Highlight inset 4 pt from the panel edge, so its corners are the
+    /// panel's minus that inset (never below 0).
+    var rowCornerRadius: CGFloat { CGFloat(max(cornerRadius - 4, 0)) }
+
+    /// Candidate-word font; an unknown or uninstalled family falls back to the system font.
+    var wordFont: NSFont {
+        Self.font(family: fontFamily, size: fontSize) ?? .systemFont(ofSize: fontSize)
+    }
+
+    /// Selection-key font, two points under the words (as before the setting existed).
+    var keyFont: NSFont {
+        Self.font(family: keyFontFamily, size: fontSize - 2)
+            ?? .monospacedSystemFont(ofSize: fontSize - 2, weight: .regular)
+    }
+
+    private static func font(family: String, size: Double) -> NSFont? {
+        guard !family.isEmpty else { return nil }
+        return NSFontManager.shared.font(withFamily: family, traits: [], weight: 5, size: CGFloat(size))
+    }
+
     /// Show every page side by side (up to 4 columns) instead of one list.
     var grid = false
 }

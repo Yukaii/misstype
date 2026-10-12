@@ -125,3 +125,12 @@
 "Hex colors such as #1e1e2e. Used for both light and dark." = "#1e1e2e のような 16 進カラー。ライト／ダーク共通です。";
 "Language" = "言語";
 "Interface language" = "表示言語";
+"Candidate font" = "候補のフォント";
+"Selection key font" = "選択キーのフォント";
+"System" = "システム";
+"System Monospaced" = "システム等幅";
+"Corner radius" = "角の丸み";
+"Export…" = "書き出し…";
+"Search" = "検索";
+"Forget this phrase" = "この語句を忘れる";
+"No matches" = "一致なし";

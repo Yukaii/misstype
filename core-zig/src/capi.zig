@@ -629,6 +629,38 @@ export fn misstype_engine_clear_learned_phrases(engine_: ?*Engine) callconv(.c) 
     engine.clearUserLexicon() catch {};
 }
 
+/// One "readings<TAB>text<TAB>count<TAB>updatedAt" row per learned phrase,
+/// newest first. Positional session pins never reach the file, so every row
+/// is a word the user picked on purpose.
+export fn misstype_engine_learned_phrases(engine_: ?*const Engine) callconv(.c) ?[*:0]u8 {
+    const engine = engine_ orelse return dupZ("");
+    var out: std.Io.Writer.Allocating = .init(gpa);
+    defer out.deinit();
+    const Row = struct { key: []const u8, text: []const u8, record: core.user_lexicon.Record };
+    var rows: std.ArrayList(Row) = .empty;
+    defer rows.deinit(gpa);
+    var entries = engine.user_lexicon.entries.iterator();
+    while (entries.next()) |entry| {
+        var texts = entry.value_ptr.iterator();
+        while (texts.next()) |t| rows.append(gpa, .{ .key = entry.key_ptr.*, .text = t.key_ptr.*, .record = t.value_ptr.* }) catch return dupZ("");
+    }
+    std.mem.sort(Row, rows.items, {}, struct {
+        fn newer(_: void, a: Row, b: Row) bool {
+            if (a.record.updated_at != b.record.updated_at) return a.record.updated_at > b.record.updated_at;
+            return core.unicode.lessThan(a.text, b.text);
+        }
+    }.newer);
+    for (rows.items) |row| {
+        out.writer.print("{s}\t{s}\t{d}\t{d}\n", .{ row.key, row.text, row.record.count, row.record.updated_at }) catch return dupZ("");
+    }
+    return dupZ(out.written());
+}
+
+export fn misstype_engine_forget_learned_phrase(engine_: ?*Engine, readings: ?[*:0]const u8, text: ?[*:0]const u8) callconv(.c) void {
+    const engine = engine_ orelse return;
+    engine.forgetLearned(span(readings) orelse return, span(text) orelse return) catch {};
+}
+
 export fn misstype_engine_channel_pairs(engine_: ?*const Engine) callconv(.c) ?[*:0]u8 {
     const engine = engine_ orelse return dupZ("");
     var arena: std.heap.ArenaAllocator = .init(gpa);

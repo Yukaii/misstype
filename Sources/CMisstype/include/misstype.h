@@ -208,6 +208,12 @@ int32_t misstype_engine_learned_phrase_count(const misstype_engine *engine);
 void misstype_engine_reload_learned_phrases(misstype_engine *engine); /* re-read the file */
 void misstype_engine_save_learned_phrases(misstype_engine *engine);   /* flush to the file */
 void misstype_engine_clear_learned_phrases(misstype_engine *engine);  /* forget all, on disk too */
+/* v2. Learned phrases, newest first: one "readings<TAB>text<TAB>count<TAB>updatedAt"
+ * line each (readings = toneless Bopomofo, "previous|readings" for context
+ * entries); "" when none. Free with misstype_string_free. */
+char *misstype_engine_learned_phrases(const misstype_engine *engine);
+/* Forgets one learned (readings, text) pair, on disk too. */
+void misstype_engine_forget_learned_phrase(misstype_engine *engine, const char *readings, const char *text);
 /* v2. Learned typing slips the decoder uses, cheapest first: one
  * "typed<TAB>intended<TAB>cost" line each (Bopomofo symbols); "" when none. */
 char *misstype_engine_channel_pairs(const misstype_engine *engine);

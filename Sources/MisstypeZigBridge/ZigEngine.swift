@@ -102,6 +102,28 @@ public final class ZigEngine {
     public func reloadLearnedPhrases() { misstype_engine_reload_learned_phrases(handle) }
     public func saveLearnedPhrases() { misstype_engine_save_learned_phrases(handle) }
     public func clearLearnedPhrases() { misstype_engine_clear_learned_phrases(handle) }
+    public struct LearnedPhrase: Equatable, Sendable, Identifiable {
+        public let readings: String
+        public let text: String
+        public let count: Int
+        public let updatedAt: Date
+        public var id: String { readings + "\t" + text }
+    }
+
+    /// Learned phrases, newest first.
+    public var learnedPhrases: [LearnedPhrase] {
+        Self.take(misstype_engine_learned_phrases(handle)).split(separator: "\n").compactMap { row in
+            let fields = row.split(separator: "\t", omittingEmptySubsequences: false)
+            guard fields.count == 4, let count = Int(fields[2]), let at = Double(fields[3]) else { return nil }
+            return LearnedPhrase(readings: String(fields[0]), text: String(fields[1]), count: count,
+                                 updatedAt: Date(timeIntervalSince1970: at))
+        }
+    }
+
+    public func forgetLearnedPhrase(_ phrase: LearnedPhrase) {
+        misstype_engine_forget_learned_phrase(handle, phrase.readings, phrase.text)
+    }
+
     public func clearChannel() { misstype_engine_clear_channel(handle) }
 
     public struct ChannelPair: Equatable, Sendable {

@@ -125,3 +125,12 @@
 "Hex colors such as #1e1e2e. Used for both light and dark." = "16 進位色碼，例如 #1e1e2e。淺色與深色共用。";
 "Language" = "語言";
 "Interface language" = "介面語言";
+"Candidate font" = "候選字型";
+"Selection key font" = "選字鍵字型";
+"System" = "系統";
+"System Monospaced" = "系統等寬";
+"Corner radius" = "圓角半徑";
+"Export…" = "匯出…";
+"Search" = "搜尋";
+"Forget this phrase" = "忘記此詞";
+"No matches" = "沒有符合項目";

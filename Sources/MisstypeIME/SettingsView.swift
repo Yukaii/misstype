@@ -23,6 +23,28 @@ final class SettingsWindow: NSWindow {
         if !setFrameUsingName("MisstypeSettingsWindow") { center() }
     }
 
+    /// The IME process has no main menu, so nothing owns ⌘A/C/X/V/Z and text
+    /// fields (the dictionary editor above all) would beep. After the normal
+    /// handling, send the standard edit action down the responder chain.
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        if super.performKeyEquivalent(with: event) { return true }
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        guard flags.contains(.command), !flags.contains(.option), !flags.contains(.control),
+              let key = event.charactersIgnoringModifiers?.lowercased() else { return false }
+        let shift = flags.contains(.shift)
+        let action: Selector?
+        switch key {
+        case "a" where !shift: action = #selector(NSText.selectAll(_:))
+        case "c" where !shift: action = #selector(NSText.copy(_:))
+        case "x" where !shift: action = #selector(NSText.cut(_:))
+        case "v" where !shift: action = #selector(NSText.paste(_:))
+        case "z": action = Selector(shift ? "redo:" : "undo:")
+        default: action = nil
+        }
+        guard let action else { return false }
+        return NSApp.sendAction(action, to: nil, from: self)
+    }
+
     func show() {
         makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
@@ -170,6 +192,9 @@ private struct GeneralPane: View {
 private struct AppearancePane: View {
     @AppStorage("MisstypePanelAppearance") private var appearance = PanelStyle.Appearance.system.rawValue
     @AppStorage("MisstypeCandidateFontSize") private var fontSize = PanelStyle.defaultFontSize
+    @AppStorage("MisstypeCandidateFontFamily") private var fontFamily = ""
+    @AppStorage("MisstypeCandidateKeyFontFamily") private var keyFontFamily = ""
+    @AppStorage("MisstypePanelCornerRadius") private var cornerRadius = PanelStyle.defaultCornerRadius
     @AppStorage("MisstypePanelTheme") private var theme = PanelTheme.system.rawValue
     @AppStorage(CustomTheme.userDefaultsKey) private var customTheme = CustomTheme.defaultText
     @AppStorage("MisstypeCandidatesPerPage") private var perPage = SelectionKeys.defaultPageSize
@@ -216,14 +241,50 @@ private struct AppearancePane: View {
                             .frame(width: 44, alignment: .trailing)
                     }
                 }
+                FontFamilyPicker(title: L("Candidate font"), systemName: L("System"), family: $fontFamily)
+                FontFamilyPicker(title: L("Selection key font"), systemName: L("System Monospaced"), family: $keyFontFamily)
+                LabeledContent(L("Corner radius")) {
+                    HStack {
+                        Slider(value: $cornerRadius, in: PanelStyle.cornerRadii, step: 1)
+                            .frame(maxWidth: 200)
+                        Text(L("%d pt", Int(cornerRadius)))
+                            .monospacedDigit().foregroundStyle(.secondary)
+                            .frame(width: 44, alignment: .trailing)
+                    }
+                }
                 Stepper(value: $perPage, in: SelectionKeys.pageSizes) {
                     LabeledContent(L("Candidates per page"), value: "\(perPage)")
                 }
             }
             Section(L("Preview")) {
-                PanelPreview(fontSize: fontSize, theme: PanelTheme(rawValue: theme) ?? .system,
-                             scheme: PanelStyle.Appearance(rawValue: appearance) ?? .system)
+                PanelPreview(
+                    style: PanelStyle(fontSize: PanelStyle.clampFontSize(fontSize), fontFamily: fontFamily,
+                                      keyFontFamily: keyFontFamily,
+                                      cornerRadius: PanelStyle.clampCornerRadius(cornerRadius)),
+                    theme: PanelTheme(rawValue: theme) ?? .system,
+                    scheme: PanelStyle.Appearance(rawValue: appearance) ?? .system)
             }
+        }
+    }
+}
+
+/// Installed font families, "" = the built-in default. A stored family that
+/// is no longer installed stays listed so the picker never shows a blank.
+private struct FontFamilyPicker: View {
+    let title: String
+    let systemName: String
+    @Binding var family: String
+
+    private static let families = NSFontManager.shared.availableFontFamilies
+
+    var body: some View {
+        Picker(title, selection: $family) {
+            Text(systemName).tag("")
+            if !family.isEmpty, !Self.families.contains(family) {
+                Text(family).tag(family)
+            }
+            Divider()
+            ForEach(Self.families, id: \.self) { Text($0).tag($0) }
         }
     }
 }
@@ -330,21 +391,21 @@ private struct SwatchBody: View {
 
 /// A static sketch of the panel with the chosen style (not the real panel).
 private struct PanelPreview: View {
-    let fontSize: Double
+    let style: PanelStyle
     let theme: PanelTheme
     let scheme: PanelStyle.Appearance
 
     var body: some View {
         switch scheme {
-        case .system: PreviewBody(fontSize: fontSize, theme: theme)
-        case .light: PreviewBody(fontSize: fontSize, theme: theme).environment(\.colorScheme, .light)
-        case .dark: PreviewBody(fontSize: fontSize, theme: theme).environment(\.colorScheme, .dark)
+        case .system: PreviewBody(style: style, theme: theme)
+        case .light: PreviewBody(style: style, theme: theme).environment(\.colorScheme, .light)
+        case .dark: PreviewBody(style: style, theme: theme).environment(\.colorScheme, .dark)
         }
     }
 }
 
 private struct PreviewBody: View {
-    let fontSize: Double
+    let style: PanelStyle
     let theme: PanelTheme
     @Environment(\.colorScheme) private var colorScheme
     private let rows = ["你好", "妳好", "擬好"]
@@ -355,22 +416,22 @@ private struct PreviewBody: View {
             ForEach(Array(rows.enumerated()), id: \.offset) { index, text in
                 HStack(spacing: 8) {
                     Text(["a", "s", "d"][index])
-                        .font(.system(size: fontSize - 2, design: .monospaced))
+                        .font(Font(style.keyFont))
                         .foregroundStyle(palette.map { Color(nsColor: $0.key) } ?? Color.secondary)
-                    Text(text).font(.system(size: fontSize))
+                    Text(text).font(Font(style.wordFont))
                         .foregroundStyle(palette.map { Color(nsColor: $0.text) } ?? Color.primary)
                     Spacer(minLength: 0)
                 }
-                .padding(.horizontal, 6)
-                .frame(height: (fontSize * 28 / 15).rounded())
-                .background(RoundedRectangle(cornerRadius: 6).fill(
+                .padding(.horizontal, 8)
+                .frame(height: (style.fontSize * 28 / 15).rounded())
+                .background(RoundedRectangle(cornerRadius: style.rowCornerRadius).fill(
                     index == 0 ? (palette.map { Color(nsColor: $0.highlight) } ?? Color.secondary.opacity(0.2))
                                : Color.clear))
             }
         }
         .padding(4)
         .frame(width: 180)
-        .background(RoundedRectangle(cornerRadius: 10).fill(
+        .background(RoundedRectangle(cornerRadius: style.cornerRadius).fill(
             palette.map { Color(nsColor: $0.background) } ?? Color(nsColor: .windowBackgroundColor)))
         .shadow(radius: 3, y: 1)
         .padding(.vertical, 6)
@@ -661,9 +722,22 @@ private struct LearningPane: View {
     @AppStorage("MisstypeUserLearning") private var learning = true
     @AppStorage("MisstypeChannelLearning") private var channel = false
     @State private var count = Runtime.zigEngine.learnedPhraseCount
+    @State private var phrases = Runtime.zigEngine.learnedPhrases
+    @State private var search = ""
     @State private var slips = Runtime.zigEngine.channelPairs
     @State private var confirmClear = false
     @State private var confirmClearSlips = false
+
+    private var shownPhrases: [ZigEngine.LearnedPhrase] {
+        let query = search.trimmingCharacters(in: .whitespaces)
+        guard !query.isEmpty else { return phrases }
+        return phrases.filter { $0.text.contains(query) || $0.readings.contains(query) }
+    }
+
+    private func refresh() {
+        phrases = Runtime.zigEngine.learnedPhrases
+        count = Runtime.zigEngine.learnedPhraseCount
+    }
 
     var body: some View {
         Form {
@@ -674,7 +748,7 @@ private struct LearningPane: View {
                     isOn: $learning)
                     .onChange(of: learning) { isOn in
                         if isOn { Runtime.zigEngine.reloadLearnedPhrases() }
-                        count = Runtime.zigEngine.learnedPhraseCount
+                        refresh()
                     }
             }
             Section(L("Learned phrases")) {
@@ -689,6 +763,33 @@ private struct LearningPane: View {
                 }
                 Text(L("A portable local JSON file — copy it to export or back up."))
                     .font(.caption).foregroundStyle(.secondary)
+                TextField(L("Search"), text: $search)
+                    .textFieldStyle(.roundedBorder)
+                // Fixed height for the same reason as the dictionary editor:
+                // up to 500 rows scroll inside the list, not the pane.
+                List(shownPhrases) { phrase in
+                    HStack {
+                        Text(phrase.text)
+                        Text(phrase.readings.replacingOccurrences(of: "|", with: " → "))
+                            .font(.caption).foregroundStyle(.secondary)
+                        Spacer()
+                        Text("×\(phrase.count)").font(.caption.monospacedDigit()).foregroundStyle(.tertiary)
+                        Button {
+                            Runtime.zigEngine.forgetLearnedPhrase(phrase)
+                            refresh()
+                        } label: {
+                            Image(systemName: "trash")
+                        }
+                        .buttonStyle(.borderless)
+                        .help(L("Forget this phrase"))
+                    }
+                }
+                .frame(height: 220)
+                .overlay {
+                    if shownPhrases.isEmpty {
+                        Text(phrases.isEmpty ? L("None yet") : L("No matches")).foregroundStyle(.secondary)
+                    }
+                }
             }
             Section {
                 DescribedToggle(
@@ -713,13 +814,13 @@ private struct LearningPane: View {
             }
         }
         .onAppear {
-            count = Runtime.zigEngine.learnedPhraseCount
+            refresh()
             slips = Runtime.zigEngine.channelPairs
         }
         .alert(L("Clear all learned phrases?"), isPresented: $confirmClear) {
             Button(L("Clear"), role: .destructive) {
                 Runtime.zigEngine.clearLearnedPhrases()
-                count = 0
+                refresh()
             }
             Button(L("Cancel"), role: .cancel) {}
         } message: {
@@ -798,6 +899,7 @@ private struct DictionaryPane: View {
                         .font(.caption).foregroundStyle(.secondary)
                     Spacer()
                     Button(L("Import…")) { importFile() }
+                    Button(L("Export…")) { exportFile() }
                     Button(L("Show in Finder")) {
                         if !FileManager.default.fileExists(atPath: UserFiles.userDictionary.path) { save() }
                         NSWorkspace.shared.activateFileViewerSelecting([UserFiles.userDictionary])
@@ -832,6 +934,15 @@ private struct DictionaryPane: View {
         text = result.text
         importNote = L("Imported %d words (%d already there, %d lines skipped). Press Save to apply.",
                        result.added, result.duplicates, result.skipped)
+    }
+
+    /// Writes the editor's current text (saved or not) where the user picks.
+    private func exportFile() {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.plainText]
+        panel.nameFieldStringValue = "misstype-user-dictionary.txt"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        if !UserFiles.write(text, to: url) { NSSound.beep() }
     }
 
     private func save() {
