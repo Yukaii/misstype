@@ -656,6 +656,54 @@ test "the capture is bounded and clear removes the active input" {
 
 // MARK: - User phrase learning
 
+const greeting_rows = h.tsv(
+    \\ㄢ|安|-5
+    \\ㄢˋ|暗|-6
+    \\ㄢ-ㄢ|安安|-8
+    \\ㄢˋ-ㄢˋ|暗暗|-8.5
+    \\ㄋㄧˇ|你|-5
+    \\ㄋㄧˋ|逆|-6
+    \\ㄏㄠˇ|好|-5
+    \\ㄋㄧˇ-ㄏㄠˇ|你好|-8
+    \\
+);
+
+test "learned words respect every explicit tone in a partially toned span" {
+    const d = try Dec.init(greeting_rows);
+    defer d.deinit();
+    var learned = UserLexicon.init(t.allocator);
+    defer learned.deinit();
+    // Even the maximum learned bonus must not cancel a supplied first tone.
+    for (1..7) |second| try learned.record("ㄢㄢ", "暗暗", @floatFromInt(second));
+    for ([_][]const u8{ "0 0sucl", "0 0 sucl", "00 sucl" }) |keys| {
+        try expectTop(try d.decodeParsed(try d.comp(keys), .{ .user_lexicon = &learned }), "安安你好");
+    }
+    // Learning still resolves toneless input and input with matching tones.
+    for ([_][]const u8{ "00sucl", "0404sucl" }) |keys| {
+        try expectTop(try d.decodeParsed(try d.comp(keys), .{ .user_lexicon = &learned }), "暗暗你好");
+    }
+}
+
+test "learned context respects explicit tone but still resolves toneless input" {
+    const d = try Dec.init(greeting_rows);
+    defer d.deinit();
+    var learned = UserLexicon.init(t.allocator);
+    defer learned.deinit();
+    for (1..7) |second| try learned.record("安安|ㄋㄧ", "逆", @floatFromInt(second));
+    try expectTop(try d.decodeParsed(try d.comp("0 0 su3cl"), .{ .user_lexicon = &learned }), "安安你好");
+    try expectTop(try d.decodeParsed(try d.comp("0 0 sucl"), .{ .user_lexicon = &learned }), "安安逆好");
+    try expectTop(try d.decodeParsed(try d.comp("0 0 su4cl"), .{ .user_lexicon = &learned }), "安安逆好");
+}
+
+test "learned homophones still apply to key repairs with matching tone" {
+    const d = try dec();
+    defer d.deinit();
+    var learned = UserLexicon.init(t.allocator);
+    defer learned.deinit();
+    try learned.record("ㄋㄧ", "妳", 1);
+    try expectTop(try d.decode(&.{d.syl("du", h.t3)}, .{ .user_lexicon = &learned }), "妳");
+}
+
 test "the user lexicon flips the top one after one explicit pick" {
     // Fixture prefers 你 (-5) over 妳 (-6); one explicit record (+6) must
     // flip the tie deterministically.

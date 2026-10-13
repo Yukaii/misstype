@@ -868,7 +868,24 @@ pub const Lexicon = struct {
         }
     };
 
-    const State = struct { node: u32, penalty: f64, repairs: i32, depth: u8, readings: [max_word_syllables]ReadingId };
+    const State = struct {
+        node: u32,
+        penalty: f64,
+        repairs: i32,
+        depth: u8,
+        readings: [max_word_syllables]ReadingId,
+        learning_tones_match: bool = true,
+    };
+
+    /// Learned keys omit tones, but an explicit tone must still constrain
+    /// their bonus. Key repairs with the requested tone remain learnable.
+    fn learningToneMatches(syllable: Syllable, reading: []const u8) bool {
+        const key = syllable.tone orelse return true;
+        const mark = keyboard.tone(key) orelse return true;
+        if (mark.len > 0) return std.mem.endsWith(u8, reading, mark);
+        // First tone has no mark; every other tone ends in U+02xx (CB xx).
+        return reading.len < 2 or reading[reading.len - 2] != 0xcb;
+    }
 
     /// Decode with caller-supplied reading options per syllable.
     pub fn decodeOptions(self: *const Lexicon, arena: Allocator, syllables: []const Syllable, options: []const []Option, user_lexicon_: ?*const UserLexicon, locked: ?*const UserLexicon) ![]Candidate {
@@ -912,6 +929,7 @@ pub const Lexicon = struct {
                     for (options[end]) |option| {
                         const child_node = self.child(state.node, option.reading) orelse continue;
                         var grown = State{ .node = child_node, .penalty = state.penalty + option.cost, .repairs = state.repairs + option.correction, .depth = state.depth + 1, .readings = state.readings };
+                        grown.learning_tones_match = state.learning_tones_match and learningToneMatches(syllables[end], self.readingName(option.reading));
                         grown.readings[state.depth] = option.reading;
                         try next.append(arena, grown);
                         if (option.word_only and end == start) continue;
@@ -929,7 +947,7 @@ pub const Lexicon = struct {
                             try span_key.appendSlice(arena, self.readingName(id));
                             span_key.shrinkRetainingCapacity(s + keyboard.withoutTone(span_key.items[s..], span_key.items[s..]).len);
                         }
-                        const rules: ?[]const user_lexicon.ContextRule = if (context_rules) |cr| (if (cr.get(span_key.items)) |list| list.items else null) else null;
+                        const rules: ?[]const user_lexicon.ContextRule = if (grown.learning_tones_match) (if (context_rules) |cr| (if (cr.get(span_key.items)) |list| list.items else null) else null) else null;
                         for (entries, 0..) |entry, rank| {
                             // The cap trims the beam, never a user's pick.
                             if (rank >= cap) {
@@ -937,7 +955,7 @@ pub const Lexicon = struct {
                                 if (!locked.?.hasPin(span_key.items, entry.text)) continue;
                             }
                             const legacy_pinned = if (locked) |l| l.contains(span_key.items, entry.text) else false;
-                            const learned: f64 = if (end > start or syllables.len == 1)
+                            const learned: f64 = if (grown.learning_tones_match and (end > start or syllables.len == 1))
                                 (if (user_lexicon_) |u| u.bonus(span_key.items, entry.text) else 0)
                             else
                                 0;
