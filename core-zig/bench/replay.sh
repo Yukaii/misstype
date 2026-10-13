@@ -3,8 +3,10 @@
 # through the C ABI and diffs every key result and view against the frozen
 # Swift transcripts (tests/golden/replay_<cases>_<seed>.txt.gz).
 # Outputs stay under build/replay.
-#   core-zig/bench/replay.sh [fuzz cases] [seed]          # gate (400 1 and 400 487 are frozen)
+#   core-zig/bench/replay.sh [fuzz cases] [seed]          # gate (100/400 cases, seeds 1/487)
 #   core-zig/bench/replay.sh --update [fuzz cases] [seed] # after an INTENDED behavior change
+# Intentional changes must update all four goldens: PR CI uses 100 cases;
+# main/manual CI uses 400. Review each diff before committing.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 update=0
@@ -13,7 +15,7 @@ cases=${1:-400}
 seed=${2:-1}
 [[ "$cases" =~ ^[0-9]+$ && "$seed" =~ ^[0-9]+$ ]] || { echo "cases and seed must be nonnegative integers" >&2; exit 2; }
 golden=tests/golden/replay_${cases}_${seed}.txt.gz
-[ "$update" = 1 ] || [ -f "$golden" ] || { echo "no golden transcript $golden (frozen: 400/1, 400/487; --update creates one)" >&2; exit 2; }
+[ "$update" = 1 ] || [ -f "$golden" ] || { echo "no golden transcript $golden (frozen: 100/1, 100/487, 400/1, 400/487; --update creates one)" >&2; exit 2; }
 zig=$(script/zig/bootstrap.sh)
 out=build/replay
 mkdir -p "$out/shipping"
