@@ -39,7 +39,7 @@ key/touch parity golden gates matched their existing outputs. The six
 synthetic learned-state replays above took about 1.0–1.2 ms mean per key
 (max 2.7 ms) with the native Debug build, ten repetitions per case; this
 is a short greeting measurement, not a broad latency comparison.
-Both 400-case session replay seeds (1 and 487) were regenerated and reviewed:
+Both 100- and 400-case session replay seeds (1 and 487) were regenerated and reviewed:
 candidate/preedit changes reflect the new tone gate; committed text is
 identical to the previous transcripts in both runs. The native replay shell
 wrapper could not load the dylib because macOS strips `DYLD_LIBRARY_PATH`

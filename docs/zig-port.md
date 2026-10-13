@@ -12,12 +12,13 @@ the Swift sources is `c89b857`.
 
 Intentional behavior update (2026-10-13): learned word/context bonuses no
 longer apply to dictionary paths that conflict with an explicitly supplied
-tone. `tests/golden/replay_400_{1,487}.txt.gz` were regenerated from Zig and
+tone. `tests/golden/replay_{100,400}_{1,487}.txt.gz` were regenerated from Zig and
 reviewed for this change: mismatched-tone learned candidates lose rank;
 later candidate navigation can change as a consequence. The unlearned
 decode and key/touch parity goldens remain identical to the frozen reference.
 The synthetic partial-tone greeting reproduction is recorded in
 `tests/fixtures/learned-greeting.md`.
+The 100-case files serve PR CI; the 400-case files serve the full gate.
 
 ## Why
 
