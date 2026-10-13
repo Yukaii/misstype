@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # Run as root in disposable current Arch; never builds Misstype or Zig.
+# source-root must be the release tag's tree (headers, drivers, expected output
+# and adapter conformance fixtures), not the workflow branch's tree.
 set -euo pipefail
 package=${1:?usage: test_aur_bin.sh <prepared-directory> <assets-directory> <source-root>}
 assets=${2:?}

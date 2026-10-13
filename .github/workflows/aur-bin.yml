@@ -90,6 +90,7 @@ jobs:
           fi
           [[ $TAG =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
           [[ $(gh release view "$TAG" --repo Yukaii/misstype --json isDraft,isPrerelease --jq '(.isDraft == false and .isPrerelease == false)') == true ]]
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           mkdir -p "$RUNNER_TEMP/assets" "$RUNNER_TEMP/aur-package"
           # Releases cut before aarch64 packaging have no such asset; the recipe
           # then ships x86_64 only and this leg has nothing to verify.
@@ -106,6 +107,15 @@ jobs:
           fi
           python3 script/linux/prepare_aur_bin.py "$RECIPE" "$RUNNER_TEMP/assets" "$TAG" "$RUNNER_TEMP/aur-package"
           cp LICENSE "$RUNNER_TEMP/aur-package/"
+      # The installed binary implements the release's ABI and behavior. Main's
+      # test drivers can require functions that this release does not yet ship.
+      - name: Check out matching release test sources
+        if: steps.download.outputs.skip != 'true'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ steps.download.outputs.tag }}
+          path: .cache/aur-release-source
+          persist-credentials: false
       - name: Import Arch Linux ARM rootfs
         if: steps.download.outputs.skip != 'true' && matrix.arch == 'aarch64'
         run: bash script/linux/import_alarm_rootfs.sh "${{ matrix.image }}"
@@ -126,8 +136,9 @@ jobs:
               path.write_text('# Maintainer: ' + maintainer + '\n' + path.read_text())
           PY
           docker run --rm -v "$PWD:/src:ro" -v "$RUNNER_TEMP/aur-package:/package" \
-            -v "$RUNNER_TEMP/assets:/assets:ro" "${{ matrix.image }}" \
-            bash /src/script/linux/test_aur_bin.sh /package /assets /src
+            -v "$RUNNER_TEMP/assets:/assets:ro" \
+            -v "$PWD/.cache/aur-release-source:/release-src:ro" "${{ matrix.image }}" \
+            bash /src/script/linux/test_aur_bin.sh /package /assets /release-src
           # Branch previews use the committed version; release jobs generate newer metadata.
           if [[ ( "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF" != refs/tags/* ) || "$GITHUB_EVENT_NAME" == pull_request ]]; then
             diff -u "$RECIPE/.SRCINFO" "$RUNNER_TEMP/aur-package/.SRCINFO"

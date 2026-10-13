@@ -115,6 +115,14 @@ GitHub's arm64 runner availability for this repository.
 A daily scheduled run downloads the latest stable release and installs it on
 fully updated Arch (both architectures when the release has them), checking library resolution, installed-core fixtures and
 headless conformance against the installed frontend.
+The workflow checks out the selected release tag separately for the C ABI
+header, test drivers, expected output and conformance fixtures. Packaging checks
+still use the workflow revision. Testing an older binary with `main`'s drivers
+can fail on newly added C ABI functions even when the published package works
+correctly; the scheduled monitor must test the release's contract on current
+Arch. To replay a suspected mismatch, link `tests/capi/smoke.c` from the selected
+tag against the downloaded package's `libMisstypeCAPI.so` and compare its output
+with that tag's `tests/capi/expected.txt`.
 Failures appear in Actions and its normal workflow notifications; they never
 publish packages. Maintainers should triage an ABI failure within one day and
 cut a new patch release against current Arch before recommending `-bin` again.
