@@ -4,6 +4,10 @@ Misstype's own code remains MIT. Third-party components and dictionary data
 keep their original licenses; `THIRD_PARTY_NOTICES.md` is the inventory and
 records the applicability to each platform. `english.tsv` is distributed
 separately as CC BY-SA 4.0 content, including when downloaded by the web demo.
+`homophone.bin` is distributed as a CC0 1.0 statistical table derived from the
+HPLT 2.0 `zho_Hant` corpus (`third_party/HPLT/`); it holds hashes of word pairs,
+no corpus text, and its source terms (CC0 packaging, take-down policy) are
+recorded in `third_party/HPLT/LICENSE.md`.
 The demo video's ElevenLabs-generated narration and music are non-commercial
 only and are excluded from the MIT grant; see `THIRD_PARTY_NOTICES.md`.
 
