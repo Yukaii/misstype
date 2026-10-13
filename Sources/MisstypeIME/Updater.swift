@@ -4,10 +4,9 @@ import Sparkle
 /// Sparkle wrapper. An input method must never steal focus or die while the
 /// user is typing, so scheduled updates are downloaded silently
 /// (`SUAutomaticallyUpdate`) and applied only once the session has been idle
-/// and uncomposed for a while; the app is not relaunched by Sparkle — TIS
-/// restarts the IME on demand, as after `install_ime.sh` (a hand-launched
-/// copy would squat the Mach service). A user-initiated check from Settings
-/// shows Sparkle's normal window.
+/// and uncomposed for a while; the process quits itself for the installer and
+/// TIS (or Sparkle) restarts it, as after `install_ime.sh`. A user-initiated
+/// check from Settings shows Sparkle's normal window.
 ///
 /// The updater only starts when the bundle carries `SUFeedURL` and a
 /// `SUPublicEDKey` (injected by `script/package_release.sh`), so development
@@ -116,7 +115,12 @@ final class UpdateController: NSObject, SPUUpdaterDelegate {
         Task { @MainActor in self.quitForInstall() }
     }
 
-    nonisolated func updaterShouldRelaunchApplication(_ updater: SPUUpdater) -> Bool { false }
+    /// Must stay `true`: Sparkle's `installWithToolAndRelaunch` aborts silently
+    /// when this returns `false`, so Settings ▸ Install did nothing and
+    /// `willInstallUpdate` never fired (2026-10-13, 0.4.10 → 0.5.0). Sparkle
+    /// then relaunches the swapped bundle from its installed path, the same
+    /// copy TIS would start.
+    nonisolated func updaterShouldRelaunchApplication(_ updater: SPUUpdater) -> Bool { true }
 
     nonisolated func updater(_ updater: SPUUpdater, didAbortWithError error: Error) {
         Runtime.debugLog("[update] aborted: \((error as NSError).domain) \((error as NSError).code)")

@@ -274,6 +274,11 @@ Verified 2026-10-04 on macOS 27 (arm64 host, ad-hoc signed, local feed on
   `pkill -x MisstypeIME`, so `NSApp.terminate` is followed by `exit(0)` 2 s
   later if the process is still alive. Unverified end to end until a release
   newer than the one carrying this change is installed over it.
+  Actual cause, from the container debug log (no `willInstallUpdate` line at
+  all; `SUSparkleErrorDomain 1001` is only "no update"): the Install button
+  was aborted by Sparkle before the quit because
+  `updaterShouldRelaunchApplication` returned `false`
+  (`SPUInstallerDriver.mayUpdateAndRestart`). It now returns `true`.
   Scheduled checks respect `SULastCheckTime`
   (24 h), so repeating a test needs that key removed from the container prefs.
 - First install on a clean account (`--yes` and GUI): the source was usable
