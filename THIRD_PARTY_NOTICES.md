@@ -11,6 +11,7 @@ website demo. Platform-specific components are identified separately.
 | 國家教育研究院《通用詞頻表》（定稿 1141208）, via the ChiaKey Lexicon subset (pinned in `third_party/NAER/sources.json`) | `toneless.tsv`: ranks single characters sharing a toneless Bopomofo base; the frequencies are not redistributed, only a reordering of Misstype's own scores | CC BY 4.0, 國家教育研究院 | `third_party/NAER/LICENSE.md` |
 | libtabe `tsi.src` (via McBopomofo's `BPMFMappings.txt`) | multi-character phrases | BSD-style, Copyright (c) 1999 TaBE Project, Pai-Hsiang Hsiao; Computer Systems and Communication Lab, Institute of Information Science, Academia Sinica | `third_party/libtabe/COPYING` |
 | hermitdave [FrequencyWords](https://github.com/hermitdave/FrequencyWords) English 50k (pinned in `third_party/FrequencyWords/sources.json`), from OpenSubtitles 2018 | `english.tsv`: English words and log-frequencies for recognizing English typed without a mode switch | Content CC BY-SA 4.0 (code MIT), Hermit Dave | `third_party/FrequencyWords/LICENSE.md` |
+| [HPLT 2.0 cleaned](https://huggingface.co/datasets/HPLT/HPLT2.0_cleaned), config `zho_Hant`, four shards (pinned in `third_party/HPLT/sources.json`) | `homophone.bin`: hashed word-pair association statistics (no text) used only to order homophones | HPLT licenses its packaging under CC0 1.0 and does not own the underlying web text (notice and take-down policy); Misstype dedicates its derived table under CC0 1.0 | `third_party/HPLT/LICENSE.md` |
 | [Sparkle](https://github.com/sparkle-project/Sparkle) (resolved by `Package.resolved`; license snapshot in `third_party/Sparkle/sources.json`) | macOS only: bundled update framework | MIT plus BSD, MIT and zlib-style notices for embedded components; retain the complete upstream license | `third_party/Sparkle/LICENSE` |
 | [fcitx5](https://github.com/fcitx/fcitx5) Core and Utils | Linux only: dynamically linked system libraries, not bundled | LGPL-2.1-or-later | `third_party/fcitx5/LGPL-2.1-or-later.txt` and `third_party/fcitx5/README.md` |
 | [Hairline](https://github.com/lucasmarkes/hairline), kernel from commit `bc78224` | Website only: hero keyboard figure; kernel modified by appending an ES module export | MIT, Copyright (c) 2026 Lucas Marques | `site/hairline/LICENSE` (website copy: `third_party/Hairline/LICENSE`) |
@@ -24,6 +25,12 @@ with the attribution above, separately from Misstype's MIT code. Misstype
 filters to lowercase ASCII alphabetic words and converts counts to normalized,
 six-decimal natural-log probabilities. The source and change description
 are also retained in `third_party/FrequencyWords/LICENSE.md`.
+
+`homophone.bin` (`Resources/homophone.bin`, optional) carries no corpus text:
+it holds hashes of word pairs and a quantized strength computed from the
+HPLT 2.0 `zho_Hant` corpus. HPLT states that it does not own the underlying
+web text and runs a notice-and-take-down policy; the table is regenerated
+without any source that is withdrawn (`third_party/HPLT/LICENSE.md`).
 
 The Linux addon remains MIT licensed; its use of fcitx5 is covered by the LGPL.
 Users may modify it and replace the shared libraries, including to debug their

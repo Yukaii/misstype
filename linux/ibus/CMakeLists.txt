@@ -71,6 +71,11 @@ install(FILES
     "${MISSTYPE_ROOT}/Resources/local_phrases.tsv"
     DESTINATION "${CMAKE_INSTALL_DATADIR}/misstype")
 # Optional English word list (mixed typing); absent = feature off. CC BY-SA, see THIRD_PARTY_NOTICES.md.
+# Optional homophone word-bigram table (experimental, CC0 data, see
+# third_party/HPLT/LICENSE.md); absent or malformed = decoding is unchanged.
+if(EXISTS "${MISSTYPE_ROOT}/Resources/homophone.bin")
+    install(FILES "${MISSTYPE_ROOT}/Resources/homophone.bin" DESTINATION "${CMAKE_INSTALL_DATADIR}/misstype")
+endif()
 if(EXISTS "${MISSTYPE_ROOT}/.cache/frequencywords/english.tsv")
     install(FILES "${MISSTYPE_ROOT}/.cache/frequencywords/english.tsv" DESTINATION "${CMAKE_INSTALL_DATADIR}/misstype")
 endif()

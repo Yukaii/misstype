@@ -12,6 +12,7 @@ const candidate_mod = @import("candidate.zig");
 const composition_mod = @import("composition.zig");
 const user_lexicon = @import("user_lexicon.zig");
 const channel_mod = @import("channel.zig");
+const homophone = @import("homophone.zig");
 const Syllable = keyboard.Syllable;
 const Candidate = candidate_mod.Candidate;
 const Span = candidate_mod.Span;
@@ -86,6 +87,10 @@ pub const Lexicon = struct {
     repair_cost_offset: f64 = 0,
     /// Repairs also run on syllables that already spell a valid reading.
     repair_valid_readings: bool = false,
+    /// Optional homophone word-bigram table (null = byte-identical decode).
+    homophone: ?homophone.Table = null,
+    /// Nats of table bonus per unit of difference between two homophones.
+    homophone_weight: f64 = 1.0,
     /// Touched nodes and what they held before the user overlay.
     pristine: std.ArrayList(Pristine) = .empty,
     user_word_count: usize = 0,
@@ -105,6 +110,14 @@ pub const Lexicon = struct {
         for (self.nodes.items) |*node| std.mem.sort(Entry, node.entries.items, {}, Entry.better);
         try self.applyToneless(toneless);
         return self;
+    }
+
+    /// Copies `bytes` (a `homophone.zig` file) into the lexicon. Rejects a
+    /// malformed table and leaves the decoder as it was.
+    pub fn setHomophoneTable(self: *Lexicon, bytes: []const u8) !void {
+        _ = try homophone.Table.parse(bytes);
+        const owned = try self.arena.allocator().dupe(u8, bytes);
+        self.homophone = try homophone.Table.parse(owned);
     }
 
     pub fn destroy(self: *Lexicon) void {
@@ -880,7 +893,7 @@ pub const Lexicon = struct {
             const raw = syllables[start].reading(&raw_buf);
             for (prefixes[0..prefix_count]) |prefix| {
                 if (!paths[start + 1].admits(prefix.score - 100)) continue;
-                paths[start + 1].add(try extend(arena, prefix, raw, prefix.score - 100, prefix.repairs, prefix.unresolved + 1, start, start + 1));
+                paths[start + 1].add(try extend(arena, prefix, raw, prefix.score - 100, prefix.repairs, prefix.unresolved + 1, start, start + 1, Span.no_node));
             }
             if (context_rules != null) {
                 for (prefixes[0..prefix_count], 0..) |prefix, i| {
@@ -958,7 +971,7 @@ pub const Lexicon = struct {
                                 const boost = learned + contextual + pin_term + settled_hits * user_lexicon.pin_bonus;
                                 const score = prefix.score + entry.score - state.penalty - option.cost + boost - self.word_penalty;
                                 if (!paths[end + 1].admits(score)) continue;
-                                paths[end + 1].add(try extend(arena, prefix, entry.text, score, prefix.repairs + state.repairs + option.correction, prefix.unresolved, start, end + 1));
+                                paths[end + 1].add(try extend(arena, prefix, entry.text, score, prefix.repairs + state.repairs + option.correction, prefix.unresolved, start, end + 1, child_node));
                             }
                         }
                     }
@@ -983,16 +996,65 @@ pub const Lexicon = struct {
             o.syllables = syllables;
             o.runs = runs;
         }
+        if (self.homophone != null) self.rerankHomophones(arena, out);
         return out;
     }
 
-    fn extend(arena: Allocator, prefix: Candidate, word: []const u8, score: f64, repairs_: i32, unresolved: i32, syllable_start: usize, syllable_end: usize) !Candidate {
+    /// Reorders the top candidate's homophone class by the table: candidates
+    /// that differ from it only by homophones (same syllable spans, every
+    /// word from the same trie node) gain `weight * (their bonus - its
+    /// bonus)`. Everything else keeps its score, so syllable segmentation
+    /// and repairs are never overridden. Best effort: an allocation failure
+    /// leaves the order untouched.
+    fn rerankHomophones(self: *const Lexicon, arena: Allocator, out: []Candidate) void {
+        const table = self.homophone orelse return;
+        if (out.len < 2) return;
+        const base = pairBonus(table, arena, out[0]) catch return;
+        var changed = false;
+        for (out[1..]) |*c| {
+            if (!sameHomophoneClass(out[0], c.*)) continue;
+            const bonus = pairBonus(table, arena, c.*) catch return;
+            if (bonus == base) continue;
+            c.score += self.homophone_weight * (bonus - base);
+            changed = true;
+        }
+        if (changed) std.mem.sort(Candidate, out, {}, struct {
+            fn lessThan(_: void, a: Candidate, b: Candidate) bool {
+                return candidate_mod.better(a, b);
+            }
+        }.lessThan);
+    }
+
+    fn sameHomophoneClass(top: Candidate, other: Candidate) bool {
+        if (top.alignment.len != other.alignment.len) return false;
+        for (top.alignment, other.alignment) |a, b| {
+            if (!a.syllables.eql(b.syllables) or !a.chars.eql(b.chars)) return false;
+            if (a.node != b.node) return false;
+            if (a.node == Span.no_node) return false;
+        }
+        return true;
+    }
+
+    fn pairBonus(table: homophone.Table, arena: Allocator, c: Candidate) !f64 {
+        var total: f64 = 0;
+        if (c.alignment.len < 2) return total;
+        var previous = try unicode.utf16Slice(arena, c.text, c.alignment[0].chars.start, c.alignment[0].chars.end);
+        for (c.alignment[1..]) |span| {
+            const current = try unicode.utf16Slice(arena, c.text, span.chars.start, span.chars.end);
+            total += table.bonus(previous, current);
+            previous = current;
+        }
+        return total;
+    }
+
+    fn extend(arena: Allocator, prefix: Candidate, word: []const u8, score: f64, repairs_: i32, unresolved: i32, syllable_start: usize, syllable_end: usize, node: u32) !Candidate {
         const word_units = unicode.utf16Len(word);
         const alignment = try arena.alloc(Span, prefix.alignment.len + 1);
         @memcpy(alignment[0..prefix.alignment.len], prefix.alignment);
         alignment[prefix.alignment.len] = .{
             .syllables = Range.of(syllable_start, syllable_end),
             .chars = .{ .start = prefix.utf16_len, .end = prefix.utf16_len + word_units },
+            .node = node,
         };
         return .{
             .text = try std.mem.concat(arena, u8, &.{ prefix.text, word }),

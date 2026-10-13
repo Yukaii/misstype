@@ -1,0 +1,22 @@
+{
+  "dataset": "https://huggingface.co/datasets/HPLT/HPLT2.0_cleaned",
+  "revision": "d1324a5283f762ee62c2a5c81de08fc6450ea540",
+  "config": "zho_Hant",
+  "files": {
+    "zho_Hant/train-00000-of-01722.parquet": "acd232ee15a075d9ab7a3d31afeb2fb91f756f989c27542ac5ccaed21c476e81",
+    "zho_Hant/train-00001-of-01722.parquet": "85601054059a380a09779a94dbb04291313ffc6f051ca71c85e15dca33122401",
+    "zho_Hant/train-00002-of-01722.parquet": "cc105c05b295d8d7ab2e0a3cee1109eecd4123ef7eb5bd0446d74b2a2221597d",
+    "zho_Hant/train-00003-of-01722.parquet": "414c1e867b23513a44ef8e448b9ca4f11c4f30b2a8fe6d9db5c6829a8220eb0b"
+  },
+  "segmentation_lexicon": {
+    "description": "script/prepare_lexicon.py output (.cache/mcbopomofo/lexicon.tsv) followed by Resources/local_phrases.tsv, as script/build_site_assets.sh concatenates them",
+    "sha256": "f21662b522ad173573126351af0e48468ae14169ca6d37e619950d84e41c52aa"
+  },
+  "build": [
+    "python tools/homophone_bigram.py build <the four shards> --resources <dir with lexicon.tsv> --out pairs.tsv --keep 3",
+    "python tools/homophone_bigram.py export --pairs pairs.tsv --out homophone.bin --top-pairs 200000 --rank sqrt --min-count 3 --cap 4 --smooth 3"
+  ],
+  "output": {
+    "Resources/homophone.bin": "fda8d3167e5ca7c4e4c18a5f9a30ee1d7f7aa7144a16126d4ecaf8b11c840207"
+  }
+}

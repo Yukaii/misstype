@@ -69,6 +69,39 @@ exports.misstype_wasm_free(toneBuf.ptr);
 if (initRes !== 1) throw new Error("misstype_wasm_init failed!");
 console.log("  [PASS] Initialized successfully");
 
+// 1b. The optional homophone word-bigram table: malformed files are refused
+// (decoding stays as it was); a well-formed one loads. Rerank behavior is
+// covered by the Zig unit test "homophone table reorders ...".
+console.log("Test 1b: Homophone table loader...");
+{
+  const garbage = writeString("MSHB-not-a-table");
+  const rejected = exports.misstype_wasm_load_homophone(garbage.ptr, garbage.len);
+  exports.misstype_wasm_free(garbage.ptr);
+  if (rejected !== 0) throw new Error("malformed homophone table was accepted");
+
+  const fnvKey = (previous, current) => {
+    const enc = new TextEncoder();
+    let h = 0xcbf29ce484222325n;
+    const mask = 0xffffffffffffffffn;
+    for (const b of [...enc.encode(previous), 0xff, ...enc.encode(current)]) {
+      h = ((h ^ BigInt(b)) * 0x100000001b3n) & mask;
+    }
+    return h >> 24n;
+  };
+  const table = new DataView(new ArrayBuffer(16 + 8));
+  new Uint8Array(table.buffer).set(new TextEncoder().encode("MSHB"), 0);
+  table.setUint32(4, 1, true);
+  table.setUint32(8, 1, true);
+  table.setUint32(12, 4, true);
+  table.setBigUint64(16, (fnvKey("甲", "乙") << 8n) | 0x10n, true);
+  const buf = exports.misstype_wasm_alloc(table.byteLength);
+  new Uint8Array(memory.buffer, buf, table.byteLength).set(new Uint8Array(table.buffer));
+  const loaded = exports.misstype_wasm_load_homophone(buf, table.byteLength);
+  exports.misstype_wasm_free(buf);
+  if (loaded !== 1) throw new Error("well-formed homophone table was rejected");
+  console.log("  [PASS] Malformed table refused, well-formed table loaded");
+}
+
 // 2. Test typing standard Zhuyin with tones (su3cl3 -> 你好)
 console.log("Test 2: Standard Zhuyin with tones (su3cl3 -> 你好)...");
 sendKey("KeyS", "s");

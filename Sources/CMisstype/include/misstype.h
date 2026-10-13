@@ -141,7 +141,9 @@ typedef struct misstype_settings {
 
 misstype_settings misstype_settings_default(void);
 
-/* resource_dir holds lexicon.tsv (required), local_phrases.tsv, toneless.tsv.
+/* resource_dir holds lexicon.tsv (required), local_phrases.tsv, toneless.tsv and
+ * the optional homophone.bin (binary word-bigram table; absent or malformed =
+ * decoding unchanged).
  * user_lexicon_path: NULL = user_phrases.json in the platform data directory
  * (~/Library/Application Support/Misstype on macOS, $XDG_DATA_HOME/misstype
  * elsewhere), "" = memory only.

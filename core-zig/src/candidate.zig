@@ -36,6 +36,12 @@ pub const Range = struct {
 pub const Span = struct {
     syllables: Range,
     chars: Range,
+    /// Lexicon trie node the word came from: words with the same node (and
+    /// syllable range) are homophones. `no_node` for raw readings and spans
+    /// rebuilt outside the decoder.
+    node: u32 = no_node,
+
+    pub const no_node: u32 = std.math.maxInt(u32);
 };
 
 /// Original raw-key ranges reinterpreted as English by the mixed pass.

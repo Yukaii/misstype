@@ -297,6 +297,50 @@ toneless value): both sets are too small to tune on without overfitting.
 Remaining: words that need >= 1.0 (面試), and context-bound picks
 (再/在, 得/的, 打對).
 
+Finding (homophone word-bigram rerank, 2026-10-12, `tools/homophone_bigram.py`,
+experiment only, not wired into the core). Trigger: 一串字 decoded as 一串自
+(-62.3 vs -63.8; lexicon unigram 自 -6.2, 字 -7.7). Earlier count families
+failed on char-level counts across word boundaries (各自|的 counted as 自|的)
+and on floors for unseen pairs. This run: HPLT zho_Hant (CC0 dataset; local
+cache only), words from our own lexicon DP, only pairs whose second word has
+a homophone, a pair speaks only at >= 3 sightings (unseen = 0), bonus is a
+capped, add-m smoothed PMI, and only candidates in the top-1's homophone class
+(same length, differing chars share a reading) are reordered; raw decoder
+scores otherwise untouched. Held-out: Common Voice zh-TW (CC0), 400
+sentences x toned/toneless, sentences found verbatim in the counted shards
+dropped. 1 shard (193M chars, 1.7M pairs, 23 MB tsv): 497 base, w=0.25
++22/-5, w=0.5 +33/-10, w=1 +39/-34. 4 shards (66 MB tsv): 459 base,
+smooth 3: w=0.5 +35/-7, w=0.75 +40/-12, w=1 +44/-17. dev+holdout synthetic
+(160 cases): w=0.5 +3/-0 including 一串字 and 再打/再聊; w>=1 breaks 他→她,
+去→娶 (corpus topic prior overriding the curated unigram). Verdict: unlike the
+char and ChiaKey tables this is a real net gain at a small weight (about
++3.5 pp top-1 on Common Voice), but the damage grows fast with weight and the
+table is far too big to ship (tens of MB). Open: calibrate per pair against
+our unigram (not corpus frequency), prune to a few MB, check toned/toneless
+split, port to the Zig core behind a nil-by-default seam and run the wasm
+size budget. Licence of a table derived from HPLT web text is undecided.
+
+Follow-up (shipped as an optional seam, 2026-10-12, `core-zig/src/homophone.zig`).
+The Python rerank above re-segmented candidates itself and compared any
+two words. The core version is stricter: a candidate is in the top-1's
+class only when its alignment has the same syllable spans and every word
+comes from the same trie node (same reading), and only then gains
+`weight * (bonus - top bonus)`; nothing else moves, so no repair or
+segmentation is overridden. Table: sorted 8-byte entries (40-bit FNV-1a key,
+i8 value in 0.25 nat), binary-searched in place, 8 bytes/pair, the top K by
+sqrt(count)*|capped add-3 PMI|. Native gate (`eval --native`, 4 HPLT shards,
+Common Voice zh-TW 400 sentences x toned/toneless + 160 synthetic cases,
+960 cases, baseline top-1 610): 100k pairs (0.8 MB) +9/-0; 200k (1.6 MB)
++17/-0 at weight 0.75, +19/-0 at 1.0, +19/-1 at 1.5, +19/-3 at 2.0, +19/-5
+at 3.0 (breaks: 與→語, 的→地, 零→齡); 400k (3.2 MB) +12/-0 at 0.5 and
++13/-0 at 0.75 on a 560-case subset; 1.2M (9.6 MB) +14/-0; all 3M (24 MB)
++14/-0. 200k at weight 1.0 is the knee and the default weight. Latency
+(60 toned sentences, 200k table): 7.15 -> 7.18 ms mean decode, max
+unchanged; resident +1.5 MB. Without `homophone.bin` decode is byte
+identical (replay and parity gates MATCH). Not wired into any adapter's
+packaging yet; the table is not committed (derived from HPLT web text,
+licence undecided).
+
 Pilot (triage, NOT a finding yet, `--jev-mode trust`, n=5, threshold 0.6
 read post-hoc): one boolean on offline top-1 ("候選1是最正確的嗎")
 separates 10/10 — right top-1 trusts 0.82+ (hide-panel), wrong top-1

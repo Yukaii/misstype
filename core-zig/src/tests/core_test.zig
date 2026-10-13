@@ -1323,3 +1323,56 @@ test "a supplement concatenation parses and competes" {
     for ("vm0h") |c| _ = try input.append(d.a(), c);
     try expectTop(try d.decodeSegs(input, .{}), "選詞");
 }
+
+const homophone_rows = h.tsv(
+    \\ㄧ|一|-4
+    \\ㄔㄨㄢˋ|串|-5
+    \\ㄗˋ|自|-6.2
+    \\ㄗˋ|字|-7.7
+    \\
+);
+
+/// A homophone table holding previous -> current pairs worth `value` units
+/// (4 units per nat), laid out as `homophone.zig` documents.
+fn homophoneTable(a: std.mem.Allocator, pairs: []const struct { []const u8, []const u8, i8 }) ![]u8 {
+    const homophone = @import("../homophone.zig");
+    const entries = try a.alloc(u64, pairs.len);
+    defer a.free(entries);
+    for (pairs, entries) |p, *e| e.* = (homophone.Table.key(p[0], p[1]) << 8) | @as(u64, @as(u8, @bitCast(p[2])));
+    std.mem.sort(u64, entries, {}, std.sort.asc(u64));
+    const out = try a.alloc(u8, 16 + entries.len * 8);
+    @memcpy(out[0..4], homophone.magic);
+    std.mem.writeInt(u32, out[4..8], homophone.version, .little);
+    std.mem.writeInt(u32, out[8..12], @intCast(entries.len), .little);
+    std.mem.writeInt(u32, out[12..16], 4, .little);
+    for (entries, 0..) |e, i| std.mem.writeInt(u64, out[16 + i * 8 ..][0..8], e, .little);
+    return out;
+}
+
+test "homophone table reorders only the top candidate's homophone class" {
+    const d = try Dec.init(homophone_rows);
+    defer d.deinit();
+    const syllables = try d.syllables(try d.comp("u tj04y4"), true);
+
+    const before = try d.decode(syllables, .{});
+    try expectTop(before, "一串自");
+
+    const table = try homophoneTable(t.allocator, &.{.{ "串", "字", 16 }});
+    defer t.allocator.free(table);
+    try d.lex.setHomophoneTable(table);
+    const after = try d.decode(syllables, .{});
+    try expectTop(after, "一串字");
+    // Same readings, same repairs: only the order within the class moved.
+    try t.expectEqual(@as(i32, 0), after[0].repairs);
+    try t.expectEqual(before.len, after.len);
+
+    // A pair that is not in the table leaves the order alone.
+    const other = try homophoneTable(t.allocator, &.{.{ "一", "字", 16 }});
+    defer t.allocator.free(other);
+    try d.lex.setHomophoneTable(other);
+    try expectTop(try d.decode(syllables, .{}), "一串自");
+
+    // Malformed tables are refused and leave the previous one in place.
+    try t.expectError(error.BadHomophoneTable, d.lex.setHomophoneTable("MSHB"));
+    try expectTop(try d.decode(syllables, .{}), "一串自");
+}

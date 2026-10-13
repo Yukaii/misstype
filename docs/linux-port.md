@@ -450,8 +450,8 @@ rules), new `script/linux/build.sh`.
   `${CMAKE_INSTALL_LIBDIR}/misstype`; the addon's install RPATH is that
   absolute directory; the configured addon conf → `…/fcitx5/addon/`;
   the IM conf → `…/fcitx5/inputmethod/`; `.cache/mcbopomofo/lexicon.tsv`,
-  `.cache/mcbopomofo/toneless.tsv`, `Resources/local_phrases.tsv` →
-  `${CMAKE_INSTALL_DATADIR}/misstype/`; `LICENSE`,
+  `.cache/mcbopomofo/toneless.tsv`, `Resources/local_phrases.tsv` and the
+  optional `Resources/homophone.bin` → `${CMAKE_INSTALL_DATADIR}/misstype/`; `LICENSE`,
   `THIRD_PARTY_NOTICES.md` and `third_party/` → `${CMAKE_INSTALL_DOCDIR}`
   (the same license payload as the macOS bundle).
 
@@ -476,6 +476,7 @@ prints exactly:
 ./usr/share/doc/misstype/third_party/libtabe/COPYING
 ./usr/share/fcitx5/addon/misstype.conf
 ./usr/share/fcitx5/inputmethod/misstype.conf
+./usr/share/misstype/homophone.bin
 ./usr/share/misstype/lexicon.tsv
 ./usr/share/misstype/local_phrases.tsv
 ./usr/share/misstype/toneless.tsv

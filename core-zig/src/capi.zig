@@ -153,6 +153,13 @@ fn loadDecoder(dir: []const u8) !?*core.Lexicon {
     if (std.c.getenv("MISSTYPE_WORD_PENALTY")) |value| {
         decoder.word_penalty = std.fmt.parseFloat(f64, std.mem.span(value)) catch 0.5;
     }
+    // Optional homophone word-bigram table; absent or malformed = decode as before.
+    const homophone_path = try joinPath(dir, "homophone.bin");
+    defer gpa.free(homophone_path);
+    if (storage.readBytes(io(), gpa, homophone_path)) |bytes| {
+        defer gpa.free(bytes);
+        decoder.setHomophoneTable(bytes) catch {};
+    }
     return decoder;
 }
 

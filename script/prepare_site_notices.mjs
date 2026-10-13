@@ -30,6 +30,7 @@ const sections = [
   ["libtabe (BSD-style)", "third_party/libtabe/COPYING"],
   ["NAER / 國家教育研究院 (CC BY 4.0)", "third_party/NAER/LICENSE.md", "https://creativecommons.org/licenses/by/4.0/"],
   ["FrequencyWords / english.tsv (CC BY-SA 4.0)", "third_party/FrequencyWords/LICENSE.md", "https://creativecommons.org/licenses/by-sa/4.0/"],
+  ["HPLT / homophone.bin (CC0 1.0)", "third_party/HPLT/LICENSE.md", "https://creativecommons.org/publicdomain/zero/1.0/"],
   ...extra.map(([label, , target]) => [label, target]),
 ];
 const content = sections.map(([label, path, licenseURL]) => `
@@ -55,7 +56,7 @@ writeFileSync(resolve(out, "licenses.html"), `<!doctype html>
   <p><a href="./">中文首頁</a> · <a href="en/">English home</a></p>
   <h1>Licenses / 授權與第三方聲明</h1>
   <p>Misstype's own code is MIT licensed. Third-party code and dictionaries retain their respective licenses.</p>
-  <p>Misstype 自有程式碼採 MIT 授權；第三方程式碼與詞庫依各自授權。英文詞表 english.tsv 採 CC BY-SA 4.0。</p>
+  <p>Misstype 自有程式碼採 MIT 授權；第三方程式碼與詞庫依各自授權。英文詞表 english.tsv 採 CC BY-SA 4.0；同音字語境表 homophone.bin 為統計資料，以 CC0 1.0 釋出（內容不含語料原文）。</p>
   ${content}
 </main>
 </body>

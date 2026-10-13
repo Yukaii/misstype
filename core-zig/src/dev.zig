@@ -68,6 +68,17 @@ const Cli = struct {
         const toneless = (try self.resourceFile(dir, "toneless.tsv")) orelse try self.gpa.dupe(u8, "");
         defer self.gpa.free(toneless);
         const lexicon = try core.Lexicon.create(self.gpa, &.{ lexicon_tsv, supplement }, toneless);
+        // Optional homophone word-bigram table (binary).
+        const homophone_path = try std.fs.path.join(self.gpa, &.{ dir, "homophone.bin" });
+        defer self.gpa.free(homophone_path);
+        if (core.storage.readBytes(self.io, self.gpa, homophone_path)) |bytes| {
+            defer self.gpa.free(bytes);
+            if (std.c.getenv("MISSTYPE_NO_HOMOPHONE") == null) lexicon.setHomophoneTable(bytes) catch {
+                std.debug.print("misstype-dev: ignoring malformed homophone.bin\n", .{});
+            };
+            if (std.c.getenv("MISSTYPE_HOMOPHONE_WEIGHT")) |w|
+                lexicon.homophone_weight = std.fmt.parseFloat(f64, std.mem.span(w)) catch lexicon.homophone_weight;
+        }
         lexicon.word_penalty = if (std.c.getenv("MISSTYPE_WORD_PENALTY")) |w|
             std.fmt.parseFloat(f64, std.mem.span(w)) catch 0.5
         else
