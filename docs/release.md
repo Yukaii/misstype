@@ -270,6 +270,10 @@ Verified 2026-10-04 on macOS 27 (arm64 host, ad-hoc signed, local feed on
   Sparkle's window (Settings ▸ Check for Updates): Autoupdate parked for
   1h44m on 2026-10-12 until the IME was quit by hand, so the forced quit
   hangs off `updater(_:willInstallUpdate:)`, which fires on both paths.
+  That was still not enough: 0.4.10 → 0.5.0 (2026-10-13) parked until
+  `pkill -x MisstypeIME`, so `NSApp.terminate` is followed by `exit(0)` 2 s
+  later if the process is still alive. Unverified end to end until a release
+  newer than the one carrying this change is installed over it.
   Scheduled checks respect `SULastCheckTime`
   (24 h), so repeating a test needs that key removed from the container prefs.
 - First install on a clean account (`--yes` and GUI): the source was usable

@@ -77,12 +77,24 @@ final class UpdateController: NSObject, SPUUpdaterDelegate {
     /// "Install" button quits an LSUIElement input method, so the install
     /// would wait forever (seen 2026-10-12: Autoupdate parked for 1h44m).
     /// TIS restarts us on demand.
+    ///
+    /// `NSApp.terminate` alone was not enough: 0.4.10 → 0.5.0 (2026-10-13)
+    /// still parked until `pkill -x MisstypeIME`, so if the process is still
+    /// here shortly after `terminate`, exit directly. Nothing is pending at
+    /// that point: learned phrases are written when learned.
     private var quitScheduled = false
     private func quitForInstall() {
         guard !quitScheduled else { return }
         quitScheduled = true
         Runtime.debugLog("[update] quitting so the installer can swap the bundle")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { NSApp.terminate(nil) }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+            Runtime.debugLog("[update] terminate")
+            NSApp.terminate(nil)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                Runtime.debugLog("[update] still running after terminate; exiting")
+                exit(0)
+            }
+        }
     }
 
     // MARK: SPUUpdaterDelegate
