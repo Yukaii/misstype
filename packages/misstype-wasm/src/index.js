@@ -15,7 +15,7 @@ export class MisstypeWasm {
     this.memory = this.exports.memory;
   }
 
-  static async load({ wasmUrl, lexiconUrl, tonelessUrl = null, englishUrl = null } = {}) {
+  static async load({ wasmUrl, lexiconUrl, tonelessUrl = null, englishUrl = null, homophoneUrl = null } = {}) {
     if (!wasmUrl || !lexiconUrl) throw new TypeError("wasmUrl and lexiconUrl are required");
     const wasi = new WASI([], [], []);
     const [wasmResponse, lexResponse, toneResponse] = await Promise.all([
@@ -34,6 +34,14 @@ export class MisstypeWasm {
     if (englishUrl && api.exports.misstype_wasm_load_english) {
       const englishResponse = await fetch(englishUrl);
       if (englishResponse.ok) api.loadEnglish(await englishResponse.text());
+    }
+    // Optional homophone word-bigram table; a missing or malformed file, or an
+    // older wasm without the export, leaves decoding unchanged.
+    if (homophoneUrl && api.exports.misstype_wasm_load_homophone) {
+      try {
+        const homophoneResponse = await fetch(homophoneUrl);
+        if (homophoneResponse.ok) api.loadHomophone(new Uint8Array(await homophoneResponse.arrayBuffer()));
+      } catch { /* optional */ }
     }
     return api;
   }
@@ -69,6 +77,18 @@ export class MisstypeWasm {
         this.exports.misstype_wasm_init(lexPtr, lexLen, tonePtr, toneLen)));
     if (result !== 1) throw new Error("Misstype wasm initialization failed");
     return this;
+  }
+
+  /** @param {Uint8Array} bytes contents of `homophone.bin` */
+  loadHomophone(bytes) {
+    const ptr = this.exports.misstype_wasm_alloc(bytes.length);
+    if (!ptr) return false;
+    try {
+      new Uint8Array(this.memory.buffer, ptr, bytes.length).set(bytes);
+      return this.exports.misstype_wasm_load_homophone(ptr, bytes.length) === 1;
+    } finally {
+      this.exports.misstype_wasm_free(ptr);
+    }
   }
 
   loadEnglish(tsv) {

@@ -118,7 +118,7 @@ function insertText(el, text) {
 
 /**
  * @param {object} [options]
- * @param {string} [options.assets] Base URL of `misstype.wasm`, `lexicon.tsv`, `toneless.tsv`, `english.tsv`.
+ * @param {string} [options.assets] Base URL of `misstype.wasm`, `lexicon.tsv`, `toneless.tsv`, `english.tsv`, `homophone.bin`.
  * @param {string} [options.selector] Which elements to enable (default: text fields and contenteditable).
  * @param {object} [options.settings] pageSize (4–10), shiftToggle, returnConfirmsSelection, autoShowCandidates,
  *   userLearning (remember explicit picks, default on), channelLearning (learn typing slips, experimental, default off).
@@ -143,6 +143,7 @@ export async function enable(options = {}) {
     lexiconUrl: at("lexicon.tsv"),
     tonelessUrl: at("toneless.tsv"),
     englishUrl: at("english.tsv"),
+    homophoneUrl: at("homophone.bin"),
   });
   const readStored = (key) => {
     try { return key ? localStorage.getItem(key) || "" : ""; } catch { return ""; }

@@ -334,6 +334,7 @@ async function loadIme() {
       lexiconUrl: at("lexicon.tsv"),
       tonelessUrl: at("toneless.tsv"),
       englishUrl: at("english.tsv"),
+      homophoneUrl: at("homophone.bin"),
     });
     dictionary.restore(ime);
     learning.restore(ime);

@@ -26,6 +26,11 @@ cp -R Resources/*.lproj "$APP_DIR/Contents/Resources/"
 cp .cache/mcbopomofo/lexicon.tsv "$APP_DIR/Contents/Resources/lexicon.tsv"
 cp .cache/mcbopomofo/toneless.tsv "$APP_DIR/Contents/Resources/toneless.tsv"
 cp Resources/local_phrases.tsv "$APP_DIR/Contents/Resources/local_phrases.tsv"
+# Optional homophone word-bigram table (experimental). MISSTYPE_SKIP_HOMOPHONE=1
+# builds without it for an A/B comparison; decoding is then unchanged.
+if [[ "${MISSTYPE_SKIP_HOMOPHONE:-0}" != "1" ]]; then
+  cp Resources/homophone.bin "$APP_DIR/Contents/Resources/homophone.bin"
+fi
 cp .cache/frequencywords/english.tsv "$APP_DIR/Contents/Resources/english.tsv"
 cp -R third_party "$APP_DIR/Contents/Resources/third_party"
 cp LICENSE THIRD_PARTY_NOTICES.md "$APP_DIR/Contents/Resources/"

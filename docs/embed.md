@@ -11,7 +11,7 @@ Zhuyin itself.
 
 `npm run build` in `site/` emits `dist/embed.js` (one ES module with the wasm shim
 bundled, from `packages/misstype-wasm/src/embed.js`) beside `misstype.wasm`,
-`lexicon.tsv`, `toneless.tsv` and `english.tsv`; the script finds those by its own
+`lexicon.tsv`, `toneless.tsv`, `english.tsv` and `homophone.bin`; the script finds those by its own
 URL. Pages serves them with `Access-Control-Allow-Origin: *`, so another site can
 load the published copy, or host the five files itself. Options and the `enable()`
 API are in the package README.

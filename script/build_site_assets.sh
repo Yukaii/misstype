@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Generates the files the site's live demo downloads into site/public/
-# (gitignored): lexicon.tsv, toneless.tsv, english.tsv and misstype.wasm.
+# (gitignored): lexicon.tsv, toneless.tsv, english.tsv, homophone.bin and misstype.wasm.
 # Used by .github/workflows/pages.yml; also runs locally.
 #
 #   script/build_site_assets.sh            lexicon + English list + wasm
@@ -16,7 +16,7 @@ OUT="$ROOT/site/public"
 mkdir -p "$OUT"
 python3 "$ROOT/script/prepare_lexicon.py"
 cat "$ROOT/.cache/mcbopomofo/lexicon.tsv" "$ROOT/Resources/local_phrases.tsv" > "$OUT/lexicon.tsv"
-cp "$ROOT/.cache/mcbopomofo/toneless.tsv" "$ROOT/.cache/frequencywords/english.tsv" "$OUT/"
+cp "$ROOT/.cache/mcbopomofo/toneless.tsv" "$ROOT/.cache/frequencywords/english.tsv" "$ROOT/Resources/homophone.bin" "$OUT/"
 
 [ "${1:-}" = "--data" ] && exit 0
 

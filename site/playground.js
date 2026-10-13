@@ -11,6 +11,7 @@ export class MisstypePlayground {
     this.lexiconUrl = options.lexiconUrl || "lexicon.tsv";
     this.tonelessUrl = options.tonelessUrl || "toneless.tsv";
     this.englishUrl = options.englishUrl || "english.tsv";
+    this.homophoneUrl = options.homophoneUrl || "homophone.bin";
     this.imeNoteText = options.imeNote || "";
     this.onStateChange = options.onStateChange || null;
     this.onReady = options.onReady;
@@ -115,6 +116,25 @@ export class MisstypePlayground {
           }
         } catch (err) {
           console.warn("english word list unavailable", err);
+        }
+      }
+
+      // Optional: homophone word-bigram table (experimental). Missing file or
+      // an older wasm without the export leaves decoding unchanged.
+      if (this.exports.misstype_wasm_load_homophone) {
+        try {
+          const homophoneResponse = await fetch(this.homophoneUrl);
+          if (homophoneResponse.ok) {
+            const bytes = new Uint8Array(await homophoneResponse.arrayBuffer());
+            const ptr = this.exports.misstype_wasm_alloc(bytes.length);
+            if (ptr) {
+              new Uint8Array(this.memory.buffer, ptr, bytes.length).set(bytes);
+              this.exports.misstype_wasm_load_homophone(ptr, bytes.length);
+              this.exports.misstype_wasm_free(ptr);
+            }
+          }
+        } catch (err) {
+          console.warn("homophone table unavailable", err);
         }
       }
 

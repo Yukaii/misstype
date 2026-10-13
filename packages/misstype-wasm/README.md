@@ -18,7 +18,7 @@ other code:
 <script type="module" src="https://your-host/misstype/embed.js"></script>
 ```
 
-`embed.js` loads `misstype.wasm`, `lexicon.tsv`, `toneless.tsv` and `english.tsv`
+`embed.js` loads `misstype.wasm`, `lexicon.tsv`, `toneless.tsv`, `english.tsv` and `homophone.bin`
 from its own folder, then handles `<textarea>`, text-like `<input>` and
 `contenteditable` elements, including ones added later (password, email, number
 and similar fields are left alone; opt a field out with `data-misstype="off"`).
@@ -55,7 +55,7 @@ its own key handling that runs before the capture phase.
 ## Low-level API
 
 Build or download `misstype.wasm`, `lexicon.tsv`, and optionally
-`toneless.tsv`/`english.tsv`, then load them by URL:
+`toneless.tsv`/`english.tsv`/`homophone.bin`, then load them by URL:
 
 ```js
 import MisstypeWasm from "misstype-wasm";
@@ -65,6 +65,7 @@ const ime = await MisstypeWasm.load({
   lexiconUrl: "/assets/lexicon.tsv",
   tonelessUrl: "/assets/toneless.tsv",
   englishUrl: "/assets/english.tsv",
+  homophoneUrl: "/assets/homophone.bin", // optional
 });
 
 ime.key("KeyS", "s");

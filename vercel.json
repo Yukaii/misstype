@@ -5,7 +5,7 @@
   "outputDirectory": "site/dist",
   "headers": [
     {
-      "source": "/(embed.js|misstype.wasm|lexicon.tsv|toneless.tsv|english.tsv)",
+      "source": "/(embed.js|misstype.wasm|lexicon.tsv|toneless.tsv|english.tsv|homophone.bin)",
       "headers": [{ "key": "Access-Control-Allow-Origin", "value": "*" }]
     }
   ]
