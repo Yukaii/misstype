@@ -117,7 +117,9 @@ fully updated Arch (both architectures when the release has them), checking libr
 headless conformance against the installed frontend.
 The workflow checks out the selected release tag separately for the C ABI
 header, test drivers, expected output and conformance fixtures. Packaging checks
-still use the workflow revision. Testing an older binary with `main`'s drivers
+and the fcitx5 CMake harness still use the workflow revision; the harness compiles
+the selected release's adapter test driver. This also supports release tags that
+predate `tests/aur-bin`. Testing an older binary with `main`'s drivers
 can fail on newly added C ABI functions even when the published package works
 correctly; the scheduled monitor must test the release's contract on current
 Arch. To replay a suspected mismatch, link `tests/capi/smoke.c` from the selected

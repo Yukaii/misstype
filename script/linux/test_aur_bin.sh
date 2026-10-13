@@ -6,6 +6,9 @@ set -euo pipefail
 package=${1:?usage: test_aur_bin.sh <prepared-directory> <assets-directory> <source-root>}
 assets=${2:?}
 root=${3:?}
+# Packaging infrastructure comes from this script's tree; release tags predating
+# binary AUR publication have the adapter driver but no tests/aur-bin harness.
+harness_root=$(cd "$(dirname "$0")/../.." && pwd)
 # Arch container images omit documentation by default; verify the full payload.
 sed -i '/^NoExtract[[:space:]]*=/d' /etc/pacman.conf
 case $(sed -n 's/^pkgname=//p' "$package/PKGBUILD") in
@@ -67,7 +70,8 @@ cc -std=c11 -Wall -Wextra -Werror -I"$root/Sources/CMisstype/include" \
     -Wl,-rpath,/usr/lib/misstype -o smoke
 ./smoke "$root/tests/fixtures/lexicon" | diff -u "$root/tests/capi/expected.txt" -
 if [[ $frontend == fcitx5 ]]; then
-    cmake -S "$root/tests/aur-bin" -B conformance -DCMAKE_INSTALL_PREFIX=/usr
+    cmake -S "$harness_root/tests/aur-bin" -B conformance \
+        -DCMAKE_INSTALL_PREFIX=/usr -DMISSTYPE_ROOT="$root"
     cmake --build conformance
     MISSTYPE_RESOURCES="$root/tests/fixtures/lexicon" ./conformance/testmisstype
 else

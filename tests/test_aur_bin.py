@@ -1,7 +1,10 @@
 """Release pinning rejects wrong assets, checksums and nonstable tags."""
 import hashlib
 import importlib.util
+import json
 from pathlib import Path
+import shutil
+import subprocess
 import tempfile
 import unittest
 
@@ -81,6 +84,37 @@ class BinaryRecipeTests(unittest.TestCase):
         for tag in ("main", "v1.2.3-rc1", "v1.2.3;command", "1.2.3"):
             with self.subTest(tag=tag), self.assertRaises(ValueError):
                 module.prepare(ROOT / "linux/aur-fcitx5-bin", self.work, tag, self.output)
+
+    @unittest.skipUnless(shutil.which("cmake") and shutil.which("c++"), "CMake and C++ compiler required")
+    def test_conformance_harness_uses_release_driver_without_release_harness(self):
+        # Older release tags have a driver but predate tests/aur-bin. Configure
+        # the current harness against that tree, with stand-ins for installed
+        # fcitx5 targets so this wiring check needs no Arch or fcitx5 installation.
+        release = self.work / "release"
+        driver = release / "linux/fcitx5/test/testmisstype.cpp"
+        driver.parent.mkdir(parents=True)
+        driver.write_text("int main() { return 0; }\n")
+        self.assertFalse((release / "tests/aur-bin").exists())
+        packages = self.work / "packages"
+        packages.mkdir()
+        data = self.work / "data"
+        data.mkdir()
+        for package, target in (("Fcitx5Core", "Core"), ("Fcitx5Utils", "Utils"),
+                                ("Fcitx5ModuleTestFrontend", "Module::TestFrontend")):
+            (packages / f"{package}Config.cmake").write_text(
+                f"add_library(Fcitx5::{target} INTERFACE IMPORTED)\n"
+                f'set(FCITX_INSTALL_PKGDATADIR "{data}")\n'
+                f'set(FCITX_INSTALL_ADDONDIR "{data}")\n'
+            )
+        build = self.work / "conformance"
+        result = subprocess.run([
+            "cmake", "-S", str(ROOT / "tests/aur-bin"), "-B", str(build),
+            f"-DMISSTYPE_ROOT={release}", f"-DCMAKE_PREFIX_PATH={packages}",
+            "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+        ], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        commands = json.loads((build / "compile_commands.json").read_text())
+        self.assertEqual([entry["file"] for entry in commands], [str(driver)])
 
 
 if __name__ == "__main__":
