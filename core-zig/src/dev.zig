@@ -385,12 +385,20 @@ const Typed = struct {
     /// Preedit (with `|` at the caret) after each label.
     views: std.ArrayList([]const u8) = .empty,
     chunks: usize = 0,
+    /// Committed + preedit before any correction.
+    before_fix: []const u8 = "",
+    picks: usize = 0,
+    fix_keys: usize = 0,
+    unreachable_fix: bool = false,
+    committed_during_fix: bool = false,
+    arena: Allocator = undefined,
 };
 
-/// Type `keys` into `session`, then Return. `trace_out` prints the
+/// Type `keys` into `session`, then (with `expected`) let `correct` fix
+/// the composition with the panel, then Return. `trace_out` prints the
 /// `--session-trace` lines as it goes.
-fn typeKeys(cli: Cli, a: Allocator, session: *session_mod.Session, keys: []const u8, keep_views: bool, trace_out: bool) !Typed {
-    var typed: Typed = .{};
+fn typeKeys(cli: Cli, a: Allocator, session: *session_mod.Session, keys: []const u8, keep_views: bool, trace_out: bool, expected: ?[]const u8) !Typed {
+    var typed: Typed = .{ .arena = a };
     var count: usize = 0;
     var clock: f64 = 1000;
     var it = (try std.unicode.Utf8View.init(keys)).iterator();
@@ -417,9 +425,175 @@ fn typeKeys(cli: Cli, a: Allocator, session: *session_mod.Session, keys: []const
             if (trace_out) try cli.print("chunk\t{d}\t{s}\tpreedit={s}\n", .{ count, text, view.preedit });
         }
     }
-    const rest = (try session.handle(.{ .kind = .enter, .text = "\r" })).commit orelse "";
-    try typed.committed.appendSlice(a, rest);
+    typed.before_fix = try a.dupe(u8, try std.mem.concat(a, u8, &.{ typed.committed.items, (try session.view()).preedit }));
+    if (expected) |want| try correct(a, session, want, &typed, &clock);
+    // With a word cursor open, Return confirms the word and moves on; it
+    // commits once the cursor is past the end. Returns beyond the first
+    // are correction cost.
+    var returns: usize = 0;
+    while (returns < 64) : (returns += 1) {
+        clock += 0.3;
+        const result = try session.handle(.{ .kind = .enter, .text = "\r", .timestamp = clock });
+        if (returns > 0) typed.fix_keys += 1;
+        if (result.commit) |rest| try typed.committed.appendSlice(a, rest);
+        if ((try session.view()).preedit.len == 0) break;
+    }
     return typed;
+}
+
+/// What a typist who reads the screen does to reach `want` before Return:
+/// at the first wrong character, pick the whole-sentence candidate if it is
+/// on the first page (Down, selection key); otherwise Left to the word,
+/// Down, and the selection key (or Down… Return past the first page) of the
+/// longest listed word that is right there. Stops when the composition
+/// matches, a pick makes no progress, or nothing listed fits (`unreachable`:
+/// only retyping helps). Every key is a real event, counted in `fix_keys`.
+fn correct(a: Allocator, session: *session_mod.Session, want_utf8: []const u8, typed: *Typed, clock: *f64) !void {
+    const committed = typed.committed.items;
+    if (!std.mem.startsWith(u8, want_utf8, committed)) {
+        typed.unreachable_fix = true; // a wrong chunk was already committed
+        return;
+    }
+    // Spaces are layout, not something a pick can fix: compare without
+    // them (`diff` indexes the space-free text, `at` the preedit).
+    const want = try withoutSpaces(a, try std.unicode.utf8ToUtf16LeAlloc(a, want_utf8[committed.len..]), null);
+    var stalls: usize = 0;
+    var last_diff: ?usize = null;
+    while (typed.picks < 16 and !typed.committed_during_fix) {
+        const view = try session.view();
+        var positions: std.ArrayList(usize) = .empty;
+        const shown = try withoutSpaces(a, try std.unicode.utf8ToUtf16LeAlloc(a, view.preedit), &positions);
+        const diff = firstDiff(shown, want) orelse return;
+        const at = if (diff < positions.items.len) positions.items[diff] else unicode_len: {
+            break :unicode_len (try std.unicode.utf8ToUtf16LeAlloc(a, view.preedit)).len;
+        };
+        if (last_diff) |d| {
+            if (diff <= d) stalls += 1;
+            if (stalls >= 2) {
+                typed.unreachable_fix = true;
+                return;
+            }
+        }
+        last_diff = diff;
+        // Whole-sentence rows (no word cursor yet).
+        if (view.focus == null or session.cursor == null) {
+            if (try pageIndexOf(a, view.candidates, view.page_size, want, 0)) |index| {
+                try press(session, typed, clock, .{ .kind = .down });
+                try pickSlot(session, typed, clock, index);
+                typed.picks += 1;
+                continue;
+            }
+        }
+        // Walk the word cursor toward the first error, one way only: Left
+        // from the end (or from past the error), Right when a pick left it
+        // before the error. Read the listed words at each stop until one
+        // fits the target over the error, or the cursor has passed it.
+        var found: ?usize = null;
+        const start_focus = (try session.view()).focus;
+        const left = session.cursor == null or start_focus == null or start_focus.?.end > at;
+        var steps: usize = 0;
+        while (steps < 64) : (steps += 1) {
+            const v = try session.view();
+            if (session.cursor != null) if (v.focus) |f| {
+                if (f.start <= at) found = try wordOptionFor(a, v.candidates, want, diff);
+                if (found != null) break;
+                if (left and f.end <= at) break;
+                if (!left and f.start > at) break;
+            };
+            const before = session.cursor;
+            try press(session, typed, clock, .{ .kind = if (left) .left else .right });
+            if (before != null and session.cursor == before) break;
+            if (session.cursor == null) break; // walked off the end
+        }
+        const index = found orelse {
+            typed.unreachable_fix = true;
+            return;
+        };
+        try press(session, typed, clock, .{ .kind = .down });
+        try pickSlot(session, typed, clock, index);
+        typed.picks += 1;
+    }
+    typed.unreachable_fix = true;
+}
+
+fn press(session: *session_mod.Session, typed: *Typed, clock: *f64, event: session_mod.KeyEvent) !void {
+    clock.* += 0.3;
+    var e = event;
+    e.timestamp = clock.*;
+    const result = try session.handle(e);
+    typed.fix_keys += 1;
+    if (std.c.getenv("MISSTYPE_FIX_DEBUG") != null) {
+        const v = try session.view();
+        std.debug.print("  key {t} {s} -> {s} sel={d}\n", .{ e.kind, e.label, v.preedit, v.selected });
+    }
+    if (result.commit) |text| {
+        try typed.committed.appendSlice(typed.arena, text);
+        typed.committed_during_fix = true;
+    }
+}
+
+/// After Down the panel shows the page holding the selected row (in a word
+/// cursor that is the shown word, not row 0). A row on that page is one
+/// selection key; any other is Down/Up to it (the shorter way round), then
+/// Return.
+fn pickSlot(session: *session_mod.Session, typed: *Typed, clock: *f64, index: usize) !void {
+    const v = try session.view();
+    const page = @max(v.page_size, 1);
+    const first = (v.selected / page) * page;
+    if (index >= first and index - first < @min(page, v.selection_keys.len)) {
+        const label = v.selection_keys[index - first];
+        return press(session, typed, clock, .{ .kind = .character, .label = label, .text = label });
+    }
+    const count = v.candidates.len;
+    const forward = (index + count - v.selected) % count;
+    const steps = @min(forward, count - forward);
+    for (0..steps) |_| try press(session, typed, clock, .{ .kind = if (forward <= count - forward) .down else .up });
+    try press(session, typed, clock, .{ .kind = .enter, .text = "\r" });
+}
+
+/// `text` without ASCII spaces; `positions` gets each kept unit's index.
+fn withoutSpaces(a: Allocator, text: []const u16, positions: ?*std.ArrayList(usize)) ![]const u16 {
+    var out: std.ArrayList(u16) = .empty;
+    for (text, 0..) |unit, i| {
+        if (unit == ' ') continue;
+        try out.append(a, unit);
+        if (positions) |p| try p.append(a, i);
+    }
+    return out.items;
+}
+
+fn firstDiff(shown: []const u16, want: []const u16) ?usize {
+    const n = @min(shown.len, want.len);
+    for (0..n) |i| if (shown[i] != want[i]) return i;
+    return if (shown.len == want.len) null else n;
+}
+
+/// Row equal to the whole target (spaces aside), on the first page only.
+fn pageIndexOf(a: Allocator, rows: []const []const u8, page: usize, want: []const u16, _: usize) !?usize {
+    for (rows[0..@min(rows.len, page)], 0..) |row, i| {
+        if (std.mem.eql(u16, try withoutSpaces(a, try std.unicode.utf8ToUtf16LeAlloc(a, row), null), want)) return i;
+    }
+    return null;
+}
+
+/// The longest listed word the target has at a place covering `diff`.
+fn wordOptionFor(a: Allocator, rows: []const []const u8, want: []const u16, diff: usize) !?usize {
+    var best: ?usize = null;
+    var best_len: usize = 0;
+    for (rows, 0..) |row, i| {
+        const word = try std.unicode.utf8ToUtf16LeAlloc(a, row);
+        if (word.len == 0 or word.len <= best_len) continue;
+        const lo = if (diff + 1 >= word.len) diff + 1 - word.len else 0;
+        var start = lo;
+        while (start <= diff and start + word.len <= want.len) : (start += 1) {
+            if (std.mem.eql(u16, want[start .. start + word.len], word)) {
+                best = i;
+                best_len = word.len;
+                break;
+            }
+        }
+    }
+    return best;
 }
 
 /// One engine as the trace configures it (settings, english list, learned
@@ -471,7 +645,7 @@ fn trace(cli: Cli, keys: []const u8) !void {
     defer engine.release();
     const session = try session_mod.Session.create(engine);
     defer session.destroy();
-    const typed = try typeKeys(cli, arena.allocator(), session, keys, false, true);
+    const typed = try typeKeys(cli, arena.allocator(), session, keys, false, true, null);
     try cli.print("final\t{s}\n", .{typed.committed.items});
 }
 
@@ -481,7 +655,8 @@ fn readStdin(cli: Cli) ![]u8 {
     return reader.interface.allocRemaining(cli.gpa, .unlimited);
 }
 
-/// `--session-batch FILE` (`-` = stdin): one trace per line, the lexicon
+/// `--session-batch FILE` (`-` = stdin): one trace per line (`keys`, or
+/// `keys<TAB>expected` to correct with the panel first), the lexicon
 /// loaded once. Each line gets a fresh session and, unless `--carry`, the
 /// learned state the flags name (so lines do not teach each other). Prints
 /// one JSON object per line: final text, per-label ms, chunk count and,
@@ -510,9 +685,18 @@ fn batch(cli: Cli, path: []const u8) !void {
         engine.shift_tap = .{};
         const session = try session_mod.Session.create(engine);
         defer session.destroy();
-        const typed = try typeKeys(cli, a, session, line, cli.flag("--show"), false);
+        // `keys` or `keys<TAB>expected`: with an expected text the typist
+        // also corrects with the panel before Return.
+        var fields = std.mem.splitScalar(u8, line, '\t');
+        const keys = fields.next().?;
+        const expected = fields.next();
+        const typed = try typeKeys(cli, a, session, keys, cli.flag("--show"), false, expected);
         try cli.print("{f}\n", .{std.json.fmt(.{
             .final = typed.committed.items,
+            .before_fix = typed.before_fix,
+            .picks = typed.picks,
+            .fix_keys = typed.fix_keys,
+            .@"unreachable" = typed.unreachable_fix,
             .ms = typed.ms.items,
             .chunks = typed.chunks,
             .views = typed.views.items,

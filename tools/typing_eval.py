@@ -95,6 +95,9 @@ class Persona:
 
 
 PERSONAS = [
+    # Controls: no typos, so every miss and every pick is the engine's.
+    Persona("clean", "all", 0.0, 0.0),
+    Persona("clean-toneless", "none", 0.0, 0.0),
     Persona("careful", "all", 0.01, 0.9, tone_error=0.01),
     Persona("average", "all", 0.03, 0.7, tone_error=0.03),
     Persona("toneless", "none", 0.03, 0.6),
@@ -256,7 +259,7 @@ BIN = APP_BIN
 
 def run_batch(cases: list[Case], mixed_english: bool) -> None:
     command = [str(BIN), "--session-batch", "-", "--show"] + (["--mixed-english"] if mixed_english else [])
-    stdin = "".join(case.keys + "\n" for case in cases)
+    stdin = "".join(f"{case.keys}\t{case.expected}\n" for case in cases)
     proc = subprocess.run(command, input=stdin, capture_output=True, text=True, check=True, timeout=1800)
     lines = proc.stdout.splitlines()
     if len(lines) != len(cases):
@@ -282,15 +285,27 @@ def percentile(values: list[float], q: float) -> float:
     return ordered[min(len(ordered) - 1, int(q * len(ordered)))]
 
 
+def squash(text: str) -> str:
+    return text.replace(" ", "")
+
+
 def score(cases: list[Case]) -> tuple[dict, dict]:
+    """Per case: what was shown before any pick (`exact` = no pick needed),
+    and what the panel typist reached (`picks`, `fix_keys`, `reached`)."""
     per_case = {}
     groups: dict[str, list[Case]] = {}
     for case in cases:
-        final = case.result["final"]
-        views = [v.replace("|", "", 1) for v in case.result.get("views", [])]
+        r = case.result
+        views = [v.replace("|", "", 1) for v in r.get("views", [])]
+        bare = squash(case.expected)
         per_case[case.id] = {
-            "final": final, "exact": final == case.expected,
-            "cer": round(cer(case.expected, final), 4), "keys": case.keys,
+            "shown": r["before_fix"], "final": r["final"], "keys": case.keys,
+            # Spaces are layout no pick can fix: scored apart (space_lost).
+            "exact": squash(r["before_fix"]) == bare,
+            "reached": squash(r["final"]) == bare,
+            "space_lost": squash(r["final"]) == bare and r["final"] != case.expected,
+            "picks": r["picks"], "fix_keys": r["fix_keys"],
+            "cer": round(cer(bare, squash(r["before_fix"])), 4),
             **{k: v for k, v in stability(views).items() if k in ("revert_steps", "churn_steps")},
         }
         for key in (f"{case.track} | {case.set}", f"{case.track} | {case.persona}", f"ALL | {case.set}"):
@@ -300,15 +315,23 @@ def score(cases: list[Case]) -> tuple[dict, dict]:
         rows = [per_case[c.id] for c in members]
         ms = [m for c in members for m in c.result["ms"]]
         chars = sum(len(c.expected) for c in members)
+        n = len(rows)
+        reached = [row for row in rows if row["reached"]]
         summary[key] = {
-            "n": len(members),
-            "exact": sum(r["exact"] for r in rows),
-            "exact_pct": round(100 * sum(r["exact"] for r in rows) / len(rows), 1),
-            "cer_pct": round(100 * sum(r["cer"] for r in rows) / len(rows), 2),
+            "n": n,
+            "exact": sum(row["exact"] for row in rows),
+            "exact_pct": round(100 * sum(row["exact"] for row in rows) / n, 1),
+            # Selections per 100 characters, over sentences the panel fixes.
+            "picks_100": round(100 * sum(row["picks"] for row in reached)
+                               / max(sum(len(c.expected) for c in members if per_case[c.id]["reached"]), 1), 2),
+            "fix_keys": round(sum(row["fix_keys"] for row in reached) / max(len(reached), 1), 2),
+            "unreach_pct": round(100 * (n - len(reached)) / n, 1),
+            "space_lost": sum(row["space_lost"] for row in rows),
+            "cer_pct": round(100 * sum(row["cer"] for row in rows) / n, 2),
             "kspc": round(sum(len(c.keys) for c in members) / chars, 2),
             "uncorrected_errors": sum(c.errors for c in members),
-            "revert_steps": sum(r["revert_steps"] for r in rows),
-            "churn_steps": sum(r["churn_steps"] for r in rows),
+            "revert_steps": sum(row["revert_steps"] for row in rows),
+            "churn_steps": sum(row["churn_steps"] for row in rows),
             "ms_p50": round(percentile(ms, 0.5), 2),
             "ms_p95": round(percentile(ms, 0.95), 2),
             "ms_max": round(max(ms, default=0.0), 1),
@@ -316,14 +339,18 @@ def score(cases: list[Case]) -> tuple[dict, dict]:
     return summary, per_case
 
 
+COLUMNS = ("n", "exact_pct", "picks_100", "fix_keys", "unreach_pct", "space_lost", "cer_pct", "kspc",
+           "churn_steps", "ms_p95", "ms_max")
+DELTA_COLUMNS = ("exact_pct", "picks_100", "fix_keys", "unreach_pct", "space_lost", "cer_pct", "churn_steps")
+
+
 def print_summary(summary: dict, baseline: dict | None) -> None:
-    columns = ("n", "exact_pct", "cer_pct", "kspc", "revert_steps", "churn_steps", "ms_p50", "ms_p95", "ms_max")
-    print(f"{'group':38} " + " ".join(f"{c:>12}" for c in columns))
+    print(f"{'group':38} " + " ".join(f"{c:>12}" for c in COLUMNS))
     for key, row in summary.items():
         cells = []
-        for c in columns:
+        for c in COLUMNS:
             cell = f"{row[c]}"
-            if baseline and key in baseline and c in ("exact_pct", "cer_pct", "revert_steps", "churn_steps"):
+            if baseline and key in baseline and c in DELTA_COLUMNS and c in baseline[key]:
                 delta = row[c] - baseline[key][c]
                 if delta:
                     cell += f"({delta:+.1f})" if isinstance(delta, float) else f"({delta:+d})"
@@ -331,18 +358,28 @@ def print_summary(summary: dict, baseline: dict | None) -> None:
         print(f"{key:38} " + " ".join(cells))
 
 
+def cost(row: dict) -> float:
+    """Picks the typist needed; a sentence the panel cannot fix costs more
+    than any number of picks."""
+    return row["picks"] if row["reached"] else float("inf")
+
+
 def compare(per_case: dict, base_cases: dict, limit: int) -> tuple[list, list]:
-    fixed, broken = [], []
+    """Cases that need fewer / more picks than in the baseline (reaching a
+    sentence the panel could not fix counts as fewer)."""
+    better, worse = [], []
     for case_id, row in per_case.items():
         old = base_cases.get(case_id)
-        if old is None or old["exact"] == row["exact"]:
+        if old is None or cost(old) == cost(row):
             continue
-        (fixed if row["exact"] else broken).append((case_id, old["final"], row))
-    for title, items in (("FIXED", fixed), ("BROKEN", broken)):
+        (better if cost(row) < cost(old) else worse).append((case_id, old, row))
+    for title, items in (("FEWER PICKS", better), ("MORE PICKS", worse)):
         print(f"\n{title}: {len(items)}")
-        for case_id, old_final, row in items[:limit]:
-            print(f"  {case_id}\n    was {old_final!r} now {row['final']!r}\n    keys {row['keys']}")
-    return fixed, broken
+        for case_id, old, row in items[:limit]:
+            def show(r):
+                return f"{r['shown']!r} picks={r['picks'] if r['reached'] else 'unreachable'}"
+            print(f"  {case_id}\n    was {show(old)}\n    now {show(row)}\n    keys {row['keys']}")
+    return better, worse
 
 
 def save(path: Path, meta: dict, summary: dict, per_case: dict) -> None:
@@ -350,7 +387,8 @@ def save(path: Path, meta: dict, summary: dict, per_case: dict) -> None:
     that changed."""
     path.parent.mkdir(parents=True, exist_ok=True)
     dump = lambda value: json.dumps(value, ensure_ascii=False, sort_keys=True)  # noqa: E731
-    cases = ",\n".join(f"  {dump(case_id)}: {dump({k: row[k] for k in ('exact', 'final', 'keys')})}"
+    fields = ("exact", "reached", "picks", "fix_keys", "shown", "final", "keys")
+    cases = ",\n".join(f"  {dump(case_id)}: {dump({k: row[k] for k in fields})}"
                         for case_id, row in sorted(per_case.items()))
     groups = ",\n".join(f"  {dump(key)}: {dump(row)}" for key, row in summary.items())
     path.write_text(f'{{"meta": {dump(meta)},\n"summary": {{\n{groups}\n}},\n"cases": {{\n{cases}\n}}}}\n',
@@ -403,21 +441,25 @@ def main() -> int:
     if args.failures:
         for track in sorted({c.track for c in cases}):
             misses = [c for c in cases if c.track == track and not per_case[c.id]["exact"]]
-            print(f"\n{track}: {len(misses)} misses")
+            print(f"\n{track}: {len(misses)} need picks or retyping")
             for case in misses[:args.failures]:
-                print(f"  [{case.persona}] {case.expected} -> {per_case[case.id]['final']}\n    keys {case.keys}")
-    broken: list = []
+                row = per_case[case.id]
+                outcome = f"{row['picks']} picks" if row["reached"] else "unreachable"
+                print(f"  [{case.persona}] {case.expected} -> {row['shown']} ({outcome})\n    keys {case.keys}")
+    worse: list = []
     if baseline:
-        _, broken = compare(per_case, baseline["cases"], args.limit)
+        _, worse = compare(per_case, baseline["cases"], args.limit)
     if args.save:
         save(args.save, {"commit": git_commit(), "seeds": args.seeds, "set": args.set, "methods": methods,
                          "build": mode, "jobs": args.jobs}, summary, per_case)
         print(f"saved {args.save}")
     if args.fail_on_regression and baseline:
-        lost = [k for k, row in summary.items() if k in baseline["summary"]
-                and row["exact"] < baseline["summary"][k]["exact"]]
-        if lost or broken:
-            print(f"\nREGRESSION: {len(broken)} broken cases; groups losing exact: {', '.join(lost) or '-'}")
+        old = baseline["summary"]
+        lost = [k for k, row in summary.items() if k in old and "picks_100" in old[k]
+                and (row["exact"] < old[k]["exact"] or row["unreach_pct"] > old[k]["unreach_pct"]
+                     or row["picks_100"] > old[k]["picks_100"])]
+        if lost or worse:
+            print(f"\nREGRESSION: {len(worse)} cases need more picks; groups worse: {', '.join(lost) or '-'}")
             return 1
     return 0
 
