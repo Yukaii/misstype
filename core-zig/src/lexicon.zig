@@ -97,11 +97,12 @@ pub const Lexicon = struct {
     /// (docs/project-outline.md, toneless cross-tone class).
     toneless_homophone_weight: f64 = 1.0,
     /// The same for candidates that split the toneless syllables into other
-    /// words (去吃/齲齒); 0 = off. Kept small: the table only holds pairs
-    /// whose second word has a homophone, which single characters almost
-    /// always have, so larger weights favour splitting real words (0.25 is
-    /// the sweep's knee; 1.0 already loses more than it gains).
-    toneless_segment_weight: f64 = 0.25,
+    /// words (去吃/齲齒); 0 = off. Kept small: the table holds pairs only for
+    /// words that have a homophone (with tones dropped), which single
+    /// characters nearly always have and some words lack, so larger weights
+    /// favour splitting real words. 0.4 is the knee with the toneless-built
+    /// table (docs/project-outline.md, toneless re-split).
+    toneless_segment_weight: f64 = 0.4,
     /// Touched nodes and what they held before the user overlay.
     pristine: std.ArrayList(Pristine) = .empty,
     user_word_count: usize = 0,

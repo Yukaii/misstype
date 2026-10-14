@@ -1464,7 +1464,7 @@ test "toneless input may re-split a rare word by context, a typed tone may not" 
     const table = try homophoneTable(t.allocator, &.{.{ "去", "吃", 16 }});
     defer t.allocator.free(table);
     try d.lex.setHomophoneTable(table);
-    // 4 nats of context at weight 0.25 outweigh the one-word bonus.
+    // 4 nats of context at the default weight outweigh the one-word bonus.
     try expectTop(try d.decode(&toneless, .{}), "去吃");
 
     // With the tones typed, 齲齒 (ㄑㄩˇ ㄔˇ) is no longer in the class.

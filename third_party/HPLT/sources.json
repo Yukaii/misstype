@@ -13,10 +13,11 @@
     "sha256": "f21662b522ad173573126351af0e48468ae14169ca6d37e619950d84e41c52aa"
   },
   "build": [
-    "python tools/homophone_bigram.py build <the four shards> --resources <dir with lexicon.tsv> --out pairs.tsv --keep 3",
-    "python tools/homophone_bigram.py export --pairs pairs.tsv --out homophone.bin --top-pairs 200000 --rank sqrt --min-count 3 --cap 4 --smooth 3"
+    "python tools/homophone_bigram.py build <the four shards> --resources <dir with lexicon.tsv> --out pairs.tsv --keep 3 --ambiguity toneless",
+    "python tools/homophone_bigram.py export --pairs pairs.tsv --out homophone.bin --top-pairs 300000 --rank sqrt --min-count 3 --cap 4 --smooth 3 --ambiguity toneless --resources <dir with lexicon.tsv>"
   ],
   "output": {
-    "Resources/homophone.bin": "fda8d3167e5ca7c4e4c18a5f9a30ee1d7f7aa7144a16126d4ecaf8b11c840207"
-  }
+    "Resources/homophone.bin": "1a138dd028335161e9e82f87187acd32591f592ca68fc592b3c8a2093a243f77"
+  },
+  "notes": "--ambiguity toneless counts pairs whose second word shares its reading with tones dropped (a superset of the 2026-10-12 build). Exporting the same pairs.tsv with --ambiguity reading --top-pairs 200000 reproduces the previous homophone.bin bit for bit (sha256 fda8d3167e5ca7c4e4c18a5f9a30ee1d7f7aa7144a16126d4ecaf8b11c840207); the 300,000-pair table contains all of its pairs plus 100,000 cross-tone ones."
 }
