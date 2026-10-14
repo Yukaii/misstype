@@ -64,6 +64,7 @@ def main():
     p.add_argument('--model', type=Path, default=Path('.cache/wordlm/pilot.bin'))
     p.add_argument('--out', type=Path, default=Path('.cache/wordlm/dev'))
     p.add_argument('--jobs', type=int, default=8)
+    p.add_argument('--repair-check', action='store_true', help='paired baseline / fixed weight 0.5 after selection repair')
     p.add_argument('--latency', action='store_true', help='measure fixed 384-case dev subset with one worker')
     p.add_argument('--summarize', action='store_true', help='recompute guards from saved profiles without decoding')
     args = p.parse_args()
@@ -72,7 +73,7 @@ def main():
         os.environ.pop(k, None)
     args.out.mkdir(parents=True, exist_ok=True)
     model_hash = hashlib.file_digest(args.model.open('rb'), 'sha256').hexdigest()
-    protocol = {'model_sha256': model_hash, 'weights': [0, .1, .25, .5],
+    protocol = {'model_sha256': model_hash, 'weights': [0, .5] if args.repair_check or args.latency else [0, .1, .25, .5],
                 'set': 'dev + mixed-dev', 'seeds': 2, 'jobs': args.jobs,
                 'binary_sha256': hashlib.file_digest(typing.BIN.open('rb'), 'sha256').hexdigest(),
                 'commit': typing.git_commit(),
@@ -98,7 +99,7 @@ def main():
         case_map = {c.id: c for c in cases}
         if args.summarize:
             saved = json.loads((args.out / f'w{weight}.json').read_text())
-            if any(saved['meta'].get(k) != protocol[k] for k in ('model_sha256', 'jobs', 'seeds', 'set')):
+            if any(saved['meta'].get(k) != protocol[k] for k in ('model_sha256', 'jobs', 'seeds', 'set', 'weights')):
                 raise ValueError('saved results belong to a different model')
             results[weight], summaries[weight] = saved['cases'], saved['summary']
             if set(results[weight]) != set(case_map):

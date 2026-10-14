@@ -434,6 +434,9 @@ fn typeKeys(cli: Cli, a: Allocator, session: *session_mod.Session, keys: []const
         const shown = try withCursor(a, view.preedit, view.caret);
         if (keep_views) try typed.views.append(a, try a.dupe(u8, shown));
         if (trace_out and cli.flag("--show")) try cli.print("view\t{d}\t{s}\n", .{ count, shown });
+        if (trace_out and cli.flag("--show-candidates")) {
+            for (view.candidates, 0..) |text, index| try cli.print("candidate\t{d}\t{d}\t{s}\n", .{ count, index, text });
+        }
         if (commit) |text| {
             typed.chunks += 1;
             try typed.committed.appendSlice(a, text);

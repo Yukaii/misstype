@@ -38,7 +38,7 @@ large; capacity/startup improvements require a separate quality-preserving
 experiment. The reserved 200 external sentences remain sealed until dev guards
 pass; this fixture contains no results from them.
 
-## Partial-tone correction regression (weight 0.5)
+## Partial-tone correction regression before the positional pin fix (weight 0.5)
 
 Synthetic dev case `zh|partial-tones|1|公車還沒來` omits the `/` from 公.
 Replay keys: `ej tk c96ao6x96`. The spaces are first-tone keys.
@@ -65,3 +65,11 @@ branch without a Session investigation. A second partial-tone regression uses
 `2jo41jfu3，jit42l4xk7。` for `對不起，我遲到了。`; baseline corrects `赤道`
 where the model's `握到了` remains uncorrectable. One other case becomes
 recoverable, leaving this persona's uncorrectable total 44 → 45.
+
+
+The positional pin fix is covered without the large model in `core_test.zig`
+and `caret_test.zig`. With that fix, the normal Session corrector recovers
+`公車還沒來`: the listed repair is now honored against its captured reading.
+The `對不起，我遲到了。` case still fails with weight 0.5; do not remove this
+fixture or interpret the pin fix as resolving every segmentation regression.
+Current paired results and replay changes: `docs/repair-pick.md`.

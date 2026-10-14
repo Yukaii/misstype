@@ -315,3 +315,13 @@ but no EOS bonus. Unknown words use UNK; unknown Chinese glyphs in training are
 mapped to UNK. The existing beam and per-reading entry cap still bound recall.
 Model counts and source provenance are generated locally by `tools/word_lm.py`;
 fixed dev comparisons run through real Sessions with `tools/eval_word_lm.py`.
+
+
+### Repair picks and captured readings (2026-10-14)
+
+A positional Session pick is keyed by the captured, toneless reading at its
+run-local character offset. Decoder paths may use repaired dictionary readings;
+they also check the captured span key for positional pins and entry-cap bypass.
+This honors explicit repair choices without replacing raw keys or changing edit
+costs. Legacy dictionary-reading lookup remains compatible. Reproduction,
+paired typing results and intentional replay updates: [repair-pick.md](repair-pick.md).

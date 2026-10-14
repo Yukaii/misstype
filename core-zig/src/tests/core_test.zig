@@ -1609,3 +1609,23 @@ test "word model changes path ranking only at positive weight" {
     const modeled = try decoder.decodeParsed(try decoder.comp("su3"), .{});
     try expectTop(modeled, "妳");
 }
+
+test "positional pick matches raw input when its word repairs a dropped key" {
+    const d = try Dec.init(h.tsv(
+        \\ㄍㄨ|估|-1
+        \\ㄔㄜ|車|-2
+        \\ㄍㄨㄥ-ㄔㄜ|公車|-4
+    ));
+    defer d.deinit();
+    const input = try d.comp("ej tk ");
+    const top = (try d.decodeSegs(input, .{}))[0];
+    try t.expectEqualStrings("估車", top.text);
+    var pins = UserLexicon.init(t.allocator);
+    defer pins.deinit();
+    try pins.pin(.{ .text = "公車", .span = Range.of(0, 2), .score = -10 }, top);
+    const picked = (try d.decodeSegs(input, .{ .locked = &pins }))[0];
+    try t.expectEqualStrings("公車", picked.text);
+    try t.expectEqual(@as(i32, 1), picked.repairs);
+    // Picking repairs the reconstruction; the original missing-key evidence stays.
+    try t.expectEqualStrings("ej", picked.syllables[0].keys);
+}

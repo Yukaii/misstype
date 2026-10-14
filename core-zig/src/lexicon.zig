@@ -996,6 +996,7 @@ pub const Lexicon = struct {
         var next: std.ArrayList(State) = .empty;
         var span_key: std.ArrayList(u8) = .empty;
         var pin_key: std.ArrayList(u8) = .empty;
+        var input_key: std.ArrayList(u8) = .empty;
         var previous_words: [beam_width][]const u8 = undefined;
         for (0..syllables.len) |start| {
             if (paths[start].len == 0) continue;
@@ -1020,6 +1021,10 @@ pub const Lexicon = struct {
             states.clearRetainingCapacity();
             try states.append(arena, .{ .node = 0, .penalty = 0, .repairs = 0, .depth = 0, .readings = undefined });
             for (start..@min(syllables.len, start + max_word_syllables)) |end| {
+                if (locked_nonempty) {
+                    input_key.clearRetainingCapacity();
+                    try candidate_mod.appendKey(&input_key, arena, syllables[start .. end + 1]);
+                }
                 next.clearRetainingCapacity();
                 for (states.items) |state| {
                     for (options[end]) |option| {
@@ -1048,7 +1053,7 @@ pub const Lexicon = struct {
                             // The cap trims the beam, never a user's pick.
                             if (rank >= cap) {
                                 if (!locked_nonempty) break;
-                                if (!locked.?.hasPin(span_key.items, entry.text)) continue;
+                                if (!locked.?.hasPin(span_key.items, entry.text) and !locked.?.hasPin(input_key.items, entry.text)) continue;
                             }
                             const legacy_pinned = if (locked) |l| l.contains(span_key.items, entry.text) else false;
                             const learned: f64 = if (grown.learning_tones_match and (end > start or syllables.len == 1))
@@ -1061,6 +1066,13 @@ pub const Lexicon = struct {
                                     pin_key.clearRetainingCapacity();
                                     try pin_key.print(arena, "{d}@{s}", .{ prefix.utf16_len, span_key.items });
                                     pinned = l.contains(pin_key.items, entry.text);
+                                    if (!pinned and !std.mem.eql(u8, span_key.items, input_key.items)) {
+                                        // Positional picks name the captured input, which
+                                        // can differ from this repaired dictionary path.
+                                        pin_key.clearRetainingCapacity();
+                                        try pin_key.print(arena, "{d}@{s}", .{ prefix.utf16_len, input_key.items });
+                                        pinned = l.contains(pin_key.items, entry.text);
+                                    }
                                 };
                                 var contextual: f64 = 0;
                                 if (rules) |list| {
