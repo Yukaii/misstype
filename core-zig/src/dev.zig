@@ -5,6 +5,12 @@
 //!                [--user-lexicon PATH] [--replay EXPECTED [--learn-out PATH]]
 //!   misstype-dev --session-trace KEYS [--auto-commit N] [--show] [--mixed-english]
 //!                [--user-lexicon PATH] [--user-dictionary PATH] [--channel PATH]
+//!   misstype-dev --session-batch FILE|- [--carry] [same trace flags]
+//!   misstype-dev --build-mode     (Debug, ReleaseFast, ...: latency is only
+//!                                  meaningful from an optimized build)
+//!
+//! Trace keys are physical key labels; `⇧` is a lone Shift tap and
+//! `，。？！：` are Shift+punctuation (see `traceEvents`).
 //!
 //! Resources (lexicon.tsv, local_phrases.tsv, toneless.tsv, english.tsv) come
 //! from `--resources DIR`, else $MISSTYPE_RESOURCES, else the built app bundle
@@ -331,13 +337,96 @@ const named_keys = [_]Named{
     .{ "⌧", .backspace, session_mod.mod_option },
 };
 
-fn trace(cli: Cli, keys: []const u8) !void {
-    var arena: std.heap.ArenaAllocator = .init(cli.gpa);
-    defer arena.deinit();
-    const a = arena.allocator();
+/// Shift-held glyphs a trace may name directly: the key typed with Shift.
+var lower_buf: [1]u8 = undefined;
+
+const shifted_glyphs = [_]struct { []const u8, []const u8 }{
+    .{ "，", "," },
+    .{ "。", "." },
+    .{ "？", "/" },
+    .{ "！", "1" },
+    .{ "：", ";" },
+};
+
+/// The key events one trace label stands for. `⇧` is a lone Shift tap
+/// (press, release); `，。？！：` are Shift+punctuation keys; everything
+/// else is one event (an uppercase letter is Shift + its key).
+/// Every event carries the trace's simulated clock (`now`), so Shift-tap
+/// timing never mixes it with the host clock.
+fn traceEvents(label: []const u8, now: f64, buf: *[2]session_mod.KeyEvent) []const session_mod.KeyEvent {
+    if (std.mem.eql(u8, label, "⇧")) {
+        buf[0] = .{ .kind = .shift_left, .mods = session_mod.mod_shift, .timestamp = now };
+        buf[1] = .{ .kind = .shift_left, .release = true, .timestamp = now + 0.05 };
+        return buf[0..2];
+    }
+    buf[0] = .{ .kind = .character, .label = label, .text = label };
+    if (std.mem.eql(u8, label, " ")) {
+        buf[0] = .{ .kind = .space, .text = " " };
+    } else for (named_keys) |n| {
+        if (std.mem.eql(u8, n[0], label)) buf[0] = .{ .kind = n[1], .mods = n[2] };
+    }
+    for (shifted_glyphs) |g| {
+        if (std.mem.eql(u8, g[0], label)) buf[0] = .{ .kind = .character, .label = g[1], .text = g[1], .mods = session_mod.mod_shift };
+    }
+    // An uppercase letter is Shift + the letter key, as the adapters send it
+    // (label from the key code, text from the characters).
+    if (label.len == 1 and std.ascii.isUpper(label[0])) {
+        const lower = std.ascii.lowerString(&lower_buf, label);
+        buf[0] = .{ .kind = .character, .label = lower, .text = label, .mods = session_mod.mod_shift };
+    }
+    buf[0].timestamp = now;
+    return buf[0..1];
+}
+
+const Typed = struct {
+    committed: std.ArrayList(u8) = .empty,
+    /// Wall time of each label's events, ms.
+    ms: std.ArrayList(f64) = .empty,
+    /// Preedit (with `|` at the caret) after each label.
+    views: std.ArrayList([]const u8) = .empty,
+    chunks: usize = 0,
+};
+
+/// Type `keys` into `session`, then Return. `trace_out` prints the
+/// `--session-trace` lines as it goes.
+fn typeKeys(cli: Cli, a: Allocator, session: *session_mod.Session, keys: []const u8, keep_views: bool, trace_out: bool) !Typed {
+    var typed: Typed = .{};
+    var count: usize = 0;
+    var clock: f64 = 1000;
+    var it = (try std.unicode.Utf8View.init(keys)).iterator();
+    while (it.nextCodepointSlice()) |label| {
+        count += 1;
+        clock += 0.2;
+        var buf: [2]session_mod.KeyEvent = undefined;
+        const started = Io.Timestamp.now(cli.io, .awake);
+        var commit: ?[]const u8 = null;
+        for (traceEvents(label, clock, &buf)) |event| {
+            const result = try session.handle(event);
+            if (result.commit) |text| commit = try a.dupe(u8, text);
+        }
+        const ms = @as(f64, @floatFromInt(started.durationTo(Io.Timestamp.now(cli.io, .awake)).nanoseconds)) / 1e6;
+        try typed.ms.append(a, ms);
+        if (trace_out) try cli.print("time\t{d}\t{d:.1}\n", .{ count, ms });
+        const view = try session.view();
+        const shown = try withCursor(a, view.preedit, view.caret);
+        if (keep_views) try typed.views.append(a, try a.dupe(u8, shown));
+        if (trace_out and cli.flag("--show")) try cli.print("view\t{d}\t{s}\n", .{ count, shown });
+        if (commit) |text| {
+            typed.chunks += 1;
+            try typed.committed.appendSlice(a, text);
+            if (trace_out) try cli.print("chunk\t{d}\t{s}\tpreedit={s}\n", .{ count, text, view.preedit });
+        }
+    }
+    const rest = (try session.handle(.{ .kind = .enter, .text = "\r" })).commit orelse "";
+    try typed.committed.appendSlice(a, rest);
+    return typed;
+}
+
+/// One engine as the trace configures it (settings, english list, learned
+/// state from the given files).
+fn traceEngine(cli: Cli) !*session_mod.Engine {
     const decoder = try cli.loadDecoder();
     const engine = try session_mod.Engine.create(cli.gpa, cli.io, decoder);
-    defer engine.release();
     const dir = cli.resourceDir();
     if (try cli.resourceFile(dir, "english.tsv")) |tsv| {
         defer cli.gpa.free(tsv);
@@ -350,6 +439,15 @@ fn trace(cli: Cli, keys: []const u8) !void {
         .mixed_english = cli.flag("--mixed-english"),
     };
     if (cli.value("--auto-commit")) |n| engine.settings.auto_commit_syllables = std.fmt.parseInt(usize, n, 10) catch 24;
+    try loadLearned(cli, engine);
+    return engine;
+}
+
+fn loadLearned(cli: Cli, engine: *session_mod.Engine) !void {
+    engine.user_lexicon.deinit();
+    engine.user_lexicon = .init(cli.gpa);
+    engine.channel_learner.deinit();
+    engine.channel_learner = .init(cli.gpa);
     if (cli.value("--user-lexicon")) |path| if (cli.read(path)) |data| {
         defer cli.gpa.free(data);
         engine.user_lexicon.deinit();
@@ -364,36 +462,62 @@ fn trace(cli: Cli, keys: []const u8) !void {
         engine.channel_learner.deinit();
         engine.channel_learner = core.channel.ChannelLearner.decode(cli.gpa, data) catch .init(cli.gpa);
     };
+}
+
+fn trace(cli: Cli, keys: []const u8) !void {
+    var arena: std.heap.ArenaAllocator = .init(cli.gpa);
+    defer arena.deinit();
+    const engine = try traceEngine(cli);
+    defer engine.release();
     const session = try session_mod.Session.create(engine);
     defer session.destroy();
+    const typed = try typeKeys(cli, arena.allocator(), session, keys, false, true);
+    try cli.print("final\t{s}\n", .{typed.committed.items});
+}
 
-    var committed: std.ArrayList(u8) = .empty;
-    var count: usize = 0;
-    var it = (try std.unicode.Utf8View.init(keys)).iterator();
-    while (it.nextCodepointSlice()) |label| {
-        count += 1;
-        var event: session_mod.KeyEvent = .{ .kind = .character, .label = label, .text = label };
-        if (std.mem.eql(u8, label, " ")) {
-            event = .{ .kind = .space, .text = " " };
-        } else for (named_keys) |n| if (std.mem.eql(u8, n[0], label)) {
-            event = .{ .kind = n[1], .mods = n[2] };
+fn readStdin(cli: Cli) ![]u8 {
+    var buf: [4096]u8 = undefined;
+    var reader = Io.File.stdin().reader(cli.io, &buf);
+    return reader.interface.allocRemaining(cli.gpa, .unlimited);
+}
+
+/// `--session-batch FILE` (`-` = stdin): one trace per line, the lexicon
+/// loaded once. Each line gets a fresh session and, unless `--carry`, the
+/// learned state the flags name (so lines do not teach each other). Prints
+/// one JSON object per line: final text, per-label ms, chunk count and,
+/// with `--show`, the preedit after each label.
+fn batch(cli: Cli, path: []const u8) !void {
+    const input = if (std.mem.eql(u8, path, "-"))
+        try readStdin(cli)
+    else
+        cli.read(path) orelse {
+            std.debug.print("misstype-dev: cannot read {s}\n", .{path});
+            std.process.exit(1);
         };
-        const started = Io.Timestamp.now(cli.io, .awake);
-        const result = try session.handle(event);
-        const ms = @as(f64, @floatFromInt(started.durationTo(Io.Timestamp.now(cli.io, .awake)).nanoseconds)) / 1e6;
-        try cli.print("time\t{d}\t{d:.1}\n", .{ count, ms });
-        const view = try session.view();
-        if (cli.flag("--show")) {
-            try cli.print("view\t{d}\t{s}\n", .{ count, try withCursor(a, view.preedit, view.caret) });
-        }
-        if (result.commit) |text| {
-            try committed.appendSlice(a, text);
-            try cli.print("chunk\t{d}\t{s}\tpreedit={s}\n", .{ count, text, view.preedit });
-        }
+    defer cli.gpa.free(input);
+    const engine = try traceEngine(cli);
+    defer engine.release();
+    const carry = cli.flag("--carry");
+    var lines = std.mem.splitScalar(u8, input, '\n');
+    while (lines.next()) |raw_line| {
+        const line = std.mem.trimEnd(u8, raw_line, "\r");
+        if (line.len == 0) continue;
+        var arena: std.heap.ArenaAllocator = .init(cli.gpa);
+        defer arena.deinit();
+        const a = arena.allocator();
+        if (!carry) try loadLearned(cli, engine);
+        engine.english = false;
+        engine.shift_tap = .{};
+        const session = try session_mod.Session.create(engine);
+        defer session.destroy();
+        const typed = try typeKeys(cli, a, session, line, cli.flag("--show"), false);
+        try cli.print("{f}\n", .{std.json.fmt(.{
+            .final = typed.committed.items,
+            .ms = typed.ms.items,
+            .chunks = typed.chunks,
+            .views = typed.views.items,
+        }, .{})});
     }
-    const rest = (try session.handle(.{ .kind = .enter, .text = "\r" })).commit orelse "";
-    try committed.appendSlice(a, rest);
-    try cli.print("final\t{s}\n", .{committed.items});
 }
 
 /// `text` with a `|` at a UTF-16 caret offset (clamped).
@@ -418,12 +542,16 @@ pub fn main(init: std.process.Init) !void {
     var out_file: Io.File.Writer = .init(.stdout(), init.io, &out_buf);
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     const cli: Cli = .{ .gpa = init.gpa, .io = init.io, .args = args[1..], .out = &out_file.interface };
-    if (cli.value("--decode")) |keys| {
+    if (cli.flag("--build-mode")) {
+        try cli.print("{t}\n", .{@import("builtin").mode});
+    } else if (cli.value("--decode")) |keys| {
         try decode(cli, keys);
     } else if (cli.value("--session-trace")) |keys| {
         try trace(cli, keys);
+    } else if (cli.value("--session-batch")) |path| {
+        try batch(cli, path);
     } else {
-        std.debug.print("usage: misstype-dev --decode KEYS | --session-trace KEYS  (see the header of core-zig/src/dev.zig)\n", .{});
+        std.debug.print("usage: misstype-dev --decode KEYS | --session-trace KEYS | --session-batch FILE  (see the header of core-zig/src/dev.zig)\n", .{});
         std.process.exit(2);
     }
     try out_file.interface.flush();

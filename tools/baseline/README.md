@@ -1,5 +1,8 @@
 # Cross-IME baseline: Misstype vs vChewing and libchewing
 
+(`typing_eval.json` here is a different thing: the frozen Misstype-only
+result of `tools/typing_eval.py`, see docs/development.md.)
+
 Question: on the same noisy keystrokes, how many characters does the user have
 to fix, and how does it *feel*? This directory holds the quantitative harness
 and the manual protocol. It measures end-to-end results (engine + lexicon), so
