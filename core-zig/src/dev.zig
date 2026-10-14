@@ -4,6 +4,7 @@
 //!   misstype-dev --decode KEYS [--align] [--segment A:B] [--lock=KEY=TEXT ...]
 //!                [--user-lexicon PATH] [--replay EXPECTED [--learn-out PATH]]
 //!   misstype-dev --session-trace KEYS [--auto-commit N] [--show] [--mixed-english]
+//!                [--repair-strength off|light|standard|strong]
 //!                [--user-lexicon PATH] [--user-dictionary PATH] [--channel PATH]
 //!   misstype-dev --session-batch FILE|- [--carry] [--learned-out PATH] [same trace flags]
 //!   misstype-dev --build-mode     (Debug, ReleaseFast, ...: latency is only
@@ -641,6 +642,8 @@ fn traceEngine(cli: Cli) !*session_mod.Engine {
         .mixed_english = cli.flag("--mixed-english"),
     };
     if (cli.value("--auto-commit")) |n| engine.settings.auto_commit_syllables = std.fmt.parseInt(usize, n, 10) catch 24;
+    if (cli.value("--repair-strength")) |name|
+        engine.settings.repair_strength = std.meta.stringToEnum(core.channel.RepairStrength, name) orelse return error.BadRepairStrength;
     try loadLearned(cli, engine);
     return engine;
 }

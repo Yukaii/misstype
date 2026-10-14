@@ -70,6 +70,30 @@ test "strong undoes a slip onto another real syllable inside a word" {
     try t.expectEqual(@as(i32, 1), strong.repairs);
 }
 
+test "strong does not repair a valid reading onto a user dictionary word" {
+    // 好對 as the user's word (weight 0) instead of a built-in one. Its
+    // weight ranks it above built-in words on its own reading; it is not
+    // evidence that a real syllable was mistyped (不識之無 for 不是這樣吧).
+    const neighbor = keyboard.neighbors('g')[0];
+    const symbol = keyboard.symbol(neighbor).?;
+    var arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const rows = try std.fmt.allocPrint(a, "ㄏㄠˇ\t好\t-6\nㄕㄥ\t升\t-12\n{s}ㄥ\t對\t-12\n", .{symbol});
+    const d = try Dec.init(rows);
+    defer d.deinit();
+    const reading = try std.fmt.allocPrint(a, "ㄏㄠˇ-{s}ㄥ", .{symbol});
+    try d.lex.applyUserDictionary(&.{.{ .reading = reading, .text = "好對", .weight = 0 }}, &.{});
+    applyLevel(d, .strong);
+    try t.expectEqualStrings("好升", (try top(d, "cl3g/ ")).?.text);
+    const syllables = [_]h.Syllable{ d.syl("cl", 3), d.syl("g/", h.first_tone) };
+    for (try d.lex.segmentOptions(d.a(), &syllables, Range.of(0, 2), true, true)) |o|
+        try t.expect(!std.mem.eql(u8, o.text, "好對"));
+    // Typed on its own reading, the user's word still wins.
+    const exact = try std.fmt.allocPrint(a, "cl3{c}/ ", .{neighbor});
+    try t.expectEqualStrings("好對", (try top(d, exact)).?.text);
+}
+
 test "strong never turns a real single syllable into a more common neighbor" {
     // 好喔 (i = ㄛ) must not become 好一 (u = ㄧ, a neighbor key): a single
     // character has only frequency to argue for a repair.

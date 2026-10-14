@@ -1422,6 +1422,13 @@ What the arms showed:
   the clean-input check was added because the sentence sweep had missed it.
   Offset -1 still changed 8 frequent chars (屋→一, 呢→了, 娘→年) through
   the always-on phonetic confusions, so strong keeps offset 0.
+- Valid-reading repairs never land on user dictionary words (2026-10-14).
+  A user word's weight (default 0) ranks it above built-in words on its
+  own reading; it is not evidence of a slip. Toneless ㄅㄨ ㄕ ㄓㄜ ㄧㄤ ㄅㄚ
+  became 不識之無樣把 with that idiom in the user dictionary: ㄓㄜ split
+  into the real syllables ㄓ + ㄜ, ㄜ was repaired to its neighbor ㄨ (5.0),
+  and weight 0 outweighed the exact path by far more. The word still
+  wins on its own reading and through repairs of invalid readings.
 - 好喔 typed ㄛ˙ still becomes 好啊 under strong. 喔 has no ㄛ˙ reading, so
   both readings are repairs (tone 4.0 vs the word 好啊 via ㄚ, 5.0).
 - Light measured no gain here. Clean-input errors at standard are

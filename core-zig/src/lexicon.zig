@@ -120,8 +120,17 @@ pub const Lexicon = struct {
     /// Touched nodes and what they held before the user overlay.
     pristine: std.ArrayList(Pristine) = .empty,
     user_word_count: usize = 0,
+    /// Text addresses of user dictionary entries (each text is its own
+    /// copy). Their weight ranks them on their own reading; a repair of a
+    /// valid reading must not land on them, or weight 0 alone outweighs
+    /// the exact input (不識之無 for ㄅㄨ ㄕ ㄓㄜ, docs/development.md).
+    user_texts: std.AutoHashMapUnmanaged(usize, void) = .empty,
 
     const Pristine = struct { node: u32, entries: []Entry, toneless: ?[]Entry };
+
+    fn isUserWord(self: *const Lexicon, entry: Entry) bool {
+        return self.user_texts.count() != 0 and self.user_texts.contains(@intFromPtr(entry.text.ptr));
+    }
 
     /// `tsv` parts are concatenated (lexicon.tsv, local_phrases.tsv); rows
     /// are `reading-reading<TAB>text<TAB>score`. `toneless` rows override a
@@ -494,9 +503,10 @@ pub const Lexicon = struct {
             span: Range,
             found: *std.StringArrayHashMapUnmanaged(f64),
 
-            fn walk(w: @This(), node: u32, index: usize, penalty: f64) !void {
+            fn walk(w: @This(), node: u32, index: usize, penalty: f64, valid_repair: bool) !void {
                 if (index == w.span.end) {
                     for (w.lexicon.nodes.items[node].entries.items) |entry| {
+                        if (valid_repair and w.lexicon.isUserWord(entry)) continue;
                         const score = entry.score - penalty;
                         const slot = try w.found.getOrPut(w.arena, entry.text);
                         if (slot.found_existing and slot.value_ptr.* >= score) continue;
@@ -507,11 +517,11 @@ pub const Lexicon = struct {
                 for (w.options[index]) |o| {
                     if (o.word_only and w.span.len() == 1) continue;
                     const next = w.lexicon.child(node, o.reading) orelse continue;
-                    try w.walk(next, index + 1, penalty + o.cost);
+                    try w.walk(next, index + 1, penalty + o.cost, valid_repair or o.word_only);
                 }
             }
         };
-        try (Walker{ .lexicon = self, .arena = arena, .options = options, .span = span, .found = &found }).walk(0, span.start, 0);
+        try (Walker{ .lexicon = self, .arena = arena, .options = options, .span = span, .found = &found }).walk(0, span.start, 0, false);
         const out = try arena.alloc(WordOption, found.count());
         for (found.keys(), found.values(), out) |text, score, *o| o.* = .{ .text = text, .score = score };
         std.mem.sort(WordOption, out, {}, struct {
@@ -971,6 +981,8 @@ pub const Lexicon = struct {
         depth: u8,
         readings: [max_word_syllables]ReadingId,
         learning_tones_match: bool = true,
+        /// Some syllable is a repair of a reading that was already valid.
+        valid_repair: bool = false,
     };
 
     /// Learned keys omit tones, but an explicit tone must still constrain
@@ -1031,6 +1043,7 @@ pub const Lexicon = struct {
                         const child_node = self.child(state.node, option.reading) orelse continue;
                         var grown = State{ .node = child_node, .penalty = state.penalty + option.cost, .repairs = state.repairs + option.correction, .depth = state.depth + 1, .readings = state.readings };
                         grown.learning_tones_match = state.learning_tones_match and learningToneMatches(syllables[end], self.readingName(option.reading));
+                        grown.valid_repair = state.valid_repair or option.word_only;
                         grown.readings[state.depth] = option.reading;
                         try next.append(arena, grown);
                         if (option.word_only and end == start) continue;
@@ -1050,6 +1063,7 @@ pub const Lexicon = struct {
                         }
                         const rules: ?[]const user_lexicon.ContextRule = if (grown.learning_tones_match) (if (context_rules) |cr| (if (cr.get(span_key.items)) |list| list.items else null) else null) else null;
                         for (entries, 0..) |entry, rank| {
+                            if (grown.valid_repair and self.isUserWord(entry)) continue;
                             // The cap trims the beam, never a user's pick.
                             if (rank >= cap) {
                                 if (!locked_nonempty) break;
@@ -1265,6 +1279,7 @@ pub const Lexicon = struct {
         self.pristine = .empty;
         _ = self.user_arena.reset(.retain_capacity);
         self.user_word_count = 0;
+        self.user_texts = .empty;
         if (added.len == 0 and excluded.len == 0) return;
         const u = self.user_arena.allocator();
         var touched: std.AutoHashMapUnmanaged(u32, void) = .empty;
@@ -1276,6 +1291,7 @@ pub const Lexicon = struct {
             try self.touch(&touched, node_id);
             const node = &self.nodes.items[node_id];
             const text = try u.dupe(u8, word.text);
+            try self.user_texts.put(u, @intFromPtr(text.ptr), {});
             removeText(&node.entries, text);
             try node.entries.append(a, .{ .text = text, .score = word.weight });
             std.mem.sort(Entry, node.entries.items, {}, Entry.better);
