@@ -1,0 +1,73 @@
+name: Windows
+
+# Windows-specific checks (docs/windows-port.md): the core on a real Windows
+# host and the DLL/CLI builds a TSF text service links against. Windows
+# minutes cost double on a private repository, so this runs only when the
+# core, the C ABI, the Windows adapter or this workflow change; the main CI
+# workflow covers everything else.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "core-zig/**"
+      - "third_party/utf8proc/**"
+      - "Sources/CMisstype/include/**"
+      - "script/zig/bootstrap.sh"
+      - "windows/**"
+      - ".github/workflows/windows.yml"
+  pull_request:
+    paths:
+      - "core-zig/**"
+      - "third_party/utf8proc/**"
+      - "Sources/CMisstype/include/**"
+      - "script/zig/bootstrap.sh"
+      - "windows/**"
+      - ".github/workflows/windows.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache pinned Zig toolchain and compiler
+        uses: actions/cache@v4
+        with:
+          path: |
+            .cache/zig
+            core-zig/.zig-cache
+          key: zig-windows-${{ runner.arch }}-${{ hashFiles('script/zig/bootstrap.sh') }}-${{ hashFiles('third_party/utf8proc/*', 'core-zig/src/*', 'core-zig/build.zig', 'core-zig/build.zig.zon') }}
+          restore-keys: |
+            zig-windows-${{ runner.arch }}-${{ hashFiles('script/zig/bootstrap.sh') }}-
+      - name: Test the core on Windows
+        run: |
+          zig=$(script/zig/bootstrap.sh)
+          cd core-zig
+          "$zig" build test
+      - name: Build the C ABI DLL and CLIs for every Windows target
+        run: |
+          zig=$(script/zig/bootstrap.sh)
+          cd core-zig
+          for target in x86_64-windows x86-windows aarch64-windows; do
+            "$zig" build -Dtarget=$target -Doptimize=ReleaseFast --prefix "$PWD/../dist/windows/$target"
+            test -f "../dist/windows/$target/bin/MisstypeCAPI.dll"
+            test -f "../dist/windows/$target/lib/MisstypeCAPI.lib"
+            grep -aq misstype_key_from_windows "../dist/windows/$target/bin/MisstypeCAPI.dll"
+          done
+      - name: Upload the Windows build
+        uses: actions/upload-artifact@v4
+        with:
+          name: misstype-windows-core
+          path: |
+            dist/windows/*/bin/MisstypeCAPI.dll
+            dist/windows/*/bin/misstypectl.exe
+            dist/windows/*/lib/MisstypeCAPI.lib
+          retention-days: 14
