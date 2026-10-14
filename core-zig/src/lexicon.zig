@@ -94,6 +94,10 @@ pub const Lexicon = struct {
     word_model_weight: f64 = 0,
     /// Nats of table bonus per unit of difference between two homophones.
     homophone_weight: f64 = 1.0,
+    /// Experiment: weight of the homophone table's bonus for (previous
+    /// word, word) applied inside the search instead of the rerank after
+    /// it; 0 = off (byte-identical decode). docs/development.md.
+    homophone_in_search: f64 = 0,
     /// The same for words that differ only by tone over syllables typed
     /// without one (toneless input: 喝/何, 杯/被); 0 = such words are not
     /// reranked. 1.0 is the knee of the 2026-10-14 typing_eval sweep
@@ -127,6 +131,10 @@ pub const Lexicon = struct {
     user_texts: std.AutoHashMapUnmanaged(usize, void) = .empty,
 
     const Pristine = struct { node: u32, entries: []Entry, toneless: ?[]Entry };
+
+    fn homophoneInSearch(self: *const Lexicon) bool {
+        return self.homophone != null and self.homophone_in_search > 0;
+    }
 
     fn isUserWord(self: *const Lexicon, entry: Entry) bool {
         return self.user_texts.count() != 0 and self.user_texts.contains(@intFromPtr(entry.text.ptr));
@@ -1021,7 +1029,7 @@ pub const Lexicon = struct {
                 if (!paths[start + 1].admits(prefix.score - 100)) continue;
                 paths[start + 1].add(try extend(arena, prefix, raw, prefix.score - 100, prefix.repairs, prefix.unresolved + 1, start, start + 1, Span.no_node));
             }
-            if (context_rules != null or (self.word_model != null and self.word_model_weight > 0)) {
+            if (context_rules != null or (self.word_model != null and self.word_model_weight > 0) or self.homophoneInSearch()) {
                 for (prefixes[0..prefix_count], 0..) |prefix, i| {
                     previous_words[i] = "";
                     if (prefix.alignment.len == 0) continue;
@@ -1109,10 +1117,12 @@ pub const Lexicon = struct {
                                 }
                                 const pin_term: f64 = if (pinned) user_lexicon.pin_bonus else 0;
                                 const boost = learned + contextual + pin_term + settled_hits * user_lexicon.pin_bonus;
-                                const language_score = if (self.word_model != null and self.word_model_weight > 0)
+                                var language_score = if (self.word_model != null and self.word_model_weight > 0)
                                     entry.score + self.word_model_weight * (@log(self.word_model.?.probability(previous_words[index], entry.text)) - entry.score)
                                 else
                                     entry.score;
+                                if (self.homophoneInSearch() and previous_words[index].len > 0)
+                                    language_score += self.homophone_in_search * self.homophone.?.bonus(previous_words[index], entry.text);
                                 const score = prefix.score + language_score - state.penalty - option.cost + boost - self.word_penalty;
                                 if (!paths[end + 1].admits(score)) continue;
                                 var grown_candidate = try extend(arena, prefix, entry.text, score, prefix.repairs + state.repairs + option.correction, prefix.unresolved, start, end + 1, child_node);
@@ -1142,7 +1152,7 @@ pub const Lexicon = struct {
             o.syllables = syllables;
             o.runs = runs;
         }
-        if (self.homophone != null and !(self.word_model != null and self.word_model_weight > 0)) self.rerankHomophones(arena, out);
+        if (self.homophone != null and !(self.word_model != null and self.word_model_weight > 0) and !self.homophoneInSearch()) self.rerankHomophones(arena, out);
         return out;
     }
 

@@ -90,6 +90,8 @@ const Cli = struct {
             if (std.c.getenv("MISSTYPE_TONELESS_HOMOPHONE_WEIGHT")) |w|
                 lexicon.toneless_homophone_weight = std.fmt.parseFloat(f64, std.mem.span(w)) catch lexicon.toneless_homophone_weight;
         }
+        if (std.c.getenv("MISSTYPE_HOMOPHONE_IN_SEARCH")) |w|
+            lexicon.homophone_in_search = try std.fmt.parseFloat(f64, std.mem.span(w));
         if (std.c.getenv("MISSTYPE_LEARN_ACROSS_SPLITS") != null) lexicon.learning_keeps_syllables = false;
         if (std.c.getenv("MISSTYPE_NO_TONE_RUN_SPLITS") != null) lexicon.split_valid_tone_runs = false;
         if (std.c.getenv("MISSTYPE_REPAIR_REQUIRES_NO_CLEAN") != null) lexicon.repair_requires_no_clean = true;
