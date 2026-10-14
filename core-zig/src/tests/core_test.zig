@@ -1629,3 +1629,17 @@ test "positional pick matches raw input when its word repairs a dropped key" {
     // Picking repairs the reconstruction; the original missing-key evidence stays.
     try t.expectEqualStrings("ej", picked.syllables[0].keys);
 }
+
+test "sparse word model uses the same optional decoder contract" {
+    const d = try Dec.init(h.tsv(
+        \\ㄋㄧˇ|你|-5
+        \\ㄋㄧˇ|妳|-6
+    ));
+    defer d.deinit();
+    const before = try d.decodeParsed(try d.comp("su3"), .{});
+    try d.lex.setWordModel(&@import("../sparse_lm.zig").fixture);
+    const zero = try d.decodeParsed(try d.comp("su3"), .{});
+    try t.expectEqual(before[0].score, zero[0].score);
+    d.lex.word_model_weight = 0.5;
+    try expectTop(try d.decodeParsed(try d.comp("su3"), .{}), "妳");
+}

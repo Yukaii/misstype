@@ -13,7 +13,7 @@ const composition_mod = @import("composition.zig");
 const user_lexicon = @import("user_lexicon.zig");
 const channel_mod = @import("channel.zig");
 const homophone = @import("homophone.zig");
-const word_lm = @import("word_lm.zig");
+const word_model = @import("word_model.zig");
 const Syllable = keyboard.Syllable;
 const Candidate = candidate_mod.Candidate;
 const Span = candidate_mod.Span;
@@ -90,7 +90,7 @@ pub const Lexicon = struct {
     repair_valid_readings: bool = false,
     /// Optional homophone word-bigram table (null = byte-identical decode).
     homophone: ?homophone.Table = null,
-    word_model: ?word_lm.Table = null,
+    word_model: ?word_model.Table = null,
     word_model_weight: f64 = 0,
     /// Nats of table bonus per unit of difference between two homophones.
     homophone_weight: f64 = 1.0,
@@ -147,8 +147,8 @@ pub const Lexicon = struct {
     }
 
     pub fn setWordModel(self: *Lexicon, bytes: []const u8) !void {
-        _ = try word_lm.Table.parse(bytes);
-        self.word_model = try word_lm.Table.parse(try self.arena.allocator().dupe(u8, bytes));
+        _ = try word_model.Table.parse(bytes);
+        self.word_model = try word_model.Table.parse(try self.arena.allocator().dupe(u8, bytes));
     }
 
     pub fn destroy(self: *Lexicon) void {

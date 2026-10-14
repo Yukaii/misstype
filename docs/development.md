@@ -217,3 +217,27 @@ PYTHONPATH=src python tools/bench.py
 淨減 77。固定模型 0.5 的部分聲調錯字組不可修復數為 42，與原預設相同，
 dev 守門通過。修正 protocol 已記錄為 `punctuation-escape-v1`；外部資料
 仍未使用。重現與可比性限制見 [punctuation-correction.md](punctuation-correction.md)。
+
+
+### 網頁可用的稀疏詞模型（2026-10-14）
+
+假設：原型的大部分低頻詞對可以回退至 unigram，只保留固定的 50,000／
+200,000 個最高計數詞對，並以 32-bit 機率及詞 ID 存表，可把約 170 MB
+縮成 5 MB 以下，同時保留 dev 的實際選字收益。它是有損剪枝，不是假設
+壓縮一定不掉品質。保留原 unigram、BOS/EOS/UNK，剪掉的機率質量全部
+回退，條件分布仍須正規化；同時計算 gzip 下載量、native 峰值 RSS 與
+WASM linear-memory 高水位。權重固定 0.5，基準含 PR #83 的現有小表。
+只比較已固定的兩個容量，不以外部 200 句找剪枝或權重參數。產品預設
+維持現有小表，新增網頁載入能力是明確選用的實驗。
+
+
+稀疏完整模型的 50k／200k 容量均未通過 dev 守門。依「極小、快、可攜」
+的取捨需求，再以 PR #83 相同、已釘選來源與 export 參數建立固定 50k／
+100k 重排表（0.4／0.8 MB），加上無上下文表作下限。這是另一個事先固定
+的容量比較，沒有新權重或新評估句子；不把縮小後的減損隱藏成總平均收益。
+
+結果：0.4／0.8 MB PMI 表保留無表→現有表約 72%／78% 的首選增益，
+但仍未通過替換現有 2.4 MB 表的守門。完整 LM 的收益成本太高，固定稀疏
+LM 也未通過。保留預設；實作包含格式正規化驗證、明確選用的 WASM
+載入與 fallback、native／WASM paired framework。數據、資源 hash、
+記憶體定義與重跑指令見 [lightweight-models.md](lightweight-models.md)。

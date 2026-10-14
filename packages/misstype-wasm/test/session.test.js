@@ -117,3 +117,34 @@ test("typing slips: empty by default, round-trips, and clears", async () => {
   assert.equal(ime.channelCount(), 0);
   ime.setSetting("channelLearning", true);
 });
+
+
+test("sparse model loads only on request, owns its bytes, and malformed assets fall back", async () => {
+  const toyLex = "ㄋㄧˇ\t你\t-5\nㄋㄧˇ\t妳\t-6\n";
+  const fixture = [77,83,76,77,1,0,0,0,5,0,0,0,1,0,0,0,20,0,0,0,0,0,0,0,0,0,0,0,0,0,232,63,211,237,100,102,27,62,30,26,85,85,213,62,0,0,128,63,94,83,145,103,27,232,98,30,171,170,170,61,0,0,128,63,18,76,227,47,24,138,212,111,0,0,0,0,51,51,51,62,153,234,39,212,26,1,212,123,171,170,234,62,0,0,128,63,225,185,111,214,77,224,1,230,171,170,42,61,0,0,128,63,2,0,0,0,0,0,0,0,51,51,83,63];
+  const sparse = new Uint8Array(fixture);
+  const options = {
+    wasmUrl: `data:application/wasm;base64,${wasm.toString("base64")}`,
+    lexiconUrl: `data:text/plain;base64,${Buffer.from(toyLex).toString("base64")}`,
+  };
+  const type = (ime) => { for (const key of "su3") ime.key(/[0-9]/.test(key) ? `Digit${key}` : `Key${key.toUpperCase()}`, key); };
+  const baseline = await MisstypeWasm.load(options);
+  type(baseline);
+  assert.equal(baseline.wordModelLoaded, false);
+  assert.equal(baseline.state().preedit, "你");
+  assert.equal(baseline.loadWordModel(sparse, NaN), false);
+  assert.equal(baseline.loadWordModel(sparse, .5), true);
+  sparse.fill(0); // upload freed and source changed; decoder's copy still works
+  baseline.reset(); type(baseline);
+  assert.equal(baseline.state().preedit, "妳");
+  assert.equal(baseline.loadWordModel(new Uint8Array(fixture), .5), false, "repeated loads don't accumulate arena copies");
+  const fallback = await MisstypeWasm.load({ ...options, wordModelUrl: "data:application/octet-stream;base64,TUZMTQ==" });
+  type(fallback);
+  assert.equal(fallback.wordModelLoaded, false);
+  assert.equal(fallback.state().preedit, "你");
+  const loaded = await MisstypeWasm.load({ ...options,
+    wordModelUrl: `data:application/octet-stream;base64,${Buffer.from(fixture).toString("base64")}` });
+  type(loaded);
+  assert.equal(loaded.wordModelLoaded, true);
+  assert.equal(loaded.state().preedit, "妳");
+});

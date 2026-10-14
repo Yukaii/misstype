@@ -10,8 +10,11 @@ export class MisstypePlayground {
     this.wasmUrl = options.wasmUrl || "misstype.wasm";
     this.lexiconUrl = options.lexiconUrl || "lexicon.tsv";
     this.tonelessUrl = options.tonelessUrl || "toneless.tsv";
-    this.englishUrl = options.englishUrl || "english.tsv";
+    this.englishUrl = options.englishUrl === undefined ? "english.tsv" : options.englishUrl;
     this.homophoneUrl = options.homophoneUrl || "homophone.bin";
+    this.wordModelUrl = options.wordModelUrl || null;
+    this.wordModelWeight = options.wordModelWeight ?? 0.5;
+    this.wordModelLoaded = false;
     this.imeNoteText = options.imeNote || "";
     this.onStateChange = options.onStateChange || null;
     this.onReady = options.onReady;
@@ -106,7 +109,7 @@ export class MisstypePlayground {
 
       // Optional: word list for mixed Chinese/English typing. An older wasm
       // without the export, or a missing file, just leaves that pass off.
-      if (this.exports.misstype_wasm_load_english) {
+      if (this.englishUrl && this.exports.misstype_wasm_load_english) {
         try {
           const englishResponse = await fetch(this.englishUrl);
           if (englishResponse.ok) {
@@ -119,9 +122,32 @@ export class MisstypePlayground {
         }
       }
 
+      // Optional sparse search model; only fetch it when explicitly configured.
+      if (this.wordModelUrl && this.wordModelWeight > 0 && this.exports.misstype_wasm_load_word_model) {
+        try {
+          const response = await fetch(this.wordModelUrl);
+          if (response.ok) {
+            const bytes = new Uint8Array(await response.arrayBuffer());
+            if (bytes.length <= 8 * 1024 * 1024) {
+              const ptr = this.exports.misstype_wasm_alloc(bytes.length);
+              if (ptr) {
+                try {
+                  new Uint8Array(this.memory.buffer, ptr, bytes.length).set(bytes);
+                  this.wordModelLoaded = this.exports.misstype_wasm_load_word_model(ptr, bytes.length, this.wordModelWeight) === 1;
+                } finally {
+                  this.exports.misstype_wasm_free(ptr);
+                }
+              }
+            }
+          }
+        } catch (err) {
+          console.warn("optional word model unavailable", err);
+        }
+      }
+
       // Optional: homophone word-bigram table (experimental). Missing file or
       // an older wasm without the export leaves decoding unchanged.
-      if (this.exports.misstype_wasm_load_homophone) {
+      if (!this.wordModelLoaded && this.exports.misstype_wasm_load_homophone) {
         try {
           const homophoneResponse = await fetch(this.homophoneUrl);
           if (homophoneResponse.ok) {
