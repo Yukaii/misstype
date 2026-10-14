@@ -408,12 +408,13 @@ def git_commit() -> str:
         return "unknown"
 
 
-def learning(personas: list[str], seeds: int) -> int:
+def learning(personas: list[str]) -> int:
     """Learning over a day of typing: one engine per persona (`--carry`)
     types dev (first), dev again (repeat), then holdout (transfer); each
     pass is compared with the same keys on a fresh engine. Fewer picks on
     repeat is memory, on transfer generalization; more picks on transfer is
-    collateral damage from what was learned."""
+    collateral damage from what was learned. One seed only: a second seed
+    of a sentence would be a repeat inside the first pass."""
     reverse = load_reverse_lexicon()
     corpus = [r for r in load_corpus() if r[0] in ("dev", "holdout")]
     by_name = {p.name: p for p in PERSONAS}
@@ -425,11 +426,10 @@ def learning(personas: list[str], seeds: int) -> int:
             for row_set, category, sentence, readings in corpus:
                 if row_set != set_name:
                     continue
-                for seed in range(seeds):
-                    keys, _ = type_sentence(sentence, reverse, persona, None,
-                                            stable_rng("zh", name, sentence, seed), readings)
-                    lines.append(f"{keys}\t{sentence}\n")
-                    tags.append((pass_name, sentence, category))
+                keys, _ = type_sentence(sentence, reverse, persona, None,
+                                        stable_rng("zh", name, sentence, 0), readings)
+                lines.append(f"{keys}\t{sentence}\n")
+                tags.append((pass_name, sentence, category))
         def batch(carry: bool) -> list[dict]:
             command = [str(BIN), "--session-batch", "-"] + (["--carry"] if carry else [])
             out = subprocess.run(command, input="".join(lines), capture_output=True, text=True,
@@ -480,7 +480,7 @@ def main() -> int:
     if mode not in ("fast", "ReleaseFast"):
         print(f"note: misstype-dev is a {mode} build; latency columns are not comparable", file=sys.stderr)
     if args.learning:
-        return learning([p for p in args.learning.split(",") if p], args.seeds)
+        return learning([p for p in args.learning.split(",") if p])
     sets = {"dev": ["dev", "mixed-dev"], "holdout": ["holdout", "mixed-holdout"],
             "all": ["dev", "holdout", "mixed-dev", "mixed-holdout"]}[args.set]
     methods = [m for m in args.methods.split(",") if m]
