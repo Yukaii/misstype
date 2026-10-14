@@ -732,8 +732,12 @@ pub const Session = struct {
             // Mid-composition a lone Shift tap opens/closes a Latin run
             // instead of committing.
             if (!self.engine.english and (!self.composition.isEmpty() or self.latin_mode)) {
-                if (!self.latin_mode and self.composition.caret == null and self.looksLikeMistypedEnglish() and
-                    self.composition.convertTailToLatin())
+                // Shift is an explicit signal: the raw tail still shown as
+                // Zhuyin is English keys. The heuristic only decides whether
+                // converted syllables are re-read too.
+                if (!self.latin_mode and self.composition.caret == null and
+                    ((self.looksLikeMistypedEnglish() and self.composition.convertTailToLatin()) or
+                        (!self.tailShownAsEnglish() and self.composition.convertLastToLatin(self.raw_tail.len))))
                 {
                     self.resetPicks();
                     try self.refresh(false);
@@ -1468,6 +1472,17 @@ pub const Session = struct {
         self.session_pins.clear();
         self.learn_pins.clear();
         self.selected = 0;
+    }
+
+    /// Mixed-English recognition already renders the last key as English.
+    fn tailShownAsEnglish(self: *const Session) bool {
+        if (!self.hasSelected()) return false;
+        const keys = self.composition.keys();
+        if (keys.len == 0) return false;
+        for (self.candidates[self.selected].english_spans) |span| {
+            if (span.keys.contains(keys.len - 1)) return true;
+        }
+        return false;
     }
 
     fn looksLikeMistypedEnglish(self: *const Session) bool {

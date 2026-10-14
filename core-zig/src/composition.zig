@@ -293,6 +293,21 @@ pub const Composition = struct {
         return true;
     }
 
+    /// Re-read the last `count` keys, all Zhuyin symbols, as the Latin
+    /// letters they physically were (false when there are fewer, or any is
+    /// not a symbol).
+    pub fn convertLastToLatin(self: *Composition, count: usize) bool {
+        const items = self.raw_keys.items;
+        if (count == 0 or count > items.len) return false;
+        const tail = items[items.len - count ..];
+        for (tail) |key| if (!key.isSymbol()) return false;
+        for (tail) |*key| {
+            const physical_key = key.key;
+            key.* = .{ .latin = physical_key };
+        }
+        return true;
+    }
+
     /// Re-read the trailing Zhuyin keys (after the last Latin letter or
     /// punctuation) as the Latin letters they physically were. Space stays
     /// the separator.

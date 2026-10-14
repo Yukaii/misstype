@@ -774,13 +774,14 @@ test "a Shift tap rereads stranded Zhuyin as English keys" {
     try t.expectEqualStrings("world isok", (try s.enter()).commit.?);
 }
 
-test "a Shift tap after decoded Chinese still just opens a run" {
+test "a Shift tap after decoded Chinese re-reads only the unfinished syllable" {
     const s = try Harness.init(h.nihao);
     defer s.deinit();
     try s.typed("su3c"); // 你 + one raw syllable in progress
     try t.expect((try s.tapShift(100)).latin_toggled);
-    try s.expectPreedit("你ㄏ");
-    try s.expectRaw("ㄋㄧˇㄏ");
+    // Shift is explicit: the unfinished syllable is English, 你 stays.
+    try s.expectPreedit("你c");
+    try s.expectRaw("ㄋㄧˇc");
 }
 
 test "a lone Shift tap mid-composition opens a Latin run without committing" {
@@ -814,4 +815,31 @@ test "a panel pick and a host commit" {
     try s.expectPreedit("泥");
     try t.expectEqualStrings("泥", (try s.session.commit()).?);
     try t.expect((try s.session.commit()) == null);
+}
+
+test "a Shift tap re-reads a short stranded syllable so Space is not a tone" {
+    const s = try Harness.init(h.nihao);
+    defer s.deinit();
+    // "ni" decodes cleanly as ㄙㄛ, so the Shift tap leaves it as Zhuyin.
+    try s.typed("ni");
+    try t.expect((try s.tapShift(100)).latin_toggled);
+    // The first Space must not vanish into a first-tone mark.
+    _ = try s.key(.space, 0, " ");
+    try s.expectPreedit("ni ");
+    try s.typed("ok");
+    try s.expectPreedit("ni ok");
+    try t.expectEqualStrings("ni ok", (try s.enter()).commit.?);
+}
+
+test "a Shift tap keeps toneless Chinese that is already converted" {
+    const s = try Harness.init(h.nihao);
+    defer s.deinit();
+    try s.typed("sucl"); // toneless 你好: every key is pending, none shown raw
+    const before = try t.allocator.dupe(u8, try s.preedit());
+    defer t.allocator.free(before);
+    try t.expect((try s.tapShift(100)).latin_toggled);
+    try s.expectPreedit(before);
+    try s.typed("ok");
+    try t.expect(std.mem.endsWith(u8, try s.preedit(), "ok"));
+    try t.expect(!std.mem.startsWith(u8, try s.preedit(), "sucl"));
 }
