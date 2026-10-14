@@ -422,10 +422,14 @@ old behaviour). Result: clean-toneless repeat 0.39 -> 0.20 with 32 fewer /
 toneless and partial-tones repeat 1 more -> 0; clean unchanged; no change
 without learned picks (typing baseline 0/0, golden gates MATCH, replay
 MATCH). Open: a learned short word can still split a longer word elsewhere
-(learned 程式 makes 工程師 into 供程式, 很暗 makes 很安靜 into 很暗經). Forbidding
-learned picks from moving word boundaries would fix those but also forget
-real boundary fixes (處過濾性 -> 出國旅行 is remembered today), so it is left
-open.
+(learned 程式 makes 工程師 into 供程式). Tried and not shipped: let a learned
+word move word boundaries only where learned words cover the whole
+unlearned word they disagree with (出國|旅行 over 處|過濾|性 yes, 程式 over
+工程師 no). Transfer over the four personas went from 15 fewer / 10 more to
+11 fewer / 6 more: the same net, a new toned regression (部分→部份), so no
+gain. Counting context-rule bonuses in the split rule as well cost repeat
+memory (partial-tones 19 -> 18 fewer), so only context-free words are
+counted.
 
 Pilot (triage, NOT a finding yet, `--jev-mode trust`, n=5, threshold 0.6
 read post-hoc): one boolean on offline top-1 ("候選1是最正確的嗎")
