@@ -25,15 +25,11 @@ pub fn main(init: std.process.Init) !void {
         const lex = try core.english.EnglishLexicon.create(init.gpa, text);
         defer lex.destroy();
         const elapsed = start.durationTo(Io.Timestamp.now(init.io, .awake)).nanoseconds;
-        var postings: usize = 0;
-        var posting_capacity: usize = 0;
+        const postings = lex.postings.len;
+        const posting_capacity = lex.postings.len;
         var key_bytes: usize = 0;
-        var it = lex.delete_index.iterator();
-        while (it.next()) |row| {
-            postings += row.value_ptr.items.len;
-            posting_capacity += row.value_ptr.capacity;
-            key_bytes += row.key_ptr.len;
-        }
+        var it = lex.delete_index.keyIterator();
+        while (it.next()) |key| key_bytes += key.len;
         try out.print("{{\"mode\":\"english\",\"arena_bytes\":{d},\"build_ms\":{d:.4},\"words\":{d},\"delete_keys\":{d},\"postings\":{d},\"posting_capacity\":{d},\"key_bytes\":{d}}}\n", .{
             lex.arena.queryCapacity(), @as(f64, @floatFromInt(elapsed)) / 1e6, lex.scores.count(), lex.delete_index.count(), postings, posting_capacity, key_bytes,
         });

@@ -268,3 +268,23 @@ mismatch 0。中文詞庫數值不變。代價是每個新 key 多複製一次�
 `zig build -Doptimize=ReleaseFast install index-memory` 後執行
 `python3 tools/index_memory_eval.py --probe … --dev … --out … [--baseline …]`
 與 `node tools/wasm_model_eval.mjs <out> --baseline-only --wasm=<wasm>`。
+
+### 英文 posting 精確配置（2026-10-14）
+
+假設：英文刪字索引剩下的大宗是 posting 清單的預留容量；333k 筆
+posting 配了 2.67M 槽，因為多數 key 只有一個詞卻各預配 8 槽。最小
+實驗改成兩段建置：先計數，再把全部 posting 依原詞序填入單一連續陣列，
+map 值改為 `(start, len)`。WASM linear memory 不會縮，故不採「先成長
+再壓實」，避免建置尖峰留在高水位。不改 key、詞序或 fuzzy 規則；同一
+key 的 posting 順序不變，所以候選應逐案一致。以上一個 commit 為
+baseline，重用 `index_memory_eval.py` 的 native RSS／7,200 案例／
+384 案例延遲與 WASM 高水位；建置多一次變體列舉，預期初始化略慢。
+
+結果：7,200 案例 0 差異，四組 replay golden、parity、decode 與 WASM
+測試一致。posting 槽數 2.67M → 333,281（= 筆數）。英文索引 native
+峰值 RSS 92.0 → 39.4 MiB；typing batch 峰值中文 153.5 → 101.8、
+混打 189.2 → 138.3 MiB；key latency 不變。WASM 載入英文後 linear
+memory 189.7 → 156.0 MB，打完 384 案例 237.8 → 204.2 MB，首選
+mismatch 0；wasm32 指標只有 4 bytes，省下比例小於 native。代價是
+變體列舉兩次：native 英文建置中位數 48.4 → 52.3 ms（交錯 15 次）。
+固定結果在 `tools/eval/index_memory_v2.json`。

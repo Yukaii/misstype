@@ -35,8 +35,11 @@ pub const EnglishLexicon = struct {
     arena: std.heap.ArenaAllocator,
     scores: std.StringHashMapUnmanaged(f64) = .empty,
     /// Words of at least `fuzzy_min_length`, by themselves and by every
-    /// one-letter deletion (symmetric delete).
-    delete_index: std.StringHashMapUnmanaged(std.ArrayList([]const u8)) = .empty,
+    /// one-letter deletion (symmetric delete), as runs of `postings`.
+    delete_index: std.StringHashMapUnmanaged(Run) = .empty,
+    postings: []const []const u8 = &.{},
+
+    pub const Run = struct { start: u32, len: u32 };
 
     /// `word<TAB>ln p` rows.
     pub fn create(gpa: Allocator, tsv: []const u8) !*EnglishLexicon {
@@ -64,29 +67,63 @@ pub const EnglishLexicon = struct {
         // the dictionary. Reuse scratch between words; index owns new keys.
         var scratch: std.heap.ArenaAllocator = .init(gpa);
         defer scratch.deinit();
-        for (order.items) |word| {
-            if (unicode.characterCount(word) < fuzzy_min_length) continue;
-            _ = scratch.reset(.retain_capacity);
-            const temporary = scratch.allocator();
-            try self.index(word, word);
-            var seen: std.StringHashMapUnmanaged(void) = .empty;
-            for (0..word.len) |i| {
-                const variant = try std.mem.concat(temporary, u8, &.{ word[0..i], word[i + 1 ..] });
-                if ((try seen.getOrPut(temporary, variant)).found_existing) continue;
-                try self.index(variant, word);
+        // Count first, then fill one exact array in file order: growable
+        // per-key lists left most of their slots empty, and WASM memory
+        // never shrinks, so building big and compacting would not help.
+        var filled: [][]const u8 = &.{};
+        for ([_]BuildPass{ .count, .fill }) |pass| {
+            for (order.items) |word| {
+                if (unicode.characterCount(word) < fuzzy_min_length) continue;
+                _ = scratch.reset(.retain_capacity);
+                const temporary = scratch.allocator();
+                try self.index(pass, filled, word, word);
+                var seen: std.StringHashMapUnmanaged(void) = .empty;
+                for (0..word.len) |i| {
+                    const variant = try std.mem.concat(temporary, u8, &.{ word[0..i], word[i + 1 ..] });
+                    if ((try seen.getOrPut(temporary, variant)).found_existing) continue;
+                    try self.index(pass, filled, variant, word);
+                }
+            }
+            if (pass == .count) {
+                var total: u32 = 0;
+                var runs = self.delete_index.valueIterator();
+                while (runs.next()) |run| {
+                    run.start = total;
+                    total += run.len;
+                    run.len = 0;
+                }
+                filled = try a.alloc([]const u8, total);
             }
         }
+        self.postings = filled;
         return self;
     }
 
-    fn index(self: *EnglishLexicon, key: []const u8, word: []const u8) !void {
-        const a = self.arena.allocator();
-        const slot = try self.delete_index.getOrPut(a, key);
-        if (!slot.found_existing) {
-            slot.key_ptr.* = try a.dupe(u8, key);
-            slot.value_ptr.* = .empty;
+    const BuildPass = enum { count, fill };
+
+    fn index(self: *EnglishLexicon, pass: BuildPass, filled: [][]const u8, key: []const u8, word: []const u8) !void {
+        switch (pass) {
+            .count => {
+                const a = self.arena.allocator();
+                const slot = try self.delete_index.getOrPut(a, key);
+                if (!slot.found_existing) {
+                    slot.key_ptr.* = try a.dupe(u8, key);
+                    slot.value_ptr.* = .{ .start = 0, .len = 0 };
+                }
+                slot.value_ptr.len += 1;
+            },
+            .fill => {
+                const run = self.delete_index.getPtr(key).?;
+                filled[run.start + run.len] = word;
+                run.len += 1;
+            },
         }
-        try slot.value_ptr.append(a, word);
+    }
+
+    /// Words indexed under a symmetric-delete key, in file order.
+    pub fn indexed(self: *const EnglishLexicon, key: []const u8) []const []const u8 {
+        const run = self.delete_index.get(key) orelse return &.{};
+        return self.postings[run.start..][0..run.len];
     }
 
     pub fn destroy(self: *EnglishLexicon) void {
@@ -120,8 +157,7 @@ pub const EnglishLexicon = struct {
             try keys.append(arena, variant);
         }
         for (keys.items) |key| {
-            const list = self.delete_index.get(key) orelse continue;
-            for (list.items) |word| {
+            for (self.indexed(key)) |word| {
                 if ((try seen.getOrPut(arena, word)).found_existing) continue;
                 if (withinOneEdit(typed, word)) if (self.scores.get(word)) |score| {
                     try out.append(arena, .{ .word = word, .score = score, .edits = 1 });
@@ -459,13 +495,18 @@ test "English deletion keys survive builder scratch reuse without duplicate post
     const english = try EnglishLexicon.create(std.testing.allocator, source);
     defer english.destroy();
     @memset(source, 0); // Neither dictionary nor index borrows the input.
-    const shared = english.delete_index.get("etter").?;
-    try std.testing.expectEqual(@as(usize, 3), shared.items.len);
-    for (shared.items, [_][]const u8{ "letter", "better", "setter" }) |got, want|
+    const shared = english.indexed("etter");
+    try std.testing.expectEqual(@as(usize, 3), shared.len);
+    for (shared, [_][]const u8{ "letter", "better", "setter" }) |got, want|
         try std.testing.expectEqualStrings(want, got);
-    const repeated = english.delete_index.get("leter").?;
-    try std.testing.expectEqual(@as(usize, 1), repeated.items.len);
-    try std.testing.expectEqualStrings("letter", repeated.items[0]);
+    const repeated = english.indexed("leter");
+    try std.testing.expectEqual(@as(usize, 1), repeated.len);
+    try std.testing.expectEqualStrings("letter", repeated[0]);
+    // Every posting slot is used exactly once: no growth slack.
+    var used: usize = 0;
+    var runs = english.delete_index.valueIterator();
+    while (runs.next()) |run| used += run.len;
+    try std.testing.expectEqual(english.postings.len, used);
     var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
     defer arena.deinit();
     const matches = try english.matches(arena.allocator(), "leter", true);
