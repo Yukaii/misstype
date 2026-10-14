@@ -96,6 +96,12 @@ pub const Lexicon = struct {
     /// reranked. 1.0 is the knee of the 2026-10-14 typing_eval sweep
     /// (docs/project-outline.md, toneless cross-tone class).
     toneless_homophone_weight: f64 = 1.0,
+    /// The same for candidates that split the toneless syllables into other
+    /// words (去吃/齲齒); 0 = off. Kept small: the table only holds pairs
+    /// whose second word has a homophone, which single characters almost
+    /// always have, so larger weights favour splitting real words (0.25 is
+    /// the sweep's knee; 1.0 already loses more than it gains).
+    toneless_segment_weight: f64 = 0.25,
     /// Touched nodes and what they held before the user overlay.
     pristine: std.ArrayList(Pristine) = .empty,
     user_word_count: usize = 0,
@@ -1042,6 +1048,7 @@ pub const Lexicon = struct {
                 .none => continue,
                 .same_reading => self.homophone_weight,
                 .toneless => self.toneless_homophone_weight,
+                .toneless_segments => self.toneless_segment_weight,
             };
             if (weight == 0) continue;
             const bonus = pairBonus(table, arena, c.*) catch return;
@@ -1056,10 +1063,10 @@ pub const Lexicon = struct {
         }.lessThan);
     }
 
-    const HomophoneClass = enum { none, same_reading, toneless };
+    const HomophoneClass = enum { none, same_reading, toneless, toneless_segments };
 
     fn homophoneClass(top: Candidate, other: Candidate) HomophoneClass {
-        if (top.alignment.len != other.alignment.len) return .none;
+        if (top.alignment.len != other.alignment.len or !sameSpans(top, other)) return resegmented(top, other);
         var class: HomophoneClass = .same_reading;
         for (top.alignment, other.alignment) |a, b| {
             if (!a.syllables.eql(b.syllables) or !a.chars.eql(b.chars)) return .none;
@@ -1074,6 +1081,34 @@ pub const Lexicon = struct {
             class = .toneless;
         }
         return class;
+    }
+
+    fn sameSpans(top: Candidate, other: Candidate) bool {
+        for (top.alignment, other.alignment) |a, b| {
+            if (!a.syllables.eql(b.syllables) or !a.chars.eql(b.chars)) return false;
+        }
+        return true;
+    }
+
+    /// Another split of the same syllables into words: a class member only
+    /// when every syllable whose word differs was typed without a tone, the
+    /// text has the same length, and no repair or unresolved syllable was
+    /// added.
+    fn resegmented(top: Candidate, other: Candidate) HomophoneClass {
+        if (other.repairs != top.repairs or other.unresolved != top.unresolved) return .none;
+        if (top.utf16_len != other.utf16_len or top.syllables.len == 0) return .none;
+        for (top.alignment) |a| if (a.node == Span.no_node or a.syllables.end > top.syllables.len) return .none;
+        for (other.alignment) |b| if (b.node == Span.no_node) return .none;
+        for (top.alignment) |a| {
+            const kept = for (other.alignment) |b| {
+                if (a.syllables.eql(b.syllables) and a.chars.eql(b.chars) and a.node == b.node) break true;
+            } else false;
+            if (kept) continue;
+            for (top.syllables[a.syllables.start..a.syllables.end]) |syllable| {
+                if (syllable.tone != null) return .none;
+            }
+        }
+        return .toneless_segments;
     }
 
     fn pairBonus(table: homophone.Table, arena: Allocator, c: Candidate) !f64 {

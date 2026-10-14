@@ -364,6 +364,23 @@ second word has a same-reading homophone, so words confusable only across
 tones (當機/黨籍) have no pairs; a recount over HPLT keyed on toneless
 readings is the next step for this class.
 
+Finding (toneless re-split, 2026-10-14, same tools). Trigger: toneless
+input lets a rare multi-syllable word take the place of two common ones
+(齲齒 for 去吃, 青棒 for 請幫, 黨籍 for 當機): their unigram scores are
+close (齲齒 -14.2 vs 去 -6.4 + 吃 -7.9) and only the typed tone separates
+them. Hypothesis: over toneless syllables, candidates that split them into
+other words (same text length, no extra repair) can join the class, so the
+table's 去|吃 context decides. Expected risk: the table only holds pairs
+whose second word has a same-reading homophone, which single characters
+almost always have and many words lack, so the class is biased toward
+splitting. Dev sweep (`MISSTYPE_TONELESS_SEGMENT_WEIGHT`, on top of the
+cross-tone class): w=0.25 14 fewer / 7 more, w=0.5 23/20, w=1 43/56, w=2
+53/212 (the bias). Holdout at 0.25: 35 fewer / 0 more, clean-toneless +2.7
+pp; Common Voice toneless +6/-1 (享有→想有), toned +0/-0. Shipped as
+`toneless_segment_weight = 0.25`. Both toneless classes together vs the
+2026-10-14 typing baseline: clean-toneless no-pick 66.0 -> 71.4 %, picks
+per 100 chars 5.83 -> 4.98; toned personas unchanged.
+
 Pilot (triage, NOT a finding yet, `--jev-mode trust`, n=5, threshold 0.6
 read post-hoc): one boolean on offline top-1 ("候選1是最正確的嗎")
 separates 10/10 — right top-1 trusts 0.82+ (hide-panel), wrong top-1

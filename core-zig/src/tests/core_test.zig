@@ -1449,3 +1449,28 @@ test "toneless input reranks words that differ only by tone" {
     d.lex.toneless_homophone_weight = 0;
     try expectTop(try d.decode(&toneless, .{}), "想何");
 }
+
+test "toneless input may re-split a rare word by context, a typed tone may not" {
+    const d = try Dec.init(h.tsv(
+        \\ㄑㄩˋ|去|-6.4
+        \\ㄔ|吃|-7.9
+        \\ㄑㄩˇ-ㄔˇ|齲齒|-14.2
+        \\
+    ));
+    defer d.deinit();
+    const toneless = [_]keyboard.Syllable{ .{ .keys = "fm", .tone = null }, .{ .keys = "t", .tone = null } };
+    try expectTop(try d.decode(&toneless, .{}), "齲齒");
+
+    const table = try homophoneTable(t.allocator, &.{.{ "去", "吃", 16 }});
+    defer t.allocator.free(table);
+    try d.lex.setHomophoneTable(table);
+    // 4 nats of context at weight 0.25 outweigh the one-word bonus.
+    try expectTop(try d.decode(&toneless, .{}), "去吃");
+
+    // With the tones typed, 齲齒 (ㄑㄩˇ ㄔˇ) is no longer in the class.
+    const toned = [_]keyboard.Syllable{ .{ .keys = "fm", .tone = '3' }, .{ .keys = "t", .tone = '3' } };
+    try expectTop(try d.decode(&toned, .{}), "齲齒");
+
+    d.lex.toneless_segment_weight = 0;
+    try expectTop(try d.decode(&toneless, .{}), "齲齒");
+}

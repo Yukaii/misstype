@@ -84,6 +84,8 @@ const Cli = struct {
             };
             if (std.c.getenv("MISSTYPE_HOMOPHONE_WEIGHT")) |w|
                 lexicon.homophone_weight = std.fmt.parseFloat(f64, std.mem.span(w)) catch lexicon.homophone_weight;
+            if (std.c.getenv("MISSTYPE_TONELESS_SEGMENT_WEIGHT")) |w|
+                lexicon.toneless_segment_weight = std.fmt.parseFloat(f64, std.mem.span(w)) catch lexicon.toneless_segment_weight;
             if (std.c.getenv("MISSTYPE_TONELESS_HOMOPHONE_WEIGHT")) |w|
                 lexicon.toneless_homophone_weight = std.fmt.parseFloat(f64, std.mem.span(w)) catch lexicon.toneless_homophone_weight;
         }
