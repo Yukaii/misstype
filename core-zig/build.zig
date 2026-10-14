@@ -80,6 +80,17 @@ pub fn build(b: *std.Build) void {
         }),
     });
     b.installArtifact(dev);
+    const index_memory = b.addExecutable(.{
+        .name = "misstype-index-memory",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/index_memory.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{.{ .name = "misstype", .module = core }},
+        }),
+    });
+    const install_memory = b.addInstallArtifact(index_memory, .{});
+    b.step("index-memory", "Build developer-only index memory accounting").dependOn(&install_memory.step);
     // WebAssembly build for the site demo (script/build_site_assets.sh).
     const wasm_target = b.resolveTargetQuery(.{ .cpu_arch = .wasm32, .os_tag = .wasi });
     const wasm_core = b.createModule(.{

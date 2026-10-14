@@ -1,0 +1,195 @@
+{
+ "experiment": "english-index-builder-scratch",
+ "date": "2026-10-14",
+ "host": "macOS-27.0-arm64-arm-64bit-Mach-O",
+ "baseline_commit": "5ce49ac-dirty",
+ "resources": {
+  "lexicon.tsv": "990dcf42f85a1e10a1a4bef3db35db8a02fc54af237c5c02337c49cb2858e407",
+  "toneless.tsv": "7ae756e5692224f2085df5d468ffb55a7c5a9d734ec363192ce3fb515fe65f0f",
+  "local_phrases.tsv": "a6a769f03145880d751c08c9d5499fcad9a855e3c9610bfb1248bda62bcb0620",
+  "english.tsv": "1a1aba5f47c7ff4fdb84a95746e0cf5030250a61d17709354bdb11c362fc1794",
+  "homophone.bin": "1a138dd028335161e9e82f87187acd32591f592ca68fc592b3c8a2093a243f77"
+ },
+ "external_reserve_consumed": false,
+ "correction_protocol": "punctuation-escape-v1",
+ "quality_cases": 7200,
+ "changed_quality_cases": 0,
+ "binaries": {
+  "baseline": {
+   "dev_sha256": "f1ad1636d5ebb42f930baaed08fc654bce2de12dc148704a0632ef7bb4540076",
+   "probe_sha256": "b592d1ed86b318c54398967959fc549c17c838b62e464a2307936ab9cd11d756"
+  },
+  "change": {
+   "dev_sha256": "ad602e0e4bd9d6a191c7ca6e47f3a27a26592b9f482d1faa6a964cd7583289e8",
+   "probe_sha256": "5c83ddcfd1adbc9fce4302a91793e6d7f590eb7ed8ad0fc6dca1619d33f11b5c"
+  }
+ },
+ "index": {
+  "baseline": {
+   "Chinese": {
+    "mode": "Chinese",
+    "arena_bytes": 58847658,
+    "nodes": 122661,
+    "readings": 1310,
+    "entries": 112439,
+    "entry_capacity": 587270,
+    "rescored_entries": 0,
+    "peak_rss_bytes": [
+     54312960,
+     54329344,
+     54312960
+    ]
+   },
+   "Chinese-toneless": {
+    "mode": "Chinese-toneless",
+    "arena_bytes": 58847658,
+    "nodes": 122661,
+    "readings": 1310,
+    "entries": 112439,
+    "entry_capacity": 587270,
+    "rescored_entries": 7715,
+    "peak_rss_bytes": [
+     55132160,
+     55148544,
+     55132160
+    ]
+   },
+   "english": {
+    "mode": "english",
+    "arena_bytes": 153948212,
+    "words": 46717,
+    "delete_keys": 296856,
+    "postings": 333281,
+    "posting_capacity": 2672166,
+    "key_bytes": 2181560,
+    "peak_rss_bytes": [
+     112001024,
+     112017408,
+     112017408
+    ]
+   }
+  },
+  "change": {
+   "Chinese": {
+    "mode": "Chinese",
+    "arena_bytes": 58847658,
+    "nodes": 122661,
+    "readings": 1310,
+    "entries": 112439,
+    "entry_capacity": 587270,
+    "rescored_entries": 0,
+    "peak_rss_bytes": [
+     54280192,
+     54280192,
+     54296576
+    ]
+   },
+   "Chinese-toneless": {
+    "mode": "Chinese-toneless",
+    "arena_bytes": 58847658,
+    "nodes": 122661,
+    "readings": 1310,
+    "entries": 112439,
+    "entry_capacity": 587270,
+    "rescored_entries": 7715,
+    "peak_rss_bytes": [
+     55132160,
+     55099392,
+     55099392
+    ]
+   },
+   "english": {
+    "mode": "english",
+    "arena_bytes": 173282144,
+    "words": 46717,
+    "delete_keys": 296856,
+    "postings": 333281,
+    "posting_capacity": 2672166,
+    "key_bytes": 2181560,
+    "peak_rss_bytes": [
+     96436224,
+     96419840,
+     96419840
+    ]
+   }
+  }
+ },
+ "runtime": {
+  "baseline": {
+   "Chinese": {
+    "cases": 384,
+    "keys": 7113,
+    "mean_ms": 0.41261209981723607,
+    "p95_ms": 2.263583,
+    "max_ms": 8.331208,
+    "typing_peak_rss_bytes": 175325184
+   },
+   "mixed": {
+    "cases": 1296,
+    "keys": 25349,
+    "mean_ms": 0.44718620221705,
+    "p95_ms": 2.4975,
+    "max_ms": 24.580375,
+    "typing_peak_rss_bytes": 219856896
+   }
+  },
+  "change": {
+   "Chinese": {
+    "cases": 384,
+    "keys": 7113,
+    "mean_ms": 0.4248132125685365,
+    "p95_ms": 2.300292,
+    "max_ms": 24.034542,
+    "typing_peak_rss_bytes": 160923648
+   },
+   "mixed": {
+    "cases": 1296,
+    "keys": 25349,
+    "mean_ms": 0.44475654913408813,
+    "p95_ms": 2.468792,
+    "max_ms": 30.457916,
+    "typing_peak_rss_bytes": 198377472
+   }
+  }
+ },
+ "wasm": {
+  "measurement": "Node headless browser-WASI linear memory; not browser RSS",
+  "baseline": {
+   "Chinese-only:default": {
+    "Chinese_lexicon_linear_bytes": 97779712,
+    "before_model_linear_bytes": 97779712,
+    "after_typing_linear_bytes": 116457472,
+    "native_preview_mismatches": 0,
+    "key_events": 7113
+   },
+   "with-english:default": {
+    "Chinese_lexicon_linear_bytes": 97779712,
+    "before_model_linear_bytes": 224526336,
+    "after_typing_linear_bytes": 273743872,
+    "native_preview_mismatches": 0,
+    "key_events": 7113
+   }
+  },
+  "change": {
+   "Chinese-only:default": {
+    "Chinese_lexicon_linear_bytes": 97779712,
+    "before_model_linear_bytes": 97779712,
+    "after_typing_linear_bytes": 116457472,
+    "native_preview_mismatches": 0,
+    "key_events": 7113
+   },
+   "with-english:default": {
+    "Chinese_lexicon_linear_bytes": 97779712,
+    "before_model_linear_bytes": 189661184,
+    "after_typing_linear_bytes": 237764608,
+    "native_preview_mismatches": 0,
+    "key_events": 7113
+   }
+  }
+ },
+ "english_build_ms_native_15_interleaved": {
+  "baseline_median": 46.9,
+  "change_median": 49.0
+ },
+ "note": "arena_bytes sums arena node sizes (1.5x geometric growth), not bytes used; compare peak RSS"
+}

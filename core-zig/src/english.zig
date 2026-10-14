@@ -45,6 +45,7 @@ pub const EnglishLexicon = struct {
         errdefer self.destroy();
         const a = self.arena.allocator();
         var order: std.ArrayList([]const u8) = .empty;
+        defer order.deinit(gpa);
         var lines = std.mem.tokenizeScalar(u8, tsv, '\n');
         while (lines.next()) |line| {
             var fields = std.mem.tokenizeScalar(u8, line, '\t');
@@ -55,17 +56,23 @@ pub const EnglishLexicon = struct {
             const slot = try self.scores.getOrPut(a, word);
             if (!slot.found_existing) {
                 slot.key_ptr.* = try a.dupe(u8, word);
-                try order.append(a, slot.key_ptr.*);
+                try order.append(gpa, slot.key_ptr.*);
             }
             slot.value_ptr.* = score;
         }
+        // Builder-only deduplication and variants must not live as long as
+        // the dictionary. Reuse scratch between words; index owns new keys.
+        var scratch: std.heap.ArenaAllocator = .init(gpa);
+        defer scratch.deinit();
         for (order.items) |word| {
             if (unicode.characterCount(word) < fuzzy_min_length) continue;
+            _ = scratch.reset(.retain_capacity);
+            const temporary = scratch.allocator();
             try self.index(word, word);
             var seen: std.StringHashMapUnmanaged(void) = .empty;
             for (0..word.len) |i| {
-                const variant = try std.mem.concat(a, u8, &.{ word[0..i], word[i + 1 ..] });
-                if ((try seen.getOrPut(a, variant)).found_existing) continue;
+                const variant = try std.mem.concat(temporary, u8, &.{ word[0..i], word[i + 1 ..] });
+                if ((try seen.getOrPut(temporary, variant)).found_existing) continue;
                 try self.index(variant, word);
             }
         }
@@ -75,7 +82,10 @@ pub const EnglishLexicon = struct {
     fn index(self: *EnglishLexicon, key: []const u8, word: []const u8) !void {
         const a = self.arena.allocator();
         const slot = try self.delete_index.getOrPut(a, key);
-        if (!slot.found_existing) slot.value_ptr.* = .empty;
+        if (!slot.found_existing) {
+            slot.key_ptr.* = try a.dupe(u8, key);
+            slot.value_ptr.* = .empty;
+        }
         try slot.value_ptr.append(a, word);
     }
 
@@ -441,4 +451,24 @@ test "english matches" {
     defer arena.deinit();
     try std.testing.expectEqualStrings("python", (try english.matches(arena.allocator(), "pytohn", true))[0].word);
     try std.testing.expectEqual(@as(usize, 0), (try english.matches(arena.allocator(), "pyth", true)).len);
+}
+
+test "English deletion keys survive builder scratch reuse without duplicate postings" {
+    const source = try std.testing.allocator.dupe(u8, "letter\t-5\nbetter\t-6\nsetter\t-7\nletter\t-4\n");
+    defer std.testing.allocator.free(source);
+    const english = try EnglishLexicon.create(std.testing.allocator, source);
+    defer english.destroy();
+    @memset(source, 0); // Neither dictionary nor index borrows the input.
+    const shared = english.delete_index.get("etter").?;
+    try std.testing.expectEqual(@as(usize, 3), shared.items.len);
+    for (shared.items, [_][]const u8{ "letter", "better", "setter" }) |got, want|
+        try std.testing.expectEqualStrings(want, got);
+    const repeated = english.delete_index.get("leter").?;
+    try std.testing.expectEqual(@as(usize, 1), repeated.items.len);
+    try std.testing.expectEqualStrings("letter", repeated.items[0]);
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    const matches = try english.matches(arena.allocator(), "leter", true);
+    try std.testing.expectEqualStrings("letter", matches[0].word);
+    try std.testing.expectEqual(@as(f64, -4), matches[0].score);
 }

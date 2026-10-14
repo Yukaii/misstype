@@ -241,3 +241,30 @@ WASM linear-memory 高水位。權重固定 0.5，基準含 PR #83 的現有小�
 LM 也未通過。保留預設；實作包含格式正規化驗證、明確選用的 WASM
 載入與 fallback、native／WASM paired framework。數據、資源 hash、
 記憶體定義與重跑指令見 [lightweight-models.md](lightweight-models.md)。
+
+### 詞典索引的生命週期量測（2026-10-14）
+
+假設：英文 symmetric-delete 索引建置時的逐詞去重表、重複變體與
+輸入順序陣列滯留長期 arena，造成可避免的記憶體占用。最小實驗只把
+建置暫存放到可重用／釋放的 scratch，索引新 key 才複製到長期 arena。
+不刪詞、不改 fuzzy 規則或候選順序。先固定 baseline binary／WASM，
+分開量測中文無 override、中文含 toneless override、英文的 arena 容量、
+native 峰值 RSS 與建置時間；再重放固定 384 案例量 key latency／WASM
+高水位，並用既有完整打字 baseline 與 golden 驗證行為一致。
+封存外部集不使用；browser-WASI 容量不當成瀏覽器 RSS。
+
+
+結果：7,200 個打字案例逐案 0 差異，四組 replay golden、parity 與
+WASM 測試一致。英文索引建置的 native 峰值 RSS 106.8 → 92.0 MiB；
+含英文的 typing batch 峰值 209.7 → 189.2 MiB，中文 batch 167.2 →
+153.5 MiB（開發 CLI 預載英文）。WASM 載入英文後 linear memory
+224.5 → 189.7 MB，打完 384 案例 273.7 → 237.8 MB，native 首選
+mismatch 0。中文詞庫數值不變。代價是每個新 key 多複製一次：native
+英文建置中位數 46.9 → 49.0 ms（交錯 15 次）；key latency 不變。WASM
+計時在高負載主機上離群值超過差距，未能判定。`arena_bytes` 是幾何成長
+的 arena 節點大小總和，英文反而 153.9 → 173.3 MB，不能當節省量。
+剩餘大宗是 posting 清單：333k 筆 posting 配了 2.67M 槽，約 8 倍。
+固定結果在 `tools/eval/index_memory_v1.json`；重跑：
+`zig build -Doptimize=ReleaseFast install index-memory` 後執行
+`python3 tools/index_memory_eval.py --probe … --dev … --out … [--baseline …]`
+與 `node tools/wasm_model_eval.mjs <out> --baseline-only --wasm=<wasm>`。

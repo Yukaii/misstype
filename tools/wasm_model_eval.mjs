@@ -15,12 +15,13 @@ const cases=JSON.parse(fs.readFileSync(path.join(dir,'wasm-cases.json')));
 const resources=path.resolve('dist/MisstypeIME.app/Contents/Resources');
 const lex=fs.readFileSync(path.join(resources,'lexicon.tsv'),'utf8')+'\n'+fs.readFileSync(path.join(resources,'local_phrases.tsv'),'utf8');
 const tones=fs.readFileSync(path.join(resources,'toneless.tsv'),'utf8');
-const wasm=fs.readFileSync('core-zig/zig-out/wasm/misstype.wasm');
+const wasmPath=process.argv.find(arg=>arg.startsWith('--wasm='))?.slice(7) || 'core-zig/zig-out/wasm/misstype.wasm';
+const wasm=fs.readFileSync(wasmPath);
 const sha=bytes=>crypto.createHash('sha256').update(bytes).digest('hex');
 const punctuation={'，':['Comma','<'], '。':['Period','>'], '？':['Slash','?'], '！':['Digit1','!'], '：':['Semicolon',':'], '；':['Semicolon',':']};
 const physical={ '-':'Minus','=':'Equal','[':'BracketLeft',']':'BracketRight','\\':'Backslash',';':'Semicolon',"'":'Quote',',':'Comma','.':'Period','/':'Slash','`':'Backquote'};
 const tiny=process.argv.includes("--tiny-rerank");
-const profiles=tiny?{default:path.join(resources,"homophone.bin"),none:null,pmi50k:".cache/wordlm/pmi-tiny/pairs-50000.bin",pmi100k:".cache/wordlm/pmi-tiny/pairs-100000.bin"}:{default:path.join(resources,'homophone.bin'),'50k':'.cache/wordlm/sparse/pairs-50000.bin','200k':'.cache/wordlm/sparse/pairs-200000.bin'};
+const profiles=process.argv.includes('--baseline-only')?{default:path.join(resources,'homophone.bin')}:tiny?{default:path.join(resources,"homophone.bin"),none:null,pmi50k:".cache/wordlm/pmi-tiny/pairs-50000.bin",pmi100k:".cache/wordlm/pmi-tiny/pairs-100000.bin"}:{default:path.join(resources,'homophone.bin'),'50k':'.cache/wordlm/sparse/pairs-50000.bin','200k':'.cache/wordlm/sparse/pairs-200000.bin'};
 const result={wasm_sha256:sha(wasm),lexicon_sha256:sha(lex),toneless_sha256:sha(tones),cases:cases.length,
  measurement:'Node headless browser-WASI; key + state includes JS and JSON; linear-memory high water is not browser RSS',profiles:{}};
 for(const includeEnglish of [false,true]) for(const [name,modelPath] of Object.entries(profiles)) {
