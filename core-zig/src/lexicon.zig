@@ -111,6 +111,9 @@ pub const Lexicon = struct {
     /// syllable when an exact dictionary word supports that split. The
     /// original syllable remains a candidate; 0 key/tone repairs required.
     split_valid_tone_runs: bool = true,
+    /// Experimental search gate: any complete clean candidate suppresses
+    /// extra repair segmentations, regardless of which candidate scores best.
+    repair_requires_no_clean: bool = false,
     /// Touched nodes and what they held before the user overlay.
     pristine: std.ArrayList(Pristine) = .empty,
     user_word_count: usize = 0,
@@ -710,7 +713,10 @@ pub const Lexicon = struct {
             merger.merged.items[0].unresolved == 0 and merger.merged.items[0].repairs == 0
         else
             false;
-        if (opts.fuzzy and pending.len > 0 and !top_clean) {
+        const has_clean = if (self.repair_requires_no_clean) for (merger.merged.items) |candidate| {
+            if (candidate.unresolved == 0 and candidate.repairs == 0) break true;
+        } else false else top_clean;
+        if (opts.fuzzy and pending.len > 0 and !has_clean) {
             var clean_forms: std.StringHashMapUnmanaged(void) = .empty;
             for (segment_options) |s| try clean_forms.put(arena, try form(arena, s), {});
             var extra: usize = 0;

@@ -67,6 +67,17 @@ splitting every vowel combination increased latency and caused a regression
 in the typing simulation. This is an offline hypothesis expansion, not a
 frequency boost or a change to the captured keys.
 
+Developer ablation only: `Lexicon.repair_requires_no_clean` (default false;
+`MISSTYPE_REPAIR_REQUIRES_NO_CLEAN=1` in misstype-dev) gates additional
+repair segmentations on whether any complete zero-repair candidate survives
+the initial beam, instead of whether its first candidate is clean. It
+isolates how language ranking can trigger more search; it does not remove
+all score dependence, since the beam is still score-pruned. It is not exposed
+in adapter settings or enabled by the C ABI/wasm loaders. The dev typing
+experiment found no selection/coverage gain and 20 extra preview changes,
+so production keeps its existing gate. Calibration clears this shell flag
+to prevent it silently changing the declared parameter profiles.
+
 ### Session coordinator
 
 Owns pause detection, explicit commit, revision, and cancellation. Capture events are accepted while a decode is running. A stale result must never overwrite a newer session revision.

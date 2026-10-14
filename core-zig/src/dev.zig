@@ -91,6 +91,7 @@ const Cli = struct {
         }
         if (std.c.getenv("MISSTYPE_LEARN_ACROSS_SPLITS") != null) lexicon.learning_keeps_syllables = false;
         if (std.c.getenv("MISSTYPE_NO_TONE_RUN_SPLITS") != null) lexicon.split_valid_tone_runs = false;
+        if (std.c.getenv("MISSTYPE_REPAIR_REQUIRES_NO_CLEAN") != null) lexicon.repair_requires_no_clean = true;
         lexicon.word_penalty = if (std.c.getenv("MISSTYPE_WORD_PENALTY")) |w|
             std.fmt.parseFloat(f64, std.mem.span(w)) catch 0.5
         else

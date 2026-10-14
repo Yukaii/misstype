@@ -501,6 +501,45 @@ the Python suite now has 94 passing tests. Next: an independently reserved
 test set, then a smoothed/backoff word model with calibrated phonetic costs;
 do not keep optimizing weights against these already familiar sentences.
 
+Finding (repair-search gate ablation, 2026-10-14). The previous weight
+experiment suggested that a scoring change also opened new search. Added
+`repair_requires_no_clean` (disabled by default, developer-only
+`MISSTYPE_REPAIR_REQUIRES_NO_CLEAN=1`): require no complete zero-repair
+candidate in the initial beam before expanding extra repair segmentations.
+At fixed word penalty 0.75, 我先取消 disappears; 我想去洗澡 remains first
+(-33.989695) and the exact 我先去洗澡 second (-34.000084). An eight-entry
+unit fixture reproduces the contribution of search independently of the
+remaining ranking failure; invalid `scl` still gets repaired to 你好.
+
+Paired same-order dev batches at unchanged product penalty 0.5 (3,616
+cases, 2 seeds, all eight personas and mixed methods): fewer/more picks
+0/0, correction keys and coverage unchanged. Chinese CER 8.07 -> 8.08 %,
+preview churn 1,772 -> 1,792. Per-key p95 clean 0.53 -> 0.53 ms,
+clean-toneless 3.50 -> 3.48, clean-partial 3.49 -> 3.46, noisy partial
+3.84 -> 3.83 (offline ReleaseFast; timing noise not a speed claim).
+An initial comparison with the older full baseline showed two extra
+correction keys, but these vanished in the paired comparison and are not
+attributed to the gate. No selection benefit: retain only as a disabled
+developer ablation; product settings and baseline unchanged. Calibration
+clears this shell flag. The beam is still score-pruned, so this does not
+fully decouple evidence search from language ranking.
+
+Before any new word-model evaluation, reserved 200 external Common Voice
+25 zh-TW short sentences in `tools/eval/external_v1.json` (commit `6ec8187`):
+exclude the first 2,000 unique readable source-ID-ordered sentences and all
+known synthetic evaluation text, then fixed salted hash selection. Source,
+lexicon, text and pronunciation hashes pinned; no candidate results read.
+Generated TSV stays local; `tools/reserve_eval.py` regenerates it and refuses
+to change a frozen manifest. This is fresh text for model selection, not
+human typing or HPLT-decontaminated text; dictionary-derived pronunciations
+also need audit. Source/limitations in `docs/offline-evaluation.md`.
+
+Checks: host Zig behavior suites, Linux core/C ABI/fcitx5/IBus conformance,
+wasm, 11 CLI tests, 96 Python tests. Default decoder/parity/all four replay
+goldens MATCH with no updates. Existing sensitive/unrelated traces untouched.
+Next model experiment must be fixed on dev before consuming the reserved
+external test; do not use the new sample to tune the gate.
+
 Pilot (triage, NOT a finding yet, `--jev-mode trust`, n=5, threshold 0.6
 read post-hoc): one boolean on offline top-1 ("候選1是最正確的嗎")
 separates 10/10 — right top-1 trusts 0.82+ (hide-panel), wrong top-1

@@ -352,6 +352,43 @@ test "a valid tone-run split needs a word with the supplied tail tone" {
     for (result) |candidate| try t.expectEqual(@as(usize, 1), candidate.syllables.len);
 }
 
+test "experimental repair gate ignores a ranking change when a clean path survives" {
+    const d = try Dec.init(h.tsv(
+        \\ㄑㄩˇ-ㄒㄧㄠ|取消|-10.632564
+        \\ㄑㄩˋ|去|-6.440786
+        \\ㄒㄧˇ-ㄗㄠˇ|洗澡|-11.593555
+        \\ㄒㄧㄢ|先|-7.279246
+        \\ㄒㄧㄢ-ㄑㄩˋ|先去|-12.546213
+        \\ㄒㄧㄤˇ|想|-6.726167
+        \\ㄨㄛˇ|我|-5.110316
+        \\ㄨㄛˇ-ㄒㄧㄤˇ-ㄑㄩˋ|我想去|-13.896140
+        \\
+    ));
+    defer d.deinit();
+    const input = try d.comp("jivu0fmvuyl");
+    d.lex.word_penalty = 0.5;
+    try expectTop(try d.decodeParsed(input, .{}), "我先去洗澡");
+    d.lex.word_penalty = 0.75;
+    try expectTop(try d.decodeParsed(input, .{}), "我先取消");
+    d.lex.repair_requires_no_clean = true;
+    const result = try d.decodeParsed(input, .{});
+    // This isolates search expansion; it does not fix the remaining score
+    // preference for 想 over 先. The exact reading remains selectable.
+    try expectTop(result, "我想去洗澡");
+    try t.expect(h.containsText(result, "我先去洗澡"));
+    try t.expect(!h.containsText(result, "我先取消"));
+    try t.expectEqualStrings("jivu0fmvuyl", (try input.parsed(d.a())).pending);
+}
+
+test "experimental repair gate still rescues input with no clean candidate" {
+    const d = try dec();
+    defer d.deinit();
+    d.lex.repair_requires_no_clean = true;
+    const result = try d.decodeParsed(try d.comp("scl"), .{});
+    try expectTop(result, "你好");
+    try t.expect(result[0].repairs > 0);
+}
+
 test "a wrong tone still resolves with a repair penalty" {
     // su4 is ㄋㄧˋ, but the fixture lexicon only knows 你 (ㄋㄧˇ): the tone
     // mismatch must stay viable instead of falling back to raw.

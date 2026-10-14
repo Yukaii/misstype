@@ -1,6 +1,10 @@
 import sys
+import json
+import os
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
 import calibrate_decoder as calibration
@@ -8,6 +12,17 @@ from typing_eval import Case
 
 
 class CalibrationTests(unittest.TestCase):
+    def test_calibration_is_not_silently_changed_by_the_shell_repair_gate(self):
+        case = Case("one", "zh", "daily", "clean", "dev", 0, "你好", "su3cl3", False)
+        result = {"before_fix": "你好", "final": "你好", "picks": 0,
+                  "fix_keys": 0, "views": [], "ms": [0.1]}
+        with patch.dict(os.environ, {"MISSTYPE_REPAIR_REQUIRES_NO_CLEAN": "1"}):
+            with patch.object(calibration.subprocess, "run",
+                              return_value=SimpleNamespace(stdout=json.dumps(result) + "\n")) as run:
+                calibration.run_profile(Path("binary"), Path("resources"), calibration.DEFAULT, [case])
+            self.assertNotIn("MISSTYPE_REPAIR_REQUIRES_NO_CLEAN", run.call_args.kwargs["env"])
+            self.assertEqual(os.environ["MISSTYPE_REPAIR_REQUIRES_NO_CLEAN"], "1")
+
     def test_sentence_variants_never_cross_selection_and_validation(self):
         cases = {}
         for sentence in ("你好", "明天見", "一起吃飯", "回家休息", "今天下雨", "帶雨傘"):
