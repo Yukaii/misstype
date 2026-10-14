@@ -158,7 +158,11 @@ settings page and `misstypectl config` edit the same `conf/misstype.conf`
 (`docs/linux-port.md`, L7). Keep the key lists in Zig `ctl.settings` in step
 with `MisstypeConfig` in `linux/fcitx5/src/engine.cpp`. `misstype-dev`
 (`core-zig/src/dev.zig`) is the offline decode / session-trace / cursor-replay
-CLI the `tools/*.py` measurement scripts drive.
+CLI the `tools/*.py` measurement scripts drive. End-to-end typing quality
+(seeded typist personas, typos, mixed English, through the real `Session`)
+is `python3 tools/typing_eval.py --baseline tools/baseline/typing_eval.json`
+(ReleaseFast build; `docs/development.md`, 打字評估); behavior changes report
+its FIXED/BROKEN and update the baseline when the change is intended.
 
 Editing rules live in the Zig `Session` (`core-zig/src/session.zig`);
 platform adapters only translate key events and draw the view (see

@@ -24,6 +24,7 @@ lm_rescore = load_tool("lm_rescore")
 lm_choose = load_tool("lm_choose")
 cursor_replay = load_tool("cursor_replay")
 learned = load_tool("learned")
+typing_eval = load_tool("typing_eval")
 _spec = importlib.util.spec_from_file_location(
     "prepare_lexicon", TOOLS.parent / "script" / "prepare_lexicon.py")
 assert _spec is not None and _spec.loader is not None
@@ -278,6 +279,45 @@ class ToolTests(unittest.TestCase):
             self.assertEqual((len(preferred), len(displaced)), (1, 1))
             self.assertNotEqual(preferred, displaced)
         self.assertEqual(len({row[0] for row in rows}), len(rows))
+
+    def test_typing_eval_typist_is_exact_without_errors_and_seeded(self):
+        reverse = {"你好": ("ㄋㄧˇ ㄏㄠˇ", 1.0), "明天": ("ㄇㄧㄥˊ ㄊㄧㄢ", 1.0)}
+        exact = typing_eval.Persona("exact", "all", 0.0, 0.0)
+        toneless = typing_eval.Persona("bare", "none", 0.0, 0.0)
+        rng = typing_eval.stable_rng("t")
+        self.assertEqual(typing_eval.type_sentence("你好", reverse, exact, None, rng), ("su3cl3", 0))
+        self.assertEqual(typing_eval.type_sentence("你好", reverse, toneless, None, rng), ("sucl", 0))
+        # Mixed English: the three entry methods differ only in Shift taps.
+        keys = {m: typing_eval.type_sentence("明天PR你好", reverse, exact, m, rng)[0]
+                for m in typing_eval.ENGLISH_METHODS}
+        self.assertEqual(keys["shift-first"], "au/6wu0 ⇧PR⇧su3cl3")
+        self.assertEqual(keys["shift-after"], "au/6wu0 PR⇧⇧su3cl3")
+        self.assertEqual(keys["no-switch"], "au/6wu0 PRsu3cl3")
+        # Two English words share one Latin run: one tap in, one tap out.
+        reverse["我在寫"] = ("ㄨㄛˇ ㄗㄞˋ ㄒㄧㄝˇ", 1.0)
+        two = typing_eval.type_sentence("我在寫unit test", reverse, exact, "shift-first", rng)[0]
+        self.assertEqual(two.count("⇧"), 1)
+        # Errors are seeded by (persona, sentence, seed): same keys every run.
+        sloppy = typing_eval.Persona("sloppy", "none", 0.5, 0.5)
+        first = typing_eval.type_sentence("你好明天", reverse, sloppy, None, typing_eval.stable_rng("s", 1))
+        again = typing_eval.type_sentence("你好明天", reverse, sloppy, None, typing_eval.stable_rng("s", 1))
+        self.assertEqual(first, again)
+        self.assertNotEqual(first[0], "sucl" + "au/wu0")
+
+    def test_typing_eval_corpus_splits_auto_rows_stably(self):
+        rows = typing_eval.load_corpus()
+        self.assertGreater(len(rows), 300)
+        self.assertTrue({r[0] for r in rows} <= {"dev", "holdout", "mixed-dev", "mixed-holdout"})
+        self.assertEqual(rows, typing_eval.load_corpus())
+        self.assertEqual(len({r[2] for r in rows}), len(rows))
+
+    def test_typing_eval_cer_and_segments(self):
+        self.assertEqual(typing_eval.cer("你好", "你好"), 0.0)
+        self.assertAlmostEqual(typing_eval.cer("你好", "你"), 0.5)
+        reverse = {"我們用": ("ㄨㄛˇ ㄇㄣ˙ ㄩㄥˋ", 1.0), "聯絡": ("ㄌㄧㄢˊ ㄌㄨㄛˋ", 1.0)}
+        self.assertEqual(typing_eval.segments("我們用 Slack 聯絡。", reverse), [
+            ("zh", "ㄨㄛˇ ㄇㄣ˙ ㄩㄥˋ"), ("space", " "), ("en", "Slack"), ("space", " "),
+            ("zh", "ㄌㄧㄢˊ ㄌㄨㄛˋ"), ("punct", "。")])
 
 
 if __name__ == "__main__":
