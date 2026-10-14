@@ -842,6 +842,11 @@ candidates that break a pin drop out of the list. `live_trace.py
 one holdout sentence; K=3 keeps dev identical, holdout toned 31 = 31,
 toneless 21 -> 22, and 4-sentence ，-joined inputs identical. Panel
 windows longer than a row now keep the end nearest the cursor.
+2026-10-14: one-character words settle 4 back instead of 3. Transient
+splits leave single characters behind (處|過濾 while typing 出國旅行)
+that the 3-back rule froze. clean-toneless dev 224 -> 230/290, 59 cases
+need fewer picks and 6 need more; the list shows variants of old text one
+syllable longer (docs/development.md, 單字詞延後沉澱).
 
 Heterophone weighting (2026-09-27, user report: typed ㄗㄢˋ, got 暫):
 not a fuzzy slip — BPMFBase lists 暫 under both ㄓㄢˋ and the variant

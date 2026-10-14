@@ -1303,7 +1303,7 @@ test "settled pins freeze accepted text but not the tail" {
     }
     const top = (try d.decodeSegs(input, .{}))[0];
     try t.expectEqualStrings("大對，代錢包", top.text);
-    var settled = try UserLexicon.settled(t.allocator, top, 3);
+    var settled = try UserLexicon.settled(t.allocator, top, 3, 3);
     defer settled.deinit();
     // The closed run settles whole; the run being typed is too short.
     var texts: std.StringArrayHashMapUnmanaged(void) = .empty;
@@ -1319,6 +1319,13 @@ test "settled pins freeze accepted text but not the tail" {
     defer explicit.deinit();
     try explicit.pin(.{ .text = "打對", .span = Range.of(0, 2), .score = -16 }, top);
     try t.expectEqualStrings("打對，代錢包", (try d.decodeSegs(input, .{ .locked = &explicit }))[0].text);
+    // One-character words wait longer: a transient split (處|過濾 for
+    // 出國旅) must stay open until later keys can merge it back.
+    var single = try UserLexicon.settled(t.allocator, top, 0, 3);
+    defer single.deinit();
+    texts.clearRetainingCapacity();
+    for (single.entries.values()) |entry| for (entry.keys()) |text| try texts.put(t.allocator, text, {});
+    try t.expect(texts.contains("錢") and texts.contains("包") and !texts.contains("代"));
 }
 
 test "the live pending cut leaves only the syllable in progress raw" {

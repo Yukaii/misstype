@@ -98,6 +98,11 @@ pub const Lexicon = struct {
     /// word, word) applied inside the search instead of the rerank after
     /// it; 0 = off (byte-identical decode). docs/development.md.
     homophone_in_search: f64 = 0,
+    /// Extra syllables a one-character word waits before the session
+    /// settles it (multi-character words settle 3 back): transient splits
+    /// leave single characters (處|過濾 for 出國旅) that later keys merge
+    /// back. 0 = the old rule. docs/development.md, 單字詞延後沉澱.
+    settle_single_extra: usize = 1,
     /// The same for words that differ only by tone over syllables typed
     /// without one (toneless input: 喝/何, 杯/被); 0 = such words are not
     /// reranked. 1.0 is the knee of the 2026-10-14 typing_eval sweep

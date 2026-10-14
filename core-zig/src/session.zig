@@ -1299,7 +1299,7 @@ pub const Session = struct {
         if (self.composition.caret != null) {
             self.settled_pins.clear();
         } else if (self.candidates.len > 0 and !self.isComplete(self.candidates[0].text)) {
-            const settled = try UserLexicon.settled(self.gpa, self.candidates[0], settle_distance);
+            const settled = try UserLexicon.settled(self.gpa, self.candidates[0], settle_distance, settle_distance + dec.settle_single_extra);
             self.settled_pins.deinit();
             self.settled_pins = settled;
         } else if (self.candidates.len > 0 and self.isComplete(self.candidates[0].text)) {
