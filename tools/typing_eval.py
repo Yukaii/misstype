@@ -408,6 +408,51 @@ def git_commit() -> str:
         return "unknown"
 
 
+def learning(personas: list[str], seeds: int) -> int:
+    """Learning over a day of typing: one engine per persona (`--carry`)
+    types dev (first), dev again (repeat), then holdout (transfer); each
+    pass is compared with the same keys on a fresh engine. Fewer picks on
+    repeat is memory, on transfer generalization; more picks on transfer is
+    collateral damage from what was learned."""
+    reverse = load_reverse_lexicon()
+    corpus = [r for r in load_corpus() if r[0] in ("dev", "holdout")]
+    by_name = {p.name: p for p in PERSONAS}
+    passes = (("first", "dev"), ("repeat", "dev"), ("transfer", "holdout"))
+    for name in personas:
+        persona = by_name[name]
+        lines, tags = [], []
+        for pass_name, set_name in passes:
+            for row_set, category, sentence, readings in corpus:
+                if row_set != set_name:
+                    continue
+                for seed in range(seeds):
+                    keys, _ = type_sentence(sentence, reverse, persona, None,
+                                            stable_rng("zh", name, sentence, seed), readings)
+                    lines.append(f"{keys}\t{sentence}\n")
+                    tags.append((pass_name, sentence, category))
+        def batch(carry: bool) -> list[dict]:
+            command = [str(BIN), "--session-batch", "-"] + (["--carry"] if carry else [])
+            out = subprocess.run(command, input="".join(lines), capture_output=True, text=True,
+                                 check=True, timeout=1800).stdout.splitlines()
+            return [json.loads(line) for line in out]
+        fresh, carried = batch(False), batch(True)
+        print(f"\n{name}: {'pass':9} {'n':>5} {'fresh picks/100':>16} {'learned':>8} {'fewer':>6} {'more':>5}")
+        worse_examples = []
+        for pass_name, _ in passes:
+            idx = [i for i, t in enumerate(tags) if t[0] == pass_name]
+            chars = sum(len(tags[i][1]) for i in idx)
+            cost = lambda rs, i: rs[i]["picks"] if rs[i]["final"] == tags[i][1] else 99  # noqa: E731
+            per100 = lambda rs: 100 * sum(rs[i]["picks"] for i in idx if rs[i]["final"] == tags[i][1]) / chars  # noqa: E731
+            fewer = sum(cost(carried, i) < cost(fresh, i) for i in idx)
+            more = [i for i in idx if cost(carried, i) > cost(fresh, i)]
+            worse_examples += [(pass_name, tags[i][1], fresh[i]["before_fix"], carried[i]["before_fix"]) for i in more]
+            print(f"{'':{len(name) + 1}} {pass_name:9} {len(idx):5} {per100(fresh):16.2f} {per100(carried):8.2f} "
+                  f"{fewer:6} {len(more):5}")
+        for pass_name, want, was, now in worse_examples[:12]:
+            print(f"   worse ({pass_name}): {want}  fresh {was}  learned {now}")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Simulated real-world typing evaluation")
     parser.add_argument("--set", choices=["dev", "holdout", "all"], default="all",
@@ -421,6 +466,8 @@ def main() -> int:
     parser.add_argument("--baseline", type=Path, help="compare against a saved run")
     parser.add_argument("--limit", type=int, default=15, help="fixed/broken cases to print")
     parser.add_argument("--fail-on-regression", action="store_true")
+    parser.add_argument("--learning", default="",
+                        help="comma-separated personas: run the learning passes instead")
     parser.add_argument("--bin", type=Path, default=APP_BIN,
                         help="misstype-dev to drive (e.g. another worktree's build)")
     args = parser.parse_args()
@@ -432,6 +479,8 @@ def main() -> int:
     mode = subprocess.run([str(BIN), "--build-mode"], capture_output=True, text=True).stdout.strip() or "unknown"
     if mode not in ("fast", "ReleaseFast"):
         print(f"note: misstype-dev is a {mode} build; latency columns are not comparable", file=sys.stderr)
+    if args.learning:
+        return learning([p for p in args.learning.split(",") if p], args.seeds)
     sets = {"dev": ["dev", "mixed-dev"], "holdout": ["holdout", "mixed-holdout"],
             "all": ["dev", "holdout", "mixed-dev", "mixed-holdout"]}[args.set]
     methods = [m for m in args.methods.split(",") if m]

@@ -103,6 +103,10 @@ pub const Lexicon = struct {
     /// favour splitting real words. 0.4 is the knee with the toneless-built
     /// table (docs/project-outline.md, toneless re-split).
     toneless_segment_weight: f64 = 0.4,
+    /// Learned word picks reorder words within the syllable split the
+    /// decoder prefers without them, but never choose the split: a pick of
+    /// 它是 for ㄊㄚ ㄕ must not turn toneless ㄊㄚㄕㄨㄛ (他說) into 它是我.
+    learning_keeps_syllables: bool = true,
     /// Touched nodes and what they held before the user overlay.
     pristine: std.ArrayList(Pristine) = .empty,
     user_word_count: usize = 0,
@@ -693,7 +697,7 @@ pub const Lexicon = struct {
                 }
             }
         }
-        return merger.merged.items;
+        return merger.finish();
     }
 
     /// Readings joined by " " (Swift's segmentation identity).
@@ -722,9 +726,48 @@ pub const Lexicon = struct {
         opts: DecodeOptions,
         merged: std.ArrayList(Candidate) = .empty,
         budget: i32 = 12,
+        /// Best score without learned picks, and the split it came from.
+        plain_best: ?f64 = null,
+        plain_split: []const Syllable = &.{},
+
+        /// Learned picks do not carry a candidate of another split past the
+        /// split that wins without them (`learning_keeps_syllables`).
+        fn finish(m: *Merger) []Candidate {
+            const items = m.merged.items;
+            if (!m.lexicon.learning_keeps_syllables or m.plain_best == null) return items;
+            var changed = false;
+            for (items) |*c| {
+                if (c.learned == 0 or sameSplit(c.syllables, m.plain_split)) continue;
+                c.score -= c.learned;
+                c.learned = 0;
+                changed = true;
+            }
+            if (changed) std.mem.sort(Candidate, items, {}, struct {
+                fn lt(_: void, a: Candidate, b: Candidate) bool {
+                    return candidate_mod.better(a, b);
+                }
+            }.lt);
+            return items;
+        }
+
+        fn sameSplit(a: []const Syllable, b: []const Syllable) bool {
+            if (a.len != b.len) return false;
+            for (a, b) |x, y| {
+                if (!std.mem.eql(u8, x.keys, y.keys) or x.tone != y.tone) return false;
+            }
+            return true;
+        }
 
         fn merge(m: *Merger, syllables: []const Syllable) !void {
-            for (try m.lexicon.decode(m.arena, syllables, m.opts)) |c| {
+            const decoded = try m.lexicon.decode(m.arena, syllables, m.opts);
+            for (decoded) |c| {
+                const plain = c.score - c.learned;
+                if (m.plain_best == null or plain > m.plain_best.?) {
+                    m.plain_best = plain;
+                    m.plain_split = syllables;
+                }
+            }
+            for (decoded) |c| {
                 var skip = false;
                 for (m.merged.items, 0..) |existing, i| {
                     if (!unicode.equal(existing.text, c.text)) continue;
@@ -1001,7 +1044,9 @@ pub const Lexicon = struct {
                                 const boost = learned + contextual + pin_term + settled_hits * user_lexicon.pin_bonus;
                                 const score = prefix.score + entry.score - state.penalty - option.cost + boost - self.word_penalty;
                                 if (!paths[end + 1].admits(score)) continue;
-                                paths[end + 1].add(try extend(arena, prefix, entry.text, score, prefix.repairs + state.repairs + option.correction, prefix.unresolved, start, end + 1, child_node));
+                                var grown_candidate = try extend(arena, prefix, entry.text, score, prefix.repairs + state.repairs + option.correction, prefix.unresolved, start, end + 1, child_node);
+                                grown_candidate.learned = prefix.learned + learned;
+                                paths[end + 1].add(grown_candidate);
                             }
                         }
                     }

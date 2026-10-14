@@ -93,6 +93,8 @@ python3 tools/typing_eval.py --bin <另一個 worktree>/core-zig/zig-out/bin/mis
 - **可重放**：打字者是開迴路，按鍵只由 (persona, 句子, seed) 決定；修正者是確定性的。所以兩次執行的差異只來自引擎。每個案例都存了按鍵序列，可以用 `misstype-dev --session-trace '<keys>' --show` 重放；`⇧` 是單獨輕按 Shift，`，。？！：` 是 Shift+標點，大寫字母是 Shift+該鍵。
 - **流程**：在 dev 上找問題、調整，holdout 只用來確認。行為變更的 PR 跑 `--baseline` 並貼上 FEWER／MORE PICKS；有意的改善在同一個 PR 用 `--save tools/baseline/typing_eval.json` 更新 baseline（一個案例一行，diff 就是變動的案例）。`--fail-on-regression` 在任何案例要多選字，或任何組變差時以 1 結束。
 
+- **學習**（`--learning clean,clean-toneless,...`）：每個 persona 用同一個 engine（`--session-batch --carry`）依序打 dev（首次）、再打一次 dev（重打）、再打 holdout（轉移），每一輪都和全新 engine 打同樣的按鍵比較。重打變少是「記住了」，轉移變少是「學到的能推廣」，轉移變多是「學習造成的副作用」。`--learned-out PATH` 會把 engine 學到的內容寫出來。
+
 **限制**：persona 的參數是假設（熟練打字者約 1–3 % 按鍵出錯、多數當場修正），尚未用真實按鍵紀錄校準。打字者打字時不看預覽，只在打完後補救。修正者不會重打，也不會用 Shift+←／→ 標記詞。延遲受機器負載與平行數（`--jobs`）影響，只在同一台機器上比較。
 
 2026-10-14 的 baseline（`5025cbc` 加上這份語料，2 seeds，6300 個案例）：

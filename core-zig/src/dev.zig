@@ -5,7 +5,7 @@
 //!                [--user-lexicon PATH] [--replay EXPECTED [--learn-out PATH]]
 //!   misstype-dev --session-trace KEYS [--auto-commit N] [--show] [--mixed-english]
 //!                [--user-lexicon PATH] [--user-dictionary PATH] [--channel PATH]
-//!   misstype-dev --session-batch FILE|- [--carry] [same trace flags]
+//!   misstype-dev --session-batch FILE|- [--carry] [--learned-out PATH] [same trace flags]
 //!   misstype-dev --build-mode     (Debug, ReleaseFast, ...: latency is only
 //!                                  meaningful from an optimized build)
 //!
@@ -89,6 +89,7 @@ const Cli = struct {
             if (std.c.getenv("MISSTYPE_TONELESS_HOMOPHONE_WEIGHT")) |w|
                 lexicon.toneless_homophone_weight = std.fmt.parseFloat(f64, std.mem.span(w)) catch lexicon.toneless_homophone_weight;
         }
+        if (std.c.getenv("MISSTYPE_LEARN_ACROSS_SPLITS") != null) lexicon.learning_keeps_syllables = false;
         lexicon.word_penalty = if (std.c.getenv("MISSTYPE_WORD_PENALTY")) |w|
             std.fmt.parseFloat(f64, std.mem.span(w)) catch 0.5
         else
@@ -677,6 +678,13 @@ fn batch(cli: Cli, path: []const u8) !void {
     const engine = try traceEngine(cli);
     defer engine.release();
     const carry = cli.flag("--carry");
+    defer if (cli.value("--learned-out")) |out| {
+        // What the engine learned by the end (with --carry: over all lines).
+        if (engine.user_lexicon.encode(cli.gpa)) |data| {
+            defer cli.gpa.free(data);
+            _ = core.storage.writeAtomic(cli.io, cli.gpa, out, data);
+        } else |_| {}
+    };
     var lines = std.mem.splitScalar(u8, input, '\n');
     while (lines.next()) |raw_line| {
         const line = std.mem.trimEnd(u8, raw_line, "\r");
