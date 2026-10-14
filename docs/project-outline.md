@@ -473,6 +473,34 @@ remain unexpanded; this fixes a narrow recall gap, not most homophone ties.
 The new control also exposes existing learning damage, including
 吃過 -> 出國 on the first pass; independent real typing is still unmeasured.
 
+Finding (grouped offline calibration, 2026-10-14, `tools/calibrate_decoder.py`,
+experiment only, product defaults unchanged). Fixed nine profiles before
+evaluation: word penalty 0.25/0.5/0.75, all three context weights multiplied
+together by 0.75/1/1.25. Chinese dev only, 145 sentences x 8 personas x
+2 seeds, 2,320 cases; all variants of a sentence in one of five SHA-256
+folds. Select on the other four folds, guarding every persona's coverage
+and every clean control's top-1, then evaluate the excluded sentences.
+All folds chose word penalty 0.75 with unchanged context weights: 18 fewer
+pick cases / 0 more, picks 386 -> 356, unreachable unchanged at 259.
+Clean p95 0.51 -> 0.53 ms; clean-toneless 3.46 -> 3.47; clean-partial
+3.40 -> 3.53; noisy partial 3.76 -> 3.81 (offline, ReleaseFast, serial).
+
+Freeze that choice and check existing holdout (regression set, already seen
+in previous experiments, not a new blind test): 3,584 cases including mixed
+English, 55 fewer / 19 more. Clean-toneless no-pick 69.8 -> 68.5 % and picks
+4.73 -> 4.93/100 chars; two mixed-English cases newly uncorrectable.
+Rejected the parameter change; retained word penalty 0.5. No second choice
+was made against holdout. Fixture `tests/fixtures/word-penalty-calibration.md`
+records 我先去洗澡 -> 我先取消. A language-weight change can also open the
+repair track when the initial top ceases to be clean, so score calibration
+and hypothesis search are coupled; that gate's causal contribution remains
+to be ablated. The tools retain binary/data/generator hashes and local
+per-case results; no personal files or network services used. Two protocol
+tests cover sentence leakage, coverage/control guards and default tie breaks;
+the Python suite now has 94 passing tests. Next: an independently reserved
+test set, then a smoothed/backoff word model with calibrated phonetic costs;
+do not keep optimizing weights against these already familiar sentences.
+
 Pilot (triage, NOT a finding yet, `--jev-mode trust`, n=5, threshold 0.6
 read post-hoc): one boolean on offline top-1 ("候選1是最正確的嗎")
 separates 10/10 — right top-1 trusts 0.82+ (hide-panel), wrong top-1
