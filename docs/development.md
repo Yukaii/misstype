@@ -75,24 +75,31 @@ script/linux/dev.sh 'bash script/linux/test_all.sh'
 
 ## 打字評估（模擬真實打字）
 
-`tools/typing_eval.py` 用 seed 固定的「打字者」把整句合成句子打進真正的 Zig `Session`（`misstype-dev --session-batch`），按 Return 後比對送出的文字。它量的是使用者最後拿到什麼，而不是單一層（解碼 top-1 見 `cursor_replay.py`、預覽穩定度見 `live_trace.py`、單鍵成本見 `mixed_latency.py`）。
+`tools/typing_eval.py` 用 seed 固定的「打字者」把整句合成句子打進真正的 Zig `Session`（`misstype-dev --session-batch`），再像人一樣看畫面用選字補救，按 Return 後比對送出的文字。它量的是使用者實際付出的成本，而不是單一層（解碼 top-1 見 `cursor_replay.py`、預覽穩定度見 `live_trace.py`、單鍵成本見 `mixed_latency.py`）。
 
 ```sh
 (cd core-zig && zig build -Doptimize=ReleaseFast)   # Debug 的延遲不可比
-python3 tools/typing_eval.py --baseline tools/baseline/typing_eval.json   # 與 baseline 比較
-python3 tools/typing_eval.py --set dev --failures 10                      # 看失敗案例
+python3 tools/typing_eval.py --baseline tools/baseline/typing_eval.json   # 與 baseline 比較（約 20 秒）
+python3 tools/typing_eval.py --set dev --failures 10                      # 看需要補救的案例
 python3 tools/typing_eval.py --bin <另一個 worktree>/core-zig/zig-out/bin/misstype-dev \
     --baseline tools/baseline/typing_eval.json                            # 比較兩個版本
 ```
 
-- **打字者**：五個 persona（`careful`、`average`、`toneless`、`partial-tones`、`sloppy`），差別在聲調習慣（全打／不打／一半）、每鍵錯誤率（1–7 %，鄰鍵替換、對調、漏打、多打）與當場發現並用 Backspace 修掉的機率。中英混打有三種輸入方式：先按 Shift 再打英文（`shift-first`）、在注音模式打完英文才按 Shift（`shift-after`）、完全不切換、靠混打辨識（`no-switch`，開 `--mixed-english`）。
-- **開迴路、可重放**：按鍵只由 (persona, 句子, seed) 決定，不看引擎輸出，所以兩次執行的差異只來自引擎。每個案例都存了按鍵序列，可以用 `misstype-dev --session-trace '<keys>' --show` 重放。`⇧` 是單獨輕按 Shift，`，。？！：` 是 Shift+標點，大寫字母是 Shift+該鍵。
-- **指標**：整句完全正確率（`exact_pct`）、CER、每字按鍵數（KSPC）、預覽倒退／變動步數（同 `live_trace.py`）、每鍵延遲 p50／p95／max。依 track（`zh`、`mixed:<方式>`）× 句集與 × persona 分組。
-- **流程**：在 dev 上找問題、調整，holdout 只用來確認。行為變更的 PR 跑 `--baseline` 並貼上 FIXED／BROKEN；有意的改善在同一個 PR 用 `--save tools/baseline/typing_eval.json` 更新 baseline（一個案例一行，diff 就是變動的案例）。`--fail-on-regression` 在任何組少了正確句時以 1 結束。
+- **語料**（`tools/eval/typing_corpus.tsv`）：約 350 句手寫合成句，依類別分層：日常、同音字、破音字、斷詞歧義、工作、數字、長句、標點、中英混打。`auto` 列依句子的 md5 分到 dev／holdout，作者無法挑選。句子不得取自 HPLT（`homophone.bin` 的訓練資料），否則同音字的數字會虛高。讀音由詞庫推導；推導錯時在第四欄手寫。
+- **打字者**：`careful`、`average`、`toneless`、`partial-tones`、`sloppy`，差別在聲調習慣、每鍵錯誤率（1–7 %，鄰鍵替換、對調、漏打、多打）與當場用 Backspace 修掉的機率。中英混打有三種輸入方式：`shift-first`（先按 Shift）、`shift-after`（在注音模式打完英文才按 Shift）、`no-switch`（不切換，開 `--mixed-english`）。
+- **對照組**：`clean`（打聲調）與 `clean-toneless` 不打錯字，所以它們的補救成本完全來自引擎。`clean` 的 `unreach_pct` 應為 0：不為 0 時，代表讀音推導錯了，或修正者的策略有漏洞，要先查清楚。
+- **修正者**（`dev.zig` 的 `correct`）：在第一個錯字處，若整句候選在第一頁就直接選（`↓` 加選字鍵）；否則把詞游標往錯字方向移，在每一站讀候選，選出在該位置符合目標的最長詞（同頁用選字鍵，否則 `↓`／`↑` 再 `⏎`），最後按 `⏎` 走出游標並送出。每個鍵都是真實事件。`MISSTYPE_FIX_DEBUG=1` 會印出每一步。
+- **指標**：`exact_pct`（不用選字就對）、`picks_100`（每百字選字次數，只計能修好的句子）、`fix_keys`（每句補救按鍵數）、`unreach_pct`（選字修不好、只能重打）、`space_lost`（只差在空白）、CER、KSPC、預覽變動步數、每鍵延遲。依 track × 句集、× persona、× 類別分組。
+- **可重放**：打字者是開迴路，按鍵只由 (persona, 句子, seed) 決定；修正者是確定性的。所以兩次執行的差異只來自引擎。每個案例都存了按鍵序列，可以用 `misstype-dev --session-trace '<keys>' --show` 重放；`⇧` 是單獨輕按 Shift，`，。？！：` 是 Shift+標點，大寫字母是 Shift+該鍵。
+- **流程**：在 dev 上找問題、調整，holdout 只用來確認。行為變更的 PR 跑 `--baseline` 並貼上 FEWER／MORE PICKS；有意的改善在同一個 PR 用 `--save tools/baseline/typing_eval.json` 更新 baseline（一個案例一行，diff 就是變動的案例）。`--fail-on-regression` 在任何案例要多選字，或任何組變差時以 1 結束。
 
-**限制**：persona 的參數是假設（熟練打字者約 1–3 % 按鍵出錯、多數當場修正），尚未用真實按鍵紀錄校準；打字者不會看預覽，也不會用游標選字補救，所以 `exact_pct` 是「不選字」的正確率；延遲受機器與平行數（`--jobs`）影響，只在同一台機器上比較。
+**限制**：persona 的參數是假設（熟練打字者約 1–3 % 按鍵出錯、多數當場修正），尚未用真實按鍵紀錄校準。打字者打字時不看預覽，只在打完後補救。修正者不會重打，也不會用 Shift+←／→ 標記詞。延遲受機器負載與平行數（`--jobs`）影響，只在同一台機器上比較。
 
-2026-10-14 的 baseline（main `207221f`，2 seeds，1610 個案例）：純中文 dev／holdout 63.2 %／62.8 %（careful 86 %、toneless 53 %、sloppy 32 %）；失敗以長度正確但選錯字為主（219／296，多為同音字）。中英混打 `shift-first` 約 65 %；`shift-after` 只有 28 %／2.5 %，因為已經轉成中文的英文鍵在按 Shift 時不會被重讀；`no-switch` 56 %／32 %。
+2026-10-14 的 baseline（`5025cbc` 加上這份語料，2 seeds，6300 個案例）：
+
+- **純中文**：`clean` 有 89.8 % 不用選字、每百字選 1.5 次；`clean-toneless` 只有 66.0 %、每百字選 **5.8 次**。不打聲調時的選字負擔幾乎全來自引擎（同音字、跨聲調的選擇），是最大的改善空間。依類別看，數字（6.2）、同音字（4.6）、工作（4.3）的每百字選字次數最高。
+- **只能重打**：`clean-toneless` 有 1 %（例如 `gji` 被切成「說」而不是「是我」：選字無法重新切開音節）；其餘的只能重打都來自打字者沒發現的錯字。
+- **中英混打**：`shift-first` 68.5 % 不用選字；`shift-after` 只有 19.9 %，而且 75 % 只能重打。原因是英文鍵已經轉成中文、按 Shift 時不會重讀；更糟的是，有時會連前面的中文也一起改成英文字母（`fu/3183email`）。`no-switch` 54.8 %，開頭小寫字母常被讀成注音（`iPhone` → `喔Phone`）。
 
 ## Python 早期原型
 

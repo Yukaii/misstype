@@ -15,9 +15,9 @@ replays with `misstype-dev --session-trace '<keys>' --show`.
 
 Personas are assumptions, not measurements (error rates of skilled
 typists are ~1-3 % of keystrokes, most noticed at once; see
-docs/development.md, Typing evaluation). Calibrating them from real key
-logs is open. Sentences are synthetic: cursor_replay's dev/holdout sets plus
-the MIXED_* sets below. Tune on dev; holdout only confirms.
+docs/development.md, 打字評估). Calibrating them from real key logs is
+open. Sentences are synthetic and hand-written, by category
+(tools/eval/typing_corpus.tsv). Tune on dev; holdout only confirms.
 
 Usage:
   (cd core-zig && zig build -Doptimize=ReleaseFast)   # Debug latency is meaningless
@@ -43,8 +43,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from cursor_replay import (APP_BIN, HOLDOUT, DEV_EXTRA, SEED, TONE_TO_KEY,  # noqa: E402
-                           ZHUYIN_TO_KEY, load_reverse_lexicon, readings_for, split_tone)
+from cursor_replay import (APP_BIN, TONE_TO_KEY, ZHUYIN_TO_KEY,  # noqa: E402
+                           load_reverse_lexicon, readings_for, split_tone)
 from live_trace import stability  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -67,20 +67,7 @@ def cer(expected: str, got: str) -> float:
         previous = current
     return previous[-1] / max(len(expected), 1)
 
-# Synthetic mixed sentences: ASCII words are English, spaces are typed.
-MIXED_DEV = [
-    "明天的meeting改到三點", "我用Python寫一個小工具", "這個bug我明天修",
-    "幫我開一個PR", "記得更新README", "他在Google上班", "請把email寄給我",
-    "下午要跟PM開會", "這個API很慢", "我的iPhone沒電了", "這份PDF打不開",
-    "今天要deploy新版本", "我們用 Slack 聯絡", "可以用 LINE 傳給我嗎",
-    "週末要去 Costco 買東西",
-]
-MIXED_HOLDOUT = [
-    "我在看YouTube", "這台Mac很好用", "晚上要寫code", "幫我review一下",
-    "家裡的WiFi很慢", "我想學Rust", "那個app很好用", "她用Excel整理資料",
-    "這個feature還沒做完", "他傳了一個link給我", "我們開 Zoom 討論",
-    "下載 Chrome 的新版",
-]
+CORPUS = Path(__file__).resolve().parent / "eval" / "typing_corpus.tsv"
 PUNCT = set("，。？！：")
 
 
@@ -116,6 +103,7 @@ ERROR_KINDS = (("substitute", 0.55), ("transpose", 0.2), ("omit", 0.15), ("inser
 class Case:
     id: str
     track: str
+    category: str
     persona: str
     set: str
     seed: int
@@ -204,9 +192,27 @@ class Typist:
             self.keys.append(tone_key)
 
 
-def type_sentence(sentence: str, reverse, persona: Persona, method: str | None, rng) -> tuple[str, int]:
+def load_corpus(path: Path = CORPUS) -> list[tuple[str, str, str, str]]:
+    """(set, category, sentence, readings) rows; `auto` rows go to dev or
+    holdout by md5 parity of the sentence."""
+    rows = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line or line.startswith("#"):
+            continue
+        fields = line.split("\t") + [""]
+        set_name, category, sentence, readings = fields[:4]
+        if set_name == "auto":
+            set_name = "holdout" if hashlib.md5(sentence.encode()).digest()[0] % 2 else "dev"
+        if category == "mixed":
+            set_name = f"mixed-{set_name}"
+        rows.append((set_name, category, sentence, readings))
+    return rows
+
+
+def type_sentence(sentence: str, reverse, persona: Persona, method: str | None, rng,
+                  readings: str = "") -> tuple[str, int]:
     typist = Typist(persona, rng)
-    parts = segments(sentence, reverse)
+    parts = [("zh", readings)] if readings else segments(sentence, reverse)
     latin = False
     for index, (kind, value) in enumerate(parts):
         if kind == "zh":
@@ -215,10 +221,11 @@ def type_sentence(sentence: str, reverse, persona: Persona, method: str | None, 
                 latin = False
             typist.chinese(value)
         elif kind == "en":
-            if method == "shift-first":
+            # A run already open (English word after English) needs no tap.
+            if method == "shift-first" and not latin:
                 typist.keys.append("⇧")
             typist.letters(list(value))
-            if method == "shift-after":
+            if method == "shift-after" and not latin:
                 typist.keys.append("⇧")
             latin = method != "no-switch"
         else:
@@ -233,24 +240,21 @@ def stable_rng(*parts: object) -> random.Random:
 
 def build_cases(sets: list[str], seeds: int, methods: list[str]) -> list[Case]:
     reverse = load_reverse_lexicon()
-    corpus = {
-        "dev": [text for text, _ in SEED] + DEV_EXTRA, "holdout": HOLDOUT,
-        "mixed-dev": MIXED_DEV, "mixed-holdout": MIXED_HOLDOUT,
-    }
     cases = []
-    for set_name in sets:
-        for sentence in corpus[set_name]:
-            mixed = set_name.startswith("mixed")
-            for method in (methods if mixed else [None]):
-                track = f"mixed:{method}" if mixed else "zh"
-                for persona in PERSONAS:
-                    for seed in range(seeds):
-                        rng = stable_rng(track, persona.name, sentence, seed)
-                        keys, errors = type_sentence(sentence, reverse, persona, method, rng)
-                        cases.append(Case(
-                            id=f"{track}|{persona.name}|{seed}|{sentence}", track=track,
-                            persona=persona.name, set=set_name, seed=seed, expected=sentence,
-                            keys=keys, mixed_english=method == "no-switch", errors=errors))
+    for set_name, category, sentence, readings in load_corpus():
+        if set_name not in sets:
+            continue
+        mixed = set_name.startswith("mixed")
+        for method in (methods if mixed else [None]):
+            track = f"mixed:{method}" if mixed else "zh"
+            for persona in PERSONAS:
+                for seed in range(seeds):
+                    rng = stable_rng(track, persona.name, sentence, seed)
+                    keys, errors = type_sentence(sentence, reverse, persona, method, rng, readings)
+                    cases.append(Case(
+                        id=f"{track}|{persona.name}|{seed}|{sentence}", track=track, category=category,
+                        persona=persona.name, set=set_name, seed=seed, expected=sentence,
+                        keys=keys, mixed_english=method == "no-switch", errors=errors))
     return cases
 
 
@@ -308,7 +312,8 @@ def score(cases: list[Case]) -> tuple[dict, dict]:
             "cer": round(cer(bare, squash(r["before_fix"])), 4),
             **{k: v for k, v in stability(views).items() if k in ("revert_steps", "churn_steps")},
         }
-        for key in (f"{case.track} | {case.set}", f"{case.track} | {case.persona}", f"ALL | {case.set}"):
+        for key in (f"{case.track} | {case.set}", f"{case.track} | {case.persona}", f"ALL | {case.set}",
+                    f"{case.track} | cat:{case.category}"):
             groups.setdefault(key, []).append(case)
     summary = {}
     for key, members in sorted(groups.items()):

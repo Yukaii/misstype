@@ -293,12 +293,23 @@ class ToolTests(unittest.TestCase):
         self.assertEqual(keys["shift-first"], "au/6wu0 ⇧PR⇧su3cl3")
         self.assertEqual(keys["shift-after"], "au/6wu0 PR⇧⇧su3cl3")
         self.assertEqual(keys["no-switch"], "au/6wu0 PRsu3cl3")
+        # Two English words share one Latin run: one tap in, one tap out.
+        reverse["我在寫"] = ("ㄨㄛˇ ㄗㄞˋ ㄒㄧㄝˇ", 1.0)
+        two = typing_eval.type_sentence("我在寫unit test", reverse, exact, "shift-first", rng)[0]
+        self.assertEqual(two.count("⇧"), 1)
         # Errors are seeded by (persona, sentence, seed): same keys every run.
         sloppy = typing_eval.Persona("sloppy", "none", 0.5, 0.5)
         first = typing_eval.type_sentence("你好明天", reverse, sloppy, None, typing_eval.stable_rng("s", 1))
         again = typing_eval.type_sentence("你好明天", reverse, sloppy, None, typing_eval.stable_rng("s", 1))
         self.assertEqual(first, again)
         self.assertNotEqual(first[0], "sucl" + "au/wu0")
+
+    def test_typing_eval_corpus_splits_auto_rows_stably(self):
+        rows = typing_eval.load_corpus()
+        self.assertGreater(len(rows), 300)
+        self.assertTrue({r[0] for r in rows} <= {"dev", "holdout", "mixed-dev", "mixed-holdout"})
+        self.assertEqual(rows, typing_eval.load_corpus())
+        self.assertEqual(len({r[2] for r in rows}), len(rows))
 
     def test_typing_eval_cer_and_segments(self):
         self.assertEqual(typing_eval.cer("你好", "你好"), 0.0)
