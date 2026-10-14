@@ -1474,3 +1474,31 @@ test "toneless input may re-split a rare word by context, a typed tone may not" 
     d.lex.toneless_segment_weight = 0;
     try expectTop(try d.decode(&toneless, .{}), "齲齒");
 }
+
+test "a learned pick reorders words but never picks the syllable split" {
+    const d = try Dec.init(h.tsv(
+        \\ㄊㄚ|他|-5
+        \\ㄕˋ|是|-5
+        \\ㄨㄛˇ|我|-5
+        \\ㄕㄨㄛ|說|-6
+        \\ㄊㄚ-ㄕˋ|它是|-10
+        \\
+    ));
+    defer d.deinit();
+    var learned = UserLexicon.init(t.allocator);
+    defer learned.deinit();
+    // Learned from 他是 -> 它是 (syllables ㄊㄚ ㄕ).
+    try learned.record("ㄊㄚㄕ", "它是", 1);
+
+    // Same split: the pick applies.
+    try expectTop(try d.decodeParsed(try d.comp("w8 g4"), .{ .user_lexicon = &learned }), "它是");
+
+    // Toneless ㄊㄚㄕㄨㄛ splits as 他說 without learning; the pick must not
+    // carry the ㄊㄚ ㄕ ㄨㄛ split (它是我) past it.
+    const toneless = try d.comp("w8gji");
+    try expectTop(try d.decodeParsed(toneless, .{}), "他說");
+    try expectTop(try d.decodeParsed(toneless, .{ .user_lexicon = &learned }), "他說");
+
+    d.lex.learning_keeps_syllables = false;
+    try expectTop(try d.decodeParsed(toneless, .{ .user_lexicon = &learned }), "它是我");
+}

@@ -55,6 +55,8 @@ pub const Candidate = struct {
     score: f64,
     repairs: i32,
     unresolved: i32,
+    /// Part of `score` from learned (context-free) word picks.
+    learned: f64 = 0,
     alignment: []const Span = &.{},
     syllables: []const Syllable = &.{},
     runs: []const Range = &.{},

@@ -403,6 +403,34 @@ weight (multi-character words now have pairs, less split bias): dev 0.4
 baseline, all three steps: clean-toneless no-pick 66.0 -> 73.5 %, picks per
 100 chars 5.83 -> 4.38 (-25 %); clean (toned) 89.8 -> 90.5 %, 1.53 -> 1.38.
 
+Finding (learned picks and syllable splits, 2026-10-14, `typing_eval.py
+--learning`). Measure: one engine per persona types dev, dev again and then
+holdout with learning carried, each pass against the same keys on a fresh
+engine. Toned input remembers perfectly (clean repeat 1.28 -> 0.00 picks per
+100 chars, 13 fewer / 0 more). Toneless input remembered most (clean-toneless
+4.04 -> 0.39) but learning broke sentences it had right: after 他是一直貓 was
+fixed by picking 它是 (key ㄊㄚㄕ, toneless and boundary-free), 他說要買新手機
+became 它是我要買新手機, because the +6 learned bonus made the ㄊㄚ ㄕ ㄨㄛ split
+beat ㄊㄚ ㄕㄨㄛ. The pick taught a word, not how to split the keys.
+Hypothesis: learned (context-free) word bonuses may reorder candidates of
+the split that wins without them, but must not choose the split. Change:
+candidates carry their learned bonus; after merging the splits of a pending
+run, candidates from another split than the best unlearned one lose it
+(`learning_keeps_syllables`, `MISSTYPE_LEARN_ACROSS_SPLITS=1` restores the
+old behaviour). Result: clean-toneless repeat 0.39 -> 0.20 with 32 fewer /
+0 more (was 2 more), first pass 0 more (was 1), transfer 6/3 (was 7/4);
+toneless and partial-tones repeat 1 more -> 0; clean unchanged; no change
+without learned picks (typing baseline 0/0, golden gates MATCH, replay
+MATCH). Open: a learned short word can still split a longer word elsewhere
+(learned 程式 makes 工程師 into 供程式). Tried and not shipped: let a learned
+word move word boundaries only where learned words cover the whole
+unlearned word they disagree with (出國|旅行 over 處|過濾|性 yes, 程式 over
+工程師 no). Transfer over the four personas went from 15 fewer / 10 more to
+11 fewer / 6 more: the same net, a new toned regression (部分→部份), so no
+gain. Counting context-rule bonuses in the split rule as well cost repeat
+memory (partial-tones 19 -> 18 fewer), so only context-free words are
+counted.
+
 Pilot (triage, NOT a finding yet, `--jev-mode trust`, n=5, threshold 0.6
 read post-hoc): one boolean on offline top-1 ("候選1是最正確的嗎")
 separates 10/10 — right top-1 trusts 0.82+ (hide-panel), wrong top-1
