@@ -830,3 +830,16 @@ test "a Shift tap re-reads a short stranded syllable so Space is not a tone" {
     try s.expectPreedit("ni ok");
     try t.expectEqualStrings("ni ok", (try s.enter()).commit.?);
 }
+
+test "a Shift tap keeps toneless Chinese that is already converted" {
+    const s = try Harness.init(h.nihao);
+    defer s.deinit();
+    try s.typed("sucl"); // toneless 你好: every key is pending, none shown raw
+    const before = try t.allocator.dupe(u8, try s.preedit());
+    defer t.allocator.free(before);
+    try t.expect((try s.tapShift(100)).latin_toggled);
+    try s.expectPreedit(before);
+    try s.typed("ok");
+    try t.expect(std.mem.endsWith(u8, try s.preedit(), "ok"));
+    try t.expect(!std.mem.startsWith(u8, try s.preedit(), "sucl"));
+}

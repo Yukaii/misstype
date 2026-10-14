@@ -293,15 +293,15 @@ pub const Composition = struct {
         return true;
     }
 
-    /// Re-read only the unfinished syllable (symbol keys after the last
-    /// tone, space, Latin or literal key) as the Latin letters they were.
-    /// Finished syllables keep their Zhuyin reading.
-    pub fn convertPendingToLatin(self: *Composition) bool {
+    /// Re-read the last `count` keys, all Zhuyin symbols, as the Latin
+    /// letters they physically were (false when there are fewer, or any is
+    /// not a symbol).
+    pub fn convertLastToLatin(self: *Composition, count: usize) bool {
         const items = self.raw_keys.items;
-        var start = items.len;
-        while (start > 0 and items[start - 1].isSymbol()) start -= 1;
-        if (start >= items.len) return false;
-        for (items[start..]) |*key| {
+        if (count == 0 or count > items.len) return false;
+        const tail = items[items.len - count ..];
+        for (tail) |key| if (!key.isSymbol()) return false;
+        for (tail) |*key| {
             const physical_key = key.key;
             key.* = .{ .latin = physical_key };
         }
