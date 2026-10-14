@@ -298,3 +298,20 @@ Capture failures must be visible and recoverable without losing already-recorded
 `LexiconDecoder.decodeMixed(keys:english:)` (`MixedDecode.swift`) reads bare keys as English when that wins on score: candidate English spans (exact words of an `EnglishLexicon` or one edit away for words of 5+ letters) are decoded as latin segments through `decodeSegments` and priced `word ln p - 6 x edits - switchPenalty` (default 4) against the all-Chinese reading. The English list is built by `script/prepare_lexicon.py` from the pinned FrequencyWords source into `.cache/frequencywords/english.tsv` and is optional: without it nothing changes. Measurements and limits are in the project outline ("Mixed Chinese/English without a switch").
 
 Session wiring: after `livePreview`, `InputSession.refresh` calls `applyEnglish` when `SessionSettings.mixedEnglish` is on and `InputEngine.englishLexicon` (loaded off-thread from `english.tsv`) exists. The English reading is inserted first when it beats the Chinese one by `MixedDecoding.autoMargin` beyond the penalty, second within `suggestWindow`, else not at all. Inserted readings are tracked in `completeTexts`: preedit shows no raw tail with them, and they are excluded from settled pins, `pinDifferences`, the syllable cursor (`focusFrame`), chunked auto-commit and learning, since their positional run indexes differ from the composition's. Punctuation, earlier latin keys and spaces in the composition are carried through unchanged; English spans are bare letter keys, optionally led by Shift-typed latin capitals (`Python`). Live readings show the syllable being typed as raw Zhuyin and charge `rawKeyCost` per raw key; a different extra letter after a whole word is never read as a typo. macOS default off (`MisstypeMixedEnglish`), core and C ABI default on when the word list is present; the C struct is unchanged.
+
+### Developer word-model experiment (2026-10-14)
+
+`word_lm.zig` reads complete word-pair counts with absolute-discount conditional
+probabilities and add-one unigram backoff. The optional model interpolates its
+log conditional probability with each lexicon entry score **inside** word-path
+search, before beam pruning. Lexicon scores are heuristic scores, so this is
+score interpolation, not interpolation of two normalized probability models.
+Repair costs, user learning and locks retain their existing terms. At positive
+weight this model replaces the later homophone PMI rerank; zero weight retains
+it. The developer CLI alone loads `MISSTYPE_WORD_LM` with an explicit
+`MISSTYPE_WORD_LM_WEIGHT`; platform adapters and wasm have no model loader.
+No model is bundled and defaults stay unchanged. Interactive prefixes use BOS
+but no EOS bonus. Unknown words use UNK; unknown Chinese glyphs in training are
+mapped to UNK. The existing beam and per-reading entry cap still bound recall.
+Model counts and source provenance are generated locally by `tools/word_lm.py`;
+fixed dev comparisons run through real Sessions with `tools/eval_word_lm.py`.

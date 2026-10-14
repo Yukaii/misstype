@@ -153,6 +153,22 @@ python3 tools/calibrate_decoder.py --out .cache/decoder-calibration/report.json 
 `tools/eval/external_v1.json`，重建方法與限制見
 [offline-evaluation.md](offline-evaluation.md)；這輪不使用其解碼結果。
 
+## 詞級模型原型（尚未採用）
+
+假設：在同一份詞庫分詞後，用包含所有詞對的完整計數建立帶絕對折扣與
+unigram 回退的條件機率，在 Zig 的詞路徑搜尋內插分數，可減少無聲調選字。
+既有同音 bigram 只存有歧義詞對且刪掉低次數項，不能直接當完整機率模型。
+最小實驗使用四個已快取、雜湊固定的 HPLT 分片，各取前 10,000 文件。
+固定折扣 0.75、unigram 加一平滑；只在 dev 比較內插權重 0.1／0.25／0.5，
+保留音韻修正成本、每詞成本 0.5 與原搜尋門檻。新模型啟用時取代後段 PMI
+加分，避免上下文重複計分。未載入或權重 0 時輸出必須保持一致。
+模型固定且 dev 有收益、不降低無錯字對照組或可修復率後，才看封存外部集。
+若 dev 不成立，拒絕原型，保持封存資料未使用。
+
+結果與限制見 [offline-word-model.md](offline-word-model.md)：權重 0.5 有
+252 個選字改善、57 個退步，無聲調正確率提高，但部分聲調錯字組可修復率
+下降，未採用。外部 200 句未解碼；正式預設與 baseline 保持不變。
+
 ## Python 早期原型
 
 最初的概念驗證切片（Python 3.11+、無外部執行期相依），用於驗證座標式觸控曲面輸入與取樣。解碼行為以 Zig 核心（`core-zig/`）為準，不要把解碼變更移植到 Python。

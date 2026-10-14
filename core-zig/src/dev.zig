@@ -96,6 +96,14 @@ const Cli = struct {
             std.fmt.parseFloat(f64, std.mem.span(w)) catch 0.5
         else
             0.5;
+        if (std.c.getenv("MISSTYPE_WORD_LM")) |path| {
+            const bytes = core.storage.readBytes(self.io, self.gpa, std.mem.span(path)) orelse return error.MissingWordModel;
+            defer self.gpa.free(bytes);
+            try lexicon.setWordModel(bytes);
+            const weight = if (std.c.getenv("MISSTYPE_WORD_LM_WEIGHT")) |w| try std.fmt.parseFloat(f64, std.mem.span(w)) else 0;
+            if (!std.math.isFinite(weight) or weight < 0 or weight > 1) return error.BadWordModelWeight;
+            lexicon.word_model_weight = weight;
+        }
         return lexicon;
     }
 

@@ -13,6 +13,7 @@ const composition_mod = @import("composition.zig");
 const user_lexicon = @import("user_lexicon.zig");
 const channel_mod = @import("channel.zig");
 const homophone = @import("homophone.zig");
+const word_lm = @import("word_lm.zig");
 const Syllable = keyboard.Syllable;
 const Candidate = candidate_mod.Candidate;
 const Span = candidate_mod.Span;
@@ -89,6 +90,8 @@ pub const Lexicon = struct {
     repair_valid_readings: bool = false,
     /// Optional homophone word-bigram table (null = byte-identical decode).
     homophone: ?homophone.Table = null,
+    word_model: ?word_lm.Table = null,
+    word_model_weight: f64 = 0,
     /// Nats of table bonus per unit of difference between two homophones.
     homophone_weight: f64 = 1.0,
     /// The same for words that differ only by tone over syllables typed
@@ -141,6 +144,11 @@ pub const Lexicon = struct {
         _ = try homophone.Table.parse(bytes);
         const owned = try self.arena.allocator().dupe(u8, bytes);
         self.homophone = try homophone.Table.parse(owned);
+    }
+
+    pub fn setWordModel(self: *Lexicon, bytes: []const u8) !void {
+        _ = try word_lm.Table.parse(bytes);
+        self.word_model = try word_lm.Table.parse(try self.arena.allocator().dupe(u8, bytes));
     }
 
     pub fn destroy(self: *Lexicon) void {
@@ -1000,7 +1008,7 @@ pub const Lexicon = struct {
                 if (!paths[start + 1].admits(prefix.score - 100)) continue;
                 paths[start + 1].add(try extend(arena, prefix, raw, prefix.score - 100, prefix.repairs, prefix.unresolved + 1, start, start + 1, Span.no_node));
             }
-            if (context_rules != null) {
+            if (context_rules != null or (self.word_model != null and self.word_model_weight > 0)) {
                 for (prefixes[0..prefix_count], 0..) |prefix, i| {
                     previous_words[i] = "";
                     if (prefix.alignment.len == 0) continue;
@@ -1075,7 +1083,11 @@ pub const Lexicon = struct {
                                 }
                                 const pin_term: f64 = if (pinned) user_lexicon.pin_bonus else 0;
                                 const boost = learned + contextual + pin_term + settled_hits * user_lexicon.pin_bonus;
-                                const score = prefix.score + entry.score - state.penalty - option.cost + boost - self.word_penalty;
+                                const language_score = if (self.word_model != null and self.word_model_weight > 0)
+                                    entry.score + self.word_model_weight * (@log(self.word_model.?.probability(previous_words[index], entry.text)) - entry.score)
+                                else
+                                    entry.score;
+                                const score = prefix.score + language_score - state.penalty - option.cost + boost - self.word_penalty;
                                 if (!paths[end + 1].admits(score)) continue;
                                 var grown_candidate = try extend(arena, prefix, entry.text, score, prefix.repairs + state.repairs + option.correction, prefix.unresolved, start, end + 1, child_node);
                                 grown_candidate.learned = prefix.learned + learned;
@@ -1104,7 +1116,7 @@ pub const Lexicon = struct {
             o.syllables = syllables;
             o.runs = runs;
         }
-        if (self.homophone != null) self.rerankHomophones(arena, out);
+        if (self.homophone != null and !(self.word_model != null and self.word_model_weight > 0)) self.rerankHomophones(arena, out);
         return out;
     }
 

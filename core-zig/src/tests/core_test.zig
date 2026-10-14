@@ -1592,3 +1592,20 @@ test "a learned pick reorders words but never picks the syllable split" {
     d.lex.learning_keeps_syllables = false;
     try expectTop(try d.decodeParsed(toneless, .{ .user_lexicon = &learned }), "它是我");
 }
+
+test "word model changes path ranking only at positive weight" {
+    const decoder = try Dec.init(h.tsv(
+        \\ㄋㄧˇ|你|-5
+        \\ㄋㄧˇ|妳|-6
+    ));
+    defer decoder.deinit();
+    const baseline = try decoder.decodeParsed(try decoder.comp("su3"), .{});
+    try expectTop(baseline, "你");
+    try decoder.lex.setWordModel(&@import("../word_lm.zig").fixture);
+    const zero = try decoder.decodeParsed(try decoder.comp("su3"), .{});
+    try expectTop(zero, "你");
+    try t.expectEqual(baseline[0].score, zero[0].score);
+    decoder.lex.word_model_weight = 0.5;
+    const modeled = try decoder.decodeParsed(try decoder.comp("su3"), .{});
+    try expectTop(modeled, "妳");
+}
