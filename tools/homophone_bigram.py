@@ -44,8 +44,15 @@ WORD_PENALTY = 0.5
 MAX_WORD = 8
 
 
+def toneless(reading: str) -> str:
+    return "-".join(s.rstrip("ˊˇˋ˙") for s in reading.split("-"))
+
+
 class Lex:
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, ambiguity: str = "reading"):
+        """`ambiguity`: a word is ambiguous when another word shares its
+        reading (`reading`), or its reading with tones dropped (`toneless`:
+        喝/何, 當機/黨籍, the toneless decoder's cross-tone class)."""
         self.score: dict[str, float] = {}
         self.readings: dict[str, set[str]] = {}
         by_reading: dict[str, set[str]] = {}
@@ -62,8 +69,9 @@ class Lex:
                 continue
             if word not in self.score or s > self.score[word]:
                 self.score[word] = s
-            self.readings.setdefault(word, set()).add(reading)
-            by_reading.setdefault(reading, set()).add(word)
+            key = toneless(reading) if ambiguity == "toneless" else reading
+            self.readings.setdefault(word, set()).add(key)
+            by_reading.setdefault(key, set()).add(word)
         self.ambiguous = {w for w, rs in self.readings.items()
                           if any(len(by_reading[r]) > 1 for r in rs)}
         # the homophone group's default: the best-scoring word sharing a reading
@@ -117,9 +125,9 @@ def _count_group(args):
     return uni, pair
 
 
-def _init(path):
+def _init(path, ambiguity="reading"):
     global _LEX
-    _LEX = Lex(Path(path))
+    _LEX = Lex(Path(path), ambiguity)
 
 
 def build(args):
@@ -129,7 +137,8 @@ def build(args):
         groups = pq.ParquetFile(shard).metadata.num_row_groups
         todo += [(shard, rg) for rg in range(min(groups, args.groups))]
     uni, pair = Counter(), Counter()
-    with Pool(args.jobs, initializer=_init, initargs=(str(Path(args.resources) / "lexicon.tsv"),)) as pool:
+    with Pool(args.jobs, initializer=_init,
+              initargs=(str(Path(args.resources) / "lexicon.tsv"), args.ambiguity)) as pool:
         for i, (u, p) in enumerate(pool.imap_unordered(_count_group, todo), 1):
             uni.update(u)
             pair.update(p)
@@ -162,6 +171,11 @@ def export(args):
     """Write the table `core-zig/src/homophone.zig` reads."""
     import struct
     bg = Bigram(Path(args.pairs).expanduser(), args.min_count, args.cap, args.smooth)
+    if args.ambiguity:
+        # Keep only pairs whose second word is ambiguous in this sense (a
+        # `toneless` build is a superset; `reading` recovers the original).
+        lex = Lex(Path(args.resources) / "lexicon.tsv", args.ambiguity)
+        bg.pair = {k: v for k, v in bg.pair.items() if k[1] in lex.ambiguous}
     kept = bg.prune(args.top_pairs, rank=args.rank)
     entries = {}
     for (a, b), v in bg.value.items():
@@ -389,6 +403,8 @@ def main():
     b.add_argument("--groups", type=int, default=10**9, help="row groups to read")
     b.add_argument("--jobs", type=int, default=os.cpu_count() or 4)
     b.add_argument("--keep", type=int, default=3, help="drop pairs seen fewer times")
+    b.add_argument("--ambiguity", default="reading", choices=["reading", "toneless"],
+                   help="count pairs whose second word shares its reading, or its toneless reading")
     x = sub.add_parser("export")
     x.add_argument("--pairs", required=True)
     x.add_argument("--out", required=True)
@@ -397,6 +413,9 @@ def main():
     x.add_argument("--smooth", type=float, default=3.0)
     x.add_argument("--rank", default="pmi", choices=["pmi", "count", "impact", "sqrt"])
     x.add_argument("--top-pairs", type=int, default=400000)
+    x.add_argument("--ambiguity", choices=["reading", "toneless"],
+                   help="keep only pairs whose second word is ambiguous in this sense")
+    x.add_argument("--resources", default=str(ROOT / "site/public"))
     e = sub.add_parser("eval")
     e.add_argument("--pairs", required=True)
     e.add_argument("--resources", default=str(ROOT / "site/public"))

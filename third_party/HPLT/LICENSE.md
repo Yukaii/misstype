@@ -26,12 +26,13 @@ So the CC0 grant covers HPLT's packaging, not the web pages inside it.
 
 ## What Misstype ships and how it is licensed
 
-The file contains no corpus text. Each of its 200,000 entries is a 40-bit hash
+The file contains no corpus text. Each of its 300,000 entries is a 40-bit hash
 of a pair of dictionary words (both from Misstype's own McBopomofo-derived
 lexicon) and one signed byte, a quantized association strength. Neither the
 sentences nor the pages can be reconstructed from it. The table is used only
 to choose between homophones (自 / 字) that the decoder already considers
-equally pronounced.
+equally pronounced, including words that sound alike once no tone is typed
+(喝 / 何).
 
 Misstype asserts no rights over these aggregate statistics and dedicates
 whatever rights it holds in `homophone.bin` to the public domain under

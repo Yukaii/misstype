@@ -341,6 +341,68 @@ identical (replay and parity gates MATCH). Not wired into any adapter's
 packaging yet; the table is not committed (derived from HPLT web text,
 licence undecided).
 
+Finding (toneless cross-tone class, 2026-10-14, `tools/typing_eval.py`).
+Trigger: with no tones typed, a typo-free typist needed 5.8 picks per 100
+characters against 1.5 with tones, and most misses were a word of another
+tone outscoring the right one on unigram alone (喝→何, 杯→被, 寫→些,
+份→分, 棒→幫). The rerank above never saw them: its class requires the
+same trie node, i.e. the same toned reading. Hypothesis: over syllables
+typed without a tone, words that differ only by tone (another node, no
+extra repair or unresolved syllable) can join the top-1's class with their
+own weight, without touching toned input. Falsified if the typo-free toned
+control moves, or holdout does not improve. Dev sweep
+(`MISSTYPE_TONELESS_HOMOPHONE_WEIGHT`, 200k table, picks per case vs weight
+0): w=0.5 68 fewer / 5 more, w=1 79/5, w=2 80/20, w=3 81/74, w=4 76/182;
+clean-toneless no-pick 70.3 -> 74.5 %, picks/100 chars 5.52 -> 4.83 at
+w=1. Holdout at w=1: 41 fewer / 9 more (all 9 one sentence, 吃過→遲過),
+clean-toneless and toneless +2.7 pp, toned personas unchanged. Common
+Voice zh-TW (400 sentences, independent of both): toned +0/-0, toneless
++21/-4 (屍體, 事件, 蠻, 理智), picks/100 chars 10.38 -> 9.44. Shipped as
+`toneless_homophone_weight = 1.0` in the Lexicon. Golden gates MATCH (they
+decode without homophone.bin). Limit: the table only counts pairs whose
+second word has a same-reading homophone, so words confusable only across
+tones (當機/黨籍) have no pairs; a recount over HPLT keyed on toneless
+readings is the next step for this class.
+
+Finding (toneless re-split, 2026-10-14, same tools). Trigger: toneless
+input lets a rare multi-syllable word take the place of two common ones
+(齲齒 for 去吃, 青棒 for 請幫, 黨籍 for 當機): their unigram scores are
+close (齲齒 -14.2 vs 去 -6.4 + 吃 -7.9) and only the typed tone separates
+them. Hypothesis: over toneless syllables, candidates that split them into
+other words (same text length, no extra repair) can join the class, so the
+table's 去|吃 context decides. Expected risk: the table only holds pairs
+whose second word has a same-reading homophone, which single characters
+almost always have and many words lack, so the class is biased toward
+splitting. Dev sweep (`MISSTYPE_TONELESS_SEGMENT_WEIGHT`, on top of the
+cross-tone class): w=0.25 14 fewer / 7 more, w=0.5 23/20, w=1 43/56, w=2
+53/212 (the bias). Holdout at 0.25: 35 fewer / 0 more, clean-toneless +2.7
+pp; Common Voice toneless +6/-1 (享有→想有), toned +0/-0. Shipped as
+`toneless_segment_weight = 0.25`. Both toneless classes together vs the
+2026-10-14 typing baseline: clean-toneless no-pick 66.0 -> 71.4 %, picks
+per 100 chars 5.83 -> 4.98; toned personas unchanged.
+
+Finding (toneless-built table, 2026-10-14). Trigger: after the two toneless
+classes, most remaining clean-toneless misses were pairs the table never
+counted: `build` kept a pair only if its second word shared a *toned*
+reading with another word, so words confusable only across tones (當機/黨籍,
+幾點/祭典) had none. Rebuilt locally from the same four pinned HPLT shards
+with `build --ambiguity toneless` (second word ambiguous once tones are
+dropped; a superset). Exporting that pairs file with `--ambiguity reading
+--top-pairs 200000` reproduces the shipped table bit for bit, so the
+pipeline is faithful. Toneless exports vs the shipped table (typing_eval
+picks per case; Common Voice 400 sentences): 200k dev 44/0 but holdout
+30/49 (it keeps only 71.8 % of the old pairs: 再/在, 燈/等, 看劇 lost); 300k
+dev 43/9, holdout 30/0, CV toned +1/-0, toneless +3/-1; 400k dev 63/14,
+holdout 35/10, CV toned +1/-2. The 300k table is exactly the old 200k pairs
+plus 100k cross-tone ones, so it is the smallest export that loses no old
+coverage: shipped (2.4 MB, +0.8 MB). With it the re-split class takes more
+weight (multi-character words now have pairs, less split bias): dev 0.4
+29/0, 0.5 33/13, 0.8 52/20; holdout at 0.4 8/3, CV toneless +4/-0, toned
++0/-0. Shipped 0.4. Per-key latency with 400k pairs is p95 4.7 ms; the
+86 ms seen earlier was CPU contention, not table size. Against the #87
+baseline, all three steps: clean-toneless no-pick 66.0 -> 73.5 %, picks per
+100 chars 5.83 -> 4.38 (-25 %); clean (toned) 89.8 -> 90.5 %, 1.53 -> 1.38.
+
 Pilot (triage, NOT a finding yet, `--jev-mode trust`, n=5, threshold 0.6
 read post-hoc): one boolean on offline top-1 ("候選1是最正確的嗎")
 separates 10/10 — right top-1 trusts 0.82+ (hide-panel), wrong top-1
