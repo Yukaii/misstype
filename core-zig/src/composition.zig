@@ -293,6 +293,21 @@ pub const Composition = struct {
         return true;
     }
 
+    /// Re-read only the unfinished syllable (symbol keys after the last
+    /// tone, space, Latin or literal key) as the Latin letters they were.
+    /// Finished syllables keep their Zhuyin reading.
+    pub fn convertPendingToLatin(self: *Composition) bool {
+        const items = self.raw_keys.items;
+        var start = items.len;
+        while (start > 0 and items[start - 1].isSymbol()) start -= 1;
+        if (start >= items.len) return false;
+        for (items[start..]) |*key| {
+            const physical_key = key.key;
+            key.* = .{ .latin = physical_key };
+        }
+        return true;
+    }
+
     /// Re-read the trailing Zhuyin keys (after the last Latin letter or
     /// punctuation) as the Latin letters they physically were. Space stays
     /// the separator.

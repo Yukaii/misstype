@@ -732,8 +732,12 @@ pub const Session = struct {
             // Mid-composition a lone Shift tap opens/closes a Latin run
             // instead of committing.
             if (!self.engine.english and (!self.composition.isEmpty() or self.latin_mode)) {
-                if (!self.latin_mode and self.composition.caret == null and self.looksLikeMistypedEnglish() and
-                    self.composition.convertTailToLatin())
+                // Shift is an explicit signal: the unfinished syllable is
+                // English keys. The heuristic only decides whether finished
+                // syllables are re-read too.
+                if (!self.latin_mode and self.composition.caret == null and
+                    ((self.looksLikeMistypedEnglish() and self.composition.convertTailToLatin()) or
+                    self.composition.convertPendingToLatin()))
                 {
                     self.resetPicks();
                     try self.refresh(false);
