@@ -85,6 +85,7 @@ PERSONAS = [
     # Controls: no typos, so every miss and every pick is the engine's.
     Persona("clean", "all", 0.0, 0.0),
     Persona("clean-toneless", "none", 0.0, 0.0),
+    Persona("clean-partial-tones", "partial", 0.0, 0.0),
     Persona("careful", "all", 0.01, 0.9, tone_error=0.01),
     Persona("average", "all", 0.03, 0.7, tone_error=0.03),
     Persona("toneless", "none", 0.03, 0.6),
@@ -402,8 +403,11 @@ def save(path: Path, meta: dict, summary: dict, per_case: dict) -> None:
 
 def git_commit() -> str:
     try:
-        return subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=ROOT, capture_output=True,
-                              text=True, check=True).stdout.strip()
+        commit = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=ROOT, capture_output=True,
+                                text=True, check=True).stdout.strip()
+        dirty = subprocess.run(["git", "diff", "--quiet", "HEAD"], cwd=ROOT,
+                               capture_output=True).returncode == 1
+        return commit + ("-dirty" if dirty else "")
     except (OSError, subprocess.CalledProcessError):
         return "unknown"
 

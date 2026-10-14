@@ -56,6 +56,17 @@ Tone-tolerant alternatives remain candidates at their ordinary repair cost,
 and explicit session picks still override the preview. This avoids a stored
 暗暗 preference cancelling the first-tone evidence in `0 0sucl`.
 
+A tone key closes a captured run, which can still contain an earlier
+untoned syllable. Even when the whole run is a valid reading, the decoder
+also tries an apical initial (ㄓㄔㄕㄖㄗㄘㄙ) plus the remaining keys if
+an existing two-syllable dictionary word supports that split with no key
+or tone repair (`split_valid_tone_runs`). The supplied tone belongs to the
+tail; the atomic reading remains viable at its original score. For example,
+`-4gj3` can produce 二十五 as well as 二屬. Other valid runs stay atomic;
+splitting every vowel combination increased latency and caused a regression
+in the typing simulation. This is an offline hypothesis expansion, not a
+frequency boost or a change to the captured keys.
+
 ### Session coordinator
 
 Owns pause detection, explicit commit, revision, and cancellation. Capture events are accepted while a decode is running. A stale result must never overwrite a newer session revision.

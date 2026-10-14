@@ -107,6 +107,10 @@ pub const Lexicon = struct {
     /// decoder prefers without them, but never choose the split: a pick of
     /// 它是 for ㄊㄚ ㄕ must not turn toneless ㄊㄚㄕㄨㄛ (他說) into 它是我.
     learning_keeps_syllables: bool = true,
+    /// A valid tone-closed run may also be an apical initial plus a vowel
+    /// syllable when an exact dictionary word supports that split. The
+    /// original syllable remains a candidate; 0 key/tone repairs required.
+    split_valid_tone_runs: bool = true,
     /// Touched nodes and what they held before the user overlay.
     pristine: std.ArrayList(Pristine) = .empty,
     user_word_count: usize = 0,
@@ -555,12 +559,35 @@ pub const Lexicon = struct {
 
     // MARK: - Composition decoding
 
-    /// Split a tone-terminated run that is not viable as one syllable.
+    /// Split an invalid tone-terminated run, or a valid one with an exact
+    /// dictionary-backed apical-initial split.
     fn repairComplete(self: *const Lexicon, arena: Allocator, syllable: Syllable, tone_tolerance: bool) ![]const []const Syllable {
         var out: std.ArrayList([]const Syllable) = .empty;
         // Swift passes no toneTolerance here: the default (true) applies.
         if ((try self.alternatives(arena, syllable, false, true)).len > 0) {
             try out.append(arena, try one(arena, syllable));
+            // An apical initial can be a complete syllable before a vowel
+            // in a valid tone-closed run (十 + 五 / 屬). Explore this only
+            // when an exact dictionary word supports the two syllables;
+            // arbitrary char splits crowd the beam and cost every later key.
+            if (!self.split_valid_tone_runs or syllable.keys.len < 2 or
+                std.mem.indexOfScalar(u8, "5tgbyhn", syllable.keys[0]) == null)
+                return out.items;
+            const head = Syllable{ .keys = syllable.keys[0..1], .tone = null };
+            const tail = Syllable{ .keys = syllable.keys[1..], .tone = syllable.tone };
+            const heads = try self.alternatives(arena, head, false, tone_tolerance);
+            const tails = try self.alternatives(arena, tail, false, tone_tolerance);
+            supported: for (heads) |h| {
+                if (h.correction != 0) continue;
+                const first = self.child(0, h.reading) orelse continue;
+                for (tails) |t| {
+                    if (t.correction != 0) continue;
+                    const word = self.child(first, t.reading) orelse continue;
+                    if (self.nodes.items[word].entries.items.len == 0) continue;
+                    try out.append(arena, try concat(arena, &.{head}, &.{tail}));
+                    break :supported;
+                }
+            }
             return out.items;
         }
         const keys = syllable.keys;

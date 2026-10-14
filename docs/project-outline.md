@@ -431,6 +431,48 @@ gain. Counting context-rule bonuses in the split rule as well cost repeat
 memory (partial-tones 19 -> 18 fewer), so only context-free words are
 counted.
 
+Finding (word-backed split of a valid tone run, 2026-10-14,
+`typing_eval.py`, working tree based on `4d5c1fd`). Added the missing
+`clean-partial-tones` control: no key/tone errors, independently seeded 50 %
+tone omission, alongside the existing noisy partial-tone persona. Its dev
+keys `w8rupsu0-4gj3njo` and `g-m,-4gj3b4` ended as 他今年二屬歲 and
+十二月二數日, unreachable by selection. `gj3` is already a valid ㄕㄨˇ,
+so `repairComplete` never offered ㄕ + ㄨˇ. Hypothesis: keep the atomic
+reading and also offer a dictionary-backed split, retaining the tone on the
+tail. No frequency or repair-weight changes. Tried and rejected: splitting
+all valid runs (one noisy dev sentence became uncorrectable), then all
+apical-initial runs (clean dev p95 rose from 0.43 to 1.99 ms). Kept only an
+apical initial plus the remaining keys when a two-syllable dictionary word
+supports them with no key/tone repair (`split_valid_tone_runs`, dev-only
+`MISSTYPE_NO_TONE_RUN_SPLITS=1` disables it for A/B).
+
+Same keys before/after, ReleaseFast, sequential `--jobs 1`, 346 independent
+synthetic sentences expanded into 7,200 cases (2 seeds, 8 personas, three
+mixed-English methods): 2 fewer-pick cases / 0 more, both formerly
+unreachable number sentences now correct without selection. Dev: 3,616
+cases, 2/0; holdout: 3,584, 0/0 (confirmation, not a generalization gain).
+Chinese clean-partial no-pick 81.8 -> 82.1 %, unreachable 0.9 -> 0.5 %;
+dev alone 82.8 -> 83.4 %, unreachable 0.7 -> 0 %. Fully toned and toneless
+control accuracy/picks unchanged. Per-key p95: clean 0.39 -> 0.50 ms,
+clean-toneless 3.28 -> 3.22, clean-partial 3.18 -> 3.23, noisy partial
+3.25 -> 3.23; small overhead on clean toned input, maxima remain noisy.
+Offline candidate example: 二屬 -16.100515 -> 二十五 -11.493356,
+zero repairs/unresolved; the atomic candidate survives at the same score.
+
+Checks: Zig unit/behavior suites, Linux Debug/ReleaseFast + C ABI + fcitx5
+and IBus C1-C15, wasm and Python checks. Exact golden gate unchanged;
+parity reviewed 14 lower-ranked records (top-1/top-5 quality unchanged).
+Four replay goldens reviewed: 30/30/34/32 candidate lists changed, plus
+two candidate-count fields for 400/487; first candidates, preedit text,
+commits and raw evidence unchanged. The macOS replay shell wrapper lost
+DYLD_LIBRARY_PATH through its timer script; ran the same native replay
+driver directly with the library path and compared all four transcripts.
+Fixture: `tests/fixtures/partial-tone-number.md`. Baseline refreshed with
+the new control. Limit: character-only splits and non-apical valid runs
+remain unexpanded; this fixes a narrow recall gap, not most homophone ties.
+The new control also exposes existing learning damage, including
+吃過 -> 出國 on the first pass; independent real typing is still unmeasured.
+
 Pilot (triage, NOT a finding yet, `--jev-mode trust`, n=5, threshold 0.6
 read post-hoc): one boolean on offline top-1 ("候選1是最正確的嗎")
 separates 10/10 — right top-1 trusts 0.82+ (hide-panel), wrong top-1

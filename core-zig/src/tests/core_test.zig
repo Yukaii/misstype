@@ -299,6 +299,59 @@ test "a fused toneless run repairs its tone onto the trailing piece" {
     try t.expectEqual(@as(i32, 0), result[0].unresolved);
 }
 
+test "a valid tone-closed syllable also admits an exact two-syllable word" {
+    const rows = h.tsv(
+        \\ㄦˋ|二|-7
+        \\ㄕˊ|十|-6
+        \\ㄨˇ|五|-7
+        \\ㄕㄨˇ|屬|-8
+        \\ㄕㄨ|書|-6
+        \\ㄕˊ-ㄨˇ|十五|-9
+        \\ㄦˋ-ㄕˊ-ㄨˇ|二十五|-11
+        \\
+    );
+    const d = try Dec.init(rows);
+    defer d.deinit();
+    const partial = try d.comp("-4gj3");
+    d.lex.split_valid_tone_runs = false;
+    try expectTop(try d.decodeParsed(partial, .{}), "二屬");
+    d.lex.split_valid_tone_runs = true;
+    const result = try d.decodeParsed(partial, .{ .fuzzy = false, .tone_tolerance = false });
+    try expectTop(result, "二十五");
+    try t.expectEqual(@as(i32, 0), result[0].repairs);
+    try t.expectEqual(@as(i32, 0), result[0].unresolved);
+    try t.expectEqual(@as(usize, 3), result[0].syllables.len);
+    try t.expectEqual(@as(?u8, null), result[0].syllables[1].tone);
+    try t.expectEqual(@as(?u8, '3'), result[0].syllables[2].tone);
+    // The atomic interpretation remains viable, and a normal first-tone
+    // 書 is not turned into 十五 by borrowing the latter's third tone.
+    try t.expect(h.containsText(result, "二屬"));
+    try expectTop(try d.decodeParsed(try d.comp("gj "), .{}), "書");
+    try expectTop(try d.decodeParsed(try d.comp("-4g6j3"), .{}), "二十五");
+    try expectTop(try d.decodeParsed(try d.comp("-gj"), .{}), "二十五");
+
+    const session = try h.Harness.init(rows);
+    defer session.deinit();
+    try session.typed("-4gj3");
+    try t.expectEqualStrings("二十五", try session.preedit());
+    try t.expectEqualStrings("二十五", (try session.enter()).commit.?);
+}
+
+test "a valid tone-run split needs a word with the supplied tail tone" {
+    const d = try Dec.init(h.tsv(
+        \\ㄕˊ|十|-6
+        \\ㄨ|屋|-7
+        \\ㄨˇ|五|-7
+        \\ㄕㄨˇ|屬|-8
+        \\ㄕˊ-ㄨ|十屋|-1
+        \\
+    ));
+    defer d.deinit();
+    const result = try d.decodeParsed(try d.comp("gj3"), .{});
+    try expectTop(result, "屬");
+    for (result) |candidate| try t.expectEqual(@as(usize, 1), candidate.syllables.len);
+}
+
 test "a wrong tone still resolves with a repair penalty" {
     // su4 is ㄋㄧˋ, but the fixture lexicon only knows 你 (ㄋㄧˇ): the tone
     // mismatch must stay viable instead of falling back to raw.

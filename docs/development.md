@@ -87,7 +87,7 @@ python3 tools/typing_eval.py --bin <另一個 worktree>/core-zig/zig-out/bin/mis
 
 - **語料**（`tools/eval/typing_corpus.tsv`）：約 350 句手寫合成句，依類別分層：日常、同音字、破音字、斷詞歧義、工作、數字、長句、標點、中英混打。`auto` 列依句子的 md5 分到 dev／holdout，作者無法挑選。句子不得取自 HPLT（`homophone.bin` 的訓練資料），否則同音字的數字會虛高。讀音由詞庫推導；推導錯時在第四欄手寫。
 - **打字者**：`careful`、`average`、`toneless`、`partial-tones`、`sloppy`，差別在聲調習慣、每鍵錯誤率（1–7 %，鄰鍵替換、對調、漏打、多打）與當場用 Backspace 修掉的機率。中英混打有三種輸入方式：`shift-first`（先按 Shift）、`shift-after`（在注音模式打完英文才按 Shift）、`no-switch`（不切換，開 `--mixed-english`）。
-- **對照組**：`clean`（打聲調）與 `clean-toneless` 不打錯字，所以它們的補救成本完全來自引擎。`clean` 的 `unreach_pct` 應為 0：不為 0 時，代表讀音推導錯了，或修正者的策略有漏洞，要先查清楚。
+- **對照組**：`clean`（打聲調）、`clean-toneless`（不打聲調）與 `clean-partial-tones`（逐音節以固定 seed 隨機省略 50 % 聲調）都不打錯字，所以它們的補救成本完全來自引擎。部分聲調對照組把音節切分歧義和 `partial-tones` 的按鍵／聲調錯誤分開量，不是人類習慣的實測。新增 persona 不改變既有 persona 的按鍵；它們各自有獨立的 seed。`clean` 的 `unreach_pct` 應為 0：不為 0 時，代表讀音推導錯了，或修正者的策略有漏洞，要先查清楚。
 - **修正者**（`dev.zig` 的 `correct`）：在第一個錯字處，若整句候選在第一頁就直接選（`↓` 加選字鍵）；否則把詞游標往錯字方向移，在每一站讀候選，選出在該位置符合目標的最長詞（同頁用選字鍵，否則 `↓`／`↑` 再 `⏎`），最後按 `⏎` 走出游標並送出。每個鍵都是真實事件。`MISSTYPE_FIX_DEBUG=1` 會印出每一步。
 - **指標**：`exact_pct`（不用選字就對）、`picks_100`（每百字選字次數，只計能修好的句子）、`fix_keys`（每句補救按鍵數）、`unreach_pct`（選字修不好、只能重打）、`space_lost`（只差在空白）、CER、KSPC、預覽變動步數、每鍵延遲。依 track × 句集、× persona、× 類別分組。
 - **可重放**：打字者是開迴路，按鍵只由 (persona, 句子, seed) 決定；修正者是確定性的。所以兩次執行的差異只來自引擎。每個案例都存了按鍵序列，可以用 `misstype-dev --session-trace '<keys>' --show` 重放；`⇧` 是單獨輕按 Shift，`，。？！：` 是 Shift+標點，大寫字母是 Shift+該鍵。
