@@ -1,0 +1,291 @@
+{
+  "protocol": {
+    "model_sha256": "b51743d99be0c0fa9821f62b6b791feb934d46aa9cb1878386ceb6c7e6360662",
+    "weights": [
+      0,
+      0.5
+    ],
+    "set": "dev + mixed-dev",
+    "seeds": 2,
+    "jobs": 8,
+    "binary_sha256": "54d177ed7189568ac0d49807773a70f420bc88e63625dcac7acc6a9c0362c226",
+    "commit": "03855b5-dirty",
+    "correction_protocol": "punctuation-escape-v1",
+    "resources": {
+      "lexicon.tsv": "990dcf42f85a1e10a1a4bef3db35db8a02fc54af237c5c02337c49cb2858e407",
+      "toneless.tsv": "7ae756e5692224f2085df5d468ffb55a7c5a9d734ec363192ce3fb515fe65f0f",
+      "local_phrases.tsv": "a6a769f03145880d751c08c9d5499fcad9a855e3c9610bfb1248bda62bcb0620",
+      "english.tsv": "1a1aba5f47c7ff4fdb84a95746e0cf5030250a61d17709354bdb11c362fc1794",
+      "homophone.bin": "1a138dd028335161e9e82f87187acd32591f592ca68fc592b3c8a2093a243f77"
+    },
+    "model": {
+      "version": 1,
+      "sources": [
+        {
+          "file": "zho_Hant/train-00000-of-01722.parquet",
+          "sha256": "acd232ee15a075d9ab7a3d31afeb2fb91f756f989c27542ac5ccaed21c476e81",
+          "documents": 10000
+        },
+        {
+          "file": "zho_Hant/train-00001-of-01722.parquet",
+          "sha256": "85601054059a380a09779a94dbb04291313ffc6f051ca71c85e15dca33122401",
+          "documents": 10000
+        },
+        {
+          "file": "zho_Hant/train-00002-of-01722.parquet",
+          "sha256": "cc105c05b295d8d7ab2e0a3cee1109eecd4123ef7eb5bd0446d74b2a2221597d",
+          "documents": 10000
+        },
+        {
+          "file": "zho_Hant/train-00003-of-01722.parquet",
+          "sha256": "414c1e867b23513a44ef8e448b9ca4f11c4f30b2a8fe6d9db5c6829a8220eb0b",
+          "documents": 10000
+        }
+      ],
+      "lexicon_sha256": "f21662b522ad173573126351af0e48468ae14169ca6d37e619950d84e41c52aa",
+      "discount": 0.75,
+      "unigram_smoothing": 1,
+      "vocabulary": 107354,
+      "target_tokens": 47640392,
+      "pairs": 8390810,
+      "model_sha256": "b51743d99be0c0fa9821f62b6b791feb934d46aa9cb1878386ceb6c7e6360662",
+      "bytes": 169963312
+    }
+  },
+  "advance": 0.5,
+  "external_reserve_consumed": false,
+  "profiles": {
+    "0": {
+      "eligible": true,
+      "fewer": 0,
+      "more": 0,
+      "aggregate": {
+        "n": 3616,
+        "exact": 2479,
+        "unreached": 665,
+        "picks": 526,
+        "picks_100_reached": 2.331
+      },
+      "groups": {
+        "zh | partial-tones": {
+          "cer_pct": 10.95,
+          "churn_steps": 230,
+          "exact": 199,
+          "exact_pct": 68.6,
+          "fix_keys": 1.47,
+          "kspc": 2.72,
+          "ms_max": 108.5,
+          "ms_p50": 0.18,
+          "ms_p95": 12.49,
+          "n": 290,
+          "picks_100": 3.16,
+          "revert_steps": 10,
+          "space_lost": 2,
+          "uncorrected_errors": 131,
+          "unreach_pct": 14.5
+        },
+        "zh | clean": {
+          "cer_pct": 1.75,
+          "churn_steps": 118,
+          "exact": 264,
+          "exact_pct": 91.0,
+          "fix_keys": 0.48,
+          "kspc": 3.14,
+          "ms_max": 37.4,
+          "ms_p50": 0.08,
+          "ms_p95": 1.09,
+          "n": 290,
+          "picks_100": 1.28,
+          "revert_steps": 0,
+          "space_lost": 0,
+          "uncorrected_errors": 0,
+          "unreach_pct": 0.0
+        },
+        "zh | clean-toneless": {
+          "cer_pct": 6.45,
+          "churn_steps": 298,
+          "exact": 224,
+          "exact_pct": 77.2,
+          "fix_keys": 1.85,
+          "kspc": 2.15,
+          "ms_max": 67.7,
+          "ms_p50": 0.26,
+          "ms_p95": 13.09,
+          "n": 290,
+          "picks_100": 4.04,
+          "revert_steps": 0,
+          "space_lost": 0,
+          "uncorrected_errors": 0,
+          "unreach_pct": 0.0
+        },
+        "zh | clean-partial-tones": {
+          "cer_pct": 3.6,
+          "churn_steps": 210,
+          "exact": 242,
+          "exact_pct": 83.4,
+          "fix_keys": 0.98,
+          "kspc": 2.64,
+          "ms_max": 84.3,
+          "ms_p50": 0.17,
+          "ms_p95": 11.64,
+          "n": 290,
+          "picks_100": 2.66,
+          "revert_steps": 0,
+          "space_lost": 0,
+          "uncorrected_errors": 0,
+          "unreach_pct": 0.0
+        },
+        "zh | dev": {
+          "cer_pct": 8.07,
+          "churn_steps": 1772,
+          "exact": 1728,
+          "exact_pct": 74.5,
+          "fix_keys": 1.15,
+          "kspc": 2.69,
+          "ms_max": 157.2,
+          "ms_p50": 0.13,
+          "ms_p95": 7.23,
+          "n": 2320,
+          "picks_100": 2.73,
+          "revert_steps": 41,
+          "space_lost": 15,
+          "uncorrected_errors": 701,
+          "unreach_pct": 11.0
+        },
+        "ALL | mixed-dev": {
+          "cer_pct": 15.59,
+          "churn_steps": 417,
+          "exact": 751,
+          "exact_pct": 57.9,
+          "fix_keys": 0.67,
+          "kspc": 2.0,
+          "ms_max": 191.5,
+          "ms_p50": 0.09,
+          "ms_p95": 6.54,
+          "n": 1296,
+          "picks_100": 1.64,
+          "revert_steps": 65,
+          "space_lost": 42,
+          "uncorrected_errors": 418,
+          "unreach_pct": 31.6
+        }
+      }
+    },
+    "0.5": {
+      "eligible": true,
+      "fewer": 251,
+      "more": 56,
+      "aggregate": {
+        "n": 3616,
+        "exact": 2644,
+        "unreached": 647,
+        "picks": 328,
+        "picks_100_reached": 1.442
+      },
+      "groups": {
+        "zh | partial-tones": {
+          "cer_pct": 9.48,
+          "churn_steps": 254,
+          "exact": 209,
+          "exact_pct": 72.1,
+          "fix_keys": 0.98,
+          "kspc": 2.72,
+          "ms_max": 70.2,
+          "ms_p50": 0.87,
+          "ms_p95": 18.29,
+          "n": 290,
+          "picks_100": 2.34,
+          "revert_steps": 10,
+          "space_lost": 2,
+          "uncorrected_errors": 131,
+          "unreach_pct": 14.5
+        },
+        "zh | clean": {
+          "cer_pct": 1.11,
+          "churn_steps": 136,
+          "exact": 268,
+          "exact_pct": 92.4,
+          "fix_keys": 0.54,
+          "kspc": 3.14,
+          "ms_max": 28.8,
+          "ms_p50": 0.35,
+          "ms_p95": 2.97,
+          "n": 290,
+          "picks_100": 1.08,
+          "revert_steps": 0,
+          "space_lost": 0,
+          "uncorrected_errors": 0,
+          "unreach_pct": 0.0
+        },
+        "zh | clean-toneless": {
+          "cer_pct": 4.6,
+          "churn_steps": 298,
+          "exact": 236,
+          "exact_pct": 81.4,
+          "fix_keys": 0.8,
+          "kspc": 2.15,
+          "ms_max": 64.5,
+          "ms_p50": 1.38,
+          "ms_p95": 18.5,
+          "n": 290,
+          "picks_100": 2.66,
+          "revert_steps": 0,
+          "space_lost": 0,
+          "uncorrected_errors": 0,
+          "unreach_pct": 0.0
+        },
+        "zh | clean-partial-tones": {
+          "cer_pct": 2.13,
+          "churn_steps": 217,
+          "exact": 256,
+          "exact_pct": 88.3,
+          "fix_keys": 0.58,
+          "kspc": 2.64,
+          "ms_max": 62.8,
+          "ms_p50": 0.82,
+          "ms_p95": 17.61,
+          "n": 290,
+          "picks_100": 1.68,
+          "revert_steps": 0,
+          "space_lost": 0,
+          "uncorrected_errors": 0,
+          "unreach_pct": 0.0
+        },
+        "zh | dev": {
+          "cer_pct": 6.75,
+          "churn_steps": 1895,
+          "exact": 1808,
+          "exact_pct": 77.9,
+          "fix_keys": 0.65,
+          "kspc": 2.69,
+          "ms_max": 70.7,
+          "ms_p50": 0.55,
+          "ms_p95": 14.15,
+          "n": 2320,
+          "picks_100": 1.83,
+          "revert_steps": 42,
+          "space_lost": 15,
+          "uncorrected_errors": 701,
+          "unreach_pct": 10.9
+        },
+        "ALL | mixed-dev": {
+          "cer_pct": 14.32,
+          "churn_steps": 388,
+          "exact": 836,
+          "exact_pct": 64.5,
+          "fix_keys": 0.4,
+          "kspc": 2.0,
+          "ms_max": 126.2,
+          "ms_p50": 0.32,
+          "ms_p95": 14.13,
+          "n": 1296,
+          "picks_100": 0.79,
+          "revert_steps": 65,
+          "space_lost": 47,
+          "uncorrected_errors": 418,
+          "unreach_pct": 30.3
+        }
+      }
+    }
+  }
+}

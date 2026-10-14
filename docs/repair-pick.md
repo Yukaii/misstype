@@ -1,5 +1,8 @@
 # 修復詞選字的鎖定（2026-10-14）
 
+本頁保存位置鎖定修正的結果。後續切分反例被確認為模擬修正者的標點選單
+漏選，最新重放與結果見 [punctuation-correction.md](punctuation-correction.md)。
+
 游標列表列出了修復詞，但選字後仍顯示原文字：Session 把選字鎖定存成
 原始輸入的 `run#offset@readings`，解碼卻只以修復後的字典讀音查鎖定。
 漏打 `/` 的 `ej tk ` 選「公車」就是例子：鎖定讀音是 ㄍㄨㄔㄜ，字典路徑
@@ -58,7 +61,8 @@ python3 tools/eval_word_lm.py --repair-check \
 `--repair-check` 只比較正式預設與已固定的 0.5，沒有重選模型或搜尋新權重。
 其他反例仍保留在 [word-model.md](../tests/fixtures/word-model.md)；其中
 `2jo41jfu3，jit42l4xk7。` 的「對不起，我遲到了。」在模型下變成
-「對不起，握到了。」涉及音節切分，這次位置鎖定修正未解決它。
+「對不起，握到了。」這次位置鎖定修正未解決它；後續已確認整句候選存在，只是標點選單
+遮住它，並以模擬修正者的 Esc 操作補救。
 
 ## 延遲
 

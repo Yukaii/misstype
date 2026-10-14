@@ -482,6 +482,16 @@ fn correct(a: Allocator, session: *session_mod.Session, want_utf8: []const u8, t
         var positions: std.ArrayList(usize) = .empty;
         const shown = try withoutSpaces(a, try std.unicode.utf8ToUtf16LeAlloc(a, view.preedit), &positions);
         const diff = firstDiff(shown, want) orelse return;
+        // A trailing punctuation menu hides the sentence rows. Dismiss it
+        // with a real key before looking for an alternative syllable split.
+        if (session.symbol_menu != null) {
+            try press(session, typed, clock, .{ .kind = .escape });
+            if (session.symbol_menu != null) {
+                typed.unreachable_fix = true; // mode/client did not dismiss it
+                return;
+            }
+            continue;
+        }
         const at = if (diff < positions.items.len) positions.items[diff] else unicode_len: {
             break :unicode_len (try std.unicode.utf8ToUtf16LeAlloc(a, view.preedit)).len;
         };
@@ -764,4 +774,45 @@ pub fn main(init: std.process.Init) !void {
         std.process.exit(2);
     }
     try out_file.interface.flush();
+}
+
+test "typing corrector dismisses punctuation to recover another syllable split" {
+    const a = std.testing.allocator;
+    var arena: std.heap.ArenaAllocator = .init(a);
+    defer arena.deinit();
+    var threaded: Io.Threaded = .init_single_threaded;
+    const cli: Cli = .{ .gpa = a, .io = threaded.io(), .args = &.{}, .out = undefined };
+    const decoder = try core.Lexicon.create(a, &.{
+        "ㄨㄛ\t我\t-1\nㄨㄛˋ\t握\t-4\nㄔˋ\t赤\t-9\nㄔˊ\t遲\t-9\nㄉㄠˋ\t到\t-8\nㄌㄜ˙\t了\t-8\nㄉㄠˋ-ㄌㄜ˙\t到了\t-1\nㄔˊ-ㄉㄠˋ\t遲到\t-2\nㄔㄨㄛˋ\t綽\t-12\n",
+    }, "");
+    const engine = try session_mod.Engine.create(a, threaded.io(), decoder);
+    defer engine.release();
+    engine.settings = .{ .auto_show_candidates = false, .return_confirms_selection = true, .user_learning = false };
+    const session = try session_mod.Session.create(engine);
+    defer session.destroy();
+    const result = try typeKeys(cli, arena.allocator(), session, "jit42l4xk7。", false, false, "我遲到了。");
+    try std.testing.expectEqualStrings("握到了。", result.before_fix);
+    try std.testing.expectEqualStrings("我遲到了。", result.committed.items);
+    try std.testing.expect(!result.unreachable_fix);
+    try std.testing.expectEqual(@as(usize, 1), result.picks);
+    // Escape, Down, selection key: the extra menu dismissal is not free.
+    try std.testing.expectEqual(@as(usize, 3), result.fix_keys);
+}
+
+test "correct punctuation needs no menu dismissal when text already matches" {
+    const a = std.testing.allocator;
+    var arena: std.heap.ArenaAllocator = .init(a);
+    defer arena.deinit();
+    var threaded: Io.Threaded = .init_single_threaded;
+    const cli: Cli = .{ .gpa = a, .io = threaded.io(), .args = &.{}, .out = undefined };
+    const decoder = try core.Lexicon.create(a, &.{"ㄋㄧˇ\t你\t-1\n"}, "");
+    const engine = try session_mod.Engine.create(a, threaded.io(), decoder);
+    defer engine.release();
+    engine.settings = .{ .auto_show_candidates = false, .return_confirms_selection = true, .user_learning = false };
+    const session = try session_mod.Session.create(engine);
+    defer session.destroy();
+    const result = try typeKeys(cli, arena.allocator(), session, "su3。", false, false, "你。");
+    try std.testing.expectEqualStrings("你。", result.committed.items);
+    try std.testing.expectEqual(@as(usize, 0), result.picks);
+    try std.testing.expectEqual(@as(usize, 0), result.fix_keys);
 }

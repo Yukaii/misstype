@@ -73,3 +73,15 @@ and `caret_test.zig`. With that fix, the normal Session corrector recovers
 The `對不起，我遲到了。` case still fails with weight 0.5; do not remove this
 fixture or interpret the pin fix as resolving every segmentation regression.
 Current paired results and replay changes: `docs/repair-pick.md`.
+
+
+## Punctuation menu hides an available alternative split
+
+The `對不起，我遲到了。` case is recoverable in the unchanged core. Immediately
+following the period, the view lists punctuation choices. Escape closes that
+menu and reveals the sentence rows, with the correct four-syllable alternative
+third. Replay `2jo41jfu3，jit42l4xk7。⎋↓d` at weight 0.5 and Return commits the
+expected sentence. The native corrector now performs that Escape instead of
+mistaking the punctuation rows for sentence rows. Two small, model-independent
+regression tests live in `core-zig/src/dev.zig`, run by `zig build test`.
+See `docs/punctuation-correction.md`; earlier failure results above are historical.

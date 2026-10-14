@@ -48,6 +48,7 @@ from cursor_replay import (APP_BIN, TONE_TO_KEY, ZHUYIN_TO_KEY,  # noqa: E402
 from live_trace import stability  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
+CORRECTION_PROTOCOL = "punctuation-escape-v1"
 
 # Physical neighbours on the US layout Zhuyin keys sit on (keynoise.py's
 # table, kept here so this tool needs no Python prototype import).
@@ -392,6 +393,7 @@ def save(path: Path, meta: dict, summary: dict, per_case: dict) -> None:
     """JSON with one line per case, so a baseline update diffs as the cases
     that changed."""
     path.parent.mkdir(parents=True, exist_ok=True)
+    meta = {**meta, "correction_protocol": CORRECTION_PROTOCOL}
     dump = lambda value: json.dumps(value, ensure_ascii=False, sort_keys=True)  # noqa: E731
     fields = ("exact", "reached", "picks", "fix_keys", "shown", "final", "keys")
     cases = ",\n".join(f"  {dump(case_id)}: {dump({k: row[k] for k in fields})}"

@@ -77,6 +77,7 @@ def main():
                 'set': 'dev + mixed-dev', 'seeds': 2, 'jobs': args.jobs,
                 'binary_sha256': hashlib.file_digest(typing.BIN.open('rb'), 'sha256').hexdigest(),
                 'commit': typing.git_commit(),
+                'correction_protocol': typing.CORRECTION_PROTOCOL,
                 'resources': {name: hashlib.sha256((Path(os.environ['MISSTYPE_RESOURCES']) / name).read_bytes()).hexdigest()
                               for name in ('lexicon.tsv', 'toneless.tsv', 'local_phrases.tsv', 'english.tsv', 'homophone.bin')},
                 'model': json.loads(args.model.with_suffix('.json').read_text())}
@@ -99,8 +100,8 @@ def main():
         case_map = {c.id: c for c in cases}
         if args.summarize:
             saved = json.loads((args.out / f'w{weight}.json').read_text())
-            if any(saved['meta'].get(k) != protocol[k] for k in ('model_sha256', 'jobs', 'seeds', 'set', 'weights')):
-                raise ValueError('saved results belong to a different model')
+            if any(saved['meta'].get(k) != protocol[k] for k in ('model_sha256', 'jobs', 'seeds', 'set', 'weights', 'correction_protocol')):
+                raise ValueError('saved model, execution setup or correction protocol differs')
             results[weight], summaries[weight] = saved['cases'], saved['summary']
             if set(results[weight]) != set(case_map):
                 raise ValueError('saved case set differs')

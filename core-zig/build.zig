@@ -111,7 +111,10 @@ pub fn build(b: *std.Build) void {
     b.step("bench", "Decode bench/inputs.tsv (args: <resource dir> <inputs> [repeats])").dependOn(&run.step);
 
     const tests = b.addTest(.{ .root_module = core });
-    b.step("test", "Run core tests").dependOn(&b.addRunArtifact(tests).step);
+    const test_step = b.step("test", "Run core and developer CLI tests");
+    test_step.dependOn(&b.addRunArtifact(tests).step);
+    const dev_tests = b.addTest(.{ .root_module = dev.root_module });
+    test_step.dependOn(&b.addRunArtifact(dev_tests).step);
 }
 
 fn addUnicode(b: *std.Build, module: *std.Build.Module) void {
