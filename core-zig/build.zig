@@ -1,7 +1,13 @@
 const std = @import("std");
 
 pub fn build(b: *std.Build) void {
-    const target = b.standardTargetOptions(.{});
+    // Default to the baseline CPU, not the build host's: with no -Dtarget Zig
+    // uses -mcpu=native, and a release built on an SVE/AVX-512 runner then
+    // dies with SIGILL on machines without those extensions (v0.5.3 aarch64).
+    // Pass -Dcpu=native for a local build tuned to this machine.
+    const target = b.standardTargetOptions(.{
+        .default_target = .{ .cpu_model = .baseline },
+    });
     const optimize = b.standardOptimizeOption(.{});
 
     const core = b.addModule("misstype", .{
