@@ -4,6 +4,7 @@
 //!   misstype-dev --decode KEYS [--align] [--segment A:B] [--lock=KEY=TEXT ...]
 //!                [--user-lexicon PATH] [--replay EXPECTED [--learn-out PATH]]
 //!   misstype-dev --session-trace KEYS [--auto-commit N] [--show] [--mixed-english]
+//!                [--repair-strength off|light|standard|strong]
 //!                [--user-lexicon PATH] [--user-dictionary PATH] [--channel PATH]
 //!   misstype-dev --session-batch FILE|- [--carry] [--learned-out PATH] [same trace flags]
 //!   misstype-dev --build-mode     (Debug, ReleaseFast, ...: latency is only
@@ -89,11 +90,25 @@ const Cli = struct {
             if (std.c.getenv("MISSTYPE_TONELESS_HOMOPHONE_WEIGHT")) |w|
                 lexicon.toneless_homophone_weight = std.fmt.parseFloat(f64, std.mem.span(w)) catch lexicon.toneless_homophone_weight;
         }
+        if (std.c.getenv("MISSTYPE_HOMOPHONE_IN_SEARCH")) |w|
+            lexicon.homophone_in_search = try std.fmt.parseFloat(f64, std.mem.span(w));
+        if (std.c.getenv("MISSTYPE_SETTLE_SINGLE_EXTRA")) |n|
+            lexicon.settle_single_extra = try std.fmt.parseInt(usize, std.mem.span(n), 10);
         if (std.c.getenv("MISSTYPE_LEARN_ACROSS_SPLITS") != null) lexicon.learning_keeps_syllables = false;
+        if (std.c.getenv("MISSTYPE_NO_TONE_RUN_SPLITS") != null) lexicon.split_valid_tone_runs = false;
+        if (std.c.getenv("MISSTYPE_REPAIR_REQUIRES_NO_CLEAN") != null) lexicon.repair_requires_no_clean = true;
         lexicon.word_penalty = if (std.c.getenv("MISSTYPE_WORD_PENALTY")) |w|
             std.fmt.parseFloat(f64, std.mem.span(w)) catch 0.5
         else
             0.5;
+        if (std.c.getenv("MISSTYPE_WORD_LM")) |path| {
+            const bytes = core.storage.readBytes(self.io, self.gpa, std.mem.span(path)) orelse return error.MissingWordModel;
+            defer self.gpa.free(bytes);
+            try lexicon.setWordModel(bytes);
+            const weight = if (std.c.getenv("MISSTYPE_WORD_LM_WEIGHT")) |w| try std.fmt.parseFloat(f64, std.mem.span(w)) else 0;
+            if (!std.math.isFinite(weight) or weight < 0 or weight > 1) return error.BadWordModelWeight;
+            lexicon.word_model_weight = weight;
+        }
         return lexicon;
     }
 
@@ -424,6 +439,9 @@ fn typeKeys(cli: Cli, a: Allocator, session: *session_mod.Session, keys: []const
         const shown = try withCursor(a, view.preedit, view.caret);
         if (keep_views) try typed.views.append(a, try a.dupe(u8, shown));
         if (trace_out and cli.flag("--show")) try cli.print("view\t{d}\t{s}\n", .{ count, shown });
+        if (trace_out and cli.flag("--show-candidates")) {
+            for (view.candidates, 0..) |text, index| try cli.print("candidate\t{d}\t{d}\t{s}\n", .{ count, index, text });
+        }
         if (commit) |text| {
             typed.chunks += 1;
             try typed.committed.appendSlice(a, text);
@@ -469,6 +487,16 @@ fn correct(a: Allocator, session: *session_mod.Session, want_utf8: []const u8, t
         var positions: std.ArrayList(usize) = .empty;
         const shown = try withoutSpaces(a, try std.unicode.utf8ToUtf16LeAlloc(a, view.preedit), &positions);
         const diff = firstDiff(shown, want) orelse return;
+        // A trailing punctuation menu hides the sentence rows. Dismiss it
+        // with a real key before looking for an alternative syllable split.
+        if (session.symbol_menu != null) {
+            try press(session, typed, clock, .{ .kind = .escape });
+            if (session.symbol_menu != null) {
+                typed.unreachable_fix = true; // mode/client did not dismiss it
+                return;
+            }
+            continue;
+        }
         const at = if (diff < positions.items.len) positions.items[diff] else unicode_len: {
             break :unicode_len (try std.unicode.utf8ToUtf16LeAlloc(a, view.preedit)).len;
         };
@@ -618,6 +646,8 @@ fn traceEngine(cli: Cli) !*session_mod.Engine {
         .mixed_english = cli.flag("--mixed-english"),
     };
     if (cli.value("--auto-commit")) |n| engine.settings.auto_commit_syllables = std.fmt.parseInt(usize, n, 10) catch 24;
+    if (cli.value("--repair-strength")) |name|
+        engine.settings.repair_strength = std.meta.stringToEnum(core.channel.RepairStrength, name) orelse return error.BadRepairStrength;
     try loadLearned(cli, engine);
     return engine;
 }
@@ -751,4 +781,45 @@ pub fn main(init: std.process.Init) !void {
         std.process.exit(2);
     }
     try out_file.interface.flush();
+}
+
+test "typing corrector dismisses punctuation to recover another syllable split" {
+    const a = std.testing.allocator;
+    var arena: std.heap.ArenaAllocator = .init(a);
+    defer arena.deinit();
+    var threaded: Io.Threaded = .init_single_threaded;
+    const cli: Cli = .{ .gpa = a, .io = threaded.io(), .args = &.{}, .out = undefined };
+    const decoder = try core.Lexicon.create(a, &.{
+        "ㄨㄛ\t我\t-1\nㄨㄛˋ\t握\t-4\nㄔˋ\t赤\t-9\nㄔˊ\t遲\t-9\nㄉㄠˋ\t到\t-8\nㄌㄜ˙\t了\t-8\nㄉㄠˋ-ㄌㄜ˙\t到了\t-1\nㄔˊ-ㄉㄠˋ\t遲到\t-2\nㄔㄨㄛˋ\t綽\t-12\n",
+    }, "");
+    const engine = try session_mod.Engine.create(a, threaded.io(), decoder);
+    defer engine.release();
+    engine.settings = .{ .auto_show_candidates = false, .return_confirms_selection = true, .user_learning = false };
+    const session = try session_mod.Session.create(engine);
+    defer session.destroy();
+    const result = try typeKeys(cli, arena.allocator(), session, "jit42l4xk7。", false, false, "我遲到了。");
+    try std.testing.expectEqualStrings("握到了。", result.before_fix);
+    try std.testing.expectEqualStrings("我遲到了。", result.committed.items);
+    try std.testing.expect(!result.unreachable_fix);
+    try std.testing.expectEqual(@as(usize, 1), result.picks);
+    // Escape, Down, selection key: the extra menu dismissal is not free.
+    try std.testing.expectEqual(@as(usize, 3), result.fix_keys);
+}
+
+test "correct punctuation needs no menu dismissal when text already matches" {
+    const a = std.testing.allocator;
+    var arena: std.heap.ArenaAllocator = .init(a);
+    defer arena.deinit();
+    var threaded: Io.Threaded = .init_single_threaded;
+    const cli: Cli = .{ .gpa = a, .io = threaded.io(), .args = &.{}, .out = undefined };
+    const decoder = try core.Lexicon.create(a, &.{"ㄋㄧˇ\t你\t-1\n"}, "");
+    const engine = try session_mod.Engine.create(a, threaded.io(), decoder);
+    defer engine.release();
+    engine.settings = .{ .auto_show_candidates = false, .return_confirms_selection = true, .user_learning = false };
+    const session = try session_mod.Session.create(engine);
+    defer session.destroy();
+    const result = try typeKeys(cli, arena.allocator(), session, "su3。", false, false, "你。");
+    try std.testing.expectEqualStrings("你。", result.committed.items);
+    try std.testing.expectEqual(@as(usize, 0), result.picks);
+    try std.testing.expectEqual(@as(usize, 0), result.fix_keys);
 }

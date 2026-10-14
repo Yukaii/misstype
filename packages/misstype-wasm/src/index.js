@@ -13,9 +13,10 @@ export class MisstypeWasm {
     this.wasi = wasi;
     this.exports = instance.exports;
     this.memory = this.exports.memory;
+    this.wordModelLoaded = false;
   }
 
-  static async load({ wasmUrl, lexiconUrl, tonelessUrl = null, englishUrl = null, homophoneUrl = null } = {}) {
+  static async load({ wasmUrl, lexiconUrl, tonelessUrl = null, englishUrl = null, homophoneUrl = null, wordModelUrl = null, wordModelWeight = 0.5 } = {}) {
     if (!wasmUrl || !lexiconUrl) throw new TypeError("wasmUrl and lexiconUrl are required");
     const wasi = new WASI([], [], []);
     const [wasmResponse, lexResponse, toneResponse] = await Promise.all([
@@ -35,9 +36,17 @@ export class MisstypeWasm {
       const englishResponse = await fetch(englishUrl);
       if (englishResponse.ok) api.loadEnglish(await englishResponse.text());
     }
+    // Experimental sparse model is opt-in. It replaces the homophone table;
+    // don't fetch both when the model succeeds. Missing/old wasm falls back.
+    if (wordModelUrl && wordModelWeight > 0 && api.exports.misstype_wasm_load_word_model) {
+      try {
+        const response = await fetch(wordModelUrl);
+        if (response.ok) api.loadWordModel(new Uint8Array(await response.arrayBuffer()), wordModelWeight);
+      } catch { /* optional */ }
+    }
     // Optional homophone word-bigram table; a missing or malformed file, or an
     // older wasm without the export, leaves decoding unchanged.
-    if (homophoneUrl && api.exports.misstype_wasm_load_homophone) {
+    if (!api.wordModelLoaded && homophoneUrl && api.exports.misstype_wasm_load_homophone) {
       try {
         const homophoneResponse = await fetch(homophoneUrl);
         if (homophoneResponse.ok) api.loadHomophone(new Uint8Array(await homophoneResponse.arrayBuffer()));
@@ -76,6 +85,7 @@ export class MisstypeWasm {
       this._withString(toneless, (tonePtr, toneLen) =>
         this.exports.misstype_wasm_init(lexPtr, lexLen, tonePtr, toneLen)));
     if (result !== 1) throw new Error("Misstype wasm initialization failed");
+    this.wordModelLoaded = false;
     return this;
   }
 
@@ -86,6 +96,21 @@ export class MisstypeWasm {
     try {
       new Uint8Array(this.memory.buffer, ptr, bytes.length).set(bytes);
       return this.exports.misstype_wasm_load_homophone(ptr, bytes.length) === 1;
+    } finally {
+      this.exports.misstype_wasm_free(ptr);
+    }
+  }
+
+  loadWordModel(bytes, weight = 0.5) {
+    if (!this.exports.misstype_wasm_load_word_model || bytes.length > 8 * 1024 * 1024 ||
+        !Number.isFinite(weight) || weight < 0 || weight > 1) return false;
+    const ptr = this.exports.misstype_wasm_alloc(bytes.length);
+    if (!ptr) return false;
+    try {
+      new Uint8Array(this.memory.buffer, ptr, bytes.length).set(bytes);
+      const loaded = this.exports.misstype_wasm_load_word_model(ptr, bytes.length, weight) === 1;
+      if (loaded) this.wordModelLoaded = true;
+      return loaded;
     } finally {
       this.exports.misstype_wasm_free(ptr);
     }

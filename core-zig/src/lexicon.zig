@@ -13,6 +13,7 @@ const composition_mod = @import("composition.zig");
 const user_lexicon = @import("user_lexicon.zig");
 const channel_mod = @import("channel.zig");
 const homophone = @import("homophone.zig");
+const word_model = @import("word_model.zig");
 const Syllable = keyboard.Syllable;
 const Candidate = candidate_mod.Candidate;
 const Span = candidate_mod.Span;
@@ -89,8 +90,19 @@ pub const Lexicon = struct {
     repair_valid_readings: bool = false,
     /// Optional homophone word-bigram table (null = byte-identical decode).
     homophone: ?homophone.Table = null,
+    word_model: ?word_model.Table = null,
+    word_model_weight: f64 = 0,
     /// Nats of table bonus per unit of difference between two homophones.
     homophone_weight: f64 = 1.0,
+    /// Experiment: weight of the homophone table's bonus for (previous
+    /// word, word) applied inside the search instead of the rerank after
+    /// it; 0 = off (byte-identical decode). docs/development.md.
+    homophone_in_search: f64 = 0,
+    /// Extra syllables a one-character word waits before the session
+    /// settles it (multi-character words settle 3 back): transient splits
+    /// leave single characters (處|過濾 for 出國旅) that later keys merge
+    /// back. 0 = the old rule. docs/development.md, 單字詞延後沉澱.
+    settle_single_extra: usize = 1,
     /// The same for words that differ only by tone over syllables typed
     /// without one (toneless input: 喝/何, 杯/被); 0 = such words are not
     /// reranked. 1.0 is the knee of the 2026-10-14 typing_eval sweep
@@ -107,11 +119,31 @@ pub const Lexicon = struct {
     /// decoder prefers without them, but never choose the split: a pick of
     /// 它是 for ㄊㄚ ㄕ must not turn toneless ㄊㄚㄕㄨㄛ (他說) into 它是我.
     learning_keeps_syllables: bool = true,
+    /// A valid tone-closed run may also be an apical initial plus a vowel
+    /// syllable when an exact dictionary word supports that split. The
+    /// original syllable remains a candidate; 0 key/tone repairs required.
+    split_valid_tone_runs: bool = true,
+    /// Experimental search gate: any complete clean candidate suppresses
+    /// extra repair segmentations, regardless of which candidate scores best.
+    repair_requires_no_clean: bool = false,
     /// Touched nodes and what they held before the user overlay.
     pristine: std.ArrayList(Pristine) = .empty,
     user_word_count: usize = 0,
+    /// Text addresses of user dictionary entries (each text is its own
+    /// copy). Their weight ranks them on their own reading; a repair of a
+    /// valid reading must not land on them, or weight 0 alone outweighs
+    /// the exact input (不識之無 for ㄅㄨ ㄕ ㄓㄜ, docs/development.md).
+    user_texts: std.AutoHashMapUnmanaged(usize, void) = .empty,
 
     const Pristine = struct { node: u32, entries: []Entry, toneless: ?[]Entry };
+
+    fn homophoneInSearch(self: *const Lexicon) bool {
+        return self.homophone != null and self.homophone_in_search > 0;
+    }
+
+    fn isUserWord(self: *const Lexicon, entry: Entry) bool {
+        return self.user_texts.count() != 0 and self.user_texts.contains(@intFromPtr(entry.text.ptr));
+    }
 
     /// `tsv` parts are concatenated (lexicon.tsv, local_phrases.tsv); rows
     /// are `reading-reading<TAB>text<TAB>score`. `toneless` rows override a
@@ -134,6 +166,11 @@ pub const Lexicon = struct {
         _ = try homophone.Table.parse(bytes);
         const owned = try self.arena.allocator().dupe(u8, bytes);
         self.homophone = try homophone.Table.parse(owned);
+    }
+
+    pub fn setWordModel(self: *Lexicon, bytes: []const u8) !void {
+        _ = try word_model.Table.parse(bytes);
+        self.word_model = try word_model.Table.parse(try self.arena.allocator().dupe(u8, bytes));
     }
 
     pub fn destroy(self: *Lexicon) void {
@@ -479,9 +516,10 @@ pub const Lexicon = struct {
             span: Range,
             found: *std.StringArrayHashMapUnmanaged(f64),
 
-            fn walk(w: @This(), node: u32, index: usize, penalty: f64) !void {
+            fn walk(w: @This(), node: u32, index: usize, penalty: f64, valid_repair: bool) !void {
                 if (index == w.span.end) {
                     for (w.lexicon.nodes.items[node].entries.items) |entry| {
+                        if (valid_repair and w.lexicon.isUserWord(entry)) continue;
                         const score = entry.score - penalty;
                         const slot = try w.found.getOrPut(w.arena, entry.text);
                         if (slot.found_existing and slot.value_ptr.* >= score) continue;
@@ -492,11 +530,11 @@ pub const Lexicon = struct {
                 for (w.options[index]) |o| {
                     if (o.word_only and w.span.len() == 1) continue;
                     const next = w.lexicon.child(node, o.reading) orelse continue;
-                    try w.walk(next, index + 1, penalty + o.cost);
+                    try w.walk(next, index + 1, penalty + o.cost, valid_repair or o.word_only);
                 }
             }
         };
-        try (Walker{ .lexicon = self, .arena = arena, .options = options, .span = span, .found = &found }).walk(0, span.start, 0);
+        try (Walker{ .lexicon = self, .arena = arena, .options = options, .span = span, .found = &found }).walk(0, span.start, 0, false);
         const out = try arena.alloc(WordOption, found.count());
         for (found.keys(), found.values(), out) |text, score, *o| o.* = .{ .text = text, .score = score };
         std.mem.sort(WordOption, out, {}, struct {
@@ -555,12 +593,35 @@ pub const Lexicon = struct {
 
     // MARK: - Composition decoding
 
-    /// Split a tone-terminated run that is not viable as one syllable.
+    /// Split an invalid tone-terminated run, or a valid one with an exact
+    /// dictionary-backed apical-initial split.
     fn repairComplete(self: *const Lexicon, arena: Allocator, syllable: Syllable, tone_tolerance: bool) ![]const []const Syllable {
         var out: std.ArrayList([]const Syllable) = .empty;
         // Swift passes no toneTolerance here: the default (true) applies.
         if ((try self.alternatives(arena, syllable, false, true)).len > 0) {
             try out.append(arena, try one(arena, syllable));
+            // An apical initial can be a complete syllable before a vowel
+            // in a valid tone-closed run (十 + 五 / 屬). Explore this only
+            // when an exact dictionary word supports the two syllables;
+            // arbitrary char splits crowd the beam and cost every later key.
+            if (!self.split_valid_tone_runs or syllable.keys.len < 2 or
+                std.mem.indexOfScalar(u8, "5tgbyhn", syllable.keys[0]) == null)
+                return out.items;
+            const head = Syllable{ .keys = syllable.keys[0..1], .tone = null };
+            const tail = Syllable{ .keys = syllable.keys[1..], .tone = syllable.tone };
+            const heads = try self.alternatives(arena, head, false, tone_tolerance);
+            const tails = try self.alternatives(arena, tail, false, tone_tolerance);
+            supported: for (heads) |h| {
+                if (h.correction != 0) continue;
+                const first = self.child(0, h.reading) orelse continue;
+                for (tails) |t| {
+                    if (t.correction != 0) continue;
+                    const word = self.child(first, t.reading) orelse continue;
+                    if (self.nodes.items[word].entries.items.len == 0) continue;
+                    try out.append(arena, try concat(arena, &.{head}, &.{tail}));
+                    break :supported;
+                }
+            }
             return out.items;
         }
         const keys = syllable.keys;
@@ -683,7 +744,10 @@ pub const Lexicon = struct {
             merger.merged.items[0].unresolved == 0 and merger.merged.items[0].repairs == 0
         else
             false;
-        if (opts.fuzzy and pending.len > 0 and !top_clean) {
+        const has_clean = if (self.repair_requires_no_clean) for (merger.merged.items) |candidate| {
+            if (candidate.unresolved == 0 and candidate.repairs == 0) break true;
+        } else false else top_clean;
+        if (opts.fuzzy and pending.len > 0 and !has_clean) {
             var clean_forms: std.StringHashMapUnmanaged(void) = .empty;
             for (segment_options) |s| try clean_forms.put(arena, try form(arena, s), {});
             var extra: usize = 0;
@@ -930,6 +994,8 @@ pub const Lexicon = struct {
         depth: u8,
         readings: [max_word_syllables]ReadingId,
         learning_tones_match: bool = true,
+        /// Some syllable is a repair of a reading that was already valid.
+        valid_repair: bool = false,
     };
 
     /// Learned keys omit tones, but an explicit tone must still constrain
@@ -955,6 +1021,7 @@ pub const Lexicon = struct {
         var next: std.ArrayList(State) = .empty;
         var span_key: std.ArrayList(u8) = .empty;
         var pin_key: std.ArrayList(u8) = .empty;
+        var input_key: std.ArrayList(u8) = .empty;
         var previous_words: [beam_width][]const u8 = undefined;
         for (0..syllables.len) |start| {
             if (paths[start].len == 0) continue;
@@ -967,7 +1034,7 @@ pub const Lexicon = struct {
                 if (!paths[start + 1].admits(prefix.score - 100)) continue;
                 paths[start + 1].add(try extend(arena, prefix, raw, prefix.score - 100, prefix.repairs, prefix.unresolved + 1, start, start + 1, Span.no_node));
             }
-            if (context_rules != null) {
+            if (context_rules != null or (self.word_model != null and self.word_model_weight > 0) or self.homophoneInSearch()) {
                 for (prefixes[0..prefix_count], 0..) |prefix, i| {
                     previous_words[i] = "";
                     if (prefix.alignment.len == 0) continue;
@@ -979,12 +1046,17 @@ pub const Lexicon = struct {
             states.clearRetainingCapacity();
             try states.append(arena, .{ .node = 0, .penalty = 0, .repairs = 0, .depth = 0, .readings = undefined });
             for (start..@min(syllables.len, start + max_word_syllables)) |end| {
+                if (locked_nonempty) {
+                    input_key.clearRetainingCapacity();
+                    try candidate_mod.appendKey(&input_key, arena, syllables[start .. end + 1]);
+                }
                 next.clearRetainingCapacity();
                 for (states.items) |state| {
                     for (options[end]) |option| {
                         const child_node = self.child(state.node, option.reading) orelse continue;
                         var grown = State{ .node = child_node, .penalty = state.penalty + option.cost, .repairs = state.repairs + option.correction, .depth = state.depth + 1, .readings = state.readings };
                         grown.learning_tones_match = state.learning_tones_match and learningToneMatches(syllables[end], self.readingName(option.reading));
+                        grown.valid_repair = state.valid_repair or option.word_only;
                         grown.readings[state.depth] = option.reading;
                         try next.append(arena, grown);
                         if (option.word_only and end == start) continue;
@@ -1004,10 +1076,11 @@ pub const Lexicon = struct {
                         }
                         const rules: ?[]const user_lexicon.ContextRule = if (grown.learning_tones_match) (if (context_rules) |cr| (if (cr.get(span_key.items)) |list| list.items else null) else null) else null;
                         for (entries, 0..) |entry, rank| {
+                            if (grown.valid_repair and self.isUserWord(entry)) continue;
                             // The cap trims the beam, never a user's pick.
                             if (rank >= cap) {
                                 if (!locked_nonempty) break;
-                                if (!locked.?.hasPin(span_key.items, entry.text)) continue;
+                                if (!locked.?.hasPin(span_key.items, entry.text) and !locked.?.hasPin(input_key.items, entry.text)) continue;
                             }
                             const legacy_pinned = if (locked) |l| l.contains(span_key.items, entry.text) else false;
                             const learned: f64 = if (grown.learning_tones_match and (end > start or syllables.len == 1))
@@ -1020,6 +1093,13 @@ pub const Lexicon = struct {
                                     pin_key.clearRetainingCapacity();
                                     try pin_key.print(arena, "{d}@{s}", .{ prefix.utf16_len, span_key.items });
                                     pinned = l.contains(pin_key.items, entry.text);
+                                    if (!pinned and !std.mem.eql(u8, span_key.items, input_key.items)) {
+                                        // Positional picks name the captured input, which
+                                        // can differ from this repaired dictionary path.
+                                        pin_key.clearRetainingCapacity();
+                                        try pin_key.print(arena, "{d}@{s}", .{ prefix.utf16_len, input_key.items });
+                                        pinned = l.contains(pin_key.items, entry.text);
+                                    }
                                 };
                                 var contextual: f64 = 0;
                                 if (rules) |list| {
@@ -1042,7 +1122,13 @@ pub const Lexicon = struct {
                                 }
                                 const pin_term: f64 = if (pinned) user_lexicon.pin_bonus else 0;
                                 const boost = learned + contextual + pin_term + settled_hits * user_lexicon.pin_bonus;
-                                const score = prefix.score + entry.score - state.penalty - option.cost + boost - self.word_penalty;
+                                var language_score = if (self.word_model != null and self.word_model_weight > 0)
+                                    entry.score + self.word_model_weight * (@log(self.word_model.?.probability(previous_words[index], entry.text)) - entry.score)
+                                else
+                                    entry.score;
+                                if (self.homophoneInSearch() and previous_words[index].len > 0)
+                                    language_score += self.homophone_in_search * self.homophone.?.bonus(previous_words[index], entry.text);
+                                const score = prefix.score + language_score - state.penalty - option.cost + boost - self.word_penalty;
                                 if (!paths[end + 1].admits(score)) continue;
                                 var grown_candidate = try extend(arena, prefix, entry.text, score, prefix.repairs + state.repairs + option.correction, prefix.unresolved, start, end + 1, child_node);
                                 grown_candidate.learned = prefix.learned + learned;
@@ -1071,7 +1157,7 @@ pub const Lexicon = struct {
             o.syllables = syllables;
             o.runs = runs;
         }
-        if (self.homophone != null) self.rerankHomophones(arena, out);
+        if (self.homophone != null and !(self.word_model != null and self.word_model_weight > 0) and !self.homophoneInSearch()) self.rerankHomophones(arena, out);
         return out;
     }
 
@@ -1208,6 +1294,7 @@ pub const Lexicon = struct {
         self.pristine = .empty;
         _ = self.user_arena.reset(.retain_capacity);
         self.user_word_count = 0;
+        self.user_texts = .empty;
         if (added.len == 0 and excluded.len == 0) return;
         const u = self.user_arena.allocator();
         var touched: std.AutoHashMapUnmanaged(u32, void) = .empty;
@@ -1219,6 +1306,7 @@ pub const Lexicon = struct {
             try self.touch(&touched, node_id);
             const node = &self.nodes.items[node_id];
             const text = try u.dupe(u8, word.text);
+            try self.user_texts.put(u, @intFromPtr(text.ptr), {});
             removeText(&node.entries, text);
             try node.entries.append(a, .{ .text = text, .score = word.weight });
             std.mem.sort(Entry, node.entries.items, {}, Entry.better);

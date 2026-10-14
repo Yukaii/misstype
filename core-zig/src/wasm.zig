@@ -76,6 +76,18 @@ export fn misstype_wasm_load_homophone(ptr: [*]const u8, len: usize) i32 {
     return 1;
 }
 
+/// Optional, explicit small-model experiment. Full MWLM tables are refused
+/// in the browser, and only one model can be loaded per initialization.
+/// Copied into the decoder, so the caller may release its upload buffer.
+export fn misstype_wasm_load_word_model(ptr: [*]const u8, len: usize, weight: f64) i32 {
+    const e = engine orelse return 0;
+    if (e.decoder.word_model != null or len > 8 * 1024 * 1024 or len < 4 or
+        !std.mem.eql(u8, bytes(ptr, 4), "MSLM") or !std.math.isFinite(weight) or weight < 0 or weight > 1) return 0;
+    e.decoder.setWordModel(bytes(ptr, len)) catch return 0;
+    e.decoder.word_model_weight = weight;
+    return 1;
+}
+
 export fn misstype_wasm_load_english(tsv_ptr: [*]const u8, tsv_len: usize) i32 {
     const e = engine orelse return 0;
     const lexicon = core.english.EnglishLexicon.create(gpa, bytes(tsv_ptr, tsv_len)) catch return 0;

@@ -246,9 +246,10 @@ pub const UserLexicon = struct {
     }
 
     /// Automatic pins for accepted text: every word of an earlier run and
-    /// every word of the last run ending `keep` syllables before its end,
-    /// one per UTF-16 unit ("run#@offset" -> unit).
-    pub fn settled(gpa: Allocator, top: Candidate, keep: usize) !UserLexicon {
+    /// every word of the last run ending `keep` syllables before its end
+    /// (`keep_single` for one-character words), one per UTF-16 unit
+    /// ("run#@offset" -> unit).
+    pub fn settled(gpa: Allocator, top: Candidate, keep: usize, keep_single: usize) !UserLexicon {
         var out = UserLexicon.init(gpa);
         errdefer out.deinit();
         if (top.runs.len == 0) return out;
@@ -258,7 +259,8 @@ pub const UserLexicon = struct {
         for (top.alignment) |word| {
             if (word.chars.end > top.utf16_len) continue;
             const in_last = last_run.contains(word.syllables.start);
-            if (in_last and @as(i64, word.syllables.end) > @as(i64, last_run.end) - @as(i64, @intCast(keep))) continue;
+            const word_keep = if (word.chars.end - word.chars.start == 1) keep_single else keep;
+            if (in_last and @as(i64, word.syllables.end) > @as(i64, last_run.end) - @as(i64, @intCast(word_keep))) continue;
             const run = top.runIndex(word.syllables.start) orelse continue;
             const run_start = top.charOffset(top.runs[run].start) orelse continue;
             var unit = word.chars.start;

@@ -299,6 +299,96 @@ test "a fused toneless run repairs its tone onto the trailing piece" {
     try t.expectEqual(@as(i32, 0), result[0].unresolved);
 }
 
+test "a valid tone-closed syllable also admits an exact two-syllable word" {
+    const rows = h.tsv(
+        \\ㄦˋ|二|-7
+        \\ㄕˊ|十|-6
+        \\ㄨˇ|五|-7
+        \\ㄕㄨˇ|屬|-8
+        \\ㄕㄨ|書|-6
+        \\ㄕˊ-ㄨˇ|十五|-9
+        \\ㄦˋ-ㄕˊ-ㄨˇ|二十五|-11
+        \\
+    );
+    const d = try Dec.init(rows);
+    defer d.deinit();
+    const partial = try d.comp("-4gj3");
+    d.lex.split_valid_tone_runs = false;
+    try expectTop(try d.decodeParsed(partial, .{}), "二屬");
+    d.lex.split_valid_tone_runs = true;
+    const result = try d.decodeParsed(partial, .{ .fuzzy = false, .tone_tolerance = false });
+    try expectTop(result, "二十五");
+    try t.expectEqual(@as(i32, 0), result[0].repairs);
+    try t.expectEqual(@as(i32, 0), result[0].unresolved);
+    try t.expectEqual(@as(usize, 3), result[0].syllables.len);
+    try t.expectEqual(@as(?u8, null), result[0].syllables[1].tone);
+    try t.expectEqual(@as(?u8, '3'), result[0].syllables[2].tone);
+    // The atomic interpretation remains viable, and a normal first-tone
+    // 書 is not turned into 十五 by borrowing the latter's third tone.
+    try t.expect(h.containsText(result, "二屬"));
+    try expectTop(try d.decodeParsed(try d.comp("gj "), .{}), "書");
+    try expectTop(try d.decodeParsed(try d.comp("-4g6j3"), .{}), "二十五");
+    try expectTop(try d.decodeParsed(try d.comp("-gj"), .{}), "二十五");
+
+    const session = try h.Harness.init(rows);
+    defer session.deinit();
+    try session.typed("-4gj3");
+    try t.expectEqualStrings("二十五", try session.preedit());
+    try t.expectEqualStrings("二十五", (try session.enter()).commit.?);
+}
+
+test "a valid tone-run split needs a word with the supplied tail tone" {
+    const d = try Dec.init(h.tsv(
+        \\ㄕˊ|十|-6
+        \\ㄨ|屋|-7
+        \\ㄨˇ|五|-7
+        \\ㄕㄨˇ|屬|-8
+        \\ㄕˊ-ㄨ|十屋|-1
+        \\
+    ));
+    defer d.deinit();
+    const result = try d.decodeParsed(try d.comp("gj3"), .{});
+    try expectTop(result, "屬");
+    for (result) |candidate| try t.expectEqual(@as(usize, 1), candidate.syllables.len);
+}
+
+test "experimental repair gate ignores a ranking change when a clean path survives" {
+    const d = try Dec.init(h.tsv(
+        \\ㄑㄩˇ-ㄒㄧㄠ|取消|-10.632564
+        \\ㄑㄩˋ|去|-6.440786
+        \\ㄒㄧˇ-ㄗㄠˇ|洗澡|-11.593555
+        \\ㄒㄧㄢ|先|-7.279246
+        \\ㄒㄧㄢ-ㄑㄩˋ|先去|-12.546213
+        \\ㄒㄧㄤˇ|想|-6.726167
+        \\ㄨㄛˇ|我|-5.110316
+        \\ㄨㄛˇ-ㄒㄧㄤˇ-ㄑㄩˋ|我想去|-13.896140
+        \\
+    ));
+    defer d.deinit();
+    const input = try d.comp("jivu0fmvuyl");
+    d.lex.word_penalty = 0.5;
+    try expectTop(try d.decodeParsed(input, .{}), "我先去洗澡");
+    d.lex.word_penalty = 0.75;
+    try expectTop(try d.decodeParsed(input, .{}), "我先取消");
+    d.lex.repair_requires_no_clean = true;
+    const result = try d.decodeParsed(input, .{});
+    // This isolates search expansion; it does not fix the remaining score
+    // preference for 想 over 先. The exact reading remains selectable.
+    try expectTop(result, "我想去洗澡");
+    try t.expect(h.containsText(result, "我先去洗澡"));
+    try t.expect(!h.containsText(result, "我先取消"));
+    try t.expectEqualStrings("jivu0fmvuyl", (try input.parsed(d.a())).pending);
+}
+
+test "experimental repair gate still rescues input with no clean candidate" {
+    const d = try dec();
+    defer d.deinit();
+    d.lex.repair_requires_no_clean = true;
+    const result = try d.decodeParsed(try d.comp("scl"), .{});
+    try expectTop(result, "你好");
+    try t.expect(result[0].repairs > 0);
+}
+
 test "a wrong tone still resolves with a repair penalty" {
     // su4 is ㄋㄧˋ, but the fixture lexicon only knows 你 (ㄋㄧˇ): the tone
     // mismatch must stay viable instead of falling back to raw.
@@ -1213,7 +1303,7 @@ test "settled pins freeze accepted text but not the tail" {
     }
     const top = (try d.decodeSegs(input, .{}))[0];
     try t.expectEqualStrings("大對，代錢包", top.text);
-    var settled = try UserLexicon.settled(t.allocator, top, 3);
+    var settled = try UserLexicon.settled(t.allocator, top, 3, 3);
     defer settled.deinit();
     // The closed run settles whole; the run being typed is too short.
     var texts: std.StringArrayHashMapUnmanaged(void) = .empty;
@@ -1229,6 +1319,13 @@ test "settled pins freeze accepted text but not the tail" {
     defer explicit.deinit();
     try explicit.pin(.{ .text = "打對", .span = Range.of(0, 2), .score = -16 }, top);
     try t.expectEqualStrings("打對，代錢包", (try d.decodeSegs(input, .{ .locked = &explicit }))[0].text);
+    // One-character words wait longer: a transient split (處|過濾 for
+    // 出國旅) must stay open until later keys can merge it back.
+    var single = try UserLexicon.settled(t.allocator, top, 0, 3);
+    defer single.deinit();
+    texts.clearRetainingCapacity();
+    for (single.entries.values()) |entry| for (entry.keys()) |text| try texts.put(t.allocator, text, {});
+    try t.expect(texts.contains("錢") and texts.contains("包") and !texts.contains("代"));
 }
 
 test "the live pending cut leaves only the syllable in progress raw" {
@@ -1501,4 +1598,55 @@ test "a learned pick reorders words but never picks the syllable split" {
 
     d.lex.learning_keeps_syllables = false;
     try expectTop(try d.decodeParsed(toneless, .{ .user_lexicon = &learned }), "它是我");
+}
+
+test "word model changes path ranking only at positive weight" {
+    const decoder = try Dec.init(h.tsv(
+        \\ㄋㄧˇ|你|-5
+        \\ㄋㄧˇ|妳|-6
+    ));
+    defer decoder.deinit();
+    const baseline = try decoder.decodeParsed(try decoder.comp("su3"), .{});
+    try expectTop(baseline, "你");
+    try decoder.lex.setWordModel(&@import("../word_lm.zig").fixture);
+    const zero = try decoder.decodeParsed(try decoder.comp("su3"), .{});
+    try expectTop(zero, "你");
+    try t.expectEqual(baseline[0].score, zero[0].score);
+    decoder.lex.word_model_weight = 0.5;
+    const modeled = try decoder.decodeParsed(try decoder.comp("su3"), .{});
+    try expectTop(modeled, "妳");
+}
+
+test "positional pick matches raw input when its word repairs a dropped key" {
+    const d = try Dec.init(h.tsv(
+        \\ㄍㄨ|估|-1
+        \\ㄔㄜ|車|-2
+        \\ㄍㄨㄥ-ㄔㄜ|公車|-4
+    ));
+    defer d.deinit();
+    const input = try d.comp("ej tk ");
+    const top = (try d.decodeSegs(input, .{}))[0];
+    try t.expectEqualStrings("估車", top.text);
+    var pins = UserLexicon.init(t.allocator);
+    defer pins.deinit();
+    try pins.pin(.{ .text = "公車", .span = Range.of(0, 2), .score = -10 }, top);
+    const picked = (try d.decodeSegs(input, .{ .locked = &pins }))[0];
+    try t.expectEqualStrings("公車", picked.text);
+    try t.expectEqual(@as(i32, 1), picked.repairs);
+    // Picking repairs the reconstruction; the original missing-key evidence stays.
+    try t.expectEqualStrings("ej", picked.syllables[0].keys);
+}
+
+test "sparse word model uses the same optional decoder contract" {
+    const d = try Dec.init(h.tsv(
+        \\ㄋㄧˇ|你|-5
+        \\ㄋㄧˇ|妳|-6
+    ));
+    defer d.deinit();
+    const before = try d.decodeParsed(try d.comp("su3"), .{});
+    try d.lex.setWordModel(&@import("../sparse_lm.zig").fixture);
+    const zero = try d.decodeParsed(try d.comp("su3"), .{});
+    try t.expectEqual(before[0].score, zero[0].score);
+    d.lex.word_model_weight = 0.5;
+    try expectTop(try d.decodeParsed(try d.comp("su3"), .{}), "妳");
 }

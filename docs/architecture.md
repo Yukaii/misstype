@@ -56,6 +56,28 @@ Tone-tolerant alternatives remain candidates at their ordinary repair cost,
 and explicit session picks still override the preview. This avoids a stored
 暗暗 preference cancelling the first-tone evidence in `0 0sucl`.
 
+A tone key closes a captured run, which can still contain an earlier
+untoned syllable. Even when the whole run is a valid reading, the decoder
+also tries an apical initial (ㄓㄔㄕㄖㄗㄘㄙ) plus the remaining keys if
+an existing two-syllable dictionary word supports that split with no key
+or tone repair (`split_valid_tone_runs`). The supplied tone belongs to the
+tail; the atomic reading remains viable at its original score. For example,
+`-4gj3` can produce 二十五 as well as 二屬. Other valid runs stay atomic;
+splitting every vowel combination increased latency and caused a regression
+in the typing simulation. This is an offline hypothesis expansion, not a
+frequency boost or a change to the captured keys.
+
+Developer ablation only: `Lexicon.repair_requires_no_clean` (default false;
+`MISSTYPE_REPAIR_REQUIRES_NO_CLEAN=1` in misstype-dev) gates additional
+repair segmentations on whether any complete zero-repair candidate survives
+the initial beam, instead of whether its first candidate is clean. It
+isolates how language ranking can trigger more search; it does not remove
+all score dependence, since the beam is still score-pruned. It is not exposed
+in adapter settings or enabled by the C ABI/wasm loaders. The dev typing
+experiment found no selection/coverage gain and 20 extra preview changes,
+so production keeps its existing gate. Calibration clears this shell flag
+to prevent it silently changing the declared parameter profiles.
+
 ### Session coordinator
 
 Owns pause detection, explicit commit, revision, and cancellation. Capture events are accepted while a decode is running. A stale result must never overwrite a newer session revision.
@@ -92,7 +114,7 @@ native key event --adapter--> KeyEvent --> InputSession.handle --> KeyResult  (o
 
 ### macOS adapter (M5)
 
-The macOS system integration is an InputMethodKit target. `IMKServer` manages client connections and each `IMKInputController` owns one `InputSession` (see Platform boundary); the behavior below is the session's, the controller only translates NSEvents and draws `SessionView`. The macOS adapter runs the Zig core (through the C ABI) for keyboard parsing, composition state, trie-based phrase segmentation, and conservative one-key fuzzy rescue; it sends marked preview text and only committed text back to the client. Space is a boundary, never a commit: after pending keys it marks first tone — strong evidence like any tone key (other tones pay 4.0; RIME bopomofo parity, user decision 2026-09-27) — otherwise it stays a literal separator (empty composition passes it straight through); only Return commits — exactly the preview, raw Bopomofo tail included (注音文; a run that cannot start a syllable, like ㄏㄏㄏㄏ, stays raw whole), trailing whitespace trimmed; Shift+Return commits the keys as typed (`rawPhonetic`, never learned) for 注音文 made of valid syllables, like a lone ㄗ. Accepted text settles: earlier runs and words 3+ syllables before the end become character-level automatic pins (never learned, overridden by explicit picks), so the list only varies text near the cursor. Continuous toneless pending keys convert live as they are typed (`livePendingCut`: the whole run when it segments cleanly, else up to 3 trailing keys — the syllable in progress — stay raw), so tones stay optional and nothing waits for space; decode of a 57-key (26-syllable) toneless run measured ~90 ms per keystroke. They are jointly segmented in `decodeComposition`, fused tone-terminated runs are repaired onto the trailing piece, explicit tones are soft hints (same-base variants stay viable with a penalty, late tones re-hit via `retoneLast`), invalid readings get tiered edit repair (transpose 4.0, neighbor- and
+The macOS system integration is an InputMethodKit target. `IMKServer` manages client connections and each `IMKInputController` owns one `InputSession` (see Platform boundary); the behavior below is the session's, the controller only translates NSEvents and draws `SessionView`. The macOS adapter runs the Zig core (through the C ABI) for keyboard parsing, composition state, trie-based phrase segmentation, and conservative one-key fuzzy rescue; it sends marked preview text and only committed text back to the client. Space is a boundary, never a commit: after pending keys it marks first tone — strong evidence like any tone key (other tones pay 4.0; RIME bopomofo parity, user decision 2026-09-27) — otherwise it stays a literal separator (empty composition passes it straight through); only Return commits — exactly the preview, raw Bopomofo tail included (注音文; a run that cannot start a syllable, like ㄏㄏㄏㄏ, stays raw whole), trailing whitespace trimmed; Shift+Return commits the keys as typed (`rawPhonetic`, never learned) for 注音文 made of valid syllables, like a lone ㄗ. Accepted text settles: earlier runs and words 3+ syllables before the end (one-character words 4+, since transient splits leave them behind; 2026-10-14) become character-level automatic pins (never learned, overridden by explicit picks), so the list only varies text near the cursor. Continuous toneless pending keys convert live as they are typed (`livePendingCut`: the whole run when it segments cleanly, else up to 3 trailing keys — the syllable in progress — stay raw), so tones stay optional and nothing waits for space; decode of a 57-key (26-syllable) toneless run measured ~90 ms per keystroke. They are jointly segmented in `decodeComposition`, fused tone-terminated runs are repaired onto the trailing piece, explicit tones are soft hints (same-base variants stay viable with a penalty, late tones re-hit via `retoneLast`), invalid readings get tiered edit repair (transpose 4.0, neighbor- and
 phonetic-confusion substitute 5.0 — ㄧㄨㄩ / 捲平舌 / n-l / nasals ride
 along even on valid bases, cost-capped so exact input keeps winning;
 insert/delete 6.0 stay gated on no-clean-reading), and destructive editing
@@ -276,3 +298,47 @@ Capture failures must be visible and recoverable without losing already-recorded
 `LexiconDecoder.decodeMixed(keys:english:)` (`MixedDecode.swift`) reads bare keys as English when that wins on score: candidate English spans (exact words of an `EnglishLexicon` or one edit away for words of 5+ letters) are decoded as latin segments through `decodeSegments` and priced `word ln p - 6 x edits - switchPenalty` (default 4) against the all-Chinese reading. The English list is built by `script/prepare_lexicon.py` from the pinned FrequencyWords source into `.cache/frequencywords/english.tsv` and is optional: without it nothing changes. Measurements and limits are in the project outline ("Mixed Chinese/English without a switch").
 
 Session wiring: after `livePreview`, `InputSession.refresh` calls `applyEnglish` when `SessionSettings.mixedEnglish` is on and `InputEngine.englishLexicon` (loaded off-thread from `english.tsv`) exists. The English reading is inserted first when it beats the Chinese one by `MixedDecoding.autoMargin` beyond the penalty, second within `suggestWindow`, else not at all. Inserted readings are tracked in `completeTexts`: preedit shows no raw tail with them, and they are excluded from settled pins, `pinDifferences`, the syllable cursor (`focusFrame`), chunked auto-commit and learning, since their positional run indexes differ from the composition's. Punctuation, earlier latin keys and spaces in the composition are carried through unchanged; English spans are bare letter keys, optionally led by Shift-typed latin capitals (`Python`). Live readings show the syllable being typed as raw Zhuyin and charge `rawKeyCost` per raw key; a different extra letter after a whole word is never read as a typo. macOS default off (`MisstypeMixedEnglish`), core and C ABI default on when the word list is present; the C struct is unchanged.
+
+### Developer word-model experiment (2026-10-14)
+
+`word_lm.zig` reads complete word-pair counts with absolute-discount conditional
+probabilities and add-one unigram backoff. The optional model interpolates its
+log conditional probability with each lexicon entry score **inside** word-path
+search, before beam pruning. Lexicon scores are heuristic scores, so this is
+score interpolation, not interpolation of two normalized probability models.
+Repair costs, user learning and locks retain their existing terms. At positive
+weight this model replaces the later homophone PMI rerank; zero weight retains
+it. The developer CLI alone loads `MISSTYPE_WORD_LM` with an explicit
+`MISSTYPE_WORD_LM_WEIGHT`; platform adapters and wasm have no model loader.
+No model is bundled and defaults stay unchanged. Interactive prefixes use BOS
+but no EOS bonus. Unknown words use UNK; unknown Chinese glyphs in training are
+mapped to UNK. The existing beam and per-reading entry cap still bound recall.
+Model counts and source provenance are generated locally by `tools/word_lm.py`;
+fixed dev comparisons run through real Sessions with `tools/eval_word_lm.py`.
+
+
+### Repair picks and captured readings (2026-10-14)
+
+A positional Session pick is keyed by the captured, toneless reading at its
+run-local character offset. Decoder paths may use repaired dictionary readings;
+they also check the captured span key for positional pins and entry-cap bypass.
+This honors explicit repair choices without replacing raw keys or changing edit
+costs. Legacy dictionary-reading lookup remains compatible. Reproduction,
+paired typing results and intentional replay updates: [repair-pick.md](repair-pick.md).
+
+
+### Optional sparse word model (experimental)
+
+The offline decoder accepts the full `MWLM` table and `MSLM` v1 through
+`word_model.Table`. MSLM stores sorted hash/unigram/backoff word records
+(16 bytes) and sorted vocabulary-ID/direct-mass pairs (12 bytes). Pruning
+transfers deleted probability mass to unigram backoff; parsing validates
+normalization and special symbols. The scorer and repair search are shared.
+
+WASM exposes `misstype_wasm_load_word_model(ptr, len, weight)` for explicit
+experiments only: MSLM, at most 8 MiB, finite weight in [0,1], one successful
+load per initialization. The decoder owns a copy; the upload buffer can be
+freed. A positive weight replaces homophone reranking. The JS URL loader
+falls back to the existing optional homophone table on failure. No model or
+new weight becomes a shipping default. Results and limitations are in
+[lightweight-models.md](lightweight-models.md).

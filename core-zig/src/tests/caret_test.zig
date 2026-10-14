@@ -222,3 +222,29 @@ test "the layout splits a fused toneless body by decoded syllables" {
     try t.expectEqualSlices(usize, &.{0}, layout.word_starts);
     try t.expectEqualSlices(usize, &.{5}, layout.word_ends);
 }
+
+test "cursor pick of a dropped-key word changes text and preserves capture" {
+    const s = try Harness.init(h.tsv(
+        \\ㄍㄨ|估|-1
+        \\ㄔㄜ|車|-2
+        \\ㄍㄨㄥ-ㄔㄜ|公車|-4
+    ));
+    defer s.deinit();
+    try s.typed("ej tk ");
+    try s.expectPreedit("估車");
+    _ = try s.left();
+    _ = try s.left();
+    const view = try s.view();
+    const index = for (view.candidates, 0..) |word, i| {
+        if (std.mem.eql(u8, word, "公車")) break i;
+    } else return error.MissingRepairCandidate;
+    try s.session.pick(index);
+    try s.expectPreedit("公車");
+    const keys = s.session.composition.keys();
+    try t.expectEqual(@as(usize, 6), keys.len);
+    try t.expectEqual(@as(u8, 'e'), keys[0].key);
+    try t.expectEqual(@as(u8, 'j'), keys[1].key);
+    const result = try s.enter();
+    // A cursor pick can advance past the phrase; Return then commits it.
+    try t.expectEqualStrings("公車", result.commit.?);
+}

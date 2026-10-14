@@ -431,6 +431,115 @@ gain. Counting context-rule bonuses in the split rule as well cost repeat
 memory (partial-tones 19 -> 18 fewer), so only context-free words are
 counted.
 
+Finding (word-backed split of a valid tone run, 2026-10-14,
+`typing_eval.py`, working tree based on `4d5c1fd`). Added the missing
+`clean-partial-tones` control: no key/tone errors, independently seeded 50 %
+tone omission, alongside the existing noisy partial-tone persona. Its dev
+keys `w8rupsu0-4gj3njo` and `g-m,-4gj3b4` ended as 他今年二屬歲 and
+十二月二數日, unreachable by selection. `gj3` is already a valid ㄕㄨˇ,
+so `repairComplete` never offered ㄕ + ㄨˇ. Hypothesis: keep the atomic
+reading and also offer a dictionary-backed split, retaining the tone on the
+tail. No frequency or repair-weight changes. Tried and rejected: splitting
+all valid runs (one noisy dev sentence became uncorrectable), then all
+apical-initial runs (clean dev p95 rose from 0.43 to 1.99 ms). Kept only an
+apical initial plus the remaining keys when a two-syllable dictionary word
+supports them with no key/tone repair (`split_valid_tone_runs`, dev-only
+`MISSTYPE_NO_TONE_RUN_SPLITS=1` disables it for A/B).
+
+Same keys before/after, ReleaseFast, sequential `--jobs 1`, 346 independent
+synthetic sentences expanded into 7,200 cases (2 seeds, 8 personas, three
+mixed-English methods): 2 fewer-pick cases / 0 more, both formerly
+unreachable number sentences now correct without selection. Dev: 3,616
+cases, 2/0; holdout: 3,584, 0/0 (confirmation, not a generalization gain).
+Chinese clean-partial no-pick 81.8 -> 82.1 %, unreachable 0.9 -> 0.5 %;
+dev alone 82.8 -> 83.4 %, unreachable 0.7 -> 0 %. Fully toned and toneless
+control accuracy/picks unchanged. Per-key p95: clean 0.39 -> 0.50 ms,
+clean-toneless 3.28 -> 3.22, clean-partial 3.18 -> 3.23, noisy partial
+3.25 -> 3.23; small overhead on clean toned input, maxima remain noisy.
+Offline candidate example: 二屬 -16.100515 -> 二十五 -11.493356,
+zero repairs/unresolved; the atomic candidate survives at the same score.
+
+Checks: Zig unit/behavior suites, Linux Debug/ReleaseFast + C ABI + fcitx5
+and IBus C1-C15, wasm and Python checks. Exact golden gate unchanged;
+parity reviewed 14 lower-ranked records (top-1/top-5 quality unchanged).
+Four replay goldens reviewed: 30/30/34/32 candidate lists changed, plus
+two candidate-count fields for 400/487; first candidates, preedit text,
+commits and raw evidence unchanged. The macOS replay shell wrapper lost
+DYLD_LIBRARY_PATH through its timer script; ran the same native replay
+driver directly with the library path and compared all four transcripts.
+Fixture: `tests/fixtures/partial-tone-number.md`. Baseline refreshed with
+the new control. Limit: character-only splits and non-apical valid runs
+remain unexpanded; this fixes a narrow recall gap, not most homophone ties.
+The new control also exposes existing learning damage, including
+吃過 -> 出國 on the first pass; independent real typing is still unmeasured.
+
+Finding (grouped offline calibration, 2026-10-14, `tools/calibrate_decoder.py`,
+experiment only, product defaults unchanged). Fixed nine profiles before
+evaluation: word penalty 0.25/0.5/0.75, all three context weights multiplied
+together by 0.75/1/1.25. Chinese dev only, 145 sentences x 8 personas x
+2 seeds, 2,320 cases; all variants of a sentence in one of five SHA-256
+folds. Select on the other four folds, guarding every persona's coverage
+and every clean control's top-1, then evaluate the excluded sentences.
+All folds chose word penalty 0.75 with unchanged context weights: 18 fewer
+pick cases / 0 more, picks 386 -> 356, unreachable unchanged at 259.
+Clean p95 0.51 -> 0.53 ms; clean-toneless 3.46 -> 3.47; clean-partial
+3.40 -> 3.53; noisy partial 3.76 -> 3.81 (offline, ReleaseFast, serial).
+
+Freeze that choice and check existing holdout (regression set, already seen
+in previous experiments, not a new blind test): 3,584 cases including mixed
+English, 55 fewer / 19 more. Clean-toneless no-pick 69.8 -> 68.5 % and picks
+4.73 -> 4.93/100 chars; two mixed-English cases newly uncorrectable.
+Rejected the parameter change; retained word penalty 0.5. No second choice
+was made against holdout. Fixture `tests/fixtures/word-penalty-calibration.md`
+records 我先去洗澡 -> 我先取消. A language-weight change can also open the
+repair track when the initial top ceases to be clean, so score calibration
+and hypothesis search are coupled; that gate's causal contribution remains
+to be ablated. The tools retain binary/data/generator hashes and local
+per-case results; no personal files or network services used. Two protocol
+tests cover sentence leakage, coverage/control guards and default tie breaks;
+the Python suite now has 94 passing tests. Next: an independently reserved
+test set, then a smoothed/backoff word model with calibrated phonetic costs;
+do not keep optimizing weights against these already familiar sentences.
+
+Finding (repair-search gate ablation, 2026-10-14). The previous weight
+experiment suggested that a scoring change also opened new search. Added
+`repair_requires_no_clean` (disabled by default, developer-only
+`MISSTYPE_REPAIR_REQUIRES_NO_CLEAN=1`): require no complete zero-repair
+candidate in the initial beam before expanding extra repair segmentations.
+At fixed word penalty 0.75, 我先取消 disappears; 我想去洗澡 remains first
+(-33.989695) and the exact 我先去洗澡 second (-34.000084). An eight-entry
+unit fixture reproduces the contribution of search independently of the
+remaining ranking failure; invalid `scl` still gets repaired to 你好.
+
+Paired same-order dev batches at unchanged product penalty 0.5 (3,616
+cases, 2 seeds, all eight personas and mixed methods): fewer/more picks
+0/0, correction keys and coverage unchanged. Chinese CER 8.07 -> 8.08 %,
+preview churn 1,772 -> 1,792. Per-key p95 clean 0.53 -> 0.53 ms,
+clean-toneless 3.50 -> 3.48, clean-partial 3.49 -> 3.46, noisy partial
+3.84 -> 3.83 (offline ReleaseFast; timing noise not a speed claim).
+An initial comparison with the older full baseline showed two extra
+correction keys, but these vanished in the paired comparison and are not
+attributed to the gate. No selection benefit: retain only as a disabled
+developer ablation; product settings and baseline unchanged. Calibration
+clears this shell flag. The beam is still score-pruned, so this does not
+fully decouple evidence search from language ranking.
+
+Before any new word-model evaluation, reserved 200 external Common Voice
+25 zh-TW short sentences in `tools/eval/external_v1.json` (commit `6ec8187`):
+exclude the first 2,000 unique readable source-ID-ordered sentences and all
+known synthetic evaluation text, then fixed salted hash selection. Source,
+lexicon, text and pronunciation hashes pinned; no candidate results read.
+Generated TSV stays local; `tools/reserve_eval.py` regenerates it and refuses
+to change a frozen manifest. This is fresh text for model selection, not
+human typing or HPLT-decontaminated text; dictionary-derived pronunciations
+also need audit. Source/limitations in `docs/offline-evaluation.md`.
+
+Checks: host Zig behavior suites, Linux core/C ABI/fcitx5/IBus conformance,
+wasm, 11 CLI tests, 96 Python tests. Default decoder/parity/all four replay
+goldens MATCH with no updates. Existing sensitive/unrelated traces untouched.
+Next model experiment must be fixed on dev before consuming the reserved
+external test; do not use the new sample to tune the gate.
+
 Pilot (triage, NOT a finding yet, `--jev-mode trust`, n=5, threshold 0.6
 read post-hoc): one boolean on offline top-1 ("候選1是最正確的嗎")
 separates 10/10 — right top-1 trusts 0.82+ (hide-panel), wrong top-1
@@ -733,6 +842,11 @@ candidates that break a pin drop out of the list. `live_trace.py
 one holdout sentence; K=3 keeps dev identical, holdout toned 31 = 31,
 toneless 21 -> 22, and 4-sentence ，-joined inputs identical. Panel
 windows longer than a row now keep the end nearest the cursor.
+2026-10-14: one-character words settle 4 back instead of 3. Transient
+splits leave single characters behind (處|過濾 while typing 出國旅行)
+that the 3-back rule froze. clean-toneless dev 224 -> 230/290, 59 cases
+need fewer picks and 6 need more; the list shows variants of old text one
+syllable longer (docs/development.md, 單字詞延後沉澱).
 
 Heterophone weighting (2026-09-27, user report: typed ㄗㄢˋ, got 暫):
 not a fuzzy slip — BPMFBase lists 暫 under both ㄓㄢˋ and the variant
@@ -1313,6 +1427,13 @@ What the arms showed:
   the clean-input check was added because the sentence sweep had missed it.
   Offset -1 still changed 8 frequent chars (屋→一, 呢→了, 娘→年) through
   the always-on phonetic confusions, so strong keeps offset 0.
+- Valid-reading repairs never land on user dictionary words (2026-10-14).
+  A user word's weight (default 0) ranks it above built-in words on its
+  own reading; it is not evidence of a slip. Toneless ㄅㄨ ㄕ ㄓㄜ ㄧㄤ ㄅㄚ
+  became 不識之無樣把 with that idiom in the user dictionary: ㄓㄜ split
+  into the real syllables ㄓ + ㄜ, ㄜ was repaired to its neighbor ㄨ (5.0),
+  and weight 0 outweighed the exact path by far more. The word still
+  wins on its own reading and through repairs of invalid readings.
 - 好喔 typed ㄛ˙ still becomes 好啊 under strong. 喔 has no ㄛ˙ reading, so
   both readings are repairs (tone 4.0 vs the word 好啊 via ㄚ, 5.0).
 - Light measured no gain here. Clean-input errors at standard are

@@ -118,3 +118,17 @@ The smoke test checks the hypothesis that the JS wrapper preserves the Zig
 session's settings, offline conversion, commit delivery, and English
 pass-through. Assets must be hosted by your application; the tarball contains
 only the wrapper, package metadata, usage documentation, and MIT license.
+
+
+Experimental sparse conditional models can be explicitly loaded with
+`wordModelUrl` and `wordModelWeight` (default 0.5), or
+`ime.loadWordModel(bytes, weight)`. Only MSLM files up to 8 MiB are accepted,
+once per initialization. A successful positive-weight URL load skips the
+homophone download; failure falls back to `homophoneUrl`. This is a measurement
+API, not a recommended default: the tested sparse tables failed quality guards.
+See [tradeoff measurements](../../docs/lightweight-models.md).
+
+Omit `englishUrl` to avoid constructing the English dictionary index in the
+low-level API. The site loader also accepts `englishUrl: null` to disable that
+asset explicitly. This trades English dictionary features for lower memory;
+ordinary key capture remains available.

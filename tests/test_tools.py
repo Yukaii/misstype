@@ -25,6 +25,7 @@ lm_choose = load_tool("lm_choose")
 cursor_replay = load_tool("cursor_replay")
 learned = load_tool("learned")
 typing_eval = load_tool("typing_eval")
+reserve_eval = load_tool("reserve_eval")
 _spec = importlib.util.spec_from_file_location(
     "prepare_lexicon", TOOLS.parent / "script" / "prepare_lexicon.py")
 assert _spec is not None and _spec.loader is not None
@@ -33,6 +34,15 @@ _spec.loader.exec_module(prepare_lexicon)
 
 
 class ToolTests(unittest.TestCase):
+    def test_external_reservation_excludes_duplicate_legacy_and_known_sentences(self):
+        rows = [("a", "舊評估句", "old"), ("b", "已知句子", "known"),
+                ("c", "新評估句", "new"), ("z", "舊評估句", "duplicate")]
+        selected = reserve_eval.sample(rows, {"已知句子"}, legacy=1, count=1)
+        self.assertEqual(selected, [("c", "新評估句", "new")])
+        self.assertEqual(selected, reserve_eval.sample(list(reversed(rows)), {"已知句子"}, 1, 1))
+        with self.assertRaises(ValueError):
+            reserve_eval.sample(rows, {"已知句子"}, legacy=1, count=2)
+
     def test_cer_counts_character_edits(self):
         self.assertEqual(bench.cer("你好", "你好"), 0.0)
         self.assertAlmostEqual(bench.cer("你好", "你"), 0.5)
