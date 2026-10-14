@@ -341,6 +341,29 @@ identical (replay and parity gates MATCH). Not wired into any adapter's
 packaging yet; the table is not committed (derived from HPLT web text,
 licence undecided).
 
+Finding (toneless cross-tone class, 2026-10-14, `tools/typing_eval.py`).
+Trigger: with no tones typed, a typo-free typist needed 5.8 picks per 100
+characters against 1.5 with tones, and most misses were a word of another
+tone outscoring the right one on unigram alone (喝→何, 杯→被, 寫→些,
+份→分, 棒→幫). The rerank above never saw them: its class requires the
+same trie node, i.e. the same toned reading. Hypothesis: over syllables
+typed without a tone, words that differ only by tone (another node, no
+extra repair or unresolved syllable) can join the top-1's class with their
+own weight, without touching toned input. Falsified if the typo-free toned
+control moves, or holdout does not improve. Dev sweep
+(`MISSTYPE_TONELESS_HOMOPHONE_WEIGHT`, 200k table, picks per case vs weight
+0): w=0.5 68 fewer / 5 more, w=1 79/5, w=2 80/20, w=3 81/74, w=4 76/182;
+clean-toneless no-pick 70.3 -> 74.5 %, picks/100 chars 5.52 -> 4.83 at
+w=1. Holdout at w=1: 41 fewer / 9 more (all 9 one sentence, 吃過→遲過),
+clean-toneless and toneless +2.7 pp, toned personas unchanged. Common
+Voice zh-TW (400 sentences, independent of both): toned +0/-0, toneless
++21/-4 (屍體, 事件, 蠻, 理智), picks/100 chars 10.38 -> 9.44. Shipped as
+`toneless_homophone_weight = 1.0` in the Lexicon. Golden gates MATCH (they
+decode without homophone.bin). Limit: the table only counts pairs whose
+second word has a same-reading homophone, so words confusable only across
+tones (當機/黨籍) have no pairs; a recount over HPLT keyed on toneless
+readings is the next step for this class.
+
 Pilot (triage, NOT a finding yet, `--jev-mode trust`, n=5, threshold 0.6
 read post-hoc): one boolean on offline top-1 ("候選1是最正確的嗎")
 separates 10/10 — right top-1 trusts 0.82+ (hide-panel), wrong top-1
