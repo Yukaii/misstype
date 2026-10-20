@@ -39,3 +39,15 @@ test("empty paragraphs survive a round trip", () => {
 test("word count treats each Han character as a word", () => {
   assert.deepEqual(wordCount(parseMarkdown("你好 hello world")), { chars: 2, words: 2, total: 4 });
 });
+
+test("a divider round-trips and the palette inserts one below the caret", async () => {
+  assert.equal(roundTrip("a\n\n---\n\nb"), "a\n\n---\n\nb");
+  const { EditorState, TextSelection } = await import("../site/node_modules/prosemirror-state/dist/index.js");
+  const { actions } = await import("../site/editor/actions.js");
+  let state = EditorState.create({ doc: parseMarkdown("一\n\n二") });
+  state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, 2)));
+  actions.divider.run(state, (tr) => { state = state.apply(tr); });
+  assert.equal(toMarkdown(state.doc), "一\n\n---\n\n&nbsp;\n\n二");
+  assert.equal(state.selection.$from.parent.type.name, "paragraph");
+  assert.equal(state.selection.$from.index(0), 2);
+});

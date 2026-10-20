@@ -87,6 +87,12 @@ no browser default). With the keyboard up the candidates dock above it as one ro
 candidates that scrolls sideways (`.candidate-panel.docked`, as in the system
 candidate bar) instead of floating at the caret; the page arrows are hidden.
 The bar keeps its slot, so the stack is keyboard, candidate bar, status strip.
+While the keyboard is up the page is exactly one screen tall (`body.vk-on`,
+`100dvh`, window not scrollable) and only the document (`main.pg`) scrolls,
+with a 3em bottom pad instead of 40vh. Scrolling the window under the fixed
+keyboard let the page run a keyboard's height past its end, and in iPhone
+landscape the scroll margins kept clear of the bars added up to more than the
+screen, so the caret could never be "in view" and every key scrolled.
 A chevron at the bar's right end dismisses the keyboard (it commits the
 pre-edit and blurs the editor, text stays); the keyboard comes back when the
 editor takes focus again, and `inputmode="none"` stays so the system keyboard
@@ -132,6 +138,13 @@ is unreliable there). So `editor.css` keeps `html`, `body`, the sticky
 header/toolbar and the status strip all `--paper`, puts the safe-area insets on
 those bars instead of the body, and scrolls the window rather than an inner
 box; `keepCaretClear` sets ProseMirror's scroll margins from the bar heights.
+The exception is the on-screen keyboard (see above), where an inner scroller is
+the only layout that fits a phone in landscape.
+Safari also scrolls the page when a dialog's field takes focus (raising the
+system keyboard) and when focus returns to the editor; `editor.js` remembers
+the scroll position while no dialog is open and restores it as any dialog
+closes, before a palette command runs. Text fields and selects in dialogs are
+16px on touch screens, since iOS zooms into smaller ones and stays zoomed.
 Checked only with Chromium's iPad emulation (no safe-area insets there).
 
 ## About
@@ -145,6 +158,8 @@ the native macOS and Linux versions and the privacy note.
 - In Chinese mode the decoder owns `-`, `#`, `*`, backtick and digits, so
   Markdown shortcuts (`# `, `- `, `**bold**`) only trigger in English mode;
   the toolbar and palette work in either.
+- `---`, `***` or `___` alone in a paragraph becomes a divider (English mode,
+  like the other shortcuts); the palette's 分隔線 inserts one in either mode.
 - The Markdown schema has no strikethrough, tables or task lists.
 - The on-screen keyboard has no one-shot Shift (tap Shift then a letter) or number/symbol layers; Shift is hold-only because a tap is 中/英. With no number row, digits and symbols are the top row's English-mode (or Shift) caps.
 - Not tried on a real iPad or in an installed home-screen app; the offline

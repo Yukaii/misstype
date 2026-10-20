@@ -31,6 +31,8 @@ body.app { display: flex; flex-direction: column; min-height: 100vh; min-height:
 :root[data-scheme="dark"] .tool.english { background: #1d2a40; color: #8fb8f0; border-color: #2f4468; }
 .tool.primary { background: var(--ink); color: var(--paper); border-color: var(--ink); }
 .tool.icon { display: inline-grid; place-items: center; width: 34px; padding: 0; }
+/* The light/dark switch is shared with the landing page (round there); here it is one of the toolbar's square buttons. */
+.bar .theme-toggle.tool:hover { color: var(--ink); border-color: var(--line); }
 .tool.icon svg, .bar .theme-toggle svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 #mode-label { font-weight: 600; }
 body:not(.ime-ready) #mode-label { opacity: .5; }
@@ -41,7 +43,6 @@ body:not(.ime-ready) #mode-label { opacity: .5; }
   padding: 1px 8px; border-radius: 6px; font-size: 15px; font-weight: 600; line-height: 1.5;
   background: var(--ink); color: var(--paper);
 }
-#mode-flash.english { background: #1a4f8b; color: #fff; }
 #mode-flash.show { animation: mode-flash 1.3s ease-out forwards; }
 @keyframes mode-flash { 0%, 70% { opacity: .95; transform: translateY(0); } 100% { opacity: 0; transform: translateY(-4px); } }
 @media (prefers-reduced-motion: reduce) { #mode-flash.show { animation: mode-flash-rm 1.3s forwards; } @keyframes mode-flash-rm { 0%, 80% { opacity: .95; } 100% { opacity: 0; } } }
@@ -135,6 +136,8 @@ dialog.sheet label { display: flex; justify-content: space-between; align-items:
 dialog.sheet label.check { justify-content: flex-start; }
 dialog.sheet select { font: inherit; font-size: 14px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); color: var(--ink); }
 dialog.sheet .hint { margin: 0; color: var(--muted); font-size: 13px; }
+/* iOS zooms the page into any text field or select under 16px when it takes focus, and stays zoomed. */
+@media (pointer: coarse) { dialog.sheet select, #dict-text { font-size: 16px; } }
 
 @media (max-width: 640px) {
   .bar { padding-left: max(10px, env(safe-area-inset-left)); padding-right: max(10px, env(safe-area-inset-right)); }
@@ -239,9 +242,19 @@ dialog.sheet h3 span { margin-left: 6px; color: var(--muted); font-weight: norma
 .vk[data-platform="android"][data-shift="true"] .vk-key[data-special="shift"] { background: #c2d7ff; color: #001a41; }
 .vk[data-platform="android"] .vk-key:not([data-special]).down::before { border-radius: 14px; }
 
-/* Stack, bottom up: keyboard, candidate bar (--cb-h), status strip. */
-body.vk-on { --cb-h: 48px; padding-bottom: calc(var(--vk-h, 0px) + var(--cb-h)); }
-body.vk-on .status { bottom: calc(var(--vk-h, 0px) + var(--cb-h)); }
+/* Stack, bottom up: keyboard, candidate bar (--cb-h), status strip.
+   With the on-screen keyboard the page is exactly one screen tall and only the
+   document scrolls. Scrolling the window under a fixed keyboard let the page
+   run past its end by the keyboard's height, and in landscape the margins
+   kept clear of the bars left no room for the caret, so every key scrolled. */
+html:has(body.vk-on) { height: 100%; overflow: hidden; overscroll-behavior: none; }
+body.vk-on {
+  --cb-h: 48px; box-sizing: border-box; height: 100vh; height: 100dvh; min-height: 0; overflow: hidden;
+  padding-bottom: calc(var(--vk-h, 0px) + var(--cb-h));
+}
+body.vk-on main.pg { flex: 1 1 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+body.vk-on .ProseMirror { padding-bottom: 3em; }
+body.vk-on .status { position: static; padding-bottom: 6px; }
 body.vk-on #toast { bottom: calc(var(--vk-h, 0px) + var(--cb-h) + 56px); }
 @media (max-height: 480px) { .vk { --vk-row-gap: 5px; --vk-h-key: min(34px, calc(var(--vk-u) * 1.28)); padding-top: 4px; } .vk-key:not([data-special]).down::before { height: 40px; } }
 
