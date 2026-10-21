@@ -4,6 +4,19 @@
 // settings and fall-through to ProseMirror behave identically.
 import { INDENT, ROWS, capLabels, keyText } from "./vkeys.js";
 
+/**
+ * Whether a keydown proves a hardware keyboard. The system keyboard also sends
+ * real keydowns (Latin letters, Backspace, Return) while it types into a text
+ * field (note rename, palette, dictionary), so only keys aimed at the editor,
+ * where inputmode="none" keeps the system keyboard away, or at nothing focused count.
+ * @param {KeyboardEvent} e
+ * @param {HTMLElement} editor
+ */
+export function fromHardwareKeyboard(e, editor) {
+  if (!e.isTrusted || e.isComposing || e.keyCode === 229 || e.key === "Unidentified") return false;
+  return e.target === e.target?.ownerDocument?.body || editor.contains(e.target);
+}
+
 const REPEAT_DELAY = 420;
 const REPEAT_EVERY = 55;
 
