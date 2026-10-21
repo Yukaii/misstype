@@ -1,9 +1,10 @@
 import { chainCommands, createParagraphNear, lift, liftEmptyBlock, newlineInCode, setBlockType, splitBlock, toggleMark, wrapIn } from "prosemirror-commands";
 import { liftListItem, sinkListItem, splitListItem, wrapInList } from "prosemirror-schema-list";
 import { undoInputRule } from "prosemirror-inputrules";
+import { TextSelection } from "prosemirror-state";
 import { schema } from "./model.js";
 
-const { paragraph, heading, blockquote, code_block, bullet_list, ordered_list, list_item, hard_break } = schema.nodes;
+const { paragraph, heading, blockquote, code_block, bullet_list, ordered_list, list_item, hard_break, horizontal_rule } = schema.nodes;
 const { strong, em, code } = schema.marks;
 
 const inside = (state, type, attrs) => {
@@ -39,7 +40,19 @@ export const actions = {
   orderedList: { run: toggleList(ordered_list), active: (s) => inside(s, ordered_list) },
   quote: { run: toggleWrap(blockquote, wrapIn(blockquote)), active: (s) => inside(s, blockquote) },
   codeBlock: { run: toggleBlockType(code_block), active: (s) => s.selection.$from.parent.type === code_block },
+  divider: { run: insertDivider },
 };
+
+/** A divider after the current block, with the caret in a fresh paragraph below it. */
+function insertDivider(state, dispatch) {
+  const { $to } = state.selection;
+  const at = $to.depth > 0 ? $to.after(1) : state.doc.content.size;
+  if (dispatch) {
+    const tr = state.tr.insert(at, [horizontal_rule.create(), paragraph.create()]);
+    dispatch(tr.setSelection(TextSelection.create(tr.doc, at + 2)).scrollIntoView());
+  }
+  return true;
+}
 
 function markActive(state, mark) {
   const { from, $from, to, empty } = state.selection;

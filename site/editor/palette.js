@@ -22,7 +22,12 @@ export class Palette {
       const li = e.target.closest("li[data-i]");
       if (li) this.run(Number(li.dataset.i));
     });
-    this.dialog.addEventListener("close", () => this.onClose?.());
+    this.dialog.addEventListener("close", () => {
+      const command = this.pending;
+      this.pending = null;
+      this.onClose?.();
+      command?.run();
+    });
   }
 
   get isOpen() {
@@ -35,7 +40,7 @@ export class Palette {
     this.input.value = "";
     this.filter();
     this.dialog.showModal();
-    this.input.focus();
+    this.input.focus({ preventScroll: true });
   }
 
   close() {
@@ -73,9 +78,9 @@ export class Palette {
   run(i) {
     const command = this.items[i];
     if (!command) return;
+    // Runs once the dialog has closed and handed focus back to the editor.
+    this.pending = command;
     this.close();
-    // Let the dialog hand focus back to the editor before the command runs.
-    queueMicrotask(() => command.run());
   }
 
   onKey(e) {

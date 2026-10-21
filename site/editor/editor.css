@@ -2,14 +2,21 @@
    come from ../style.css; candidate styles from ../playground.css. */
 
 /* iOS 26 Safari tints and blurs its top bar from the page background (or a
-   sticky/fixed element at the edge), and lets the page run edge to edge. So the
-   page, the sticky chrome and the status strip all share --paper, the safe-area
-   insets pad the bars themselves (not the body), and the window scrolls so
-   Safari can collapse its own bars. */
-html { background: var(--paper); }
-body.app { display: flex; flex-direction: column; min-height: 100vh; min-height: 100dvh; margin: 0; background: var(--paper); }
+   fixed element at the edge), and lets the page run edge to edge. So the page,
+   the chrome and the status strip all share --paper, and the safe-area insets
+   pad the bars themselves (not the body).
+   The page never scrolls: it is pinned to the visible part of the screen
+   (--vv-h / --vv-top, from visualViewport in editor.js, so it ends above the
+   system keyboard or Safari's form bar) and only the document scrolls. A
+   scrolling window ran past the note's end and put the status strip wherever
+   iOS left the layout viewport. */
+html { background: var(--paper); height: 100%; overflow: hidden; overscroll-behavior: none; }
+body.app {
+  position: fixed; left: 0; right: 0; top: var(--vv-top, 0px); height: 100vh; height: var(--vv-h, 100dvh);
+  box-sizing: border-box; display: flex; flex-direction: column; margin: 0; overflow: hidden; background: var(--paper);
+}
 
-.chrome { position: sticky; top: 0; z-index: 20; background: var(--paper); }
+.chrome { flex: none; z-index: 20; background: var(--paper); }
 .bar {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   padding: calc(8px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 8px max(16px, env(safe-area-inset-left));
@@ -31,6 +38,8 @@ body.app { display: flex; flex-direction: column; min-height: 100vh; min-height:
 :root[data-scheme="dark"] .tool.english { background: #1d2a40; color: #8fb8f0; border-color: #2f4468; }
 .tool.primary { background: var(--ink); color: var(--paper); border-color: var(--ink); }
 .tool.icon { display: inline-grid; place-items: center; width: 34px; padding: 0; }
+/* The light/dark switch is shared with the landing page (round there); here it is one of the toolbar's square buttons. */
+.bar .theme-toggle.tool:hover { color: var(--ink); border-color: var(--line); }
 .tool.icon svg, .bar .theme-toggle svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 #mode-label { font-weight: 600; }
 body:not(.ime-ready) #mode-label { opacity: .5; }
@@ -41,12 +50,14 @@ body:not(.ime-ready) #mode-label { opacity: .5; }
   padding: 1px 8px; border-radius: 6px; font-size: 15px; font-weight: 600; line-height: 1.5;
   background: var(--ink); color: var(--paper);
 }
-#mode-flash.english { background: #1a4f8b; color: #fff; }
 #mode-flash.show { animation: mode-flash 1.3s ease-out forwards; }
 @keyframes mode-flash { 0%, 70% { opacity: .95; transform: translateY(0); } 100% { opacity: 0; transform: translateY(-4px); } }
 @media (prefers-reduced-motion: reduce) { #mode-flash.show { animation: mode-flash-rm 1.3s forwards; } @keyframes mode-flash-rm { 0%, 80% { opacity: .95; } 100% { opacity: 0; } } }
 
-main.pg { flex: 1; display: flex; flex-direction: column; }
+main.pg {
+  flex: 1 1 0; min-height: 0; display: flex; flex-direction: column;
+  overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+}
 #editor { flex: 1; }
 
 /* Format toolbar: page colours, so it follows the light/dark switch. */
@@ -70,7 +81,7 @@ main.pg { flex: 1; display: flex; flex-direction: column; }
 #editor { cursor: text; }
 .ProseMirror {
   box-sizing: border-box; width: 100%; min-height: 100%; outline: none;
-  padding: 28px clamp(16px, 5vw, 48px) 40vh; font-size: var(--editor-size, 18px); line-height: 1.8;
+  padding: 28px clamp(16px, 5vw, 48px) 30vh; font-size: var(--editor-size, 18px); line-height: 1.8;
   font-family: var(--sans); color: var(--ink); caret-color: var(--ink);
 }
 .pg[data-wrap="comfortable"] .ProseMirror { max-width: calc(46em + 2 * clamp(16px, 5vw, 48px)); margin: 0 auto; }
@@ -93,7 +104,7 @@ main.pg { flex: 1; display: flex; flex-direction: column; }
 .pm-replaced { display: none; }
 
 .status {
-  position: sticky; bottom: 0; z-index: 20;
+  flex: none; z-index: 20;
   display: flex; gap: 16px; align-items: center; border-top: 1px solid var(--line);
   padding: 6px max(16px, env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
   color: var(--muted); font-size: 13px; background: var(--paper);
@@ -135,6 +146,8 @@ dialog.sheet label { display: flex; justify-content: space-between; align-items:
 dialog.sheet label.check { justify-content: flex-start; }
 dialog.sheet select { font: inherit; font-size: 14px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); color: var(--ink); }
 dialog.sheet .hint { margin: 0; color: var(--muted); font-size: 13px; }
+/* iOS zooms the page into any text field or select under 16px when it takes focus, and stays zoomed. */
+@media (pointer: coarse) { dialog.sheet select, #dict-text { font-size: 16px; } }
 
 @media (max-width: 640px) {
   .bar { padding-left: max(10px, env(safe-area-inset-left)); padding-right: max(10px, env(safe-area-inset-right)); }
@@ -239,9 +252,12 @@ dialog.sheet h3 span { margin-left: 6px; color: var(--muted); font-weight: norma
 .vk[data-platform="android"][data-shift="true"] .vk-key[data-special="shift"] { background: #c2d7ff; color: #001a41; }
 .vk[data-platform="android"] .vk-key:not([data-special]).down::before { border-radius: 14px; }
 
-/* Stack, bottom up: keyboard, candidate bar (--cb-h), status strip. */
+/* Stack, bottom up: keyboard, candidate bar (--cb-h), status strip. The
+   keyboard and the bar are fixed; the body leaves room for them. */
 body.vk-on { --cb-h: 48px; padding-bottom: calc(var(--vk-h, 0px) + var(--cb-h)); }
-body.vk-on .status { bottom: calc(var(--vk-h, 0px) + var(--cb-h)); }
+body.vk-on .status { padding-bottom: 6px; }
+/* On a phone a third of the screen of blank space after the note is most of it. */
+@media (pointer: coarse) { .ProseMirror { padding-bottom: 3em; } }
 body.vk-on #toast { bottom: calc(var(--vk-h, 0px) + var(--cb-h) + 56px); }
 @media (max-height: 480px) { .vk { --vk-row-gap: 5px; --vk-h-key: min(34px, calc(var(--vk-u) * 1.28)); padding-top: 4px; } .vk-key:not([data-special]).down::before { height: 40px; } }
 

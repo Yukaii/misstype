@@ -97,14 +97,23 @@ function createView() {
 
 const view = createView();
 
-// The window scrolls under the sticky header, toolbar and status strip, so keep
-// the caret clear of them when ProseMirror scrolls it into view.
-function keepCaretClear() {
-  const top = $(".chrome").offsetHeight + 12;
-  // The docked candidate bar sits right above the keyboard.
-  const bottom = $(".status").offsetHeight + vkHeight() + (vkEl.hidden ? 0 : 48) + 24;
-  view.setProps({ scrollMargin: { top, bottom, left: 8, right: 8 }, scrollThreshold: { top, bottom, left: 8, right: 8 } });
+// Only the document scrolls, between the header and the status strip (editor.css),
+// so the caret needs just a little room when ProseMirror scrolls it into view.
+const caretMargin = { top: 12, bottom: 24, left: 8, right: 8 };
+view.setProps({ scrollMargin: caretMargin, scrollThreshold: caretMargin });
+
+// The page is pinned to the visible part of the screen: on iOS the system
+// keyboard and Safari's form bar shrink the visual viewport but not 100dvh,
+// and the layout viewport can be panned under them. Skipped while pinch-zoomed.
+function fitViewport() {
+  const vv = window.visualViewport;
+  if (!vv || Math.abs(vv.scale - 1) > 0.01) return;
+  document.documentElement.style.setProperty("--vv-h", `${Math.round(vv.height)}px`);
+  document.documentElement.style.setProperty("--vv-top", `${Math.round(vv.offsetTop)}px`);
 }
+fitViewport();
+visualViewport?.addEventListener("resize", fitViewport);
+visualViewport?.addEventListener("scroll", fitViewport);
 
 function runAction(id) {
   actions[id].run(view.state, view.dispatch, view);
@@ -235,7 +244,6 @@ function applyVirtualKeyboard() {
   // Without this the system keyboard would pop up over ours, dismissed or not.
   view.setProps({ attributes: wanted ? { inputmode: "none" } : {} });
   document.documentElement.style.setProperty("--vk-h", `${vkHeight()}px`);
-  keepCaretClear();
 }
 
 function dismissKeyboard() {
@@ -307,7 +315,6 @@ document.addEventListener("keydown", (e) => {
 touchOnly.addEventListener("change", applyVirtualKeyboard);
 new ResizeObserver(() => {
   document.documentElement.style.setProperty("--vk-h", `${vkHeight()}px`);
-  keepCaretClear();
 }).observe(vkEl);
 
 function applyImeSettings() {
@@ -452,6 +459,7 @@ const commands = [
   { id: "ol", title: "編號清單", keywords: "ordered numbered list", run: act("orderedList") },
   { id: "quote", title: "引用", keywords: "blockquote", run: act("quote") },
   { id: "code", title: "程式碼區塊", keywords: "code block", run: act("codeBlock") },
+  { id: "hr", title: "分隔線", keywords: "divider horizontal rule hr separator ---", run: act("divider") },
   { id: "bold", title: "粗體", keywords: "bold strong", chord: chord("Mod-b"), run: act("bold") },
   { id: "italic", title: "斜體", keywords: "italic emphasis", chord: chord("Mod-i"), run: act("italic") },
   { id: "inline-code", title: "行內程式碼", keywords: "code", chord: chord("Mod-`"), run: act("code") },
@@ -461,6 +469,20 @@ const commands = [
 
 const palette = new Palette(() => commands);
 palette.onClose = () => view.focus();
+
+// A dialog's text field (and the system keyboard it raises) and the editor
+// taking focus back both make Safari scroll the page; a long note ended up at
+// its top. Remember where the note was before a dialog opened and put it back
+// as the dialog closes, before any command run from it scrolls on purpose.
+const scrollers = () => [document.scrollingElement, app];
+let scrollSpot = scrollers().map((el) => el.scrollTop);
+addEventListener("scroll", () => {
+  if (!document.querySelector("dialog[open]")) scrollSpot = scrollers().map((el) => el.scrollTop);
+}, { capture: true, passive: true });
+// Capture: runs before each dialog's own close handler.
+document.addEventListener("close", (e) => {
+  if (e.target instanceof HTMLDialogElement) scrollers().forEach((el, i) => { el.scrollTop = scrollSpot[i]; });
+}, true);
 
 document.addEventListener("keydown", (e) => {
   if (palette.isOpen || settingsDialog.open || aboutDialog.open || dictionary.isOpen || learning.isOpen || e.isComposing) return;
@@ -550,8 +572,6 @@ settingsDialog.querySelector("[data-close]").addEventListener("click", () => set
 
 // -------------------------------------------------------------------- boot
 
-keepCaretClear();
-addEventListener("resize", keepCaretClear);
 applyAppearance();
 countEl.textContent = `${wordCount(view.state.doc).total} 字`;
 updateToolbar();
