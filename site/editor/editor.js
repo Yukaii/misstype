@@ -22,8 +22,10 @@ import { preeditKey, preeditPlugin, setPreedit } from "./preedit.js";
 import { registerServiceWorker } from "./pwa.js";
 import { markdownRules } from "./rules.js";
 import { IME_KEYS, loadSettings, saveSettings } from "./settings.js";
+import { createNotes, UNTITLED } from "./notes.js";
+import { Sidebar } from "./sidebar.js";
+import { zenPlugin } from "./zen.js";
 
-const DOC_KEY = "misstype-editor-md";
 const $ = (sel) => document.querySelector(sel);
 
 const settings = loadSettings();
@@ -39,16 +41,22 @@ let nativeImeKeys = 0;
 
 // ---------------------------------------------------------------- document
 
-const readStored = () => {
-  try { return localStorage.getItem(DOC_KEY) || ""; } catch { return ""; }
-};
+const notes = createNotes();
+let currentId = notes.load().current;
+// Editor states of notes opened this visit, so each keeps its own undo history.
+const states = new Map();
 
 let saveTimer = 0;
 function scheduleSave() {
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    try { localStorage.setItem(DOC_KEY, toMarkdown(view.state.doc)); } catch { /* storage full or private mode */ }
-  }, 400);
+  saveTimer = setTimeout(saveNow, 400);
+}
+
+function saveNow() {
+  if (!saveTimer) return;
+  clearTimeout(saveTimer);
+  saveTimer = 0;
+  if (notes.write(currentId, toMarkdown(view.state.doc))) sidebar.render();
 }
 
 const placeholder = new Plugin({
@@ -65,20 +73,23 @@ const placeholder = new Plugin({
   },
 });
 
+const createState = (markdown) => EditorState.create({
+  doc: parseMarkdown(markdown),
+  plugins: [
+    markdownRules,
+    history(),
+    keymap({ ...editingKeys, "Mod-z": undo, "Mod-y": redo, "Shift-Mod-z": redo }),
+    keymap(baseKeymap),
+    dropCursor(),
+    preeditPlugin,
+    placeholder,
+    zenPlugin,
+  ],
+});
+
 function createView() {
   return new EditorView($("#editor"), {
-    state: EditorState.create({
-      doc: parseMarkdown(readStored()),
-      plugins: [
-        markdownRules,
-        history(),
-        keymap({ ...editingKeys, "Mod-z": undo, "Mod-y": redo, "Shift-Mod-z": redo }),
-        keymap(baseKeymap),
-        dropCursor(),
-        preeditPlugin,
-        placeholder,
-      ],
-    }),
+    state: createState(notes.read(currentId)),
     // Pasted plain text is read as Markdown, so notes from other editors keep their structure.
     clipboardTextParser: (text, $context, plain) => {
       if (plain) return undefined;
@@ -88,7 +99,7 @@ function createView() {
       view.updateState(view.state.apply(tr));
       if (tr.docChanged) {
         scheduleSave();
-        countEl.textContent = `${wordCount(view.state.doc).total} 字`;
+        updateCount();
       }
       updateToolbar();
     },
@@ -96,6 +107,61 @@ function createView() {
 }
 
 const view = createView();
+const updateCount = () => { countEl.textContent = `${wordCount(view.state.doc).total} 字`; };
+
+function show(id) {
+  currentId = id;
+  view.updateState(states.get(id) ?? createState(notes.read(id)));
+  app.scrollTop = 0;
+  updateCount();
+  updateToolbar();
+}
+
+/** Saves the note on screen and puts another one in its place. */
+function openNote(id) {
+  flush();
+  if (id !== currentId) {
+    saveNow();
+    states.set(currentId, view.state);
+    show(id);
+  }
+  notes.setCurrent(id);
+  sidebar.render();
+  sidebar.reveal();
+  if (narrowSidebar.matches) setSidebar(false);
+  view.focus();
+}
+
+const currentFolder = () => notes.load().notes.find((n) => n.id === currentId)?.folder ?? null;
+
+function newNote(folder = currentFolder(), markdown = "") {
+  flush();
+  saveNow();
+  states.set(currentId, view.state);
+  show(notes.create(folder, markdown));
+  sidebar.render();
+  sidebar.reveal();
+  if (narrowSidebar.matches) setSidebar(false);
+  view.focus();
+}
+
+/** Deletes a note (asking first unless it is empty) and opens a neighbour if it was on screen. */
+function deleteNote(id) {
+  flush();
+  const note = notes.load().notes.find((n) => n.id === id);
+  if (!note) return;
+  const current = id === currentId;
+  const empty = !(current ? toMarkdown(view.state.doc) : notes.read(id)).trim();
+  const title = note.title || UNTITLED;
+  if (!empty && !confirm(`刪除「${title}」？刪除後無法復原。`)) return;
+  if (current) { clearTimeout(saveTimer); saveTimer = 0; }
+  states.delete(id);
+  const next = notes.delete(id);
+  if (current) show(next);
+  sidebar.render();
+  if (!empty) toast(`已刪除「${title}」`);
+  if (current) view.focus();
+}
 
 // Only the document scrolls, between the header and the status strip (editor.css),
 // so the caret needs just a little room when ProseMirror scrolls it into view.
@@ -381,23 +447,22 @@ const plainText = () => view.state.doc.textBetween(0, view.state.doc.content.siz
 
 function download() {
   const url = URL.createObjectURL(new Blob([toMarkdown(view.state.doc)], { type: "text/markdown;charset=utf-8" }));
-  const a = Object.assign(document.createElement("a"), { href: url, download: "note.md" });
+  const name = (notes.load().notes.find((n) => n.id === currentId)?.title || "note").replace(/[\\/:*?"<>|…]+/g, " ").trim().slice(0, 40) || "note";
+  const a = Object.assign(document.createElement("a"), { href: url, download: `${name}.md` });
   document.body.append(a);
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-/** Replaces the whole note with a Markdown file; one undo brings the old one back. */
+/** Opens a Markdown file as a new note. */
 function importFile() {
   const input = Object.assign(document.createElement("input"), { type: "file", accept: ".md,.markdown,.txt,text/markdown,text/plain" });
   input.addEventListener("change", async () => {
     const file = input.files?.[0];
     if (!file) return;
-    const doc = parseMarkdown(await file.text());
-    view.dispatch(view.state.tr.replaceWith(0, view.state.doc.content.size, doc.content).scrollIntoView());
+    newNote(currentFolder(), await file.text());
     toast(`已匯入 ${file.name}`);
-    view.focus();
   });
   input.click();
 }
@@ -440,9 +505,18 @@ const commands = [
     run: () => copyText(toMarkdown(view.state.doc), "已複製 Markdown") },
   { id: "copy-text", title: "複製為純文字", keywords: "copy plain text 複製", combo: "Mod-Shift-x", chord: chord("Mod-Shift-x"),
     run: () => copyText(plainText(), "已複製純文字") },
+  { id: "new-note", title: "新增筆記", keywords: "new note create 新筆記 建立", combo: "Mod-Alt-n", chord: chord("Mod-Alt-n"),
+    run: () => newNote() },
+  { id: "sidebar", title: "顯示／隱藏筆記列表", keywords: "sidebar notes list folders tree 側欄 資料夾", combo: "Mod-\\", chord: chord("Mod-\\"),
+    run: () => setSidebar(!sidebarOpen()) },
+  { id: "zen", title: "專注模式", keywords: "zen focus mode distraction free hide 禪 專心", combo: "Mod-Shift-f", chord: chord("Mod-Shift-f"),
+    run: () => setZen(!document.body.classList.contains("zen")) },
+  { id: "delete-note", title: "刪除這篇筆記", keywords: "delete remove note 刪除 筆記", run: () => deleteNote(currentId) },
+  { id: "new-folder", title: "新增資料夾", keywords: "folder new 資料夾", run: () => { setSidebar(true); sidebar.newFolder(); } },
+  { id: "para", title: "建立 PARA 資料夾", keywords: "para projects areas resources archives folders 資料夾", run: () => { setSidebar(true); sidebar.addPara(); } },
   { id: "clear", title: "清空內容", keywords: "clear delete empty 清除", combo: "Mod-Shift-k", chord: chord("Mod-Shift-k"), run: clearAll },
   { id: "download", title: "下載 .md 檔", keywords: "download save export 儲存", combo: "Mod-s", chord: chord("Mod-s"), run: download },
-  { id: "import", title: "匯入 Markdown 檔", keywords: "import open file 開啟", combo: "Mod-o", chord: chord("Mod-o"), run: importFile },
+  { id: "import", title: "匯入 Markdown 檔為新筆記", keywords: "import open file 開啟", combo: "Mod-o", chord: chord("Mod-o"), run: importFile },
   { id: "mode", title: "切換中／英", keywords: "english chinese mode 中英", combo: "Mod-Shift-e", chord: chord("Mod-Shift-e") + " · 輕按 Shift", run: toggleMode },
   { id: "dictionary", title: "我的詞庫", keywords: "dictionary words phrases user 詞庫 詞彙", combo: "Mod-Shift-d", chord: chord("Mod-Shift-d"), run: () => dictionary.open() },
   { id: "learning", title: "學習資料", keywords: "learning learned phrases slips forget 學習 學到的詞 打錯", run: () => learning.open() },
@@ -522,6 +596,83 @@ toolbar.addEventListener("click", (e) => {
   else commands.find((c) => c.id === button.dataset.command)?.run();
 });
 
+// ----------------------------------------------------------------- sidebar
+
+// Docked beside the note on a wide screen (open or closed is remembered),
+// a drawer over it on a narrow one (closed after picking a note).
+const SIDEBAR_KEY = "misstype-editor-sidebar";
+const narrowSidebar = matchMedia("(max-width: 800px)");
+const sidebarEl = $("#sidebar");
+const sidebar = new Sidebar(sidebarEl, {
+  notes,
+  current: () => currentId,
+  open: openNote,
+  create: (folder) => newNote(folder),
+  remove: deleteNote,
+  toast,
+});
+
+const sidebarOpen = () => document.body.classList.contains("side-open");
+function setSidebar(open) {
+  document.body.classList.toggle("side-open", open);
+  $("#sidebar-btn").setAttribute("aria-expanded", String(open));
+  sidebarEl.inert = !open;
+  if (!narrowSidebar.matches) {
+    try { localStorage.setItem(SIDEBAR_KEY, open ? "1" : "0"); } catch { /* private mode */ }
+  }
+  if (open && narrowSidebar.matches) sidebarEl.querySelector(".note.current .row-main")?.focus({ preventScroll: true });
+  if (!open && sidebarEl.contains(document.activeElement)) view.focus();
+}
+function initialSidebar() {
+  if (narrowSidebar.matches) return false;
+  try { return localStorage.getItem(SIDEBAR_KEY) !== "0"; } catch { return true; }
+}
+setSidebar(initialSidebar());
+narrowSidebar.addEventListener("change", () => setSidebar(initialSidebar()));
+$("#side-scrim").addEventListener("click", () => setSidebar(false));
+// Sidebar taps settle the composition first, as the toolbar does.
+sidebarEl.addEventListener("pointerdown", flush, true);
+
+// Another tab (or the installed app) changed the notes: redraw the list, and
+// reload the open note if it was not being edited here.
+addEventListener("storage", (e) => {
+  if (e.key === notes.indexKey) {
+    const index = notes.load();
+    if (!index.notes.some((n) => n.id === currentId)) show(index.current);
+    sidebar.render();
+  } else if (e.key === `misstype-editor-note:${currentId}` && !saveTimer && !imeState?.preedit) {
+    states.delete(currentId);
+    show(currentId);
+  } else if (e.key?.startsWith("misstype-editor-note:")) {
+    states.delete(e.key.slice("misstype-editor-note:".length));
+  }
+});
+// Closing the tab or switching apps must not lose the last 400 ms of typing.
+addEventListener("pagehide", saveNow);
+document.addEventListener("visibilitychange", () => { if (document.hidden) saveNow(); });
+
+// --------------------------------------------------------------------- zen
+
+// Zen hides the header, toolbar, status strip and sidebar and dims all but
+// the block being written (zen.js, editor.css). Esc, the command or the
+// corner button leave it.
+function setZen(on) {
+  document.body.classList.toggle("zen", on);
+  if (on && narrowSidebar.matches) setSidebar(false);
+  if (on) toast("專注模式 · Esc 離開");
+  if (imeState) panel.place(caretRect());
+  view.focus();
+}
+$("#zen-exit").addEventListener("pointerdown", (e) => e.preventDefault());
+$("#zen-exit").addEventListener("click", () => setZen(false));
+// Bubbling, so an Esc the decoder used (cancelling a composition) never gets here.
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape" || e.defaultPrevented || e.isComposing || !document.body.classList.contains("zen")) return;
+  if (document.querySelector("dialog[open]")) return;
+  e.preventDefault();
+  setZen(false);
+});
+
 // ------------------------------------------------------------------- about
 
 const aboutDialog = $("#about");
@@ -573,8 +724,9 @@ settingsDialog.querySelector("[data-close]").addEventListener("click", () => set
 // -------------------------------------------------------------------- boot
 
 applyAppearance();
-countEl.textContent = `${wordCount(view.state.doc).total} 字`;
+updateCount();
 updateToolbar();
+sidebar.render();
 
 // Capture on the editor so the decoder sees keys before ProseMirror's handlers.
 const host = view.dom;

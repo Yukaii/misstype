@@ -28,10 +28,31 @@ iPad emulation, not a real device).
 - Notes are stored as Markdown in `localStorage` and parsed back on load, so
   the saved note, the copied text and the downloaded `.md` are the same
   (`model.js`, tested by `tests/editor_markdown_test.mjs`). Pasted plain text
-  is parsed as Markdown, and the palette can import a `.md` file. The raw
-  trace is not recorded here.
+  is parsed as Markdown, and the palette can import a `.md` file (as a new
+  note). The raw trace is not recorded here.
+- Several notes (`notes.js`, tested by `tests/editor_notes_test.mjs`): an
+  index `misstype-editor-notes` (folders, order, titles, last open note) plus
+  one key per body, `misstype-editor-note:<id>`. The single note of earlier
+  versions (`misstype-editor-md`) becomes the first note. Folders are one
+  level deep (PARA: the palette's "建立 PARA 資料夾" adds Projects, Areas,
+  Resources, Archives); a title is the note's first line. Each change re-reads
+  the index, so two tabs do not overwrite each other's notes; the open note
+  is per tab, and each note keeps its own undo history for the visit.
+- Sidebar (`sidebar.js`, `Mod-\`): docked on screens wider than 800px (open
+  or closed is remembered), a drawer elsewhere. Each row has a ⋯ menu (move,
+  delete; folder: new note, rename, delete — its notes move to the top
+  level); a note can be dragged onto a folder or before another note. Folder
+  names use the system keyboard, not the decoder.
+- Zen mode (`zen.js`, `Mod-Shift-F` or the header button): hides the header,
+  toolbar, status strip and sidebar, and dims every block but the cursor's
+  (and the list item / quote holding it). Esc (when no composition takes
+  it), the command or the faint corner button leave it.
 - The toolbar (`index.html`, `editor.css`) uses the page's colour variables,
-  so it follows the light/dark switch.
+  so it follows the light/dark switch. Unlike the landing page (light until
+  chosen) the editor follows the system until a scheme is picked
+  (`data-theme-default="auto"`), and `theme-color` follows the scheme in
+  effect: Safari tints its bars with it, which showed a dark bar over the
+  fixed light page.
 - Settings (`settings.js`): candidates per page, Shift toggle, Enter confirms,
   auto-show candidates (all passed to the wasm session), candidate layout and
   palette, font size, column width.
