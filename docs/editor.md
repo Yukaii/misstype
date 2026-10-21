@@ -87,12 +87,9 @@ no browser default). With the keyboard up the candidates dock above it as one ro
 candidates that scrolls sideways (`.candidate-panel.docked`, as in the system
 candidate bar) instead of floating at the caret; the page arrows are hidden.
 The bar keeps its slot, so the stack is keyboard, candidate bar, status strip.
-While the keyboard is up the page is exactly one screen tall (`body.vk-on`,
-`100dvh`, window not scrollable) and only the document (`main.pg`) scrolls,
-with a 3em bottom pad instead of 40vh. Scrolling the window under the fixed
-keyboard let the page run a keyboard's height past its end, and in iPhone
-landscape the scroll margins kept clear of the bars added up to more than the
-screen, so the caret could never be "in view" and every key scrolled.
+While the keyboard is up the body leaves room for it and the candidate bar
+(`body.vk-on`); the document scrolls in the space between (see iOS 26 Safari
+chrome below).
 A chevron at the bar's right end dismisses the keyboard (it commits the
 pre-edit and blurs the editor, text stays); the keyboard comes back when the
 editor takes focus again, and `inputmode="none"` stays so the system keyboard
@@ -134,12 +131,19 @@ too), `Mod-,` settings. The 中/英 mode flashes beside the cursor when it chang
 
 Safari 26 draws the page edge to edge under translucent bars and tints them
 from the page background or a sticky/fixed element at the edge (`theme-color`
-is unreliable there). So `editor.css` keeps `html`, `body`, the sticky
-header/toolbar and the status strip all `--paper`, puts the safe-area insets on
-those bars instead of the body, and scrolls the window rather than an inner
-box; `keepCaretClear` sets ProseMirror's scroll margins from the bar heights.
-The exception is the on-screen keyboard (see above), where an inner scroller is
-the only layout that fits a phone in landscape.
+is unreliable there). So `editor.css` keeps `html`, `body`, the
+header/toolbar and the status strip all `--paper` and puts the safe-area insets
+on those bars instead of the body.
+The window never scrolls. The body is `position: fixed`, pinned to the visual
+viewport (`--vv-h` / `--vv-top`, set from `visualViewport` in `editor.js`,
+skipped while pinch-zoomed), and only the document (`main.pg`) scrolls between
+the header and the status strip, with a small fixed caret margin. Before, the
+window scrolled under sticky bars: the page ran a keyboard's height (or a 40vh
+pad) past the end of the note, in iPhone landscape the margins kept clear of
+the bars added up to more than the screen so every key scrolled, and with only
+Safari's form bar showing the status strip ended up mid-screen. The cost is
+that Safari's bars no longer collapse on scroll. The bottom pad after the note
+is 30vh with a mouse and 3em on touch screens.
 Safari also scrolls the page when a dialog's field takes focus (raising the
 system keyboard) and when focus returns to the editor; `editor.js` remembers
 the scroll position while no dialog is open and restores it as any dialog

@@ -97,15 +97,23 @@ function createView() {
 
 const view = createView();
 
-// The window scrolls under the sticky header, toolbar and status strip, so keep
-// the caret clear of them when ProseMirror scrolls it into view. With the
-// on-screen keyboard only the document scrolls, between those bars.
-function keepCaretClear() {
-  const inner = !vkEl.hidden;
-  const top = inner ? 12 : $(".chrome").offsetHeight + 12;
-  const bottom = inner ? 24 : $(".status").offsetHeight + 24;
-  view.setProps({ scrollMargin: { top, bottom, left: 8, right: 8 }, scrollThreshold: { top, bottom, left: 8, right: 8 } });
+// Only the document scrolls, between the header and the status strip (editor.css),
+// so the caret needs just a little room when ProseMirror scrolls it into view.
+const caretMargin = { top: 12, bottom: 24, left: 8, right: 8 };
+view.setProps({ scrollMargin: caretMargin, scrollThreshold: caretMargin });
+
+// The page is pinned to the visible part of the screen: on iOS the system
+// keyboard and Safari's form bar shrink the visual viewport but not 100dvh,
+// and the layout viewport can be panned under them. Skipped while pinch-zoomed.
+function fitViewport() {
+  const vv = window.visualViewport;
+  if (!vv || Math.abs(vv.scale - 1) > 0.01) return;
+  document.documentElement.style.setProperty("--vv-h", `${Math.round(vv.height)}px`);
+  document.documentElement.style.setProperty("--vv-top", `${Math.round(vv.offsetTop)}px`);
 }
+fitViewport();
+visualViewport?.addEventListener("resize", fitViewport);
+visualViewport?.addEventListener("scroll", fitViewport);
 
 function runAction(id) {
   actions[id].run(view.state, view.dispatch, view);
@@ -236,7 +244,6 @@ function applyVirtualKeyboard() {
   // Without this the system keyboard would pop up over ours, dismissed or not.
   view.setProps({ attributes: wanted ? { inputmode: "none" } : {} });
   document.documentElement.style.setProperty("--vk-h", `${vkHeight()}px`);
-  keepCaretClear();
 }
 
 function dismissKeyboard() {
@@ -308,7 +315,6 @@ document.addEventListener("keydown", (e) => {
 touchOnly.addEventListener("change", applyVirtualKeyboard);
 new ResizeObserver(() => {
   document.documentElement.style.setProperty("--vk-h", `${vkHeight()}px`);
-  keepCaretClear();
 }).observe(vkEl);
 
 function applyImeSettings() {
@@ -566,8 +572,6 @@ settingsDialog.querySelector("[data-close]").addEventListener("click", () => set
 
 // -------------------------------------------------------------------- boot
 
-keepCaretClear();
-addEventListener("resize", keepCaretClear);
 applyAppearance();
 countEl.textContent = `${wordCount(view.state.doc).total} 字`;
 updateToolbar();
