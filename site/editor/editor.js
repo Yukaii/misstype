@@ -212,10 +212,8 @@ function sync(fromKey = false) {
   const text = ime.takeCommitted();
   imeState = ime.state();
   const preedit = imeState.preedit ? imeState : null;
-  // Only when something changed: ProseMirror reads the browser's selection
-  // changes late (selectionchange), so an empty transaction during a key the
-  // decoder passed on would put the old selection back just before the
-  // browser acts. Shift+arrows then never grew a selection past one step.
+  // Only when something changed: most keys outside a composition (arrows,
+  // shortcuts) leave the decoder idle and need no transaction.
   if (text || preedit || preeditKey.getState(view.state)) {
     let tr = view.state.tr;
     if (text) tr = tr.insertText(text).scrollIntoView();
