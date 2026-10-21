@@ -16,7 +16,7 @@ import { parseMarkdown, schema, toMarkdown, wordCount } from "./model.js";
 import { createDictionary } from "./dictionary.js";
 import { createLearning } from "./learning.js";
 import { tick } from "./haptics.js";
-import { VirtualKeyboard } from "./keyboard.js";
+import { VirtualKeyboard, fromHardwareKeyboard } from "./keyboard.js";
 import { Palette } from "./palette.js";
 import { preeditKey, preeditPlugin, setPreedit } from "./preedit.js";
 import { registerServiceWorker } from "./pwa.js";
@@ -287,7 +287,9 @@ const vkEl = $("#vk");
 vkEl.dataset.platform = /Android/i.test(navigator.userAgent) ? "android" : "ios";
 const touchOnly = matchMedia("(pointer: coarse) and (hover: none)");
 // Remembered across visits: an iPad with a keyboard should not flash ours on every load.
-const HW_KEYBOARD_KEY = "misstype-hardware-keyboard";
+// ":2": the first key was also set by system-keyboard typing in text fields; drop those.
+const HW_KEYBOARD_KEY = "misstype-hardware-keyboard:2";
+try { localStorage.removeItem("misstype-hardware-keyboard"); } catch { /* private mode */ }
 const storedHardwareKeyboard = () => {
   try { return localStorage.getItem(HW_KEYBOARD_KEY) === "1"; } catch { return false; }
 };
@@ -378,7 +380,7 @@ const vk = new VirtualKeyboard(vkEl, {
 
 // A real keyboard showed up (iPad with a Magic Keyboard, say): give the screen back.
 document.addEventListener("keydown", (e) => {
-  if (!e.isTrusted || e.isComposing || e.keyCode === 229 || e.key === "Unidentified" || hardwareKeyboardSeen) return;
+  if (hardwareKeyboardSeen || !fromHardwareKeyboard(e, view.dom)) return;
   hardwareKeyboardSeen = true;
   rememberHardwareKeyboard(true);
   if (settings.virtualKeyboard === "auto") applyVirtualKeyboard();
