@@ -505,6 +505,8 @@ const commands = [
     run: () => copyText(toMarkdown(view.state.doc), "已複製 Markdown") },
   { id: "copy-text", title: "複製為純文字", keywords: "copy plain text 複製", combo: "Mod-Shift-x", chord: chord("Mod-Shift-x"),
     run: () => copyText(plainText(), "已複製純文字") },
+  { id: "switch-note", title: "切換筆記⋯", keywords: "switch open go to note quick 開啟 跳到 筆記", combo: "Mod-p", chord: chord("Mod-p"),
+    run: () => openSwitcher() },
   { id: "new-note", title: "新增筆記", keywords: "new note create 新筆記 建立", combo: "Mod-Alt-n", chord: chord("Mod-Alt-n"),
     run: () => newNote() },
   { id: "sidebar", title: "顯示／隱藏筆記列表", keywords: "sidebar notes list folders tree 側欄 資料夾", combo: "Mod-\\", chord: chord("Mod-\\"),
@@ -542,6 +544,24 @@ const commands = [
 ];
 
 const palette = new Palette(() => commands);
+
+/** The palette over the notes: most recently edited first, the open one last; matches title and folder. */
+function openSwitcher() {
+  saveNow();
+  const index = notes.load();
+  const folderName = new Map(index.folders.map((f) => [f.id, f.name]));
+  const items = [...index.notes]
+    .sort((a, b) => (a.id === currentId) - (b.id === currentId) || b.updated - a.updated)
+    .map((note) => {
+      const folder = folderName.get(note.folder) ?? "";
+      return {
+        id: `note:${note.id}`, title: note.title || UNTITLED, keywords: folder,
+        hint: note.id === currentId ? `${folder ? `${folder} · ` : ""}目前` : folder,
+        run: () => openNote(note.id),
+      };
+    });
+  palette.open({ items, placeholder: "搜尋筆記標題或資料夾⋯", empty: "沒有符合的筆記" });
+}
 palette.onClose = () => view.focus();
 
 // A dialog's text field (and the system keyboard it raises) and the editor

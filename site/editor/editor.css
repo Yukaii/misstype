@@ -136,7 +136,8 @@ dialog.palette { width: min(560px, calc(100vw - 24px)); margin: 12vh auto 0; }
 .palette-list li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 9px 12px; border-radius: 8px; cursor: pointer; font-size: 15px; }
 .palette-list li.active { background: var(--mark-bg); }
 .palette-list li.palette-empty { color: var(--muted); cursor: default; }
-.palette-list kbd { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.palette-list kbd, .palette-hint { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.palette-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 dialog.sheet { width: min(460px, calc(100vw - 24px)); }
 dialog.sheet form { padding: 18px 20px 20px; display: grid; gap: 14px; }

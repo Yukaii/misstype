@@ -43,6 +43,9 @@ iPad emulation, not a real device).
   delete; folder: new note, rename, delete — its notes move to the top
   level); a note can be dragged onto a folder or before another note. Folder
   names use the system keyboard, not the decoder.
+- Quick switcher (`Mod-P`, or the palette's "切換筆記⋯"): the palette over
+  the notes, most recently edited first (the open one last), matching the
+  title and the folder name.
 - Zen mode (`zen.js`, `Mod-Shift-F` or the header button): hides the header,
   toolbar, status strip and sidebar, and dims every block but the cursor's
   (and the list item / quote holding it). Esc (when no composition takes
