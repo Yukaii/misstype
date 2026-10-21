@@ -1,5 +1,6 @@
 // Command palette: a filterable list of everything the editor can do.
-// `commands` is an array of { id, title, keywords?, chord?, run }.
+// `commands` is an array of { id, title, keywords?, chord?, hint?, run }.
+// open() can be handed another list (the note switcher) with its own prompt.
 export class Palette {
   constructor(getCommands) {
     this.getCommands = getCommands;
@@ -34,9 +35,11 @@ export class Palette {
     return this.dialog.open;
   }
 
-  open() {
+  open({ items = this.getCommands(), placeholder = "輸入指令…", empty = "沒有符合的指令" } = {}) {
     if (this.isOpen) return;
-    this.commands = this.getCommands();
+    this.commands = items;
+    this.input.placeholder = placeholder;
+    this.emptyText = empty;
     this.input.value = "";
     this.filter();
     this.dialog.showModal();
@@ -63,9 +66,9 @@ export class Palette {
       ? this.items.map((c, i) => `
         <li role="option" data-i="${i}" aria-selected="${i === this.index}" class="${i === this.index ? "active" : ""}">
           <span class="palette-title">${escapeHtml(c.title)}</span>
-          ${c.chord ? `<kbd>${escapeHtml(c.chord)}</kbd>` : ""}
+          ${c.chord ? `<kbd>${escapeHtml(c.chord)}</kbd>` : c.hint ? `<span class="palette-hint">${escapeHtml(c.hint)}</span>` : ""}
         </li>`).join("")
-      : `<li class="palette-empty">沒有符合的指令</li>`;
+      : `<li class="palette-empty">${escapeHtml(this.emptyText)}</li>`;
     this.listEl.querySelector(".active")?.scrollIntoView({ block: "nearest" });
   }
 
