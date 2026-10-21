@@ -43,6 +43,13 @@ iPad emulation, not a real device).
   delete; folder: new note, rename, delete — its notes move to the top
   level); a note can be dragged onto a folder or before another note. Folder
   names use the system keyboard, not the decoder.
+- ←/→ on iOS (`actions.js` `horizontalKeys`): Safari on an iPhone with a
+  hardware keyboard did not move the caret for plain ←/→ here (↑/↓ worked;
+  the decoder passes all four on when nothing is composed, and ProseMirror
+  leaves plain text to the browser). The root cause in WebKit is not pinned
+  down; on iOS the editor moves the caret itself: one code point, into the
+  neighbouring textblock at an edge, Shift extends
+  (`tests/editor_arrows_test.mjs`). ⌥/⌘ moves stay native.
 - Quick switcher (`Mod-P`, or the palette's "切換筆記⋯"): the palette over
   the notes, most recently edited first (the open one last), matching the
   title and the folder name.

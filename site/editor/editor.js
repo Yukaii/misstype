@@ -9,7 +9,7 @@ import "prosemirror-view/style/prosemirror.css";
 import MisstypeWasm from "../../packages/misstype-wasm/src/index.js";
 import "../playground.css";
 import "./editor.css";
-import { actions, editingKeys } from "./actions.js";
+import { actions, editingKeys, horizontalKeys } from "./actions.js";
 import { CandidatePanel } from "./candidates.js";
 import { chord, isApple, matches, modifierBits } from "./keys.js";
 import { parseMarkdown, schema, toMarkdown, wordCount } from "./model.js";
@@ -78,7 +78,7 @@ const createState = (markdown) => EditorState.create({
   plugins: [
     markdownRules,
     history(),
-    keymap({ ...editingKeys, "Mod-z": undo, "Mod-y": redo, "Shift-Mod-z": redo }),
+    keymap({ ...editingKeys, ...horizontalKeys, "Mod-z": undo, "Mod-y": redo, "Shift-Mod-z": redo }),
     keymap(baseKeymap),
     dropCursor(),
     preeditPlugin,
