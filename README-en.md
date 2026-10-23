@@ -1,10 +1,10 @@
 <div align="center">
   <img src="Resources/MisstypeIcon.png" alt="Misstype logo" width="96" height="96">
-  <br><sub><i>Type Zhuyin. Skip the tones.</i></sub>
+  <br><sub><i>Type Zhuyin without the tones.</i></sub>
 
   <h1>Misstype (隨打注音)</h1>
 
-  <p>A Zhuyin input method with optional tones and automatic typo repair.<br>Zig core · macOS (IMK) and Linux (fcitx5, IBus) · offline · MIT</p>
+  <p>A tone-optional, typo-repairing Zhuyin input method.<br>Zig core · macOS (IMK) &amp; Linux (fcitx5, IBus) · Offline · MIT</p>
 
   <p>
   <a href="https://github.com/Yukaii/misstype/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Yukaii/misstype/actions/workflows/ci.yml/badge.svg"></a>
@@ -14,7 +14,7 @@
   <img alt="Platforms: macOS, Linux" src="https://img.shields.io/badge/platforms-macOS%20%C2%B7%20Linux-lightgrey">
   </p>
 
-  <p><a href="README.md">繁體中文</a> · <b>English</b> · <a href="docs/architecture.md">Architecture</a> · <a href="CONTRIBUTING.md">Contributing</a> · <a href="docs/development.md">Development</a></p>
+  <p><a href="README.md">繁體中文</a> · <b>English</b> · <a href="docs/story.md">Story &amp; Technical Report</a> · <a href="docs/architecture.md">Architecture</a> · <a href="CONTRIBUTING.md">Contributing</a> · <a href="docs/development.md">Development</a></p>
 </div>
 
 Misstype is a Zhuyin (Bopomofo) input method built around two things:
@@ -32,36 +32,36 @@ Everything runs locally; no network is needed. The project is still experimental
 
 ## Start here (humans and agents)
 
-1. Read [AGENTS.md](AGENTS.md) first (working loop, privacy rules, canonical commands), then [docs/architecture.md](docs/architecture.md) and [docs/project-outline.md](docs/project-outline.md).
+1. Read [AGENTS.md](AGENTS.md) first (working loop, privacy rules, canonical commands), then [docs/story.md](docs/story.md), [docs/architecture.md](docs/architecture.md), and [docs/project-outline.md](docs/project-outline.md).
 2. Build and run the core tests (the first run downloads the pinned Zig):
 
    ```sh
    cd core-zig && "$(../script/zig/bootstrap.sh)" build test
    ```
 
-   Per-layer and per-platform checks: [CONTRIBUTING.md](CONTRIBUTING.md#checks) and [docs/development.md](docs/development.md).
-3. Before opening a PR read [CONTRIBUTING.md](CONTRIBUTING.md) and use the PR template. Agents open a PR only when their human asks, and disclose the model and harness in it.
+   See [CONTRIBUTING.md](CONTRIBUTING.md#checks) and [docs/development.md](docs/development.md) for full checks across platforms.
+3. Read [CONTRIBUTING.md](CONTRIBUTING.md) and use the PR template before submitting a PR. Agents open a PR only when the user explicitly asks for one, disclosing the model and harness.
 
 ## Why another input method?
 
-Because I wanted one for myself. It started with wanting to type without even opening my eyes: keep going, skip the tones, fingers not too precise, and let the input method guess what I meant.
+Because I wanted one for myself. It started with wanting to type without opening my eyes: skip the tones, let fingers land roughly, and let the IME guess the sentence I meant.
 
-Back when I used Rime, teaching it a word meant typing it on purpose, picking the right characters and deleting the extras, and I never found a quick key for editing the dictionary. Yahoo KeyKey and vChewing felt much smoother, so "<kbd>Shift</kbd>+<kbd>←</kbd>/<kbd>→</kbd> marks, <kbd>Return</kbd> adds the word" here follows their feel.
+When I used Rime, teaching it a new word meant deliberately typing it, picking the right candidate, and deleting extra characters—I never learned if there was a shortcut to edit the dictionary quickly. Yahoo! KeyKey and vChewing felt much smoother; the `<kbd>Shift</kbd> + <kbd>←</kbd>/<kbd>→</kbd> select, <kbd>Return</kbd> add-word` shortcut here follows their feel.
 
-Tones are optional and typos are repaired by default; turn that off if you want it strict. Many keyboard layouts, Simplified/Traditional switching and Cangjie/Quick are not planned for now. If you just want a mature, stable daily input method, vChewing is great, use that; if you have the same lazy itch, come play.
+Tones are optional and typo repair is on by default; you can turn them off if you prefer a strict IME. Alternative layouts, Simplified Chinese, and Cangjie/Quick are not planned. If you want a mature, dependable daily-driver IME, vChewing is great—use it! If you share the same lazy-typing itch, you're welcome to play along.
 
-## How it compares
+## Comparison with other Zhuyin IMEs
 
 > [!NOTE]
-> Comparison tables like this inherently skew toward "features we built, so our product always wins"—take it with a grain of salt XD.
+> Comparisons like this inevitably highlight what their author chose to build. **Take this as a reference point, not a definitive verdict XD.**
 >
-> This is not an IME scorecard or feature-matrix contest. Mature projects (such as vChewing, McBopomofo, Rime, ChiaKey, etc.) each excel in daily stability, deep feature sets, diverse layout support, or cross-platform maturity. This table serves strictly as a design baseline and reference coordinate for Misstype's experimental directions (toneless continuous typing, fuzzy typo correction, and unswitched mixed Chinese/English).
+> Established tools like vChewing, McBopomofo, Rime, and ChienChiu have deep strengths in daily stability, broad feature sets, alternative layouts, and platform reach. This table reflects design baselines for Misstype's experimental focus (tone-free typing, fuzzy repair, mixed language input), not a feature race.
 
-Based on each project's public description (snapshot 2026-10-04, not hands-on tested). `-` means no public mention was found, not that the feature is absent.
+Based on public project docs (snapshot 2026-10-04, unverified); `-` means not found in public docs, not necessarily absent.
 
-| | Misstype | ChiaKey | vChewing | McBopomofo | Rime (Squirrel etc.) |
+| | Misstype | ChienChiu | vChewing | McBopomofo | Rime (Squirrel, etc.) |
 | --- | --- | --- | --- | --- | --- |
-| Tones optional | ✓ | - | partial (Zhuyin Furious Typing, off by default) | - | ✓ |
+| Optional tones | ✓ | - | partial (Bopomofo Rush, off by default) | - | ✓ |
 | Typo repair (neighbor keys, swaps, extra/missing) | ✓ | - | - | - | partial (order within a syllable; the engine also has an off-by-default typo corrector) |
 | Chinese/English mixing, no mode switch | ✓ (off by default on macOS) | - | ✓ | - | - (needs a switch) |
 | English typo repair | ✓ | - | - | - | - |
@@ -71,6 +71,8 @@ Based on each project's public description (snapshot 2026-10-04, not hands-on te
 
 For the full comparison (platforms, licenses, download sizes) see [Competitor comparison](docs/competitors-en.md).
 
+For the full background—from the midnight bus ride idea and Jev model inspiration to the Zig engine rewrite and WebAssembly offline editor—see the [Story & Technical Report](docs/story.md) (or [read it online](https://misstype.yukai.dev/en/story/)).
+
 ## Install
 
 Want to try it first? The [online editor](https://misstype.yukai.dev/editor/) needs no install.
@@ -79,77 +81,21 @@ Want to try it first? The [online editor](https://misstype.yukai.dev/editor/) ne
 
 Download `Misstype-<version>.dmg` from [GitHub Releases](https://github.com/Yukaii/misstype/releases/latest), open it and run **Install Misstype**. The input method installs into your user folder (no admin password) and updates itself through Sparkle. After the first install, log out and back in, then pick **隨打注音** (`Misstype Bopomofo`) from the input-source menu or System Settings → Keyboard → Input Sources.
 
+Release builds include GitHub Actions build provenance attestations; see [verifying provenance](docs/release.md#verify-build-provenance) for details.
+
 ### Linux
 
 Supported as an fcitx5 addon sharing the same core as macOS. See the [Linux port](docs/linux-port.md) for install and status. An experimental IBus engine (GNOME's default framework) is also available: [IBus port](docs/ibus-port.md).
 
-On Arch Linux / Omarchy, install [`fcitx5-misstype-git`](https://aur.archlinux.org/packages/fcitx5-misstype-git) from AUR:
+## Documentation
 
-```sh
-yay -S fcitx5-misstype-git
-```
-
-This package builds the latest upstream Git source rather than a fixed release.
-Restart fcitx5 after installation and add **Misstype** in `fcitx5-configtool`.
-See [package build, activation and removal](docs/arch-linux.md) for details;
-the recipe lives in `linux/aur/PKGBUILD`.
-
-Prebuilt, release-pinned packages for **x86_64** and **aarch64** are also
-available: `yay -S fcitx5-misstype-bin` (or `yay -S ibus-misstype-bin` for IBus).
-They download the release binary without compiling Zig/C++; `-git` continues
-to build latest upstream source. See [binary installation and status](docs/arch-linux.md#prebuilt-release-packages--bin).
-
-#### IBus (experimental)
-
-On IBus desktops (GNOME, for example) you can use the IBus engine instead. It shares the same core and ships a settings window (the Preferences button in `ibus-setup`, or run `/usr/libexec/ibus-setup-misstype`); settings are the same `misstype.conf` the fcitx5 addon uses and apply immediately. Do not install it next to the fcitx5 package. Releases attach `MisstypeIBus-*` packages (Ubuntu 24.04 `.deb`, Fedora `.rpm`, Arch `.pkg.tar.zst`) for versions after v0.0.1; download from the [latest Release](https://github.com/Yukaii/misstype/releases/latest), for example:
-
-```sh
-sudo apt install ./MisstypeIBus-*-ubuntu24.04-*.deb          # Ubuntu 24.04
-sudo dnf install ./MisstypeIBus-*-fedora*.rpm                # Fedora
-sudo pacman -U ./MisstypeIBus-*-arch-*.pkg.tar.zst           # Arch
-```
-
-Or install from source:
-
-```sh
-git clone https://github.com/Yukaii/misstype.git && cd misstype
-script/linux/build.sh
-sudo cmake --install build/ibus
-ibus restart     # then add Misstype (Chinese) under Settings → Keyboard → Input Sources
-```
-
-On Arch Linux, install `ibus-misstype-bin` (prebuilt) or `ibus-misstype-git` (built from source; recipe `linux/aur-ibus/PKGBUILD`) from the AUR. See the [IBus port](docs/ibus-port.md) for what is and is not verified. Tracking: [#63](https://github.com/Yukaii/misstype/issues/63).
-
-To build from source see [Development, build and release](docs/development.md).
-
-## Usage
-
-Key bindings and behavior (continuous typing, candidates, symbols, user dictionary, learning) are in the [user manual](docs/usage-en.md).
-
-## Repository layout
-
-| Path | What lives there |
-| --- | --- |
-| `core-zig/` | The single decoder and editing `Session`, exposed through a C ABI and a wasm32-wasi build |
-| `Sources/` | macOS only: IMK adapter, Settings UI, installer (no decoding rules) |
-| `linux/fcitx5/` | fcitx5 addon and GTK dictionary editor over the same core |
-| `linux/ibus/` | IBus engine and settings window over the same core |
-| `packages/misstype-wasm/` | npm browser bindings |
-| `src/misstype/` | Python capture/touch prototype (reference for touch semantics only) |
-| `tests/`, `tools/` | Golden files, replay fixtures, measurement scripts |
-| `docs/` | Architecture, cross-platform contract (C1–C15), design notes |
-| `site/` | Landing page and web editor (separate from this README by design) |
-
-## License
-
-Misstype's own code is **MIT** (see [`LICENSE`](LICENSE)). Third-party code and
-dictionary data keep their own licenses: McBopomofo (MIT), libtabe (BSD-style),
-the National Academy for Educational Research word-frequency table (CC BY 4.0),
-and the English word list (CC BY-SA 4.0); the macOS build uses Sparkle and the
-Linux builds link fcitx5 or IBus. See [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)
-for sources, licenses and where each applies.
-
-The demo video's narration and background music (`video/public/voice/`,
-`video/public/music/`, `site/media/demo*.mp4`) are **not** MIT: they were
-generated on a free ElevenLabs plan, so they are for non-commercial use only and
-need the ElevenLabs credit shown with them. See the same notices file.
+- [docs/story.md](docs/story.md): The Misstype story & technical report ([online version](https://misstype.yukai.dev/en/story/))
+- [docs/architecture.md](docs/architecture.md): Core architecture and layer responsibilities
+- [docs/zig-port.md](docs/zig-port.md): The Zig core rewrite rationale, architecture, and benchmarks
+- [docs/development.md](docs/development.md): Local development, testing, and debugging
+- [docs/project-outline.md](docs/project-outline.md): Evolution and milestones
+- [docs/linux-port.md](docs/linux-port.md): Linux fcitx5 port details
+- [docs/ibus-port.md](docs/ibus-port.md): Linux IBus port details
+- [docs/competitors.md](docs/competitors.md): Competitor comparison and feature research
+- [docs/editor.md](docs/editor.md): WebAssembly offline Markdown editor design
+- [docs/release.md](docs/release.md): Release, signing, and verification workflows
