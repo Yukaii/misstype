@@ -23,6 +23,15 @@
     "input-method"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Yukaii/misstype.git",
+    "directory": "packages/misstype-wasm"
+  },
+  "homepage": "https://github.com/Yukaii/misstype/tree/main/packages/misstype-wasm#readme",
+  "bugs": {
+    "url": "https://github.com/Yukaii/misstype/issues"
+  },
   "scripts": {
     "test": "node --test test/*.test.js"
   },

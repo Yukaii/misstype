@@ -107,6 +107,29 @@ initial authorization; checksums/provenance and current-Arch install/remove
 checks run before pushing. A daily binary compatibility check detects rolling
 Arch library changes. Setup: [binary AUR publication](arch-linux.md#binary-publication-and-rolling-arch-compatibility).
 
+## npm package (`misstype-wasm`)
+
+`packages/misstype-wasm` is published by `.github/workflows/npm-publish.yml`
+with npm trusted publishing: GitHub's OIDC token replaces an `NPM_TOKEN`
+secret, and npm attaches provenance because the repository is public. Its
+version is independent of the app; tags are `misstype-wasm-vX.Y.Z`, which
+neither `release.yml` (`v*`) nor `next_release_tag.py` match.
+
+1. Bump `version` in `packages/misstype-wasm/package.json` and push to `main`.
+2. `git tag -a misstype-wasm-v<version> -m "misstype-wasm <version>" && git push origin misstype-wasm-v<version>`.
+   The job checks that the tag and `package.json` agree, runs `npm test`, then publishes.
+
+**Actions → npm publish → Run workflow** defaults to `npm publish --dry-run`;
+a real publish from dispatch must target the tag (`--ref misstype-wasm-v…`).
+
+One-time setup: trusted publishers are configured per package, so the
+package must exist first. Publish the first version by hand
+(`npm publish --access public` in the package directory after `npm login`),
+then on npmjs.com → misstype-wasm → Settings → Trusted publishing add GitHub
+Actions with owner `Yukaii`, repository `misstype`, workflow `npm-publish.yml`
+(no environment). Afterwards set "Require two-factor authentication and
+disallow tokens" so only the workflow can publish.
+
 ## Cutting a release
 
 After a successful stable publication, Release calls the reusable AUR workflow

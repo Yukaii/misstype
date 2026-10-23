@@ -4,9 +4,10 @@ Browser bindings for the Misstype Zhuyin WebAssembly engine. The package keeps
 the decoder and its raw-session semantics in Zig while letting a site or app
 choose its own editor and candidate UI.
 
-The package has not yet been published to npm (version 0.2.0 adds the `enable` layer). From a repository checkout,
-run `npm pack` in `packages/misstype-wasm`, then install the resulting tarball
-in your application with `npm install /path/to/misstype-wasm-0.1.0.tgz`.
+Releases are published to npm from GitHub Actions with provenance
+(`docs/release.md`, npm package). Until the first one lands, run `npm pack` in
+`packages/misstype-wasm` from a repository checkout and install the resulting
+tarball with `npm install /path/to/misstype-wasm-0.2.0.tgz`.
 
 ## Enable a whole website
 
