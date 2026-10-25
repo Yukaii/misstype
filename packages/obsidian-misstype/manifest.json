@@ -1,0 +1,10 @@
+{
+  "id": "misstype",
+  "name": "Misstype",
+  "version": "0.1.0",
+  "minAppVersion": "1.5.0",
+  "description": "Zhuyin (Bopomofo) input that forgives typos, with an on-screen keyboard on phones. Runs offline; nothing you type leaves the device.",
+  "author": "Yukai Huang",
+  "authorUrl": "https://github.com/Yukaii",
+  "isDesktopOnly": false
+}

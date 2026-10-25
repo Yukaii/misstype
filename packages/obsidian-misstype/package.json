@@ -1,0 +1,19 @@
+{
+  "name": "obsidian-misstype",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Obsidian plugin: the Misstype Zhuyin input method inside the editor, desktop and mobile",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node --test test/*.test.mjs",
+    "install-vault": "node build.mjs --vault"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "misstype-wasm": "file:../misstype-wasm"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  }
+}

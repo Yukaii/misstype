@@ -102,6 +102,14 @@ jobs:
           npm ci --ignore-scripts
           npm test
           npm pack --dry-run
+      # Embeds the full lexicons (pinned public sources) and the wasm built above.
+      - name: Build and test the Obsidian plugin
+        run: |
+          script/build_site_assets.sh --data
+          cd packages/obsidian-misstype
+          npm ci
+          npm run build
+          npm test
 
   # The Linux dev image (fcitx5 + GTK build tools) is published to GHCR keyed by the
   # Dockerfile hash, so it builds only when linux/Dockerfile changes and every
