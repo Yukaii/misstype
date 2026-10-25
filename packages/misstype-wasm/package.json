@@ -1,6 +1,6 @@
 {
   "name": "misstype-wasm",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Browser WebAssembly bindings for the Misstype Zhuyin input engine, plus a drop-in layer that enables it on any page's text fields",
   "type": "module",
   "main": "./src/index.js",

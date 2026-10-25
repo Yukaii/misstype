@@ -128,17 +128,24 @@ function insertText(el, text) {
  * @param {string|null} [options.learningKey] localStorage key for the learned phrases; learned typing slips go to
  *   `<key>-slips` (`null`: keep them in memory only).
  * @param {(on: boolean) => void} [options.onNativeIme] Called when a system IME seems to be taking the keys.
+ * @param {MisstypeWasm} [options.ime] An instance already loaded (`MisstypeWasm.fromBytes`); `assets` is then unused.
+ * @param {(el: Element, text: string) => boolean} [options.insert] Inserts finished text through the host's own
+ *   editor API; return false to fall back to `insertText`.
+ * @param {(state: object) => void} [options.onChange] Called with the decoder state after every change.
+ *
+ * Elements marked `data-misstype-ui` (an on-screen keyboard, say) count as part of the IME: touching them
+ * does not end the composition.
  */
 export async function enable(options = {}) {
-  const assets = new URL(options.assets ?? "./", options.assets ? document.baseURI : import.meta.url);
-  const at = (name) => new URL(name, assets).href;
+  // Resolved only when loading: a bundle that passes `ime` may have no import.meta.url.
+  const at = (name) => new URL(name, new URL(options.assets ?? "./", options.assets ? document.baseURI : import.meta.url)).href;
   const selector = options.selector ?? DEFAULT_SELECTOR;
   const storageKey = options.storageKey === undefined ? "misstype-user-dictionary" : options.storageKey;
   const learningKey = options.learningKey === undefined ? "misstype-learned" : options.learningKey;
   const settings = { ...DEFAULT_SETTINGS, ...options.settings };
   let layout = options.layout ?? "vertical";
 
-  const ime = await MisstypeWasm.load({
+  const ime = options.ime ?? await MisstypeWasm.load({
     wasmUrl: at("misstype.wasm"),
     lexiconUrl: at("lexicon.tsv"),
     tonelessUrl: at("toneless.tsv"),
@@ -179,8 +186,9 @@ export async function enable(options = {}) {
   const next = root.querySelector('[data-page="PageDown"]');
   const flashEl = root.querySelector(".flash");
   const scheme = matchMedia("(prefers-color-scheme: dark)");
+  let theme = options.theme ?? "auto";
   const paintScheme = () => {
-    const dark = (options.theme ?? "auto") === "dark" || ((options.theme ?? "auto") === "auto" && scheme.matches);
+    const dark = theme === "dark" || (theme === "auto" && scheme.matches);
     if (dark) host.dataset.scheme = "dark"; else delete host.dataset.scheme;
   };
   paintScheme();
@@ -191,15 +199,24 @@ export async function enable(options = {}) {
   let state = null;
   let nativeKeys = 0;
 
-  const targetOf = (e) => {
-    const raw = e.composedPath?.()[0] ?? e.target;
+  /** The enabled field `raw` sits in. `inputmode="none"` fields are skipped unless a `press` targets them. */
+  const fieldOf = (raw, keyboardless = false) => {
     if (!(raw instanceof Element) || raw.closest("misstype-ime")) return null;
     const el = raw.closest(selector);
     if (!el) return null;
     if (el.disabled || el.readOnly || el.dataset?.misstype === "off" || el.closest?.('[data-misstype="off"]')) return null;
-    if (el.inputMode === "none") return null;
+    if (el.inputMode === "none" && !keyboardless) return null;
     return el;
   };
+  const targetOf = (e) => fieldOf(e.composedPath?.()[0] ?? e.target);
+  const focusedField = () => {
+    let el = document.activeElement;
+    while (el?.shadowRoot?.activeElement) el = el.shadowRoot.activeElement;
+    return fieldOf(el, true);
+  };
+  // Touching IME controls of the host (data-misstype-ui) may blur the field on iOS; that is not leaving it.
+  const isUi = (e) => e.composedPath().some((n) => n === host || n.dataset?.misstypeUi !== undefined);
+  let uiTouchUntil = 0;
 
   function place(box) {
     if (panel.hidden || !box) return;
@@ -262,7 +279,7 @@ export async function enable(options = {}) {
   function sync(fromKey = false) {
     const text = ime.takeCommitted();
     state = ime.state();
-    if (text && active) insertText(active, text);
+    if (text && active && !options.insert?.(active, text)) insertText(active, text);
     if (ime.userDictionaryCount() !== knownWords) {
       knownWords = ime.userDictionaryCount();
       writeStored(storageKey, ime.userDictionaryText());
@@ -280,6 +297,7 @@ export async function enable(options = {}) {
       if (state.modeChanged) flash(state.english, caretBox(active));
     }
     paint();
+    options.onChange?.(state);
   }
 
   function flush() {
@@ -318,8 +336,13 @@ export async function enable(options = {}) {
     sync(true);
   }
 
-  const onPointerDown = (e) => { if (!e.composedPath().includes(host)) flush(); };
-  const onFocusOut = (e) => { if (targetOf(e) && e.target === active) flush(); };
+  const onPointerDown = (e) => {
+    if (isUi(e)) uiTouchUntil = performance.now() + 600;
+    else flush();
+  };
+  const onFocusOut = (e) => {
+    if (e.target === active && fieldOf(e.target, true) && performance.now() > uiTouchUntil) flush();
+  };
   const onCompositionStart = (e) => { if (targetOf(e)) flush(); };
   const onViewport = () => place(active ? caretBox(active) : null);
 
@@ -390,6 +413,28 @@ export async function enable(options = {}) {
     },
     /** Commits whatever is being composed. */
     flush,
+    /** The decoder state as of the last change. */
+    state: () => state,
+    setTheme(value) {
+      theme = value;
+      paintScheme();
+    },
+    /**
+     * Feeds a key to the focused field as if typed (`code`/`key` as in a KeyboardEvent, `modifiers` the
+     * shift/ctrl/alt/meta bits 1/2/4/8). For on-screen keyboards; works on `inputmode="none"` fields.
+     * Returns whether the decoder took it; if not, the caller does the key's default.
+     */
+    press(code, key, modifiers = 0, keyUp = false) {
+      const el = focusedField();
+      if (!el) return false;
+      if (active !== el) {
+        flush();
+        active = el;
+      }
+      const consumed = ime.key(code, key, modifiers, keyUp ? 1 : 0);
+      sync(true);
+      return consumed;
+    },
     /** Removes every listener and the candidate window. The decoder instance is dropped with it. */
     destroy() {
       flush();

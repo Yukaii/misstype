@@ -18,7 +18,6 @@ export class MisstypeWasm {
 
   static async load({ wasmUrl, lexiconUrl, tonelessUrl = null, englishUrl = null, homophoneUrl = null, wordModelUrl = null, wordModelWeight = 0.5 } = {}) {
     if (!wasmUrl || !lexiconUrl) throw new TypeError("wasmUrl and lexiconUrl are required");
-    const wasi = new WASI([], [], []);
     const [wasmResponse, lexResponse, toneResponse] = await Promise.all([
       fetch(wasmUrl),
       fetch(lexiconUrl),
@@ -26,12 +25,11 @@ export class MisstypeWasm {
     ]);
     if (!wasmResponse.ok) throw new Error(`Failed to load Misstype wasm: HTTP ${wasmResponse.status}`);
     if (!lexResponse.ok) throw new Error(`Failed to load Misstype lexicon: HTTP ${lexResponse.status}`);
-    const { instance } = await WebAssembly.instantiate(await wasmResponse.arrayBuffer(), {
-      wasi_snapshot_preview1: wasi.wasiImport,
+    const api = await MisstypeWasm.fromBytes({
+      wasm: await wasmResponse.arrayBuffer(),
+      lexicon: await lexResponse.text(),
+      toneless: toneResponse.ok ? await toneResponse.text() : "",
     });
-    wasi.start(instance);
-    const api = new MisstypeWasm(instance, wasi);
-    api.init(await lexResponse.text(), toneResponse.ok ? await toneResponse.text() : "");
     if (englishUrl && api.exports.misstype_wasm_load_english) {
       const englishResponse = await fetch(englishUrl);
       if (englishResponse.ok) api.loadEnglish(await englishResponse.text());
@@ -52,6 +50,23 @@ export class MisstypeWasm {
         if (homophoneResponse.ok) api.loadHomophone(new Uint8Array(await homophoneResponse.arrayBuffer()));
       } catch { /* optional */ }
     }
+    return api;
+  }
+
+  /**
+   * Same as `load`, from assets already in memory (an app that bundles them,
+   * such as the Obsidian plugin). `wasm` and `homophone` are bytes, the
+   * lexicons text; everything but `wasm` and `lexicon` is optional.
+   */
+  static async fromBytes({ wasm, lexicon, toneless = "", english = "", homophone = null } = {}) {
+    if (!wasm || !lexicon) throw new TypeError("wasm and lexicon are required");
+    const wasi = new WASI([], [], []);
+    const { instance } = await WebAssembly.instantiate(wasm, { wasi_snapshot_preview1: wasi.wasiImport });
+    wasi.start(instance);
+    const api = new MisstypeWasm(instance, wasi);
+    api.init(lexicon, toneless);
+    if (english && api.exports.misstype_wasm_load_english) api.loadEnglish(english);
+    if (homophone && api.exports.misstype_wasm_load_homophone) api.loadHomophone(new Uint8Array(homophone));
     return api;
   }
 

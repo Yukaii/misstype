@@ -53,6 +53,26 @@ to `localStorage`; typing-slip learning is off unless you enable it). It does no
 iframes (load the script inside the frame) and cannot help where the page has
 its own key handling that runs before the capture phase.
 
+### Hosting it in an app (0.3.0)
+
+For an editor with its own model and an on-screen keyboard (the Obsidian
+plugin, `packages/obsidian-misstype`, uses all of these):
+
+```js
+const ime = await MisstypeWasm.fromBytes({ wasm, lexicon, toneless, english, homophone }); // bundled assets, no fetch
+const ms = await enable({
+  ime,                                          // skip loading by URL
+  insert: (el, text) => myEditor.insert(text),  // finished text through your API; return false to use insertText
+  onChange: (state) => keyboard.setEnglish(state.english),
+});
+ms.press("KeyS", "s", 0);         // an on-screen key; false = not taken, do its default yourself
+ms.setTheme("dark");              // "auto" | "light" | "dark"
+```
+
+`press` targets the focused field even with `inputmode="none"` (which keeps
+the system keyboard away). Mark your keyboard's container `data-misstype-ui`
+so touching it does not commit the composition.
+
 ## Low-level API
 
 Build or download `misstype.wasm`, `lexicon.tsv`, and optionally

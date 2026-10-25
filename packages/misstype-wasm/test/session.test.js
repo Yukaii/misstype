@@ -148,3 +148,13 @@ test("sparse model loads only on request, owns its bytes, and malformed assets f
   assert.equal(loaded.wordModelLoaded, true);
   assert.equal(loaded.state().preedit, "妳");
 });
+
+test("fromBytes loads in-memory assets like load does", async () => {
+  const ime = await MisstypeWasm.fromBytes({ wasm, lexicon: lexicon.toString("utf8") });
+  for (const key of "su3cl3") {
+    const code = /[0-9]/.test(key) ? `Digit${key}` : `Key${key.toUpperCase()}`;
+    ime.key(code, key);
+  }
+  assert.equal(ime.state().preedit, "你好");
+  await assert.rejects(MisstypeWasm.fromBytes({ wasm }), TypeError);
+});
