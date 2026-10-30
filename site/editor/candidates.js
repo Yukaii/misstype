@@ -6,7 +6,8 @@ export class CandidatePanel {
   constructor(root, { onPick, onPage, onDismiss, bottomInset = () => 0 }) {
     this.bottomInset = bottomInset;
     this.el = document.createElement("div");
-    this.el.className = "candidate-panel";
+    // "pg" and data-theme (setTheme) scope the --pg-* colours to the panel itself.
+    this.el.className = "candidate-panel pg";
     this.el.hidden = true;
     this.el.innerHTML = `
       <div class="candidate-list"></div>
