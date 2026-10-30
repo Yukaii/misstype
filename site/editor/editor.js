@@ -188,7 +188,9 @@ function runAction(id) {
 
 // --------------------------------------------------------------------- IME
 
-const panel = new CandidatePanel(app, {
+// On the body, not in the scrolling .pg: on iOS the panel's z-index does not
+// reach past the scroller, so the header and status strip drew over it.
+const panel = new CandidatePanel(document.body, {
   onPick: (index) => { ime?.pick(index); sync(); view.focus(); },
   onPage: (code) => { ime?.key(code, code, 0, 0); sync(); view.focus(); },
   onDismiss: dismissKeyboard,
