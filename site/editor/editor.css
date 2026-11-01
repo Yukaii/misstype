@@ -273,7 +273,7 @@ dialog.sheet h3 span { margin-left: 6px; color: var(--muted); font-weight: norma
 }
 .vk-key {
   position: relative; flex: none; width: calc(var(--vk-u) * var(--vk-span, 1)); min-width: 0; height: var(--vk-h-key); padding: 0;
-  display: grid; place-items: center; font: inherit; font-size: 20px; font-weight: 400; line-height: 1;
+  display: grid; place-items: center; font: inherit; font-size: 18px; font-weight: 400; line-height: 1;
   color: var(--vk-text); background: var(--vk-key); border: 0; border-radius: var(--vk-radius);
   box-shadow: 0 1px 0 var(--vk-edge);
   touch-action: none; -webkit-tap-highlight-color: transparent;
