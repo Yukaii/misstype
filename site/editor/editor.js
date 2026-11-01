@@ -768,7 +768,16 @@ function renderSync(s) {
   const name = s.provider ? PROVIDERS[s.provider].name : "";
   const button = document.querySelector("#sync-btn");
   button.hidden = !s.provider;
-  button.textContent = s.busy ? "同步中⋯" : s.error || (s.last ? `已同步 ${timeOf(s.last)}` : name);
+  if (s.busy) button.textContent = "同步中⋯";
+  else if (s.error) button.textContent = s.error;
+  else if (s.last) {
+    const label = document.createElement("span");
+    label.textContent = "已同步";
+    const time = document.createElement("span");
+    time.className = "sync-time";
+    time.textContent = ` ${timeOf(s.last)}`;
+    button.replaceChildren(label, time);
+  } else button.textContent = name;
   button.title = s.provider ? `${name}${s.last ? ` · 上次同步 ${timeOf(s.last)}` : ""} · 點一下立即同步` : "";
   const box = document.querySelector("#cloud");
   const offered = Object.keys(PROVIDERS).filter((p) => PROVIDERS[p].configured);
