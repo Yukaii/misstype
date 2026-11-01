@@ -171,29 +171,56 @@ between devices: no text is lost, and edits on one device show up on another
 within a couple of minutes. Falsified if a normal edit/switch-device/edit
 cycle loses text or needs manual merging more than rarely.
 
-- What syncs: notes (body and folder) and the folder list. Not settings, My
-  Dictionary or learning data (follow-ups; the dictionary and
-  `user_lexicon.json` share the desktop file formats, which could later let a
-  desktop app read the same folder). Note order in the sidebar stays per device;
-  new notes from elsewhere land at the top of their folder.
-- Remote layout (`sync.js`): `notes/<id>.md`, the Markdown as saved behind a
-  short front matter (`misstype: 1`, `folder`, `updated`), and `folders.json`.
-  A `.md` file dropped into `notes/` by hand becomes a top-level note.
-  Dropbox: the app's App folder (`Apps/<app name>/`); Google Drive: a
-  `Misstype` folder, scope `drive.file` (only files this app created).
-- Merge (`syncNotes`, tested by `tests/editor_sync_test.mjs` with two devices on an
-  in-memory remote): `base` remembers each note's remote revision and a hash of
-  the agreed content. One-sided changes and deletions go across; an edit beats
-  a delete; when both sides changed a note, the local text keeps it and the
-  remote text becomes a new note (a toast says so); nothing is dropped. Folders merge
-  per folder (rename beats delete; both renamed: local name wins). A fresh
-  empty note is not uploaded. The note on screen with unsaved typing or a
-  composition is never replaced. If `folders.json` disappears after a pass
-  (the folder was wiped), the next pass starts over and uploads instead of
-  deleting local notes. Writes to Dropbox are conditional on the revision,
-  so a lost race is retried next pass. Drive has no conditional write: two
-  devices writing the same note in the same second can lose the earlier
-  write (still in Drive's version history).
+- What syncs: note bodies and the workspace around them — the folder list,
+  each note's folder, and folder/note order. Not settings, My Dictionary or
+  learning data (follow-ups; the dictionary and `user_lexicon.json` share the
+  desktop file formats, which could later let a desktop app read the same
+  folder). A new note from another device lands at the top of its folder.
+- Remote layout (`sync.js`, `workspace.js`): bodies stay `notes/<id>.md`, the
+  Markdown behind a short front matter (`misstype: 1`, `folder`, `updated`); a
+  `.md` file dropped into `notes/` by hand becomes a top-level note.
+  Organization is `workspace.<device>.json`, one file per device, holding
+  `{v, device, state: base64(Y.Doc)}`. Every device writes only its own file,
+  so Google Drive's lack of a conditional write cannot lose an update; the
+  other files are read and merged. `folders.json` and the front-matter
+  `folder` remain for migration and as plain-text hints, but a client with
+  workspace state ignores them. Dropbox: the app's App folder
+  (`Apps/<app name>/`); Google Drive: a `Misstype` folder, scope `drive.file`
+  (only files this app created).
+- Body merge (`syncNotes`, tested by `tests/editor_sync_test.mjs` with two
+  devices on an in-memory remote): `base` remembers each note's remote revision
+  and a hash of the agreed body. One-sided changes and deletions go across; an
+  edit beats a delete; when both sides changed the body, the local text keeps
+  the note and the remote text becomes a new note (a toast says so); nothing is
+  dropped. A folder move is no longer part of that hash, so it cannot turn a
+  concurrent body edit into a duplicate. A fresh empty note is not uploaded.
+  The note on screen with unsaved typing or a composition is never replaced.
+  If `folders.json` disappears after a pass (the folder was wiped), the next
+  pass starts over and uploads instead of deleting local notes. Writes to
+  Dropbox are conditional on the revision, so a lost race is retried next
+  pass; the body files on Drive can still lose a same-second write to the
+  note (still in Drive's version history), while workspace files cannot.
+- Workspace merge (`workspace.js`, tested by `tests/editor_workspace_test.mjs`):
+  the folder list and each note's placement/order are Yjs maps, merged per
+  field rather than as one JSON blob. A move on one device and a body edit on
+  another therefore both survive; concurrent renames/moves are
+  last-writer-wins per field. A folder delete is a tombstone, and a later
+  rename can bring the folder back; notes are never deleted by the workspace —
+  the body file decides existence, so edit-beats-delete still holds. A note
+  whose folder is gone shows at the top level, never disappears. The first
+  pass with no workspace file seeds the CRDT from the local index (after the
+  legacy `folders.json` / front-matter merge), so enabling this does not need
+  a migration tool. Each device uploads its full workspace state only when it
+  changed; an idle pass writes nothing.
+- Cost: Yjs adds about 30 KB gzip to the editor chunk. Workspace state lives in
+  localStorage next to the note bodies and holds only names, ids and order keys,
+  never note text; every pass reads all `workspace.*.json` files (small) and a
+  device that loses localStorage starts a new file (old files merge harmlessly
+  but are not pruned). The Y.Doc is not compacted, so rename/move history
+  accumulates slowly. A client still on the pre-workspace build keeps reading the stale
+  `folders.json` until it updates; the `.md` front-matter `folder` can also lag
+  behind a move until that note's next body edit. There is no relay, presence
+  or realtime editing: organization converges on the next pass, like the bodies.
 - When: 4 s after the last save (any change in `notes.js` fires `onChange`),
   on load, when the tab becomes visible or the network comes back, and every
   2 minutes while visible; not while composing. Tabs take turns through Web
@@ -215,9 +242,11 @@ cycle loses text or needs manual merging more than rarely.
   they reach the build as `VITE_DROPBOX_APP_KEY` / `VITE_GOOGLE_CLIENT_ID`
   (Pages: repository variables `DROPBOX_APP_KEY`, `GOOGLE_CLIENT_ID`; Vercel:
   project environment variables). A provider without one is not offered.
-- Checked: the merge tests and a production build. Not yet run against the
-  real Dropbox or Drive APIs (no app registered yet), nor in an installed iOS
-  home-screen app, where the sign-in popup may open outside the app.
+- Checked: the body and workspace merge tests, a production build, and a
+  Chromium run of the editor (create/rename a folder, create a note, reload;
+  the sidebar and the persisted workspace state came back). Not yet run against
+  the real Dropbox or Drive APIs (no app registered yet), nor in an installed
+  iOS home-screen app, where the sign-in popup may open outside the app.
 
 ## Commands and keys
 
@@ -264,6 +293,12 @@ the native macOS and Linux versions and the privacy note.
 - `---`, `***` or `___` alone in a paragraph becomes a divider (English mode,
   like the other shortcuts); the palette's 分隔線 inserts one in either mode.
 - The Markdown schema has no strikethrough, tables or task lists.
+- Concurrent edits to the same note body still keep both texts, as before; the
+  workspace CRDT merges organization only. A document-level text CRDT is the
+  next step if same-note editing on two devices becomes common.
+- `folders.json` is no longer updated once any device has workspace state; an
+  older build keeps seeing the last folder list it wrote. Update both devices
+  before relying on folder changes.
 - The on-screen keyboard has no one-shot Shift (tap Shift then a letter) or number/symbol layers; Shift is hold-only because a tap is 中/英. With no number row, digits and symbols are the top row's English-mode (or Shift) caps.
 - Not tried on a real iPad or in an installed home-screen app; the offline
   path is verified with Chromium only.

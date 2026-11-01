@@ -24,6 +24,7 @@ import { markdownRules } from "./rules.js";
 import { IME_KEYS, loadSettings, saveSettings } from "./settings.js";
 import { createNotes, UNTITLED } from "./notes.js";
 import { createCloud, PROVIDERS, RESULT_KEY } from "./cloud.js";
+import { createWorkspace } from "./workspace.js";
 import { Sidebar } from "./sidebar.js";
 import { zenPlugin } from "./zen.js";
 
@@ -42,19 +43,33 @@ let nativeImeKeys = 0;
 
 // ---------------------------------------------------------------- document
 
-const notes = createNotes(undefined, { onChange: () => scheduleSync() });
+let workspace;
+const notes = createNotes(undefined, {
+  onChange: () => scheduleSync(),
+  onWorkspace: (op) => workspace?.applyLocal(op),
+});
 let currentId = notes.load().current;
 // Editor states of notes opened this visit, so each keeps its own undo history.
 const states = new Map();
 
+// Organization state (folders, note placement and order) as a local CRDT;
+// sync.js writes it to this device's own static file in the cloud folder.
+workspace = createWorkspace({ onChange: () => scheduleSync() });
+
 // Cloud sync (cloud.js, sync.js): off until an account is connected in Settings.
 const cloud = createCloud({
   notes,
+  workspace,
   // The note on screen while it has unsaved typing: remote text must not replace it.
   busy: (id) => id === currentId && Boolean(saveTimer || imeState?.preedit),
   onChange: renderSync,
 });
 let syncTimer = 0;
+
+// The first run has no workspace state: seed it from the local index, then
+// apply it back so old (order-less) indexes get their order keys once.
+workspace.ensure(notes.workspaceState());
+workspace.project(notes);
 
 let saveTimer = 0;
 function scheduleSave() {
@@ -679,7 +694,11 @@ sidebarEl.addEventListener("pointerdown", flush, true);
 addEventListener("storage", (e) => {
   if (e.key === RESULT_KEY && e.newValue) finishConnect();
   else if (e.key === "misstype-editor-sync") cloud.publish();
-  else if (e.key === notes.indexKey) {
+  else if (e.key === workspace.storageKey) {
+    workspace.reload();
+    workspace.project(notes);
+    sidebar.render();
+  } else if (e.key === notes.indexKey) {
     const index = notes.load();
     if (!index.notes.some((n) => n.id === currentId)) show(index.current);
     sidebar.render();
