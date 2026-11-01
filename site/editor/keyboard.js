@@ -17,6 +17,23 @@ export function fromHardwareKeyboard(e, editor) {
   return e.target === e.target?.ownerDocument?.body || editor.contains(e.target);
 }
 
+/**
+ * Whether the on-screen keyboard is wanted, before the chevron's dismissal.
+ * `on` and `off` are the user's explicit choice; `auto` is the best guess a
+ * page can make (a touch device that has not shown a hardware key yet).
+ * @param {string} mode  settings.virtualKeyboard: "auto" | "on" | "off"
+ * @param {boolean} touch  a touch-only device (auto's pointer/hover query)
+ * @param {boolean} hardwareKeyboardSeen  a real key was typed since "auto"
+ */
+export function virtualKeyboardWanted(mode, touch, hardwareKeyboardSeen) {
+  return mode === "on" || (mode === "auto" && touch && !hardwareKeyboardSeen);
+}
+
+/** Whether to paint the keyboard now: wanted, and not dismissed with the chevron. */
+export function virtualKeyboardVisible(mode, touch, hardwareKeyboardSeen, dismissed) {
+  return virtualKeyboardWanted(mode, touch, hardwareKeyboardSeen) && !dismissed;
+}
+
 const REPEAT_DELAY = 420;
 const REPEAT_EVERY = 55;
 

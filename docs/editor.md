@@ -152,8 +152,17 @@ the on-screen keyboard for good after renaming a note (`fromHardwareKeyboard`
 in `keyboard.js`; the old key is dropped on load to clear those). Picking "auto" again in Settings forgets it. The very
 first visit still shows the keyboard until one real key is pressed: a page
 cannot ask whether a hardware keyboard is attached.
-Checked with the unit test and a production build only; not yet driven on a
-phone or in an emulator.
+The status strip's 鍵盤 switch is the manual override, on every device. It
+writes `on` or `off` to the same setting, applies at once and survives a
+reload (the pressed pill means the keyboard is up); choosing 自動 in Settings
+restores detection. That matters where the heuristic cannot be sure: a
+touchscreen laptop with a mouse stays out of auto, an iPad whose Magic
+Keyboard trackpad makes the primary pointer fine can flip auto's
+`(pointer: coarse) and (hover: none)` query, and detaching a hardware keyboard
+leaves `hardwareKeyboardSeen` set. The palette has the same command
+(顯示／隱藏螢幕鍵盤).
+The visibility matrix is unit-tested and the switch was driven in Chromium
+with the keyboard forced on; neither has been driven on a phone or iPad yet.
 
 ## Offline
 

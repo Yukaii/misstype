@@ -18,7 +18,7 @@ import { createContent } from "./content.js";
 import { createDictionary } from "./dictionary.js";
 import { createLearning } from "./learning.js";
 import { tick } from "./haptics.js";
-import { VirtualKeyboard, fromHardwareKeyboard } from "./keyboard.js";
+import { VirtualKeyboard, fromHardwareKeyboard, virtualKeyboardVisible, virtualKeyboardWanted } from "./keyboard.js";
 import { Palette } from "./palette.js";
 import { preeditKey, preeditPlugin, setPreedit } from "./preedit.js";
 import { registerServiceWorker } from "./pwa.js";
@@ -350,7 +350,10 @@ function keyUp(e) {
 // and ProseMirror's keymaps see exactly what a hardware keyboard would send.
 const vkEl = $("#vk");
 vkEl.dataset.platform = /Android/i.test(navigator.userAgent) ? "android" : "ios";
+// Auto only claims a touch-only device, so a touchscreen laptop with a mouse
+// keeps the keyboard away on load. The status switch is the manual override.
 const touchOnly = matchMedia("(pointer: coarse) and (hover: none)");
+const vkButton = $("#vk-btn");
 // Remembered across visits: an iPad with a keyboard should not flash ours on every load.
 // ":2": the first key was also set by system-keyboard typing in text fields; drop those.
 const HW_KEYBOARD_KEY = "misstype-hardware-keyboard:2";
@@ -367,14 +370,13 @@ let vkDismissed = false;
 
 const vkHeight = () => (vkEl.hidden ? 0 : vkEl.offsetHeight);
 
-function virtualKeyboardWanted() {
-  const mode = settings.virtualKeyboard;
-  return mode === "on" || (mode === "auto" && touchOnly.matches && !hardwareKeyboardSeen);
+function virtualKeyboardIsWanted() {
+  return virtualKeyboardWanted(settings.virtualKeyboard, touchOnly.matches, hardwareKeyboardSeen);
 }
 
 function applyVirtualKeyboard() {
-  const wanted = virtualKeyboardWanted();
-  const on = wanted && !vkDismissed;
+  const wanted = virtualKeyboardIsWanted();
+  const on = virtualKeyboardVisible(settings.virtualKeyboard, touchOnly.matches, hardwareKeyboardSeen, vkDismissed);
   vkEl.hidden = !on;
   document.body.classList.toggle("vk-on", on);
   panel.setDocked(on);
@@ -382,6 +384,21 @@ function applyVirtualKeyboard() {
   // Without this the system keyboard would pop up over ours, dismissed or not.
   view.setProps({ attributes: wanted ? { inputmode: "none" } : {} });
   document.documentElement.style.setProperty("--vk-h", `${vkHeight()}px`);
+  vkButton.setAttribute("aria-pressed", String(on));
+  vkButton.title = on ? "隱藏螢幕鍵盤" : "顯示螢幕鍵盤";
+}
+
+/** Shows or hides the keyboard by writing the same setting the Settings sheet edits. */
+function toggleVirtualKeyboard() {
+  flush();
+  if (!vkEl.hidden) {
+    setSetting("virtualKeyboard", "off");
+    return;
+  }
+  // A chevron dismissal outranks the setting; showing it manually clears that.
+  vkDismissed = false;
+  setSetting("virtualKeyboard", "on");
+  view.focus();
 }
 
 function dismissKeyboard() {
@@ -598,6 +615,7 @@ const commands = [
     run: () => (cloud.provider && !cloud.status.needsSignIn ? runSync() : openSettings()) },
   { id: "about", title: "關於", keywords: "about info help 說明 介紹", run: () => openAbout() },
   { id: "settings", title: "設定", keywords: "settings options preferences 選項", combo: "Mod-,", chord: chord("Mod-,"), run: () => openSettings() },
+  { id: "keyboard", title: "顯示／隱藏螢幕鍵盤", keywords: "keyboard virtual on-screen 螢幕鍵盤", run: toggleVirtualKeyboard },
   { id: "layout", title: "候選窗：直式／橫式", keywords: "candidate layout vertical horizontal",
     run: () => setSetting("candidateLayout", settings.candidateLayout === "vertical" ? "horizontal" : "vertical") },
   { id: "theme", title: "切換淺色／深色", keywords: "theme dark light 主題", run: () => $(".theme-toggle").click() },
@@ -840,6 +858,7 @@ aboutDialog.addEventListener("close", () => view.focus());
 aboutDialog.addEventListener("pointerdown", (e) => { if (e.target === aboutDialog) aboutDialog.close(); });
 aboutDialog.querySelector("[data-close]").addEventListener("click", () => aboutDialog.close());
 $("#about-btn").addEventListener("click", () => { flush(); openAbout(); });
+$("#vk-btn").addEventListener("click", toggleVirtualKeyboard);
 
 // -------------------------------------------------------------------- sync
 

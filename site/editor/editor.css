@@ -126,6 +126,15 @@ main.pg {
    there: the status text gives way with an ellipsis instead of wrapping. */
 .status #status { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .status #count { margin-left: auto; }
+/* The on-screen keyboard's manual switch. A pill rather than a status link, so
+   its pressed state is visible; 24px tall to stay tappable on a phone. */
+.status-toggle {
+  display: inline-flex; align-items: center; min-height: 24px; padding: 0 7px;
+  font: inherit; font-size: 13px; line-height: 1; color: var(--muted); background: none;
+  border: 1px solid transparent; border-radius: 999px; cursor: pointer;
+}
+.status-toggle:hover { color: var(--ink); }
+.status-toggle[aria-pressed="true"] { color: var(--ink); border-color: var(--line); background: var(--card); }
 #offline:empty { display: none; }
 
 .candidate-panel[hidden] { display: none; }
