@@ -2,6 +2,7 @@
 // drag a note onto a folder or another note to move it. It edits the store
 // (notes.js) itself; opening and deleting notes go through the editor, which
 // has to save or swap the document first.
+import iconUrl from "../icon.svg";
 import { UNTITLED } from "./notes.js";
 
 const escapeHtml = (s) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[c]));
@@ -11,23 +12,27 @@ const ICON = {
   folder: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4.5a1 1 0 0 1 1-1h2.6l1.4 1.5h5a1 1 0 0 1 1 1v5.5a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1z"/><path d="M8 7v3.4M6.3 8.7h3.4"/></svg>',
   chevron: '<svg class="chev" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>',
   more: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.6" cy="8" r=".9"/><circle cx="8" cy="8" r=".9"/><circle cx="12.4" cy="8" r=".9"/></svg>',
+  close: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>',
 };
 
 export class Sidebar {
   /**
    * @param {HTMLElement} el
    * @param {{ notes: ReturnType<import("./notes.js").createNotes>, current: () => string, open: (id: string) => void,
-   *   create: (folder: string|null) => void, remove: (id: string) => void, toast: (m: string) => void }} hooks
+   *   create: (folder: string|null) => void, remove: (id: string) => void, close: () => void, toast: (m: string) => void }} hooks
    */
   constructor(el, hooks) {
     this.el = el;
     this.hooks = hooks;
     this.notes = hooks.notes;
     this.el.innerHTML = `
+      <div class="side-brand">
+        <a class="brand" href="../" aria-label="回到首頁"><img src="${iconUrl}" alt="">隨打注音 <small>Markdown</small></a>
+        <button class="side-btn side-close" type="button" data-side="close" aria-label="關閉筆記列表" title="關閉筆記列表">${ICON.close}</button>
+      </div>
       <div class="side-head">
-        <span class="side-title">筆記</span>
+        <button class="side-new" type="button" data-side="new-note">${ICON.note}<span>新增筆記</span></button>
         <button class="side-btn" type="button" data-side="new-folder" aria-label="新增資料夾" title="新增資料夾">${ICON.folder}</button>
-        <button class="side-btn" type="button" data-side="new-note" aria-label="新增筆記" title="新增筆記">${ICON.note}</button>
       </div>
       <ul class="tree" role="tree" aria-label="筆記"></ul>
       <div class="side-foot"><button class="status-link" type="button" data-side="para">建立 PARA 資料夾</button></div>`;
@@ -89,6 +94,7 @@ export class Sidebar {
     else if (t.dataset.more) this.openMenu(t);
     else if (t.dataset.side === "new-note") this.hooks.create(null);
     else if (t.dataset.side === "new-folder") this.newFolder();
+    else if (t.dataset.side === "close") this.hooks.close();
     else if (t.dataset.side === "para") this.addPara();
   }
 
