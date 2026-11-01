@@ -294,7 +294,7 @@ async function takeAuthResult() {
  * Dropbox refresh token too, next to the notes it unlocks).
  * `onChange(status)` hears every change: { provider, busy, error, needsSignIn, last, report }.
  */
-export function createCloud({ notes, workspace, busy, onChange }) {
+export function createCloud({ notes, workspace, content, busy, onChange }) {
   const status = { provider: null, busy: false, error: "", needsSignIn: false, last: 0, report: null };
   const load = () => readJson(STATE_KEY);
   const publish = () => {
@@ -309,7 +309,7 @@ export function createCloud({ notes, workspace, busy, onChange }) {
     if (!state?.account) return null;
     const save = () => writeJson(STATE_KEY, state);
     const remote = (state.account.provider === "dropbox" ? dropbox : gdrive)(state.account, save);
-    const { base, report } = await syncNotes({ store: notes, remote, base: state.base, busy, workspace });
+    const { base, report } = await syncNotes({ store: notes, remote, base: state.base, busy, workspace, content });
     // Disconnected (or switched account) while this pass ran: drop it.
     if (load()?.account?.connected !== state.account.connected) return null;
     Object.assign(state, { base, last: Date.now() });
