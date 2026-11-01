@@ -273,7 +273,7 @@ dialog.sheet h3 span { margin-left: 6px; color: var(--muted); font-weight: norma
 }
 .vk-key {
   position: relative; flex: none; width: calc(var(--vk-u) * var(--vk-span, 1)); min-width: 0; height: var(--vk-h-key); padding: 0;
-  display: grid; place-items: center; font: inherit; font-size: 16px; font-weight: 400; line-height: 1;
+  display: grid; place-items: center; font: inherit; font-size: calc(var(--vk-u) * 0.56); font-weight: 400; line-height: 1;
   color: var(--vk-text); background: var(--vk-key); border: 0; border-radius: var(--vk-radius);
   box-shadow: 0 1px 0 var(--vk-edge);
   touch-action: none; -webkit-tap-highlight-color: transparent;
@@ -291,7 +291,9 @@ dialog.sheet h3 span { margin-left: 6px; color: var(--muted); font-weight: norma
 .vk-key.down { background: var(--vk-press); }
 .vk-key[data-special="space"].down, .vk-key[data-special="enter"].down { background: var(--vk-press); }
 .vk[data-shift="true"] .vk-key[data-special="shift"] { background: var(--vk-key); }
-.vk-hint { position: absolute; top: 2px; right: 4px; font-size: 9px; opacity: .55; }
+/* The Latin corner hint must clear the cap on the narrowest keys: keep it a
+   little under the cap's top margin (top 0 + 7px) and let it scale beyond. */
+.vk-hint { position: absolute; top: 0; right: 3px; font-size: max(7px, calc(var(--vk-u) * 0.16)); opacity: .55; }
 /* Key preview bubble above the pressed key. */
 .vk-key:not([data-special]).down::before {
   content: attr(data-preview); position: absolute; left: 50%; bottom: 100%; z-index: 2;
