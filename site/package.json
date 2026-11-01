@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@bjorn3/browser_wasi_shim": "^0.4.2",
+    "fractional-indexing": "^4.0.0",
     "prosemirror-commands": "^1.7.2",
     "prosemirror-dropcursor": "^1.8.4",
     "prosemirror-history": "^1.5.1",
@@ -26,6 +27,7 @@
     "prosemirror-schema-list": "^1.5.1",
     "prosemirror-state": "^1.4.4",
     "prosemirror-transform": "^1.12.2",
-    "prosemirror-view": "^1.42.6"
+    "prosemirror-view": "^1.42.6",
+    "yjs": "^13.6.33"
   }
 }

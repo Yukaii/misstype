@@ -15,6 +15,13 @@
 // list() gives [{name, rev}], write returns the new rev and throws an error
 // with `conflict: true` when `rev` (null: the file must not exist yet) no
 // longer matches; that note is left for the next pass.
+//
+// Once workspace.js has state in the remote (workspace.<device>.json), the
+// folder list and each note's folder/order come from that CRDT instead of
+// folders.json / the note front matter. Bodies keep the three-way merge above;
+// folders.json is only read while no workspace state exists (migration).
+
+import { isWorkspaceFile } from "./workspace.js";
 
 export const FOLDERS_FILE = "folders.json";
 const NOTE_FILE = /^notes\/([^/]+)\.md$/i;
@@ -34,7 +41,12 @@ export function hashOf(text) {
   return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
 }
 
-const noteHash = ({ folder, body }) => hashOf(`${folder ?? ""}\n${body}`);
+// The body only: a folder move or reorder belongs to workspace.js, so it must
+// not look like a body edit and make a concurrent edit elsewhere a conflict.
+const noteHash = ({ body }) => hashOf(body);
+// Hashes written by versions before the workspace CRDT include the folder.
+const legacyNoteHash = ({ folder, body }) => hashOf(`${folder ?? ""}\n${body}`);
+const hashMatches = (was, note) => Boolean(was) && (noteHash(note) === was.hash || legacyNoteHash(note) === was.hash);
 
 export function formatNote({ folder, updated, body }) {
   return `---\nmisstype: 1\nfolder: ${folder ?? ""}\nupdated: ${new Date(updated || 0).toISOString()}\n---\n${body}`;
@@ -81,36 +93,53 @@ const sameFolders = (a, b) => a.length === b.length && a.every((f, i) => f.id ==
  * unsaved edits on screen, so remote text must not replace it this pass.
  * Returns the new base and what happened.
  */
-export async function syncNotes({ store, remote, base = {}, busy = () => false }) {
+export async function syncNotes({ store, remote, base = {}, busy = () => false, workspace = null }) {
   const report = { uploaded: 0, downloaded: 0, deleted: 0, conflicts: 0, changed: new Set() };
   const files = new Map((await remote.list()).map((f) => [f.name, f]));
+  const workspaceFiles = new Map([...files].filter(([name]) => isWorkspaceFile(name)));
+  // Once any device has written its workspace state, the CRDT owns folders and
+  // note placement. Until then this pass is the one-time migration from
+  // folders.json / the note front matter.
+  const wsActive = Boolean(workspace) && workspaceFiles.size > 0;
+  let wsVector = null;
+  if (wsActive) {
+    wsVector = (await workspace.applyRemote(workspaceFiles, (name) => remote.read(name))).vector;
+    // Keep organization this device made while it had no workspace state (a
+    // cleared profile, or an index from before the upgrade) before projecting
+    // the remote view over it; ensure() only adds what the CRDT is missing.
+    workspace.ensure(store.workspaceState());
+    workspace.project(store);
+  }
   // folders.json is always written, so its absence after an earlier pass means
   // the remote folder was wiped (or is another one): a fresh start, not a
-  // request to delete every note here.
-  if (base.folders && !files.has(FOLDERS_FILE)) base = {};
+  // request to delete every note here. Workspace state replaces that signal.
+  if (!wsActive && base.folders && !files.has(FOLDERS_FILE)) base = {};
   const next = { folders: base.folders, notes: {} };
 
-  // Folders first, so remote notes find their folder.
-  const folderFile = files.get(FOLDERS_FILE);
-  const baseFolders = base.folders?.list ?? [];
-  let remoteFolders = [];
-  if (folderFile) {
-    remoteFolders = folderFile.rev === base.folders?.rev
-      ? baseFolders
-      : (JSON.parse(await remote.read(FOLDERS_FILE) || "{}").folders ?? []).filter((f) => f?.id && typeof f.name === "string");
-  }
-  const localFolders = store.snapshot().folders;
-  const folders = mergeFolders(baseFolders, localFolders, remoteFolders);
-  if (!sameFolders(folders, localFolders)) store.setFolders(folders);
-  if (!folderFile || !sameFolders(folders, remoteFolders)) {
-    try {
-      const rev = await remote.write(FOLDERS_FILE, `${JSON.stringify({ v: 1, folders }, null, 2)}\n`, folderFile?.rev ?? null);
-      next.folders = { rev, list: folders };
-    } catch (err) {
-      if (!err.conflict) throw err;
+  // Folders first, so remote notes find their folder. With workspace state the
+  // merge above already projected the folder list, and folders.json is legacy.
+  if (!wsActive) {
+    const folderFile = files.get(FOLDERS_FILE);
+    const baseFolders = base.folders?.list ?? [];
+    let remoteFolders = [];
+    if (folderFile) {
+      remoteFolders = folderFile.rev === base.folders?.rev
+        ? baseFolders
+        : (JSON.parse(await remote.read(FOLDERS_FILE) || "{}").folders ?? []).filter((f) => f?.id && typeof f.name === "string");
     }
-  } else if (folderFile) {
-    next.folders = { rev: folderFile.rev, list: folders };
+    const localFolders = store.snapshot().folders;
+    const folders = mergeFolders(baseFolders, localFolders, remoteFolders);
+    if (!sameFolders(folders, localFolders)) store.setFolders(folders);
+    if (!folderFile || !sameFolders(folders, remoteFolders)) {
+      try {
+        const rev = await remote.write(FOLDERS_FILE, `${JSON.stringify({ v: 1, folders }, null, 2)}\n`, folderFile?.rev ?? null);
+        next.folders = { rev, list: folders };
+      } catch (err) {
+        if (!err.conflict) throw err;
+      }
+    } else if (folderFile) {
+      next.folders = { rev: folderFile.rev, list: folders };
+    }
   }
 
   const local = new Map(store.snapshot().notes.map((n) => [n.id, n]));
@@ -130,7 +159,17 @@ export async function syncNotes({ store, remote, base = {}, busy = () => false }
     next.notes[note.id] = { rev: await remote.write(noteFile(note.id), text, rev), hash: noteHash(note) };
     report.uploaded++;
   };
-  const download = async (id, file) => ({ id, ...parseNote(await remote.read(file.name)) });
+  const download = async (id, file) => {
+    const parsed = parseNote(await remote.read(file.name));
+    const meta = workspace && wsActive ? workspace.meta(id) : null;
+    return {
+      id,
+      ...parsed,
+      // Workspace placement wins; the front matter is the migration/backup hint.
+      folder: meta ? meta.folder : parsed.folder,
+      order: meta?.order,
+    };
+  };
   const adopt = (note, rev) => {
     store.put(note);
     const stored = store.snapshot().notes.find((n) => n.id === note.id);
@@ -144,7 +183,9 @@ export async function syncNotes({ store, remote, base = {}, busy = () => false }
     const mine = local.get(id);
     const file = remoteNotes.get(id);
     if (!mine && !file) continue;
-    const mineChanged = mine ? !was || noteHash(mine) !== was.hash : Boolean(was);
+    // Accept the pre-workspace (folder + body) hash too, so the upgrade does not
+    // turn every unchanged note into a local edit.
+    const mineChanged = mine ? (!was || !hashMatches(was, mine)) : Boolean(was);
     const theirsChanged = file ? !was || file.rev !== was.rev : Boolean(was);
     try {
       if (!mineChanged && !theirsChanged) {
@@ -191,6 +232,18 @@ export async function syncNotes({ store, remote, base = {}, busy = () => false }
       // Someone wrote the file in the meantime: keep the old base, next pass sees both sides.
       if (was) next.notes[id] = was;
     }
+  }
+  if (workspace) {
+    // Seed any note/folder this device has but the CRDT has not seen yet (first
+    // migration pass, or a note that came in with a body only), then push the
+    // merged organization to its own static file.
+    workspace.ensure(store.workspaceState());
+    workspace.project(store);
+    await workspace.upload({
+      files,
+      vector: wsVector,
+      write: (name, text, rev) => remote.write(name, text, rev),
+    });
   }
   report.changed = [...report.changed];
   return { base: next, report };
