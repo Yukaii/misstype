@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How Misstype Came to Be: Story & Technical Notes</title>
+<meta name="description" content="From midnight bus blind-typing and split touchpads to a Zig core rewrite and a WebAssembly offline editor.">
+<meta property="og:title" content="How Misstype Came to Be">
+<meta property="og:description" content="From midnight bus rides to an IME engine in Zig and WebAssembly.">
+<meta property="og:image" content="../../icon.png">
+<link rel="icon" href="../../icon.svg" type="image/svg+xml">
+<link rel="alternate" hreflang="zh-Hant" href="../../story/" vite-ignore>
+<link rel="alternate" hreflang="en" href="./" vite-ignore>
+<script>(function(){try{var m=localStorage.getItem("misstype-theme");document.documentElement.dataset.scheme=m==="dark"||m==="light"?m:m==="auto"?matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light":"light"}catch(e){}})()</script>
+<link rel="stylesheet" href="../../style.css">
+</head>
+<body>
+
+<header class="wrap top">
+  <a class="brand" href="../"><img src="../../icon.svg" alt="">Misstype <small lang="zh-Hant">隨打注音</small></a>
+  <nav>
+    <a class="nav-link" href="../#install" aria-label="Download" title="Download"><svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v7.5M4.8 7.2 8 10.4l3.2-3.2M3 13h10"/></svg><span class="nav-label">Download</span></a>
+    <a class="nav-link" href="../../editor/" aria-label="Editor" title="Editor"><svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M10.8 2.7 13.3 5.2 5.6 12.9 2.7 13.3 3.1 10.4z"/></svg><span class="nav-label">Editor</span></a>
+    <a class="nav-link" href="./" aria-label="Story" title="Story & Technical Report"><svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 2.5h10a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1zm2 3h6M5 8.5h6M5 11.5h4"/></svg><span class="nav-label">Story</span></a>
+    <a class="nav-link" href="https://github.com/Yukaii/misstype" aria-label="GitHub" title="GitHub"><svg class="nav-icon nav-fill" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg><span class="nav-label">GitHub</span></a>
+    <a class="nav-link" href="../../story/" lang="zh-Hant" hreflang="zh-Hant" aria-label="中文" title="中文"><svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.6"/><path d="M2.4 8h11.2M8 2.4c-2.2 2.1-2.2 9.1 0 11.2M8 2.4c2.2 2.1 2.2 9.1 0 11.2"/></svg><span class="nav-label">中文</span></a>
+    <button class="theme-toggle" type="button" data-label-auto="Match system" data-label-light="Light" data-label-dark="Dark" aria-label="Toggle light / dark">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><g class="i-auto"><circle cx="8" cy="8" r="5.5"/><path d="M8 2.5v11"/></g><g class="i-light"><circle cx="8" cy="8" r="2.8"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1"/></g><path class="i-dark" d="M13.2 9.6A5.6 5.6 0 0 1 6.4 2.8a5.6 5.6 0 1 0 6.8 6.8z"/></svg>
+    </button>
+  </nav>
+</header>
+
+<main class="wrap">
+  <article>
+    <header class="story-header">
+      <span class="story-tag">Behind the Scenes</span>
+      <h1>How Misstype Came to Be</h1>
+      <p class="story-lede">
+        Midnight bus rides, split touchpads, Jev model sparks, and rewriting an IME core in Zig & WebAssembly.
+      </p>
+    </header>
+
+    <div class="story-body">
+      <h2>Midnight Bus Ride & Typing in the Dark</h2>
+      <p>
+        It all started on a late-night highway bus.
+      </p>
+      <p>
+        The lights were out and everyone was asleep. Thoughts and notes kept bubbling up in my head, but turning on the harsh reading light overhead wasn't an option—it would wake up passengers and feel blindingly bright in the dark.
+      </p>
+      <p>
+        Blind-typing on a phone or laptop? The second your hands shift by a millimeter, you end up with unreadable garbage. I thought: what if I had two palm-sized, split touchpads resting on my lap, where I could just tap by muscle memory without ever needing to look at keycaps?
+      </p>
+
+      <h2>The Prototype & The Reality of Touch</h2>
+      <p>
+        I started prototyping (milestones M0–M2).
+      </p>
+      <p>
+        Without physical key boundaries, touch typing is inherently messy:
+      </p>
+      <ul>
+        <li>Fingers land in the cracks between keys (neighbor slips).</li>
+        <li>Typing fast with two hands swaps timing (transpositions like <code>urp</code> instead of <code>rup</code>).</li>
+        <li>Fast swipes drop intermediate symbols.</li>
+      </ul>
+      <p>
+        A classic deterministic lookup engine immediately breaks down. It needed a decoder that could take in noisy, uncertain inputs and reconstruct the most likely sentence.
+      </p>
+
+      <h2>Jev & The Japanese IME Inspiration</h2>
+      <p>
+        Around that time, Typesafe AI announced the Jev model, focusing on fast token scoring and constrained candidate ranking.
+      </p>
+      <p>
+        It clicked: candidate disambiguation and ranking in an IME is the perfect playground for this.
+      </p>
+      <p>
+        Shortly after, a Japanese developer shared an IME that automatically detects Japanese vs. English in the same keystroke stream without pressing a mode-switch key. That proved it: the 1990s paradigm of rigid key codes and candidate-cycling menus is well past its expiration date.
+      </p>
+
+      <h2>The Pivot: Why Not Fix Zhuyin First?</h2>
+      <p>
+        Midway through fighting with hardware prototypes, a thought stopped me:
+      </p>
+      <blockquote>
+        <p>“The Bopomofo IME I use on my computer every single day frustrates me constantly. Why not just build a better IME first?”</p>
+      </blockquote>
+      <p>
+        Traditional Zhuyin has been painful for decades:
+      </p>
+      <ul>
+        <li><strong>Mandatory tone keys</strong>: Reaching up to the number row for tone marks on every single syllable breaks typing rhythm.</li>
+        <li><strong>Zero error tolerance</strong>: Swap two letters or slip to a neighboring key, and the whole word turns to garbage. Backspace, backspace, backspace.</li>
+        <li><strong>Broken thought flow</strong>: Having to pause every two or three words to check candidate boxes completely kills writing momentum.</li>
+      </ul>
+      <p>
+        So the project pivoted: <strong>no tone keys, forgiving of swapped or neighboring keys, and full-sentence continuous decoding</strong>.
+      </p>
+      <p>
+        At the end of the day, I just didn't want to spend weeks learning an entirely new input method—Pinyin, Cangjie, Boshiamy, or whatever. Decades of muscle memory are already hardwired to standard Zhuyin. Instead of forcing myself to adapt, I figured: let's leave it to the computer—or to the algorithm(?)—and let the software clean up after my sloppy typing.
+      </p>
+      <p>
+        I hacked together the first software prototype, and the typing feel was unexpectedly smooth. Misstype was born.
+      </p>
+
+      <h2>Rewriting the Core in Zig</h2>
+      <p>
+        The earliest version was prototyped in Python and Swift. It ran fine on macOS, but taking it to Linux (fcitx5 / IBus) hit walls:
+      </p>
+      <ul>
+        <li>Swift on Linux carried a massive runtime footprint and heavy cross-compilation headaches.</li>
+        <li>An IME needs microsecond latency. Swift's ARC allocations during lattice search added unwanted churn.</li>
+      </ul>
+      <p>
+        So I rewrote the entire core from scratch in Zig (<code>core-zig/</code>). The difference was night and day:
+      </p>
+      <ul>
+        <li><strong>Single toolchain</strong>: One compiler binary cross-compiling macOS, Linux (x86_64, aarch64), and WebAssembly.</li>
+        <li><strong>Clean C ABI</strong>: Exports <code>misstype.h</code> directly with zero glue layer overhead.</li>
+        <li><strong>Arena allocator</strong>: Keystroke decode allocations happen in an arena and get wiped in one instant O(1) call. Zero leaks, zero fragmentation.</li>
+        <li><strong>Microsecond speed</strong>: Full-sentence fuzzy decodes run in 0.1ms to 0.5ms. Input lag is non-existent.</li>
+      </ul>
+
+      <h2>WebAssembly & The Browser Editor: Type Anywhere</h2>
+      <p>
+        Once the core was pure Zig, compiling to WebAssembly (<code>wasm32-wasi</code>) was straightforward.
+      </p>
+      <p>
+        That unlocked a neat workaround: on iPadOS, Apple doesn't allow third-party IMEs with external hardware keyboards.
+      </p>
+      <p>
+        Since WASM runs directly in the browser, why not build a standalone offline <a href="../../editor/">Markdown editor</a> with Misstype built in?
+      </p>
+      <ul>
+        <li><strong>Zero install</strong>: Open a browser on any borrowed computer, locked-down work laptop, or iPad, and start typing immediately.</li>
+        <li><strong>Fully offline</strong>: Packaged as a PWA with Service Workers, working reliably even on flights without Wi-Fi.</li>
+      </ul>
+
+      <h2>Wrap Up</h2>
+      <p>
+        Looking back, Misstype grew from a simple wish on a dark overnight bus into an open-source typing tool across macOS, Linux, and the web.
+      </p>
+      <p>
+        If you also want to type without worrying about tone keys and with software that forgives your typos, give it a try—either download it or type a few lines in the web editor!
+      </p>
+
+      <div class="story-nav-bar">
+        <a href="../">&larr; Back to Home</a>
+        <a href="../../editor/">Open Web Markdown Editor &rarr;</a>
+      </div>
+    </div>
+  </article>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>Misstype's own code is MIT licensed. Third-party code and dictionaries retain their respective licenses.</p>
+    <p><a href="https://github.com/Yukaii/misstype">Source code</a> · <a href="./">Story</a> · <a href="../../licenses.html">Licenses and third-party notices</a> · <a href="../../story/" lang="zh-Hant" hreflang="zh-Hant">中文</a></p>
+  </div>
+</footer>
+
+<script type="module" src="../../theme.js"></script>
+</body>
+</html>

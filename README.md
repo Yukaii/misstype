@@ -14,7 +14,7 @@
   <img alt="Platforms: macOS, Linux" src="https://img.shields.io/badge/platforms-macOS%20%C2%B7%20Linux-lightgrey">
   </p>
 
-  <p><b>繁體中文</b> · <a href="README-en.md">English</a> · <a href="docs/architecture.md">架構</a> · <a href="CONTRIBUTING.md">貢獻</a> · <a href="docs/development.md">開發</a></p>
+  <p><b>繁體中文</b> · <a href="README-en.md">English</a> · <a href="docs/story.md">開發故事</a> · <a href="docs/architecture.md">架構</a> · <a href="CONTRIBUTING.md">貢獻</a> · <a href="docs/development.md">開發</a></p>
 </div>
 
 「隨打注音」（Misstype）是給注音使用者的輸入法，主打兩件事：
@@ -32,7 +32,7 @@
 
 ## 開始開發（人與代理程式）
 
-1. 先讀 [AGENTS.md](AGENTS.md)（工作流程、隱私規則、指令清單），再讀 [docs/architecture.md](docs/architecture.md) 與 [docs/project-outline.md](docs/project-outline.md)。
+1. 先讀 [AGENTS.md](AGENTS.md)（工作流程、隱私規則、指令清單），再讀 [docs/story.md](docs/story.md)、[docs/architecture.md](docs/architecture.md) 與 [docs/project-outline.md](docs/project-outline.md)。
 2. 建置並跑核心測試（第一次會下載固定版本的 Zig）：
 
    ```sh
@@ -71,6 +71,8 @@
 
 完整比較（平台、授權、安裝檔大小等）見[競品比較與功能研究](docs/competitors.md)。
 
+從最初在深夜客運上的摸黑打字想法，到 Jev 模型的啟發、Zig 核心重寫與 WebAssembly 離線編輯器的技術演化，完整紀錄請見[開發故事與技術報告](docs/story.md)（亦可閱讀[線上網頁版](https://misstype.yukai.dev/story/)）。
+
 ## 安裝
 
 想先試試看？[線上編輯器](https://misstype.yukai.dev/editor/)不用安裝就能打。
@@ -83,65 +85,45 @@
 
 ### Linux
 
-以 fcitx5 外掛支援 Linux，與 macOS 版共用同一個核心。安裝與進度見 [Linux 移植說明](docs/linux-port.md)。另有實驗性的 IBus 引擎（GNOME 預設的輸入法框架）：[IBus 移植說明](docs/ibus-port.md)。
+Linux 由社群貢獻支援，目前提供 **fcitx5** 與 **IBus** 兩種架構，與 macOS 版共用相同的 Zig 核心。
 
-Arch Linux / Omarchy 可從 AUR 安裝 [`fcitx5-misstype-git`](https://aur.archlinux.org/packages/fcitx5-misstype-git)：
+#### 推薦：從發行版套件安裝（x86_64 與 aarch64）
 
-```sh
-yay -S fcitx5-misstype-git
-```
+- **Arch Linux / Omarchy**：優先使用 AUR 預編譯套件 `yay -S fcitx5-misstype-bin`（或追蹤最新原始碼的 `fcitx5-misstype-git`）。若無 AUR helper，亦可由 Release 頁面下載 `.pkg.tar.zst` 使用 `sudo pacman -U` 安裝。
+- **Ubuntu 24.04**：至 [Releases](https://github.com/Yukaii/misstype/releases/latest) 下載 `Misstype-*-ubuntu24.04-*.deb`，使用 `sudo apt install ./Misstype-*.deb` 安裝。
+- **Fedora**：至 [Releases](https://github.com/Yukaii/misstype/releases/latest) 下載 `Misstype-*-fedora*.rpm`，使用 `sudo dnf install ./Misstype-*.rpm` 安裝。
 
-這是從最新上游 Git 原始碼建置的套件，不固定於某個發布版本。安裝後重新啟動 fcitx5，並在 `fcitx5-configtool` 中加入 **Misstype**。套件建置、啟用與移除方式請參閱 [安裝說明](docs/arch-linux.md)；套件配方位於 `linux/aur/PKGBUILD`。
+安裝後請登出再登入（或重啟 fcitx5），在 `fcitx5-configtool` 加入「Misstype」輸入法即可開始使用。
 
-也有預編譯、固定發布版本的套件，支援 **x86_64** 與 **aarch64**：
-`yay -S fcitx5-misstype-bin`（IBus 桌面則選 `yay -S ibus-misstype-bin`）。
-`-bin` 直接下載發布檔，不需編譯 Zig/C++；`-git` 仍從最新原始碼建置。
-詳見[安裝與發布狀態](docs/arch-linux.md#prebuilt-release-packages--bin)。
+#### 從原始碼編譯安裝
 
-#### IBus（實驗性）
-
-使用 IBus 的桌面（如 GNOME）可改用 IBus 引擎，共用同一個核心，並附設定視窗（`ibus-setup` 的「偏好設定」按鈕，或直接執行 `/usr/libexec/ibus-setup-misstype`）；設定與 fcitx5 版是同一份 `misstype.conf`，修改後立即生效。IBus 版與 fcitx5 套件不能同時安裝。發布流程會另外附上 `MisstypeIBus-*` 套件（Ubuntu 24.04 `.deb`、Fedora `.rpm`、Arch `.pkg.tar.zst`），v0.0.1 之後的版本才有；從[最新 Release](https://github.com/Yukaii/misstype/releases/latest)下載後，例如：
+若發行版沒有提供預編譯套件，可直接從原始碼編譯安裝：
 
 ```sh
-sudo apt install ./MisstypeIBus-*-ubuntu24.04-*.deb          # Ubuntu 24.04
-sudo dnf install ./MisstypeIBus-*-fedora*.rpm                # Fedora
-sudo pacman -U ./MisstypeIBus-*-arch-*.pkg.tar.zst           # Arch
-```
+# 1. 準備建置依賴
+# Arch Linux / Omarchy:
+sudo pacman -S --needed base-devel cmake ninja git
 
-或從原始碼安裝：
+# Ubuntu 24.04:
+sudo apt-get update && sudo apt-get install -y git
+script/linux/bootstrap.sh
 
-```sh
+# 2. 下載原始碼並編譯安裝
 git clone https://github.com/Yukaii/misstype.git && cd misstype
-script/linux/build.sh
-sudo cmake --install build/ibus
-ibus restart     # 再到「設定 → 鍵盤 → 輸入來源」加入 Misstype（Chinese）
+script/linux/install_ime.sh
 ```
 
-Arch Linux 可從 AUR 安裝 `ibus-misstype-bin`（預編譯）或 `ibus-misstype-git`（從原始碼建置，配方為 `linux/aur-ibus/PKGBUILD`）。細節與已驗證／未驗證項目見 [IBus 移植說明](docs/ibus-port.md)。進度追蹤：[#63](https://github.com/Yukaii/misstype/issues/63)。
+如需改用 IBus（GNOME 等環境），請參閱 [docs/ibus-port.md](docs/ibus-port.md)；完整 Linux 建置細節見 [docs/linux-port.md](docs/linux-port.md)。
 
-從原始碼建置請見[開發、建置與發布](docs/development.md)。
+## 文件
 
-## 使用
-
-按鍵與操作（連續輸入、選字、全形符號、我的詞庫、學習）見[操作手冊](docs/usage.md)。
-
-## 專案結構
-
-| 路徑 | 內容 |
-| --- | --- |
-| `core-zig/` | 唯一的解碼與編輯 `Session` 實作，透過 C ABI 與 wasm32-wasi 對外 |
-| `Sources/` | 僅 macOS：IMK 轉接層、設定介面、安裝程式（不含解碼規則） |
-| `linux/fcitx5/` | 共用同一核心的 fcitx5 外掛與 GTK 詞庫編輯器 |
-| `linux/ibus/` | 共用同一核心的 IBus 引擎與設定視窗 |
-| `packages/misstype-wasm/` | npm 瀏覽器綁定 |
-| `src/misstype/` | Python 捕捉／觸控原型（僅作為觸控語意的參考） |
-| `tests/`、`tools/` | Golden 檔、重播測試資料、量測腳本 |
-| `docs/` | 架構、跨平台規範（C1–C15）、設計筆記 |
-| `site/` | 官網與網頁編輯器（刻意與本 README 分開） |
-
-## 授權條款
-
-Misstype 自有程式碼採用 **MIT 授權條款**（詳見 [`LICENSE`](LICENSE)）。
-第三方程式碼與詞庫依各自授權：小麥注音為 MIT、libtabe 為 BSD 風格授權、國家教育研究院詞頻資料為 CC BY 4.0、英文詞表為 CC BY-SA 4.0；macOS 使用 Sparkle，Linux 連結 fcitx5 或 IBus。完整來源、授權及適用範圍見 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。
-
-示範影片的旁白與背景音樂（`video/public/voice/`、`video/public/music/`、`site/media/demo*.mp4`）**不是** MIT：它們由 ElevenLabs 免費方案生成，僅限非商業用途，並須標示 ElevenLabs 的出處。詳見同一份授權清單。
+- [docs/story.md](docs/story.md)：隨打注音開發故事與技術報告（[網頁版](https://misstype.yukai.dev/story/)）
+- [docs/architecture.md](docs/architecture.md)：核心架構與各層職責
+- [docs/zig-port.md](docs/zig-port.md)：Zig 核心重寫紀錄、架構與效能數據
+- [docs/development.md](docs/development.md)：本機開發、測試與排查
+- [docs/project-outline.md](docs/project-outline.md)：專案演化與里程碑
+- [docs/linux-port.md](docs/linux-port.md)：Linux fcitx5 移植細節
+- [docs/ibus-port.md](docs/ibus-port.md)：Linux IBus 移植細節
+- [docs/competitors.md](docs/competitors.md)：競品比較與功能研究
+- [docs/editor.md](docs/editor.md)：WebAssembly 離線 Markdown 編輯器設計
+- [docs/release.md](docs/release.md)：版本發布、簽章與驗證流程
