@@ -4,7 +4,7 @@
 //   cd site && npm ci && node ../tests/editor_hwkeyboard_test.mjs
 import assert from "node:assert/strict";
 import test from "node:test";
-import { fromHardwareKeyboard, virtualKeyboardVisible, virtualKeyboardWanted } from "../site/editor/keyboard.js";
+import { fromHardwareKeyboard, labelShiftEm, virtualKeyboardVisible, virtualKeyboardWanted } from "../site/editor/keyboard.js";
 
 const body = {};
 const doc = { body };
@@ -56,4 +56,14 @@ test("the chevron hides even an explicitly requested keyboard", () => {
   assert.equal(virtualKeyboardVisible("auto", true, false, true), false);
   // A hidden chevron keyboard still suppresses the system keyboard.
   assert.equal(virtualKeyboardWanted("on", true, false), true);
+});
+
+test("key labels are nudged by the font's ink offset, not a fixed amount", () => {
+  // Measured for Noto Sans CJK at 18px: font box 16/5, ㄅ ink 16/2.
+  assert.equal(labelShiftEm({ ascent: 16, descent: 5, inkAscent: 16, inkDescent: 2 }, 18).toFixed(4), "0.0833");
+  // Symmetric ink relative to the font box needs no nudge.
+  assert.equal(labelShiftEm({ ascent: 16, descent: 5, inkAscent: 15, inkDescent: 4 }, 18), 0);
+  assert.equal(labelShiftEm({}, 18), 0);
+  // Absurd metrics are clamped to a small correction.
+  assert.equal(labelShiftEm({ ascent: 0, descent: 0, inkAscent: 100, inkDescent: 0 }, 10), 0.15);
 });

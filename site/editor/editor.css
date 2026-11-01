@@ -273,11 +273,16 @@ dialog.sheet h3 span { margin-left: 6px; color: var(--muted); font-weight: norma
 }
 .vk-key {
   position: relative; flex: none; width: calc(var(--vk-u) * var(--vk-span, 1)); min-width: 0; height: var(--vk-h-key); padding: 0;
-  display: grid; place-items: center; font: inherit; font-size: 18px; font-weight: 400; line-height: 1;
+  display: grid; place-items: center; font: inherit; font-size: 16px; font-weight: 400; line-height: 1;
   color: var(--vk-text); background: var(--vk-key); border: 0; border-radius: var(--vk-radius);
   box-shadow: 0 1px 0 var(--vk-edge);
   touch-action: none; -webkit-tap-highlight-color: transparent;
 }
+/* A font's line box is not centred on its ink (the measured offset is ~1.5px
+   for ㄅ), so keyboard.js measures it once and sets --vk-label-shift. The
+   drawn shift/delete icons are already centred in their viewBox. */
+.vk-main { transform: translateY(var(--vk-label-shift, 0em)); }
+.vk-key[data-icon] .vk-main { transform: none; }
 .vk-key[data-special] { background: var(--vk-key-alt); font-size: 16px; }
 .vk-key[data-special="space"] { background: var(--vk-key); font-size: 15px; }
 /* Shift and Backspace draw their own icons instead of font glyphs, which came

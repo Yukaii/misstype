@@ -34,6 +34,21 @@ export function virtualKeyboardVisible(mode, touch, hardwareKeyboardSeen, dismis
   return virtualKeyboardWanted(mode, touch, hardwareKeyboardSeen) && !dismissed;
 }
 
+/**
+ * How far a key label must move to sit on the key's optical centre, in em.
+ * A font's ascent/descent box is not symmetric around the glyph ink, so
+ * centring the line box leaves the glyph high (or low). Measured at start-up
+ * because the system font differs between iOS, Android and desktop.
+ * @param {{ascent:number, descent:number, inkAscent:number, inkDescent:number}} metrics
+ * @param {number} fontSize  px
+ */
+export function labelShiftEm(metrics, fontSize) {
+  const { ascent, descent, inkAscent, inkDescent } = metrics;
+  if (![ascent, descent, inkAscent, inkDescent, fontSize].every(Number.isFinite) || fontSize <= 0) return 0;
+  const shift = ((inkAscent - inkDescent) - (ascent - descent)) / (2 * fontSize);
+  return Math.max(-0.15, Math.min(0.15, shift));
+}
+
 const REPEAT_DELAY = 420;
 const REPEAT_EVERY = 55;
 
@@ -63,6 +78,8 @@ export class VirtualKeyboard {
     this.caps = new Map(); // key code -> [main, hint] elements
     this.timers = new Map(); // pointer id -> repeat timers
     this.build();
+    this.alignCaps();
+    document.fonts?.ready.then(() => this.alignCaps());
     el.addEventListener("pointerdown", (e) => this.down(e));
     el.addEventListener("pointerup", (e) => this.up(e));
     el.addEventListener("pointercancel", (e) => this.up(e));
@@ -83,6 +100,7 @@ export class VirtualKeyboard {
         b.className = "vk-key";
         b.dataset.code = key.code;
         if (key.special) b.dataset.special = key.special;
+        if (ICONS[key.special]) b.dataset.icon = "";
         b.tabIndex = -1;
         if (key.fill) b.style.flex = "1 1 0";
         else if (key.wide) b.style.setProperty("--vk-span", String(key.wide));
@@ -98,6 +116,28 @@ export class VirtualKeyboard {
       this.el.append(rowEl);
     });
     this.render();
+  }
+
+  /**
+   * Measures the label font once (ㄅ is a full-height glyph) and stores the
+   * ink-versus-line-box offset for CSS. The canvas is never attached; this only
+   * reads metrics, and re-runs when webfonts settle.
+   */
+  alignCaps() {
+    const main = this.caps.get("Digit1")?.main;
+    if (!main?.isConnected) return;
+    const style = getComputedStyle(main);
+    const ctx = document.createElement("canvas").getContext("2d");
+    if (!ctx) return;
+    ctx.font = `${style.fontSize} ${style.fontFamily}`;
+    const m = ctx.measureText("ㄅ");
+    const shift = labelShiftEm({
+      ascent: m.fontBoundingBoxAscent,
+      descent: m.fontBoundingBoxDescent,
+      inkAscent: m.actualBoundingBoxAscent,
+      inkDescent: m.actualBoundingBoxDescent,
+    }, parseFloat(style.fontSize));
+    this.el.style.setProperty("--vk-label-shift", `${shift}em`);
   }
 
   get shift() { return this.shiftHeld.size > 0; }
