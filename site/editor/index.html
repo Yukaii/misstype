@@ -76,6 +76,7 @@
     <span id="status" role="status">載入注音中⋯</span>
     <span id="mode-label" title="輕按 Shift 切換中／英">中</span>
     <span id="count">0 字</span>
+    <button class="status-toggle" id="vk-btn" type="button" aria-label="螢幕鍵盤" aria-controls="vk" aria-pressed="false" title="顯示螢幕鍵盤">鍵盤</button>
     <button class="status-link" id="about-btn" type="button" data-command="about">關於</button>
     <button class="status-link" id="sync-btn" type="button" data-command="sync" hidden></button>
     <span id="offline"></span>
@@ -128,7 +129,7 @@
       <label>螢幕鍵盤
         <select data-setting="virtualKeyboard"><option value="auto">自動（預設）</option><option value="on">一律顯示</option><option value="off">不顯示</option></select>
       </label>
-      <p class="hint">自動：觸控裝置顯示螢幕鍵盤，接上實體鍵盤後隱藏。</p>
+      <p class="hint">自動：觸控裝置顯示螢幕鍵盤，接上實體鍵盤後隱藏。狀態列的「鍵盤」可隨時開關。</p>
       <label class="check"><input type="checkbox" data-setting="haptics"> 螢幕鍵盤按鍵震動回饋</label>
       <label>版面
         <select data-setting="wrap"><option value="comfortable">舒適（窄欄）</option><option value="wide">全寬</option></select>

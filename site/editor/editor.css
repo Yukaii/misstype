@@ -126,6 +126,15 @@ main.pg {
    there: the status text gives way with an ellipsis instead of wrapping. */
 .status #status { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .status #count { margin-left: auto; }
+/* The on-screen keyboard's manual switch. A pill rather than a status link, so
+   its pressed state is visible; 24px tall to stay tappable on a phone. */
+.status-toggle {
+  display: inline-flex; align-items: center; min-height: 24px; padding: 0 7px;
+  font: inherit; font-size: 13px; line-height: 1; color: var(--muted); background: none;
+  border: 1px solid transparent; border-radius: 999px; cursor: pointer;
+}
+.status-toggle:hover { color: var(--ink); }
+.status-toggle[aria-pressed="true"] { color: var(--ink); border-color: var(--line); background: var(--card); }
 #offline:empty { display: none; }
 
 .candidate-panel[hidden] { display: none; }
@@ -264,18 +273,27 @@ dialog.sheet h3 span { margin-left: 6px; color: var(--muted); font-weight: norma
 }
 .vk-key {
   position: relative; flex: none; width: calc(var(--vk-u) * var(--vk-span, 1)); min-width: 0; height: var(--vk-h-key); padding: 0;
-  display: grid; place-items: center; font: inherit; font-size: 22px; font-weight: 400; line-height: 1;
+  display: grid; place-items: center; font: inherit; font-size: calc(var(--vk-u) * 0.56); font-weight: 400; line-height: 1;
   color: var(--vk-text); background: var(--vk-key); border: 0; border-radius: var(--vk-radius);
   box-shadow: 0 1px 0 var(--vk-edge);
   touch-action: none; -webkit-tap-highlight-color: transparent;
 }
+/* A font's line box is not centred on its ink (the measured offset is ~1.5px
+   for ㄅ), so keyboard.js measures it once and sets --vk-label-shift. The
+   drawn shift/delete icons are already centred in their viewBox. */
+.vk-main { transform: translateY(var(--vk-label-shift, 0em)); }
+.vk-key[data-icon] .vk-main { transform: none; }
 .vk-key[data-special] { background: var(--vk-key-alt); font-size: 16px; }
 .vk-key[data-special="space"] { background: var(--vk-key); font-size: 15px; }
-.vk-key[data-special="shift"], .vk-key[data-special="backspace"] { font-size: 20px; }
+/* Shift and Backspace draw their own icons instead of font glyphs, which came
+   out thin and slightly off-centre on iOS. */
+.vk-key svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linejoin: round; stroke-linecap: round; }
 .vk-key.down { background: var(--vk-press); }
 .vk-key[data-special="space"].down, .vk-key[data-special="enter"].down { background: var(--vk-press); }
 .vk[data-shift="true"] .vk-key[data-special="shift"] { background: var(--vk-key); }
-.vk-hint { position: absolute; top: 2px; right: 4px; font-size: 9px; opacity: .55; }
+/* The Latin corner hint must clear the cap on the narrowest keys: keep it a
+   little under the cap's top margin (top 0 + 7px) and let it scale beyond. */
+.vk-hint { position: absolute; top: 0; right: 3px; font-size: max(7px, calc(var(--vk-u) * 0.16)); opacity: .55; }
 /* Key preview bubble above the pressed key. */
 .vk-key:not([data-special]).down::before {
   content: attr(data-preview); position: absolute; left: 50%; bottom: 100%; z-index: 2;
@@ -291,7 +309,7 @@ dialog.sheet h3 span { margin-left: 6px; color: var(--muted); font-weight: norma
   font-family: Roboto, "Noto Sans TC", "Google Sans", sans-serif;
 }
 :root[data-scheme="dark"] .vk[data-platform="android"] { --vk-bg: #1e1f22; --vk-key: #35373b; --vk-key-alt: #2a2c30; --vk-text: #e3e3e6; --vk-press: #4b5468; }
-.vk[data-platform="android"] .vk-key { box-shadow: none; font-size: 21px; }
+.vk[data-platform="android"] .vk-key { box-shadow: none; }
 .vk[data-platform="android"] .vk-key[data-special] { font-size: 16px; }
 .vk[data-platform="android"] .vk-key[data-special="space"] { border-radius: 999px; }
 .vk[data-platform="android"] .vk-key[data-special="enter"] { background: #c2d7ff; color: #001a41; border-radius: 999px; }
