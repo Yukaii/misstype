@@ -199,7 +199,11 @@ cycle loses text or needs manual merging more than rarely.
   2 minutes while visible; not while composing. Tabs take turns through Web
   Locks. The status strip shows the state and syncs on click; the palette has
   立即同步; Settings → 雲端同步 connects, syncs and disconnects (disconnecting
-  deletes nothing on either side).
+  deletes nothing on either side). The strip stays one line on a phone: spacing
+  tightens, the button keeps the state but drops the time (under 480px; the
+  full time is in Settings and the button's title), and a long status message
+  ends with an ellipsis instead of wrapping. Checked in Chromium at 320, 360,
+  375, 390, 414 and 430px with the offline badge shown: one 36px row.
 - Sign-in (`cloud.js`, `oauth.html`): a popup (full-page redirect if it is
   blocked) whose callback page passes the answer back through localStorage.
   Dropbox uses the code flow with PKCE and a refresh token, so it keeps
