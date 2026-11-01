@@ -20,7 +20,12 @@ test("embedded assets load into the decoder", { skip: !existsSync(join(here, "bu
         contents: 'export { loadAssets } from "./src/assets.js"; export { default as MisstypeWasm } from "misstype-wasm";',
         resolveDir: here,
       },
-      bundle: true, format: "esm", platform: "node", loader: { ".gz": "binary" }, outfile, logLevel: "silent",
+      // `target` matters for the binary loader: without one esbuild assumes
+      // esnext and emits a bare Uint8Array.fromBase64(...), which Node has no
+      // implementation of. With a concrete target it emits a feature-detecting
+      // helper that falls back to Buffer.from.
+      bundle: true, format: "esm", platform: "node", target: "node22",
+      loader: { ".gz": "binary" }, outfile, logLevel: "silent",
     });
     const { loadAssets, MisstypeWasm } = await import(pathToFileURL(outfile).href);
     const assets = await loadAssets();
