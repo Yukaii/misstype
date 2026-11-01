@@ -155,21 +155,44 @@ dialog.palette { width: min(560px, calc(100vw - 24px)); margin: 12vh auto 0; }
 .palette-list kbd, .palette-hint { color: var(--muted); font-size: 12px; white-space: nowrap; }
 .palette-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-dialog.sheet { width: min(460px, calc(100vw - 24px)); }
-dialog.sheet form { padding: 18px 20px 20px; display: grid; gap: 14px; }
+dialog.sheet {
+  width: min(460px, calc(100vw - 24px));
+  /* A sheet stays inside the visible part of the screen, the same --vv-h /
+     --vv-top the page is pinned to (editor.js): under the system keyboard or
+     Safari's form bar it otherwise kept its full height and its last rows sat
+     off screen. The safe-area insets keep it clear of the notch and home bar,
+     and 24px stay as a margin around the card. */
+  inset-block-start: calc(var(--vv-top, 0px) + env(safe-area-inset-top));
+  inset-block-end: calc(100% - var(--vv-top, 0px) - var(--vv-h, 100dvh) + env(safe-area-inset-bottom));
+  max-height: calc(var(--vv-h, 100dvh) - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+}
+dialog.sheet form {
+  min-width: 0; padding: 18px max(20px, env(safe-area-inset-right)) 20px max(20px, env(safe-area-inset-left));
+  display: grid; gap: 14px;
+}
 dialog.sheet h2 { margin: 0; font-size: 20px; }
-dialog.sheet fieldset { border: 1px solid var(--line); border-radius: 10px; margin: 0; padding: 10px 14px 12px; display: grid; gap: 10px; }
+dialog.sheet fieldset { border: 1px solid var(--line); border-radius: 10px; margin: 0; padding: 10px 14px 12px; display: grid; gap: 10px; min-width: 0; }
 /* `display: grid` above beats the hidden attribute's UA style, so restate it. */
 dialog.sheet fieldset[hidden] { display: none; }
 dialog.sheet legend { padding: 0 6px; color: var(--muted); font-size: 13px; }
-dialog.sheet label { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 15px; }
+dialog.sheet label { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 15px; min-width: 0; }
 dialog.sheet label.check { justify-content: flex-start; }
-dialog.sheet select { font: inherit; font-size: 14px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); color: var(--ink); }
+
+/* A <select> is as wide as its longest option, and 螢幕鍵盤's was wider than a
+   phone's sheet: the grid track grew with it and the card scrolled sideways. */
+dialog.sheet select { min-width: 0; max-width: 100%; font: inherit; font-size: 14px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); color: var(--ink); }
 dialog.sheet .hint { margin: 0; color: var(--muted); font-size: 13px; }
 .cloud-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .cloud-actions [hidden] { display: none; }
 /* iOS zooms the page into any text field or select under 16px when it takes focus, and stays zoomed. */
 @media (pointer: coarse) { dialog.sheet select, #dict-text { font-size: 16px; } }
+/* On a phone the label and a dropdown cannot share one row without clipping
+   the option text, so the dropdown gets the full width underneath. */
+@media (max-width: 480px) {
+  dialog.sheet label:has(> select) { flex-direction: column; align-items: stretch; gap: 6px; }
+  dialog.sheet label:has(> select) select { width: 100%; }
+}
 
 @media (max-width: 640px) {
   .bar { gap: 6px; padding-left: max(10px, env(safe-area-inset-left)); padding-right: max(10px, env(safe-area-inset-right)); }
