@@ -316,6 +316,12 @@ system keyboard) and when focus returns to the editor; `editor.js` remembers
 the scroll position while no dialog is open and restores it as any dialog
 closes, before a palette command runs. Text fields and selects in dialogs are
 16px on touch screens, since iOS zooms into smaller ones and stays zoomed.
+Every sheet (settings, dictionary, learning, about) is capped to the visible
+viewport and scrolls inside it, with the safe-area insets as margins; on
+screens up to 480px a dropdown moves under its label and controls may shrink.
+A `<select>` is as wide as its longest option, and Settings' 螢幕鍵盤 sentence
+used to widen the whole sheet past a phone screen, which made the card scroll
+sideways and clipped its right column (checked at 320/375/390/414px).
 Checked only with Chromium's iPad emulation (no safe-area insets there).
 
 ## About
