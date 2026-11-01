@@ -20,6 +20,7 @@
 // the existing edit-beats-delete rule stays. A note whose folder is gone is
 // shown at the top level, not deleted.
 import * as Y from "yjs";
+import { bytesToB64, b64ToBytes } from "./binary.js";
 
 const DOC_KEY = "misstype-editor-workspace";
 const DEVICE_KEY = "misstype-editor-device";
@@ -35,20 +36,6 @@ const byOrder = (a, b) => {
   const bo = b.order || "";
   if (ao !== bo) return ao < bo ? -1 : 1;
   return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
-};
-
-const bytesToB64 = (bytes) => {
-  let text = "";
-  for (let i = 0; i < bytes.length; i += 0x8000) {
-    text += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-  }
-  return btoa(text);
-};
-const b64ToBytes = (text) => {
-  const bin = atob(text);
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return bytes;
 };
 
 const read = (storage, key) => {

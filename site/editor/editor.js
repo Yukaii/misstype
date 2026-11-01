@@ -12,7 +12,9 @@ import "./editor.css";
 import { actions, editingKeys, horizontalKeys } from "./actions.js";
 import { CandidatePanel } from "./candidates.js";
 import { chord, isApple, matches, modifierBits } from "./keys.js";
+import { initProseMirrorDoc, ySyncPlugin } from "y-prosemirror";
 import { parseMarkdown, schema, toMarkdown, wordCount } from "./model.js";
+import { createContent } from "./content.js";
 import { createDictionary } from "./dictionary.js";
 import { createLearning } from "./learning.js";
 import { tick } from "./haptics.js";
@@ -52,6 +54,18 @@ let currentId = notes.load().current;
 // Editor states of notes opened this visit, so each keeps its own undo history.
 const states = new Map();
 
+// The CRDT document for each note. Markdown stays the export/cache; this is
+// what merges concurrent text edits.
+const content = createContent({
+  notes,
+  onUpdate: (id) => {
+    if (id === currentId) {
+      scheduleSave();
+      updateCount();
+    }
+  },
+});
+
 // Organization state (folders, note placement and order) as a local CRDT;
 // sync.js writes it to this device's own static file in the cloud folder.
 workspace = createWorkspace({ onChange: () => scheduleSync() });
@@ -60,6 +74,7 @@ workspace = createWorkspace({ onChange: () => scheduleSync() });
 const cloud = createCloud({
   notes,
   workspace,
+  content,
   // The note on screen while it has unsaved typing: remote text must not replace it.
   busy: (id) => id === currentId && Boolean(saveTimer || imeState?.preedit),
   onChange: renderSync,
@@ -82,6 +97,7 @@ function saveNow() {
   clearTimeout(saveTimer);
   saveTimer = 0;
   if (notes.write(currentId, toMarkdown(view.state.doc))) sidebar.render();
+  content.persist(currentId);
 }
 
 const placeholder = new Plugin({
@@ -98,23 +114,28 @@ const placeholder = new Plugin({
   },
 });
 
-const createState = (markdown) => EditorState.create({
-  doc: parseMarkdown(markdown),
-  plugins: [
-    markdownRules,
-    history(),
-    keymap({ ...editingKeys, ...horizontalKeys, "Mod-z": undo, "Mod-y": redo, "Shift-Mod-z": redo }),
-    keymap(baseKeymap),
-    dropCursor(),
-    preeditPlugin,
-    placeholder,
-    zenPlugin,
-  ],
-});
+const createState = (id) => {
+  const { fragment } = content.open(id);
+  const { doc, mapping } = initProseMirrorDoc(fragment, schema);
+  return EditorState.create({
+    doc,
+    plugins: [
+      ySyncPlugin(fragment, { mapping }),
+      markdownRules,
+      history(),
+      keymap({ ...editingKeys, ...horizontalKeys, "Mod-z": undo, "Mod-y": redo, "Shift-Mod-z": redo }),
+      keymap(baseKeymap),
+      dropCursor(),
+      preeditPlugin,
+      placeholder,
+      zenPlugin,
+    ],
+  });
+};
 
 function createView() {
   return new EditorView($("#editor"), {
-    state: createState(notes.read(currentId)),
+    state: createState(currentId),
     // Pasted plain text is read as Markdown, so notes from other editors keep their structure.
     clipboardTextParser: (text, $context, plain) => {
       if (plain) return undefined;
@@ -136,7 +157,7 @@ const updateCount = () => { countEl.textContent = `${wordCount(view.state.doc).t
 
 function show(id) {
   currentId = id;
-  view.updateState(states.get(id) ?? createState(notes.read(id)));
+  view.updateState(states.get(id) ?? createState(id));
   app.scrollTop = 0;
   updateCount();
   updateToolbar();
@@ -181,6 +202,7 @@ function deleteNote(id) {
   if (!empty && !confirm(`刪除「${title}」？刪除後無法復原。`)) return;
   if (current) { clearTimeout(saveTimer); saveTimer = 0; }
   states.delete(id);
+  content.forget(id);
   const next = notes.delete(id);
   if (current) show(next);
   sidebar.render();
@@ -769,15 +791,20 @@ async function runSync() {
   clearTimeout(syncTimer); // the save just above is part of this pass
   const report = await cloud.sync();
   if (!report) return;
+  const replaced = new Set(report.replaced ?? []);
+  const contentChanged = new Set(report.contentChanged ?? []);
   for (const id of report.changed) if (id !== currentId) states.delete(id);
+  for (const id of contentChanged) if (id !== currentId) states.delete(id);
   const index = notes.load();
   if (!index.notes.some((n) => n.id === currentId)) show(index.current);
-  else if (report.changed.includes(currentId) && !saveTimer && !imeState?.preedit) {
+  else if ((replaced.has(currentId) || (report.changed.includes(currentId) && !contentChanged.has(currentId)))
+    && !saveTimer && !imeState?.preedit) {
     states.delete(currentId);
     show(currentId);
   }
   sidebar.render();
   if (report.conflicts) toast(`${report.conflicts} 篇筆記兩邊都改過，兩個版本都留著`);
+  else if (report.merged) toast(`已合併 ${report.merged} 篇筆記`);
 }
 
 const timeOf = (ms) => new Date(ms).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" });

@@ -22,24 +22,13 @@
 // folders.json is only read while no workspace state exists (migration).
 
 import { isWorkspaceFile } from "./workspace.js";
+import { isContentFile, stateFile, syncContent } from "./content-sync.js";
+import { hashOf } from "./hash.js";
 
+export { hashOf };
 export const FOLDERS_FILE = "folders.json";
 const NOTE_FILE = /^notes\/([^/]+)\.md$/i;
 export const noteFile = (id) => `notes/${id}.md`;
-
-/** A short string hash (cyrb53), enough to notice that content changed. */
-export function hashOf(text) {
-  let h1 = 0xdeadbeef;
-  let h2 = 0x41c6ce57;
-  for (let i = 0; i < text.length; i++) {
-    const c = text.charCodeAt(i);
-    h1 = Math.imul(h1 ^ c, 2654435761);
-    h2 = Math.imul(h2 ^ c, 1597334677);
-  }
-  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
-  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
-  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
-}
 
 // The body only: a folder move or reorder belongs to workspace.js, so it must
 // not look like a body edit and make a concurrent edit elsewhere a conflict.
@@ -93,8 +82,11 @@ const sameFolders = (a, b) => a.length === b.length && a.every((f, i) => f.id ==
  * unsaved edits on screen, so remote text must not replace it this pass.
  * Returns the new base and what happened.
  */
-export async function syncNotes({ store, remote, base = {}, busy = () => false, workspace = null }) {
-  const report = { uploaded: 0, downloaded: 0, deleted: 0, conflicts: 0, changed: new Set() };
+export async function syncNotes({ store, remote, base = {}, busy = () => false, workspace = null, content = null, contentDevice = null }) {
+  const report = {
+    uploaded: 0, downloaded: 0, deleted: 0, conflicts: 0, merged: 0,
+    changed: new Set(), replaced: [], contentChanged: [],
+  };
   const files = new Map((await remote.list()).map((f) => [f.name, f]));
   const workspaceFiles = new Map([...files].filter(([name]) => isWorkspaceFile(name)));
   // Once any device has written its workspace state, the CRDT owns folders and
@@ -142,16 +134,41 @@ export async function syncNotes({ store, remote, base = {}, busy = () => false, 
     }
   }
 
-  const local = new Map(store.snapshot().notes.map((n) => [n.id, n]));
   const remoteNotes = new Map();
   for (const file of files.values()) {
     const m = NOTE_FILE.exec(file.name);
     if (m) remoteNotes.set(m[1], file);
   }
+  // Bodies as they were before any CRDT merge, so a remote content update is
+  // not mistaken for a local body edit in the loop below.
+  const local = new Map(store.snapshot().notes.map((n) => [n.id, n]));
+  const bodyChanged = (id) => {
+    const note = local.get(id);
+    const was = base.notes?.[id];
+    return note ? (!was || !hashMatches(was, note)) : Boolean(was);
+  };
+  let contentResult = null;
+  if (content) {
+    contentResult = await syncContent({
+      content,
+      store,
+      remote,
+      files,
+      busy,
+      local,
+      bodyIds: new Set(remoteNotes.keys()),
+      device: contentDevice ?? workspace?.device ?? "device",
+      bodyChanged,
+    });
+  }
   // The note as stored right now, to skip one the user changed while this pass waited on the network.
   const untouched = (id, seen) => {
     if (busy(id)) return false;
     const now = store.snapshot().notes.find((n) => n.id === id);
+    // A content merge updated the Markdown cache before this loop; that is not
+    // the user typing while the network was busy, so it is safe to adopt.
+    const merged = contentResult?.merged.get(id);
+    if (merged !== undefined && now?.body === merged) return true;
     return seen ? Boolean(now) && noteHash(now) === noteHash(seen) : !now;
   };
   const upload = async (note, rev) => {
@@ -177,6 +194,29 @@ export async function syncNotes({ store, remote, base = {}, busy = () => false, 
     report.downloaded++;
     report.changed.add(note.id);
   };
+  const contentDeviceUsed = contentDevice ?? workspace?.device ?? "device";
+  const deleteContent = async (id) => {
+    if (!content) return;
+    content.forget(id);
+    for (const [name] of [...files]) {
+      if (!isContentFile(name)) continue;
+      if (name.slice("notes/".length).split(".")[0] !== id) continue;
+      await remote.remove(name);
+      files.delete(name);
+    }
+  };
+  /** Writes this device's content state after a merge or rebase. */
+  const uploadContent = async (id) => {
+    if (!content) return;
+    const name = stateFile(id, contentDeviceUsed);
+    const existing = files.get(name);
+    try {
+      const rev = await remote.write(name, JSON.stringify({ v: 1, device: contentDeviceUsed, state: content.state(id) }), existing?.rev ?? null);
+      files.set(name, { name, rev });
+    } catch (err) {
+      if (!err.conflict) throw err;
+    }
+  };
 
   for (const id of new Set([...local.keys(), ...remoteNotes.keys(), ...Object.keys(base.notes ?? {})])) {
     const was = base.notes?.[id];
@@ -196,15 +236,27 @@ export async function syncNotes({ store, remote, base = {}, busy = () => false, 
           if (was || mine.body.trim()) await upload(mine, file?.rev ?? null);
         } else {
           await remote.remove(file.name);
+          await deleteContent(id);
           report.deleted++;
+          report.changed.add(id);
         }
       } else if (!mineChanged) {
         if (file) {
           const theirs = await download(id, file);
-          if (untouched(id, mine)) adopt(theirs, file.rev);
-          else if (was) next.notes[id] = was;
+          const body = contentResult?.merged.get(id) ?? theirs.body;
+          if (untouched(id, mine)) {
+            // A client without content state changed the body: take the text
+            // into the local CRDT so the next edit can still merge.
+            if (content && !contentResult?.applied.has(id) && content.has(id)) {
+              content.replaceMarkdown(id, body);
+              if (content.linked(id)) await uploadContent(id);
+              report.contentChanged.push(id);
+            }
+            adopt({ ...theirs, body }, file.rev);
+          } else if (was) next.notes[id] = was;
         } else if (untouched(id, mine)) {
           store.delete(id);
+          await deleteContent(id);
           report.deleted++;
           report.changed.add(id);
         } else if (was) next.notes[id] = was;
@@ -215,9 +267,38 @@ export async function syncNotes({ store, remote, base = {}, busy = () => false, 
         const theirs = await download(id, file);
         if (!mine) {
           // Deleted here, edited there: the edit wins.
-          adopt(theirs, file.rev);
+          const body = contentResult?.merged.get(id) ?? theirs.body;
+          adopt({ ...theirs, body }, file.rev);
         } else if (noteHash(theirs) === noteHash(mine)) {
           next.notes[id] = { rev: file.rev, hash: noteHash(mine) };
+        } else if (content && !busy(id) && (contentResult?.applied.has(id)
+          || (contentResult?.linked.has(id) && content.normalize(content.markdown(id)) === content.normalize(theirs.body)))) {
+          // Both edited, and both share the content CRDT history (or the local
+          // document already holds the remote text from an earlier pass): merge.
+          const body = contentResult.merged.get(id) ?? content.markdown(id);
+          const mergedNote = { ...mine, body };
+          store.put({ ...theirs, body });
+          await upload(mergedNote, file.rev);
+          if (!contentResult.uploaded.has(id)) await uploadContent(id);
+          report.merged++;
+          report.changed.add(id);
+        } else if (content && contentResult?.blocked.has(id) && !busy(id)) {
+          // An independent local history (edited before it saw the seed): keep
+          // both texts as before, then rebase the kept local text onto the
+          // seed so the next conflict merges instead of duplicating again.
+          const copy = { ...theirs, id: store.newId() };
+          adopt(copy, null);
+          await upload(copy, null);
+          await upload(mine, file.rev);
+          const blocked = contentResult.blocked.get(id);
+          content.rebase(id, blocked.seed, blocked.states, mine.body);
+          contentResult.replaced.add(id);
+          report.contentChanged.push(id);
+          await uploadContent(id);
+          report.conflicts++;
+        } else if (content && busy(id)) {
+          // Let the composition finish; the next pass merges.
+          if (was) next.notes[id] = was;
         } else {
           // Both edited: keep both. The remote text becomes a note of its own.
           const copy = { ...theirs, id: store.newId() };
@@ -246,5 +327,9 @@ export async function syncNotes({ store, remote, base = {}, busy = () => false, 
     });
   }
   report.changed = [...report.changed];
+  if (contentResult) {
+    report.replaced = [...contentResult.replaced];
+    report.contentChanged = [...new Set([...report.contentChanged, ...contentResult.applied])];
+  }
   return { base: next, report };
 }
