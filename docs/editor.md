@@ -153,13 +153,77 @@ phone or in an emulator.
 (JS, CSS, wasm, lexicons, icons) and `manifest.webmanifest`. The worker answers
 from its cache first and refreshes in the background; a new build changes the
 cache name and drops the old one. Registered in production builds only.
-Nothing typed is sent anywhere.
+Nothing typed is sent anywhere unless the user connects a cloud account (Cloud
+sync below); the worker only handles same-origin requests, so sync traffic is
+never cached.
+
+## Cloud sync
+
+Decision 2026-10-25: the editor can sync its notes and folders to the user's
+own Dropbox or Google Drive, so the same notes follow them between an iPad, a
+phone and a desktop browser. This is the one exception to "sync is deferred"
+in `docs/project-outline.md`: it is opt-in, off until an account is connected,
+goes straight from the browser to the user's storage (no server of ours, no
+account with us), and the notes stay usable offline.
+
+Hypothesis: a three-way sync of plain files is enough for one person moving
+between devices: no text is lost, and edits on one device show up on another
+within a couple of minutes. Falsified if a normal edit/switch-device/edit
+cycle loses text or needs manual merging more than rarely.
+
+- What syncs: notes (body and folder) and the folder list. Not settings, My
+  Dictionary or learning data (follow-ups; the dictionary and
+  `user_lexicon.json` share the desktop file formats, which could later let a
+  desktop app read the same folder). Note order in the sidebar stays per device;
+  new notes from elsewhere land at the top of their folder.
+- Remote layout (`sync.js`): `notes/<id>.md`, the Markdown as saved behind a
+  short front matter (`misstype: 1`, `folder`, `updated`), and `folders.json`.
+  A `.md` file dropped into `notes/` by hand becomes a top-level note.
+  Dropbox: the app's App folder (`Apps/<app name>/`); Google Drive: a
+  `Misstype` folder, scope `drive.file` (only files this app created).
+- Merge (`syncNotes`, tested by `tests/editor_sync_test.mjs` with two devices on an
+  in-memory remote): `base` remembers each note's remote revision and a hash of
+  the agreed content. One-sided changes and deletions go across; an edit beats
+  a delete; when both sides changed a note, the local text keeps it and the
+  remote text becomes a new note (a toast says so); nothing is dropped. Folders merge
+  per folder (rename beats delete; both renamed: local name wins). A fresh
+  empty note is not uploaded. The note on screen with unsaved typing or a
+  composition is never replaced. If `folders.json` disappears after a pass
+  (the folder was wiped), the next pass starts over and uploads instead of
+  deleting local notes. Writes to Dropbox are conditional on the revision,
+  so a lost race is retried next pass. Drive has no conditional write: two
+  devices writing the same note in the same second can lose the earlier
+  write (still in Drive's version history).
+- When: 4 s after the last save (any change in `notes.js` fires `onChange`),
+  on load, when the tab becomes visible or the network comes back, and every
+  2 minutes while visible; not while composing. Tabs take turns through Web
+  Locks. The status strip shows the state and syncs on click; the palette has
+  立即同步; Settings → 雲端同步 connects, syncs and disconnects (disconnecting
+  deletes nothing on either side).
+- Sign-in (`cloud.js`, `oauth.html`): a popup (full-page redirect if it is
+  blocked) whose callback page passes the answer back through localStorage.
+  Dropbox uses the code flow with PKCE and a refresh token, so it keeps
+  working. Google gives a browser-only app no refresh token: after about an
+  hour the strip says 需要重新登入 and sync waits for a click (signing in again
+  to the same account keeps the sync state; another account starts over and
+  merges). Tokens live in localStorage next to the notes.
+- Setup (maintainer): a Dropbox app with App folder access and the scopes
+  `files.content.read`, `files.content.write`, `files.metadata.read`; a Google
+  OAuth client of type Web application with the Drive API enabled. Register
+  every origin's `…/editor/oauth.html` as redirect URI (Pages and Vercel are
+  different origins; `http://localhost:5173/editor/oauth.html` for `npm run dev`). The app key and client ID are public;
+  they reach the build as `VITE_DROPBOX_APP_KEY` / `VITE_GOOGLE_CLIENT_ID`
+  (Pages: repository variables `DROPBOX_APP_KEY`, `GOOGLE_CLIENT_ID`; Vercel:
+  project environment variables). A provider without one is not offered.
+- Checked: the merge tests and a production build. Not yet run against the
+  real Dropbox or Drive APIs (no app registered yet), nor in an installed iOS
+  home-screen app, where the sign-in popup may open outside the app.
 
 ## Commands and keys
 
 Command palette: `Mod-Shift-P` (or F1, or the 指令 button). Also
 `Mod-Shift-C` copy Markdown, `Mod-Shift-X` copy plain text, `Mod-Shift-K` clear
-(undoable), `Mod-S` download `.md`, `Mod-Shift-E` toggle 中/英 (a Shift tap
+(undoable), 立即同步 (palette only), `Mod-S` download `.md`, `Mod-Shift-E` toggle 中/英 (a Shift tap
 too), `Mod-,` settings. The 中/英 mode flashes beside the cursor when it changes, including a Shift tap or backtick that opens or closes an English run inside a Chinese composition (as on desktop) and is shown in the status strip; there is no header button for it. `Ctrl-J/K` stay with the decoder.
 
 ## iOS 26 Safari chrome

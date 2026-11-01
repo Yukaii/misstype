@@ -30,7 +30,7 @@ Deferred:
 
 - Custom electronics, force sensors, haptics, and low-power firmware.
 - System-wide IME integration.
-- Cloud inference, accounts, sync, and social features.
+- Cloud inference, accounts, sync, and social features. (Exception, 2026-10-25: the web editor syncs notes to the user's own Dropbox or Google Drive, opt-in and browser-direct; `docs/editor.md`, Cloud sync.)
 - Automatic learning from personal text without an explicit opt-in and export path.
 
 ## Milestones

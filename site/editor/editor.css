@@ -143,11 +143,15 @@ dialog.sheet { width: min(460px, calc(100vw - 24px)); }
 dialog.sheet form { padding: 18px 20px 20px; display: grid; gap: 14px; }
 dialog.sheet h2 { margin: 0; font-size: 20px; }
 dialog.sheet fieldset { border: 1px solid var(--line); border-radius: 10px; margin: 0; padding: 10px 14px 12px; display: grid; gap: 10px; }
+/* `display: grid` above beats the hidden attribute's UA style, so restate it. */
+dialog.sheet fieldset[hidden] { display: none; }
 dialog.sheet legend { padding: 0 6px; color: var(--muted); font-size: 13px; }
 dialog.sheet label { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 15px; }
 dialog.sheet label.check { justify-content: flex-start; }
 dialog.sheet select { font: inherit; font-size: 14px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); color: var(--ink); }
 dialog.sheet .hint { margin: 0; color: var(--muted); font-size: 13px; }
+.cloud-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.cloud-actions [hidden] { display: none; }
 /* iOS zooms the page into any text field or select under 16px when it takes focus, and stays zoomed. */
 @media (pointer: coarse) { dialog.sheet select, #dict-text { font-size: 16px; } }
 
