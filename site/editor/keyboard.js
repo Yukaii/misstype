@@ -37,6 +37,19 @@ export function virtualKeyboardVisible(mode, touch, hardwareKeyboardSeen, dismis
 const REPEAT_DELAY = 420;
 const REPEAT_EVERY = 55;
 
+// iOS-style action icons. Font glyphs (⇧ ⌫) sat thin and off-centre in the
+// system font, and the delete-left shape differs between platforms.
+const ICONS = {
+  shift: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.9 12.8 8.4h-2.6v4.2H5.8V8.4H3.2z"/></svg>',
+  backspace: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5.2 3.2h9.4v9.6H5.2L1.2 8z"/><path d="m7.6 6.1 3.5 3.8M11.1 6.1 7.6 9.9"/></svg>',
+};
+
+function ariaLabel(key, shift) {
+  if (key.special === "shift") return "Shift";
+  if (key.special === "backspace") return "刪除";
+  return key.special ? key.label : keyText(key, shift);
+}
+
 /**
  * @param {HTMLElement} el  container (hidden until `show`)
  * @param {{ press(key, text, shift): void, shift(down: boolean): void }} handlers
@@ -101,10 +114,12 @@ export class VirtualKeyboard {
     this.el.dataset.shift = String(this.shift);
     for (const { key, main, hint, button } of this.caps.values()) {
       const [m, h] = capLabels(key, state);
-      main.textContent = m;
+      const icon = ICONS[key.special];
+      if (icon) main.innerHTML = icon;
+      else main.textContent = m;
       hint.textContent = h;
       button.dataset.preview = m;
-      button.setAttribute("aria-label", key.special ? key.label : keyText(key, this.shift));
+      button.setAttribute("aria-label", ariaLabel(key, this.shift));
     }
   }
 
