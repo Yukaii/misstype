@@ -68,6 +68,7 @@
   <span id="mode-label" title="輕按 Shift 切換中／英">中</span>
   <span id="count">0 字</span>
   <button class="status-link" id="about-btn" type="button" data-command="about">關於</button>
+  <button class="status-link" id="sync-btn" type="button" data-command="sync" hidden></button>
   <span id="offline"></span>
 </footer>
 
@@ -119,7 +120,17 @@
         <select data-setting="wrap"><option value="comfortable">舒適（窄欄）</option><option value="wide">全寬</option></select>
       </label>
     </fieldset>
-    <p class="hint">設定只存在這個瀏覽器裡。輸入的內容不會傳到任何伺服器。</p>
+    <fieldset id="cloud">
+      <legend>雲端同步</legend>
+      <p class="hint" id="cloud-state"></p>
+      <div class="cloud-actions">
+        <button class="tool" type="button" data-cloud="dropbox">連結 Dropbox</button>
+        <button class="tool" type="button" data-cloud="gdrive">連結 Google Drive</button>
+        <button class="tool" type="button" data-cloud="sync">立即同步</button>
+        <button class="tool" type="button" data-cloud="disconnect">中斷連結</button>
+      </div>
+    </fieldset>
+    <p class="hint">設定只存在這個瀏覽器裡。輸入的內容不會傳到任何伺服器；連結雲端後，筆記會從這個瀏覽器直接存進你自己的 Dropbox 或 Google Drive。</p>
     <button class="tool primary" type="button" data-close>完成</button>
   </form>
 </dialog>
@@ -130,7 +141,7 @@
     <p>隨打注音（Misstype）是一套打注音不用管聲調的輸入法：順序打反、按到隔壁鍵、漏打符號，都能猜回你要的字。</p>
     <p><strong>這個編輯器是給「裝不了自訂輸入法」的環境用的。</strong>例如 iPad（接了實體鍵盤也不能用第三方輸入法）、受管制的電腦、Chromebook 或別人的裝置。它把同一套輸入法放進網頁裡，載入後離線也能用。</p>
     <p>如果你的裝置可以安裝，請改用原生版：<a href="https://github.com/Yukaii/misstype/releases/latest" target="_blank" rel="noopener">macOS 版</a>，或 <a href="../#linux">Linux（fcitx5）版</a>。它們在所有 App 裡都能用，不限於這一頁。</p>
-    <p>你打的字與詞庫只存在這個瀏覽器（localStorage），不會傳到任何伺服器。注音詞庫來自 McBopomofo 與國家教育研究院；程式碼採 MIT 授權。</p>
+    <p>你打的字與詞庫只存在這個瀏覽器（localStorage），不會傳到任何伺服器。若你在設定裡連結 Dropbox 或 Google Drive，筆記會從瀏覽器直接存進你自己的帳號，不經過我們。注音詞庫來自 McBopomofo 與國家教育研究院；程式碼採 MIT 授權。</p>
     <p class="about-links"><a href="https://github.com/Yukaii/misstype" target="_blank" rel="noopener">原始碼</a> · <a href="../licenses.html">授權與第三方聲明</a> · <a href="../">首頁</a></p>
     <button class="tool primary" type="button" data-close>關閉</button>
   </form>

@@ -30,7 +30,8 @@ export function titleOf(markdown) {
   return "";
 }
 
-export function createNotes(storage = globalThis.localStorage) {
+/** `onChange` hears every change to what is stored (not which note is open or which folders are expanded). */
+export function createNotes(storage = globalThis.localStorage, { onChange = () => {} } = {}) {
   const get = (key) => {
     try { return storage.getItem(key); } catch { return null; }
   };
@@ -61,10 +62,11 @@ export function createNotes(storage = globalThis.localStorage) {
   const blankNote = (folder) => ({ id: newId(), folder, title: "", updated: Date.now() });
 
   /** Applies `edit` to a fresh copy of the index and stores it; returns edit's result. */
-  function change(edit) {
+  function change(edit, notify = true) {
     const index = load();
     const result = edit(index);
     set(INDEX_KEY, JSON.stringify(index));
+    if (notify) onChange();
     return result;
   }
 
@@ -86,7 +88,7 @@ export function createNotes(storage = globalThis.localStorage) {
       });
     },
 
-    setCurrent: (id) => change((index) => { index.current = id; }),
+    setCurrent: (id) => change((index) => { index.current = id; }, false),
 
     /** A new note at the top of `folder` (null: top level); returns its id. */
     create(folder = null, markdown = "") {
@@ -157,7 +159,7 @@ export function createNotes(storage = globalThis.localStorage) {
       change((index) => {
         const folder = index.folders.find((f) => f.id === id);
         if (folder) folder.open = open ?? !folder.open;
-      });
+      }, false);
     },
 
     /** Removes a folder; its notes move to the top level, nothing is lost. */
@@ -175,6 +177,50 @@ export function createNotes(storage = globalThis.localStorage) {
         const missing = PARA.filter((name) => !have.has(name.toLowerCase()));
         for (const name of missing) index.folders.push({ id: newId(), name, open: true });
         return missing.length;
+      });
+    },
+
+    // ------------------------------------------------ for cloud sync (sync.js)
+
+    newId,
+
+    /** Every folder ({id, name}) and note ({id, folder, updated, body}), in sidebar order. */
+    snapshot() {
+      const index = load();
+      return {
+        folders: index.folders.map(({ id, name }) => ({ id, name })),
+        notes: index.notes.map(({ id, folder, updated }) => ({ id, folder, updated, body: get(BODY_KEY(id)) || "" })),
+      };
+    },
+
+    /**
+     * Writes a note that came from elsewhere: replaces its body and folder,
+     * or adds it at the top of its folder. Keeps `updated` and never changes
+     * which note is open. An unknown folder means the top level.
+     */
+    put({ id, folder, updated, body }) {
+      set(BODY_KEY(id), body);
+      change((index) => {
+        const known = index.folders.some((f) => f.id === folder) ? folder : null;
+        let note = index.notes.find((n) => n.id === id);
+        if (!note) {
+          note = { id, folder: known };
+          const to = index.notes.findIndex((n) => n.folder === known);
+          index.notes.splice(to < 0 ? index.notes.length : to, 0, note);
+        }
+        note.folder = known;
+        note.title = titleOf(body);
+        note.updated = updated || Date.now();
+      });
+    },
+
+    /** Replaces the folder list ({id, name}); open state is kept, notes of a removed folder move to the top level. */
+    setFolders(list) {
+      change((index) => {
+        const open = new Map(index.folders.map((f) => [f.id, f.open]));
+        index.folders = list.map(({ id, name }) => ({ id, name, open: open.get(id) ?? true }));
+        const ids = new Set(list.map((f) => f.id));
+        for (const note of index.notes) if (note.folder && !ids.has(note.folder)) note.folder = null;
       });
     },
 

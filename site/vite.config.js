@@ -62,6 +62,7 @@ export default defineConfig({
         main: resolve(here, "index.html"),
         en: resolve(here, "en/index.html"),
         editor: resolve(here, "editor/index.html"),
+        oauth: resolve(here, "editor/oauth.html"),
       },
     },
   },

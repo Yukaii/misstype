@@ -23,6 +23,7 @@ import { registerServiceWorker } from "./pwa.js";
 import { markdownRules } from "./rules.js";
 import { IME_KEYS, loadSettings, saveSettings } from "./settings.js";
 import { createNotes, UNTITLED } from "./notes.js";
+import { createCloud, PROVIDERS, RESULT_KEY } from "./cloud.js";
 import { Sidebar } from "./sidebar.js";
 import { zenPlugin } from "./zen.js";
 
@@ -41,10 +42,19 @@ let nativeImeKeys = 0;
 
 // ---------------------------------------------------------------- document
 
-const notes = createNotes();
+const notes = createNotes(undefined, { onChange: () => scheduleSync() });
 let currentId = notes.load().current;
 // Editor states of notes opened this visit, so each keeps its own undo history.
 const states = new Map();
+
+// Cloud sync (cloud.js, sync.js): off until an account is connected in Settings.
+const cloud = createCloud({
+  notes,
+  // The note on screen while it has unsaved typing: remote text must not replace it.
+  busy: (id) => id === currentId && Boolean(saveTimer || imeState?.preedit),
+  onChange: renderSync,
+});
+let syncTimer = 0;
 
 let saveTimer = 0;
 function scheduleSave() {
@@ -531,6 +541,8 @@ const commands = [
   { id: "mode", title: "切換中／英", keywords: "english chinese mode 中英", combo: "Mod-Shift-e", chord: chord("Mod-Shift-e") + " · 輕按 Shift", run: toggleMode },
   { id: "dictionary", title: "我的詞庫", keywords: "dictionary words phrases user 詞庫 詞彙", combo: "Mod-Shift-d", chord: chord("Mod-Shift-d"), run: () => dictionary.open() },
   { id: "learning", title: "學習資料", keywords: "learning learned phrases slips forget 學習 學到的詞 打錯", run: () => learning.open() },
+  { id: "sync", title: "立即同步", keywords: "sync cloud dropbox google drive backup 同步 雲端 備份",
+    run: () => (cloud.provider && !cloud.status.needsSignIn ? runSync() : openSettings()) },
   { id: "about", title: "關於", keywords: "about info help 說明 介紹", run: () => openAbout() },
   { id: "settings", title: "設定", keywords: "settings options preferences 選項", combo: "Mod-,", chord: chord("Mod-,"), run: () => openSettings() },
   { id: "layout", title: "候選窗：直式／橫式", keywords: "candidate layout vertical horizontal",
@@ -665,7 +677,9 @@ sidebarEl.addEventListener("pointerdown", flush, true);
 // Another tab (or the installed app) changed the notes: redraw the list, and
 // reload the open note if it was not being edited here.
 addEventListener("storage", (e) => {
-  if (e.key === notes.indexKey) {
+  if (e.key === RESULT_KEY && e.newValue) finishConnect();
+  else if (e.key === "misstype-editor-sync") cloud.publish();
+  else if (e.key === notes.indexKey) {
     const index = notes.load();
     if (!index.notes.some((n) => n.id === currentId)) show(index.current);
     sidebar.render();
@@ -678,7 +692,13 @@ addEventListener("storage", (e) => {
 });
 // Closing the tab or switching apps must not lose the last 400 ms of typing.
 addEventListener("pagehide", saveNow);
-document.addEventListener("visibilitychange", () => { if (document.hidden) saveNow(); });
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) saveNow();
+  else scheduleSync(0);
+});
+// Pull other devices' changes now and then, and as soon as the network is back.
+setInterval(() => { if (!document.hidden) scheduleSync(0); }, 120_000);
+addEventListener("online", () => scheduleSync(0));
 
 // --------------------------------------------------------------------- zen
 
@@ -710,6 +730,93 @@ aboutDialog.addEventListener("close", () => view.focus());
 aboutDialog.addEventListener("pointerdown", (e) => { if (e.target === aboutDialog) aboutDialog.close(); });
 aboutDialog.querySelector("[data-close]").addEventListener("click", () => aboutDialog.close());
 $("#about-btn").addEventListener("click", () => { flush(); openAbout(); });
+
+// -------------------------------------------------------------------- sync
+
+/** Syncs `delay` ms from now (again after the last call), if an account is connected. */
+function scheduleSync(delay = 4000) {
+  if (!cloud.provider) return;
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(runSync, delay);
+}
+
+async function runSync() {
+  clearTimeout(syncTimer);
+  syncTimer = 0;
+  if (!cloud.provider || cloud.status.needsSignIn) return;
+  // A composition belongs to the note on screen; let it finish first.
+  if (imeState?.preedit) { scheduleSync(); return; }
+  saveNow();
+  clearTimeout(syncTimer); // the save just above is part of this pass
+  const report = await cloud.sync();
+  if (!report) return;
+  for (const id of report.changed) if (id !== currentId) states.delete(id);
+  const index = notes.load();
+  if (!index.notes.some((n) => n.id === currentId)) show(index.current);
+  else if (report.changed.includes(currentId) && !saveTimer && !imeState?.preedit) {
+    states.delete(currentId);
+    show(currentId);
+  }
+  sidebar.render();
+  if (report.conflicts) toast(`${report.conflicts} 篇筆記兩邊都改過，兩個版本都留著`);
+}
+
+const timeOf = (ms) => new Date(ms).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" });
+
+/** Draws the sync state in the status strip and in Settings. */
+function renderSync(s) {
+  const name = s.provider ? PROVIDERS[s.provider].name : "";
+  const button = document.querySelector("#sync-btn");
+  button.hidden = !s.provider;
+  button.textContent = s.busy ? "同步中⋯" : s.error || (s.last ? `已同步 ${timeOf(s.last)}` : name);
+  button.title = s.provider ? `${name}${s.last ? ` · 上次同步 ${timeOf(s.last)}` : ""} · 點一下立即同步` : "";
+  const box = document.querySelector("#cloud");
+  const offered = Object.keys(PROVIDERS).filter((p) => PROVIDERS[p].configured);
+  // No build key and no account: there is nothing to show, and an empty group
+  // in Settings only invites the question "why is this here?".
+  box.hidden = !s.provider && !offered.length;
+  box.querySelector("#cloud-state").textContent = s.provider
+    ? `已連結 ${name}${s.last ? `，上次同步 ${timeOf(s.last)}` : ""}${s.error ? `。${s.error}` : ""}`
+    : s.error || (offered.length
+      ? "筆記目前只存在這個瀏覽器。連結後會存進你自己的雲端（Dropbox 的「應用程式」資料夾，或 Google Drive 的 Misstype 資料夾），在每台裝置連結同一個帳號即可共用。"
+      : "這個網站沒有設定雲端同步。");
+  for (const el of box.querySelectorAll("[data-cloud]")) {
+    const what = el.dataset.cloud;
+    if (what in PROVIDERS) {
+      const again = s.needsSignIn && s.provider === what;
+      el.hidden = !PROVIDERS[what].configured || (Boolean(s.provider) && !again);
+      el.textContent = `${again ? "重新登入" : "連結"} ${PROVIDERS[what].name}`;
+    } else {
+      el.hidden = !s.provider;
+      el.disabled = what === "sync" && (s.busy || s.needsSignIn);
+    }
+  }
+}
+
+async function finishConnect() {
+  if (!await cloud.finish()) return;
+  toast(`已連結 ${PROVIDERS[cloud.provider].name}`);
+  runSync();
+}
+
+document.querySelector("#cloud").addEventListener("click", (e) => {
+  const what = e.target.closest("[data-cloud]")?.dataset.cloud;
+  if (!what) return;
+  if (what in PROVIDERS) {
+    saveNow();
+    cloud.connect(what);
+  } else if (what === "sync") {
+    runSync();
+  } else if (what === "disconnect" && confirm(`中斷與 ${PROVIDERS[cloud.provider].name} 的連結？這台裝置和雲端上的筆記都會留著。`)) {
+    clearTimeout(syncTimer);
+    cloud.disconnect();
+  }
+});
+$("#sync-btn").addEventListener("click", () => {
+  flush();
+  if (cloud.status.needsSignIn) openSettings();
+  else runSync();
+});
 
 // ---------------------------------------------------------------- settings
 
@@ -797,6 +904,10 @@ $(".bar").addEventListener("click", (e) => {
 });
 
 loadIme();
+cloud.publish();
+// Back from a full-page sign-in (popup blocked), or a sync on load.
+finishConnect();
+scheduleSync(1000);
 registerServiceWorker((state) => {
   $("#offline").textContent = state;
 });

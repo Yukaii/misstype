@@ -24,6 +24,14 @@ cannot be just `vite build`.
 GitHub Pages (`pages.yml`) builds the same site independently; the two do
 not depend on each other.
 
+## Cloud sync keys
+
+The editor's Dropbox / Google Drive sync (`docs/editor.md`, Cloud sync) is
+built in only when the project has `VITE_DROPBOX_APP_KEY` and/or
+`VITE_GOOGLE_CLIENT_ID` set (public values). Each deployment origin's
+`/editor/oauth.html` must be a registered redirect URI; preview URLs change per
+deployment, so sync sign-in works on production and on a fixed preview alias only.
+
 ## Notes
 
 - Previews of a private repository sit behind Vercel's deployment protection
