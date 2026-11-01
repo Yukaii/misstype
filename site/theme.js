@@ -34,6 +34,8 @@ function apply() {
     button.setAttribute("aria-label", button.dataset[`label${m[0].toUpperCase()}${m.slice(1)}`] || m);
     button.title = button.getAttribute("aria-label");
   }
+  // A menu row (the editor's ⋯ menu) can show the mode beside its label.
+  for (const el of document.querySelectorAll("[data-theme-label]")) el.textContent = button?.getAttribute("aria-label") || m;
 }
 
 button?.addEventListener("click", () => {

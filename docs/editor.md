@@ -38,11 +38,19 @@ iPad emulation, not a real device).
   Resources, Archives); a title is the note's first line. Each change re-reads
   the index, so two tabs do not overwrite each other's notes; the open note
   is per tab, and each note keeps its own undo history for the visit.
+- Layout: the notes sidebar is a top-level, full-height column beside the
+  editor pane (`site/editor/index.html` `.shell`), not part of the pane's
+  header/toolbar frame. The pane's header keeps four things: the sidebar
+  toggle, the current note title (tap to open the switcher), the command-palette
+  button and a ⋯ menu for document and app actions (copy Markdown / plain
+  text, zen, settings, theme, clear). The sidebar carries the app brand and a
+  prominent 新增筆記 button.
 - Sidebar (`sidebar.js`, `Mod-\`): docked on screens wider than 800px (open
-  or closed is remembered), a drawer elsewhere. Each row has a ⋯ menu (move,
-  delete; folder: new note, rename, delete — its notes move to the top
-  level); a note can be dragged onto a folder or before another note. Folder
-  names use the system keyboard, not the decoder.
+  or closed is remembered), a drawer over the whole window elsewhere, with a
+  close button in its header. Each row has a ⋯ menu (move, delete; folder:
+  new note, rename, delete — its notes move to the top level); a note can be
+  dragged onto a folder or before another note. Folder names use the system
+  keyboard, not the decoder.
 - ←/→ on iOS (`actions.js` `horizontalKeys`): Safari on an iPhone with a
   hardware keyboard did not move the caret for plain ←/→ here (↑/↓ worked;
   the decoder passes all four on when nothing is composed, and ProseMirror
@@ -53,8 +61,8 @@ iPad emulation, not a real device).
 - Quick switcher (`Mod-P`, or the palette's "切換筆記⋯"): the palette over
   the notes, most recently edited first (the open one last), matching the
   title and the folder name.
-- Zen mode (`zen.js`, `Mod-Shift-F` or the header button): hides the header,
-  toolbar, status strip and sidebar, and dims every block but the cursor's
+- Zen mode (`zen.js`, `Mod-Shift-F` or the header's ⋯ menu): hides the
+  header, toolbar, status strip and sidebar, and dims every block but the cursor's
   (and the list item / quote holding it). Esc (when no composition takes
   it), the command or the faint corner button leave it.
 - The toolbar (`index.html`, `editor.css`) uses the page's colour variables,

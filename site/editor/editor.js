@@ -38,6 +38,7 @@ const toastEl = $("#toast");
 const modeLabel = $("#mode-label");
 const modeFlash = $("#mode-flash");
 const countEl = $("#count");
+const docTitleEl = $("#doc-title");
 
 let ime = null;
 let imeState = null;
@@ -96,7 +97,10 @@ function saveNow() {
   if (!saveTimer) return;
   clearTimeout(saveTimer);
   saveTimer = 0;
-  if (notes.write(currentId, toMarkdown(view.state.doc))) sidebar.render();
+  if (notes.write(currentId, toMarkdown(view.state.doc))) {
+    sidebar.render();
+    renderDocTitle();
+  }
   content.persist(currentId);
 }
 
@@ -161,6 +165,18 @@ function show(id) {
   app.scrollTop = 0;
   updateCount();
   updateToolbar();
+  renderDocTitle();
+}
+
+/** The title in the header is the note's first line, the same one the sidebar shows. */
+function renderDocTitle() {
+  const note = notes.load().notes.find((n) => n.id === currentId);
+  const title = note?.title || UNTITLED;
+  const label = `切換筆記：${title}`;
+  docTitleEl.textContent = title;
+  docTitleEl.setAttribute("aria-label", label);
+  docTitleEl.title = `${label} (${chord("Mod-p")})`;
+  document.title = `${title} · 隨打注音`;
 }
 
 /** Saves the note on screen and puts another one in its place. */
@@ -674,6 +690,57 @@ toolbar.addEventListener("click", (e) => {
   else commands.find((c) => c.id === button.dataset.command)?.run();
 });
 
+// ---------------------------------------------------------------- bar menu
+
+// The header keeps only the essentials: the sidebar toggle, the note title
+// (which opens the switcher), the palette button and this menu. Document and
+// app actions live here, anchored under the ⋯ button.
+const moreBtn = $("#bar-more-btn");
+const barMenu = $("#bar-menu");
+
+function closeBarMenu(refocus = false) {
+  if (barMenu.hidden) return;
+  barMenu.hidden = true;
+  moreBtn.setAttribute("aria-expanded", "false");
+  if (refocus) moreBtn.focus({ preventScroll: true });
+}
+
+function openBarMenu() {
+  barMenu.hidden = false;
+  moreBtn.setAttribute("aria-expanded", "true");
+  const r = moreBtn.getBoundingClientRect();
+  const w = barMenu.offsetWidth;
+  const h = barMenu.offsetHeight;
+  barMenu.style.left = `${Math.max(8, Math.min(r.right - w, innerWidth - w - 8))}px`;
+  barMenu.style.top = `${r.bottom + h + 8 > innerHeight ? Math.max(8, r.top - h - 4) : r.bottom + 4}px`;
+  barMenu.querySelector("button")?.focus({ preventScroll: true });
+}
+
+moreBtn.addEventListener("pointerdown", (e) => e.preventDefault());
+moreBtn.addEventListener("click", () => (barMenu.hidden ? openBarMenu() : closeBarMenu(true)));
+barMenu.addEventListener("pointerdown", (e) => { if (e.target.closest("button")) e.preventDefault(); });
+barMenu.addEventListener("click", (e) => {
+  const button = e.target.closest("button");
+  if (!button) return;
+  closeBarMenu();
+  if (button.dataset.command) {
+    flush();
+    commands.find((c) => c.id === button.dataset.command)?.run();
+  }
+  // Commands that open a dialog take focus themselves; the rest go back to the note.
+  if (!document.querySelector("dialog[open]")) view.focus();
+});
+document.addEventListener("pointerdown", (e) => {
+  if (barMenu.hidden || barMenu.contains(e.target) || moreBtn.contains(e.target)) return;
+  closeBarMenu();
+}, true);
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape" || barMenu.hidden) return;
+  e.preventDefault();
+  e.stopPropagation();
+  closeBarMenu(true);
+}, true);
+
 // ----------------------------------------------------------------- sidebar
 
 // Docked beside the note on a wide screen (open or closed is remembered),
@@ -687,6 +754,7 @@ const sidebar = new Sidebar(sidebarEl, {
   open: openNote,
   create: (folder) => newNote(folder),
   remove: deleteNote,
+  close: () => setSidebar(false),
   toast,
 });
 
@@ -747,6 +815,7 @@ addEventListener("online", () => scheduleSync(0));
 // the block being written (zen.js, editor.css). Esc, the command or the
 // corner button leave it.
 function setZen(on) {
+  closeBarMenu();
   document.body.classList.toggle("zen", on);
   if (on && narrowSidebar.matches) setSidebar(false);
   if (on) toast("專注模式 · Esc 離開");
@@ -918,6 +987,7 @@ applyAppearance();
 updateCount();
 updateToolbar();
 sidebar.render();
+renderDocTitle();
 
 // Capture on the editor so the decoder sees keys before ProseMirror's handlers.
 const host = view.dom;
