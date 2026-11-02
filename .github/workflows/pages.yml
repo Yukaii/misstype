@@ -53,7 +53,18 @@ jobs:
         with:
           path: .cache/zig
           key: zig-pages-${{ runner.arch }}-${{ hashFiles('script/zig/bootstrap.sh') }}
-      - run: script/build_site_assets.sh
+      - name: Cache generated demo assets
+        id: assets-cache
+        uses: actions/cache@v4
+        with:
+          # site/public is generated from the core sources, utf8proc, the
+          # pinned lexicons and Resources; site-only changes reuse it instead
+          # of rebuilding the wasm decoder on every PR (~2 minutes).
+          path: site/public
+          key: site-assets-${{ runner.os }}-${{ hashFiles('script/zig/bootstrap.sh') }}-${{ hashFiles('core-zig/src/**', 'core-zig/build.zig', 'core-zig/build.zig.zon', 'third_party/**', 'Resources/**', 'script/prepare_lexicon.py', 'script/build_site_assets.sh') }}
+      - name: Generate demo assets
+        if: steps.assets-cache.outputs.cache-hit != 'true'
+        run: script/build_site_assets.sh
       - uses: actions/upload-artifact@v4
         with:
           name: site-assets

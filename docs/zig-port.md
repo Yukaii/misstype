@@ -220,6 +220,17 @@ The cache is keyed per leg and toolchain/image inputs, so a miss still performs
 the complete build and all checks. Release and Pages still build their Swift
 consumers; Zig passing CI does not change what either workflow ships.
 
+CI spends most of its wall time compiling the core. To keep that time on the
+critical path only once per build mode, `zig-core` runs Debug and ReleaseFast
+as two parallel jobs, both replay legs skip the duplicate test-binary build
+(`MISSTYPE_REPLAY_SKIP_TESTS=1`; zig-core already ran both modes), and the macOS
+job links a native-architecture C ABI built by `zig build capi` (release.yml
+still builds the universal x86_64 + arm64 dylib). The built wasm decoder and
+the generated `site/public` assets are cached by their source inputs, so
+adapter-only and site-only changes reuse them; a cache key change falls back to
+a full build, never to a skipped check. Caching only removes redundant
+compilation, not any gate.
+
 The complete port has these remaining boundaries, in dependency order:
 
 | Area | Current evidence / gap | Exit check |
