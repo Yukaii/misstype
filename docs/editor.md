@@ -174,7 +174,12 @@ with the keyboard forced on; neither has been driven on a phone or iPad yet.
 `vite.config.js` (`editorPwa`) emits `editor/sw.js` with the list of built files
 (JS, CSS, wasm, lexicons, icons) and `manifest.webmanifest`. The worker answers
 from its cache first and refreshes in the background; a new build changes the
-cache name and drops the old one. Registered in production builds only.
+cache name and drops the old one. The install fetches every entry with
+`cache: "reload"` (so a just-deployed HTML cannot be precached from the HTTP
+cache) and navigations bypass the HTTP cache too. On an update the new worker
+reloads open windows once after claiming them; `pwa.js` also calls
+`registration.update()` when the app returns to the foreground, so an installed
+app left open does not keep an old bundle. Registered in production builds only.
 Nothing typed is sent anywhere unless the user connects a cloud account (Cloud
 sync below); the worker only handles same-origin requests, so sync traffic is
 never cached.
