@@ -25,27 +25,15 @@ concurrency:
 
 jobs:
   macos-zig-port:
-    # Build the universal Zig library on the platform that supplies lipo and
-    # SwiftPM's InputMethodKit headers, then build the IME against it and run
-    # the Swift UI-side tests and the Swift-to-Zig smoke test.
+    # Build the Zig library on the platform that supplies lipo and SwiftPM's
+    # InputMethodKit headers, then build the IME against it and run the Swift
+    # UI-side tests and the Swift-to-Zig smoke test.
+    # CI only needs a dylib its own architecture can load, so it builds the
+    # native slice; the universal (x86_64 + arm64) library stays in release.yml.
     runs-on: macos-26
     timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - name: Cache pinned Zig toolchain
-        uses: actions/cache@v4
-        with:
-          path: .cache/zig
-          key: zig-macos-${{ runner.arch }}-${{ hashFiles('script/zig/bootstrap.sh') }}
-      - name: Build universal Zig C ABI
-        run: script/zig/build_macos.sh
-      - name: Build the IME and run the Swift UI-side tests
-        run: swift test
-      - name: Link and run Swift-to-Zig smoke test
-        run: swift run MisstypeZigSmoke tests/fixtures/lexicon
-
-  zig-core:
-    runs-on: ubuntu-24.04
+    env:
+      MISSTYPE_MACOS_ARCH: native
     steps:
       - uses: actions/checkout@v4
       - name: Cache pinned Zig toolchain and compiler
@@ -55,16 +43,44 @@ jobs:
             .cache/zig
             ~/.cache/zig
             core-zig/.zig-cache
-          key: zig-core-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('script/zig/bootstrap.sh') }}-${{ hashFiles('third_party/utf8proc/*', 'core-zig/src/*', 'core-zig/build.zig', 'core-zig/build.zig.zon') }}
+          key: zig-macos-${{ runner.arch }}-${{ hashFiles('script/zig/bootstrap.sh') }}-${{ hashFiles('third_party/utf8proc/*', 'core-zig/src/**', 'core-zig/build.zig', 'core-zig/build.zig.zon') }}
           restore-keys: |
-            zig-core-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('script/zig/bootstrap.sh') }}-
-      - name: Format and test Zig in Debug and ReleaseFast
+            zig-macos-${{ runner.arch }}-${{ hashFiles('script/zig/bootstrap.sh') }}-
+      - name: Build native Zig C ABI
+        run: script/zig/build_macos.sh
+      - name: Build the IME and run the Swift UI-side tests
+        run: swift test
+      - name: Link and run Swift-to-Zig smoke test
+        run: swift run MisstypeZigSmoke tests/fixtures/lexicon
+
+  zig-core:
+    # Debug and ReleaseFast are independent compiles; run them in parallel
+    # instead of one serial job so the wall time is the slower mode, not the sum.
+    name: zig-core (${{ matrix.optimize }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        optimize: [Debug, ReleaseFast]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache pinned Zig toolchain and compiler
+        uses: actions/cache@v4
+        with:
+          path: |
+            .cache/zig
+            ~/.cache/zig
+            core-zig/.zig-cache
+          key: zig-core-${{ runner.os }}-${{ runner.arch }}-${{ matrix.optimize }}-${{ hashFiles('script/zig/bootstrap.sh') }}-${{ hashFiles('third_party/utf8proc/*', 'core-zig/src/**', 'core-zig/build.zig', 'core-zig/build.zig.zon') }}
+          restore-keys: |
+            zig-core-${{ runner.os }}-${{ runner.arch }}-${{ matrix.optimize }}-${{ hashFiles('script/zig/bootstrap.sh') }}-
+      - name: Format and test Zig in ${{ matrix.optimize }}
         run: |
           zig=$(script/zig/bootstrap.sh)
           cd core-zig
           "$zig" fmt --check build.zig src
-          "$zig" build test
-          "$zig" build test -Doptimize=ReleaseFast
+          "$zig" build test -Doptimize=${{ matrix.optimize }}
 
   # The site demo's WebAssembly build: the same `misstype_wasm_*` exports,
   # exercised by the browser-API suite under Node.
@@ -87,12 +103,24 @@ jobs:
           key: zig-wasm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('script/zig/bootstrap.sh') }}-${{ hashFiles('third_party/utf8proc/*', 'core-zig/src/*', 'core-zig/build.zig') }}
           restore-keys: |
             zig-wasm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('script/zig/bootstrap.sh') }}-
+      - name: Cache built wasm32-wasi decoder
+        id: wasm-build
+        uses: actions/cache@v4
+        with:
+          # A wasm artifact is a pure function of the core sources, utf8proc
+          # and the pinned toolchain; reuse it for changes that do not touch
+          # those (adapter, CLI, docs-adjacent and site work) and still run
+          # the browser suite against it below.
+          path: core-zig/zig-out/wasm/misstype.wasm
+          key: wasm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('script/zig/bootstrap.sh') }}-${{ hashFiles('third_party/utf8proc/*', 'core-zig/src/**', 'core-zig/build.zig', 'core-zig/build.zig.zon') }}
       - run: npm ci
         working-directory: site
       - name: Build wasm32-wasi and run the browser API suite
         run: |
-          zig=$(script/zig/bootstrap.sh)
-          (cd core-zig && "$zig" build wasm)
+          if [ ! -f core-zig/zig-out/wasm/misstype.wasm ]; then
+            zig=$(script/zig/bootstrap.sh)
+            (cd core-zig && "$zig" build wasm)
+          fi
           mkdir -p site/public
           cp core-zig/zig-out/wasm/misstype.wasm site/public/
           node tests/wasm_test.mjs
@@ -183,9 +211,14 @@ jobs:
             skip_pr: true
             run: script/ci/time.sh full-candidate-parity core-zig/bench/parity.sh
           - name: debug session replay
+            # The Debug suite already ran in zig-core; this leg exists for the
+            # replay-only behavior (overflow/bounds checks), so skip rebuilding
+            # the test binaries here.
+            skip_tests: "1"
             run: script/ci/time.sh debug-replay core-zig/bench/replay.sh "$MISSTYPE_REPLAY_CASES" 1
           - name: ReleaseFast session replay
             optimize: ReleaseFast
+            # Same reason as the debug leg: zig-core covers the optimized tests.
             skip_tests: "1"
             run: |
               script/ci/time.sh release-replay-seed-1 core-zig/bench/replay.sh "$MISSTYPE_REPLAY_CASES" 1

@@ -123,6 +123,10 @@ pub fn build(b: *std.Build) void {
     const linux = b.step("linux", "Build only the Linux shipping library and CLI");
     linux.dependOn(&install_lib.step);
     linux.dependOn(&install_ctl.step);
+    // macOS packaging and CI only need the dynamic C ABI: skip the replay,
+    // bench, parity and dev executables that the default install step builds.
+    const capi = b.step("capi", "Build only the C ABI library");
+    capi.dependOn(&install_lib.step);
     const run = b.addRunArtifact(bench);
     run.addPassthruArgs();
     b.step("bench", "Decode bench/inputs.tsv (args: <resource dir> <inputs> [repeats])").dependOn(&run.step);

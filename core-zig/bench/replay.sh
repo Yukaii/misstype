@@ -22,9 +22,9 @@ mkdir -p "$out/shipping"
 python3 tests/replay/make_scripts.py "$out/scripts" --fuzz-cases "$cases" --seed "$seed"
 cp .cache/mcbopomofo/lexicon.tsv .cache/mcbopomofo/toneless.tsv \
     .cache/frequencywords/english.tsv Resources/local_phrases.tsv "$out/shipping/"
-# Debug catches overflow and bounds errors that ReleaseFast would hide. The
-# ReleaseFast CI leg already has the same optimized tests in zig-core; skipping
-# them here avoids paying for a second test build before replay.
+# Debug catches overflow and bounds errors that ReleaseFast would hide. CI
+# already runs the full test suite in both modes (zig-core), so its replay legs
+# skip the test build and only build the replay binary in their own mode.
 if [ "${MISSTYPE_REPLAY_SKIP_BUILD:-0}" = 1 ]; then
     test -x core-zig/zig-out/bin/replay || {
         echo "replay: cannot reuse missing core-zig/zig-out/bin/replay" >&2
