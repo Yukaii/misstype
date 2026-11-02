@@ -22,7 +22,7 @@
 // folders.json is only read while no workspace state exists (migration).
 
 import { isWorkspaceFile } from "./workspace.js";
-import { isContentFile, stateFile, syncContent } from "./content-sync.js";
+import { isContentFile, syncContent, writeContentChunk } from "./content-sync.js";
 import { hashOf } from "./hash.js";
 
 export { hashOf };
@@ -82,9 +82,9 @@ const sameFolders = (a, b) => a.length === b.length && a.every((f, i) => f.id ==
  * unsaved edits on screen, so remote text must not replace it this pass.
  * Returns the new base and what happened.
  */
-export async function syncNotes({ store, remote, base = {}, busy = () => false, workspace = null, content = null, contentDevice = null }) {
+export async function syncNotes({ store, remote, base = {}, busy = () => false, workspace = null, content = null, contentDevice = null, checkpointBytes = null }) {
   const report = {
-    uploaded: 0, downloaded: 0, deleted: 0, conflicts: 0, merged: 0,
+    uploaded: 0, downloaded: 0, deleted: 0, conflicts: 0, merged: 0, checkpointed: 0,
     changed: new Set(), replaced: [], contentChanged: [],
   };
   const files = new Map((await remote.list()).map((f) => [f.name, f]));
@@ -106,7 +106,7 @@ export async function syncNotes({ store, remote, base = {}, busy = () => false, 
   // the remote folder was wiped (or is another one): a fresh start, not a
   // request to delete every note here. Workspace state replaces that signal.
   if (!wsActive && base.folders && !files.has(FOLDERS_FILE)) base = {};
-  const next = { folders: base.folders, notes: {} };
+  const next = { folders: base.folders, notes: {}, content: base.content };
 
   // Folders first, so remote notes find their folder. With workspace state the
   // merge above already projected the folder list, and folders.json is legacy.
@@ -159,6 +159,8 @@ export async function syncNotes({ store, remote, base = {}, busy = () => false, 
       bodyIds: new Set(remoteNotes.keys()),
       device: contentDevice ?? workspace?.device ?? "device",
       bodyChanged,
+      seen: base.content ?? {},
+      checkpointBytes,
     });
   }
   // The note as stored right now, to skip one the user changed while this pass waited on the network.
@@ -205,14 +207,15 @@ export async function syncNotes({ store, remote, base = {}, busy = () => false, 
       files.delete(name);
     }
   };
-  /** Writes this device's content state after a merge or rebase. */
-  const uploadContent = async (id) => {
+  /**
+   * Writes this device's content after a merge or rebase. `reset` writes a full
+   * state and drops this device's older chunks: a rebase replaces the note's
+   * history, so the chunks from before it must not merge into the new one.
+   */
+  const uploadContent = async (id, { reset = false } = {}) => {
     if (!content) return;
-    const name = stateFile(id, contentDeviceUsed);
-    const existing = files.get(name);
     try {
-      const rev = await remote.write(name, JSON.stringify({ v: 1, device: contentDeviceUsed, state: content.state(id) }), existing?.rev ?? null);
-      files.set(name, { name, rev });
+      await writeContentChunk({ content, remote, files, seen: contentResult?.seen, id, device: contentDeviceUsed, reset });
     } catch (err) {
       if (!err.conflict) throw err;
     }
@@ -292,9 +295,13 @@ export async function syncNotes({ store, remote, base = {}, busy = () => false, 
           await upload(mine, file.rev);
           const blocked = contentResult.blocked.get(id);
           content.rebase(id, blocked.seed, blocked.states, mine.body);
+          // The kept text belongs to the seed's epoch, and its old chunks (an
+          // independent history) must not merge into it.
+          content.setEpoch(id, blocked.epoch ?? 0);
+          content.setUploaded(id, null, content.seq(id), blocked.epoch ?? 0);
           contentResult.replaced.add(id);
           report.contentChanged.push(id);
-          await uploadContent(id);
+          await uploadContent(id, { reset: true });
           report.conflicts++;
         } else if (content && busy(id)) {
           // Let the composition finish; the next pass merges.
@@ -330,6 +337,8 @@ export async function syncNotes({ store, remote, base = {}, busy = () => false, 
   if (contentResult) {
     report.replaced = [...contentResult.replaced];
     report.contentChanged = [...new Set([...report.contentChanged, ...contentResult.applied])];
+    report.checkpointed = contentResult.checkpointed.size;
+    next.content = contentResult.seen;
   }
   return { base: next, report };
 }

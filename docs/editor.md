@@ -200,14 +200,18 @@ merging more than rarely.
   (`misstype: 1`, `folder`, `updated`); a `.md` file dropped into `notes/` by
   hand becomes a top-level note. Organization is `workspace.<device>.json`,
   one file per device, holding `{v, device, state: base64(Y.Doc)}`. A note's
-  text CRDT has one immutable seed (`notes/<id>.seed.json`, create-only) and
-  one state per device (`notes/<id>.<device>.json`). Every device writes only
-  its own files, so Google Drive's lack of a conditional write cannot lose an
-  update; the files are read and merged. `folders.json` and the front-matter
-  `folder` remain for migration and as plain-text hints, but a client with
-  workspace state ignores them. Dropbox: the app's App folder
-  (`Apps/<app name>/`); Google Drive: a `Misstype` folder, scope `drive.file`
-  (only files this app created).
+  text CRDT has one immutable seed per epoch (`notes/<id>.seed.json` is epoch
+  0, `notes/<id>.seed.<n>.json` a checkpoint) and append-only state chunks per
+  device: `notes/<id>.<device>-<seq>.json` in epoch 0,
+  `notes/<id>.<device>-<seq>.<n>.json` in epoch `n`. A chunk is the Yjs delta
+  since that device's previous chunk, so an edit uploads the edit; every 32
+  chunks the device writes one full state and removes its older chunks.
+  Every device writes only its own files, so Google Drive's lack of a
+  conditional write cannot lose an update; the files are read and merged.
+  `folders.json` and the front-matter `folder` remain for migration and as
+  plain-text hints, but a client with workspace state ignores them. Dropbox:
+  the app's App folder (`Apps/<app name>/`); Google Drive: a `Misstype`
+  folder, scope `drive.file` (only files this app created).
 - Body merge (`syncNotes`, tested by `tests/editor_sync_test.mjs` with two
   devices on an in-memory remote): `base` remembers each note's remote revision
   and a hash of the agreed body. One-sided changes and deletions go across; an
@@ -221,11 +225,14 @@ merging more than rarely.
   CRDT files cannot.
 - Document merge (`content.js`, `content-sync.js`, tested by
   `tests/editor_content_test.mjs`): each note has a Y.Doc bound to the
-  ProseMirror editor with `y-prosemirror`; local state is
-  `misstype-editor-crdt:<id>` in localStorage and the Markdown cache above is
-  rewritten from the merged document. The editor keeps ProseMirror history
-  for undo; remote Yjs updates are marked `addToHistory: false`, and the
-  decoder's pre-edit is a widget outside the document.
+  ProseMirror editor with `y-prosemirror`; local state is a full record in
+  `misstype-editor-crdt:<id>` plus a pending tail in
+  `misstype-editor-crdt-tail:<id>`, and the Markdown cache above is rewritten
+  from the merged document. A save writes only the pending tail (folded into
+  the full record at 8 KB or when the tail outgrows it), not the note's whole
+  history. The editor keeps ProseMirror history for undo; remote Yjs updates
+  are marked `addToHistory: false`, and the decoder's pre-edit is a widget
+  outside the document.
   A Y.Doc seeded independently from the same Markdown on two devices has
   different item histories and would concatenate on merge, so the first device
   to sync a note writes the canonical seed. Other devices adopt it when they
@@ -234,8 +241,14 @@ merging more than rarely.
   the kept text onto the seed so later conflicts merge. Once two devices share
   a seed, both-sides-edited is merged (no duplicate, `report.merged` and a
   toast); `busy(id)` defers a merge while the note on screen is being composed
-  or saved.
-  An old client's `.md`-only edit is taken into the local Y.Doc as a
+  or saved. A per-device dirty flag (not a delta-length test, which the Yjs
+  delete set makes true forever) decides whether a pass uploads at all.
+  The sync base keeps each content file's revision, bytes and state vector
+  (`seen`), so a pass reads only files it has not applied: an idle pass reads
+  no note content and writes nothing. A checkpoint (see Cost) writes a new
+  seed epoch from the merged Markdown; a device whose body did not change
+  adopts it silently, one with local edits keeps both texts for a pass and
+  rebases. An old client's `.md`-only edit is taken into the local Y.Doc as a
   whole-document update, so the next edit can merge again.
 - Workspace merge (`workspace.js`, tested by `tests/editor_workspace_test.mjs`):
   the folder list and each note's placement/order are Yjs maps, merged per
@@ -250,19 +263,36 @@ merging more than rarely.
   a migration tool. Each device uploads its full workspace state only when it
   changed; an idle pass writes nothing.
 - Cost: Yjs and `y-prosemirror` add about 36 KB gzip to the editor chunks
-  (editor 147.07 kB gzip, cloud/content 33.32 kB gzip in the production build).
+  (editor 148.88 kB gzip, cloud/content 34.59 kB gzip in the production build).
   Workspace state holds only names, ids and order keys. Note CRDT state is
-  stored next to the Markdown cache, so a note costs roughly its text twice in
-  localStorage; on a storage-full device both writes fail the same way as
-  before. Every pass reads all seed/state files for a note that has content
-  state, which is fine for a personal note set but is not compacted or pruned;
-  a device that loses localStorage starts a new state file (old files merge
-  harmlessly) and a deleted note removes its seed/state files. A client still
-  on the pre-workspace build keeps reading the stale `folders.json`/`.md` and
-  can edit the body; its edit is imported as a whole-document CRDT update, but
-  it will not see concurrent merges. The `.md` front-matter `folder` can lag
-  behind a move until that note's next body edit. There is no relay, presence
-  or realtime editing: both text and organization converge on the next pass.
+  stored next to the Markdown cache, so a note costs its Markdown plus the full
+  CRDT record plus a pending tail of at most 8 KB in localStorage; on a
+  storage-full device both writes fail the same way as before. Measured with
+  `node tools/editor_sync_bench.mjs` (`--check` asserts the bounds; sizes are
+  UTF-16/JSON bytes, not gzip):
+  - one note, 1,000 edits of 10 characters (29.3 kB of text): the CRDT part of
+    an edit's upload is ~0.1 kB (it was ~68 kB before delta chunks); the rest is
+    the `.md` export, which is O(text) by design. An idle pass reads and writes
+    no note content (it was 3 reads / 8 kB for one note, 104 reads for 100
+    notes).
+  - 100 notes, two devices: a settled pass reads no note content; a pass that
+    pulls one edit reads the changed `.md` and its one new chunk.
+  - 1 kB note rewritten 2,000 times (the tombstone case): 44 kB of history
+    (45× the text) without a checkpoint; the next idle pass checkpoints to
+    ~2.9 kB (2.9× text, including the epoch-0 seed kept for older clients).
+  A checkpoint runs only on a fully merged, idle note whose history exceeds 8×
+  its text (minimum 16 KB). It writes a new seed epoch, drops the older chunks,
+  and keeps the epoch-0 seed; a concurrent edit that the checkpointing device
+  had not listed can still cost one duplicate pass. A device that loses
+  localStorage starts a new chunk sequence (old files merge harmlessly) and a
+  deleted note removes its seed/state files. A client still on the pre-workspace
+  build keeps reading the stale `folders.json`/`.md` and can edit the body; its
+  edit is imported as a whole-document CRDT update, but it will not see
+  concurrent merges. A pre-epoch client reads epoch 0 but ignores the new seed
+  and chunks after a checkpoint; its `.md` edits still reach current clients.
+  The `.md` front-matter `folder` can lag behind a move until that note's next
+  body edit. There is no relay, presence or realtime editing: both text and
+  organization converge on the next pass.
 - When: 4 s after the last save (any change in `notes.js` fires `onChange`),
   on load, when the tab becomes visible or the network comes back, and every
   2 minutes while visible; not while composing. Tabs take turns through Web
@@ -288,13 +318,16 @@ merging more than rarely.
   they reach the build as `VITE_DROPBOX_APP_KEY` / `VITE_GOOGLE_CLIENT_ID`
   (Pages: repository variables `DROPBOX_APP_KEY`, `GOOGLE_CLIENT_ID`; Vercel:
   project environment variables). A provider without one is not offered.
-- Checked: the body, content and workspace merge tests, a production build,
-  and Chromium runs of the editor: typing (both `Input.insertText` and the
-  real Zhuyin key sequence `su3cl3` → 你好 with Enter) updates the Markdown
-  cache and the Y.Doc, reload restores the text, Ctrl+Z undoes it, and
-  switching notes keeps each note's text and CRDT state. Not yet run against
-  the real Dropbox or Drive APIs (no app registered yet), nor in an installed
-  iOS home-screen app, where the sign-in popup may open outside the app.
+- Checked: the body, content and workspace merge tests (including delta
+  chunks, compaction, a checkpoint, a local edit across a checkpoint, and a
+  legacy full-state file), `node tools/editor_sync_bench.mjs --check`, a
+  production build, and Chromium runs of the editor: typing (both
+  `Input.insertText` and the real Zhuyin key sequence `su3cl3` → 你好 with
+  Enter) updates the Markdown cache and the Y.Doc, reload restores the text,
+  Ctrl+Z undoes it, and switching notes keeps each note's text and CRDT state.
+  Not yet run against the real Dropbox or Drive APIs (no app registered yet),
+  nor in an installed iOS home-screen app, where the sign-in popup may open
+  outside the app.
 
 ## Commands and keys
 
@@ -353,9 +386,13 @@ the native macOS and Linux versions and the privacy note.
 - `folders.json` is no longer updated once any device has workspace state; an
   older build keeps seeing the last folder list it wrote. An older build can
   still edit the `.md` body, but it cannot participate in CRDT merging.
-- Content state is not compacted and every pass reads the seed/state files of
-  notes that have content state. The full per-note Y.Doc is also kept in
-  localStorage beside the Markdown.
+- Content state is compacted per device (every 32 chunks) and per note (a
+  checkpoint at 8× the text, minimum 16 KB), but a checkpoint keeps the
+  epoch-0 seed for older clients, so a checkpointed note still carries one
+  stale seed. An idle pass reads no content; a pass still lists the whole
+  remote prefix, and a note's `.md` body is uploaded whenever it changes.
+- A checkpoint can race an edit that lands between its list and its new seed;
+  that device keeps both texts for one pass (a duplicate), then rebases.
 - The on-screen keyboard has no one-shot Shift (tap Shift then a letter) or number/symbol layers; Shift is hold-only because a tap is 中/英. With no number row, digits and symbols are the top row's English-mode (or Shift) caps.
 - Not tried on a real iPad or in an installed home-screen app; the offline
   path is verified with Chromium only.
