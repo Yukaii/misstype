@@ -160,7 +160,12 @@ touchscreen laptop with a mouse stays out of auto, an iPad whose Magic
 Keyboard trackpad makes the primary pointer fine can flip auto's
 `(pointer: coarse) and (hover: none)` query, and detaching a hardware keyboard
 leaves `hardwareKeyboardSeen` set. The palette has the same command
-(顯示／隱藏螢幕鍵盤).
+(顯示／隱藏螢幕鍵盤). Switching it off does not hand the keys back to the
+system input method when a hardware keyboard was seen: `inputmode="none"`
+stays, so the decoder still owns typing and the page's 英 mode works (an iPad
+with a Magic Keyboard and a system Zhuyin input otherwise turns English into
+Bopomofo). On a touch-only device `off` lets the system keyboard in, as that
+is the only input left.
 The visibility matrix is unit-tested and the switch was driven in Chromium
 with the keyboard forced on; neither has been driven on a phone or iPad yet.
 

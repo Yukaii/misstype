@@ -18,7 +18,7 @@ import { createContent } from "./content.js";
 import { createDictionary } from "./dictionary.js";
 import { createLearning } from "./learning.js";
 import { tick } from "./haptics.js";
-import { VirtualKeyboard, fromHardwareKeyboard, virtualKeyboardVisible, virtualKeyboardWanted } from "./keyboard.js";
+import { VirtualKeyboard, fromHardwareKeyboard, systemKeyboardSuppressed, virtualKeyboardVisible } from "./keyboard.js";
 import { Palette } from "./palette.js";
 import { preeditKey, preeditPlugin, setPreedit } from "./preedit.js";
 import { registerServiceWorker } from "./pwa.js";
@@ -370,19 +370,17 @@ let vkDismissed = false;
 
 const vkHeight = () => (vkEl.hidden ? 0 : vkEl.offsetHeight);
 
-function virtualKeyboardIsWanted() {
-  return virtualKeyboardWanted(settings.virtualKeyboard, touchOnly.matches, hardwareKeyboardSeen);
-}
-
 function applyVirtualKeyboard() {
-  const wanted = virtualKeyboardIsWanted();
   const on = virtualKeyboardVisible(settings.virtualKeyboard, touchOnly.matches, hardwareKeyboardSeen, vkDismissed);
   vkEl.hidden = !on;
   document.body.classList.toggle("vk-on", on);
   panel.setDocked(on);
   if (imeState) panel.render(imeState, caretRect());
   // Without this the system keyboard would pop up over ours, dismissed or not.
-  view.setProps({ attributes: wanted ? { inputmode: "none" } : {} });
+  // A hardware keyboard keeps the decoder in charge even when the on-screen
+  // keyboard is switched off: otherwise the system IME takes the letters back
+  // and English mode in the page has no effect.
+  view.setProps({ attributes: systemKeyboardSuppressed(settings.virtualKeyboard, touchOnly.matches, hardwareKeyboardSeen) ? { inputmode: "none" } : {} });
   document.documentElement.style.setProperty("--vk-h", `${vkHeight()}px`);
   vkButton.setAttribute("aria-pressed", String(on));
   vkButton.title = on ? "隱藏螢幕鍵盤" : "顯示螢幕鍵盤";
@@ -393,6 +391,8 @@ function toggleVirtualKeyboard() {
   flush();
   if (!vkEl.hidden) {
     setSetting("virtualKeyboard", "off");
+    // The button had focus; give it back so typing continues.
+    view.focus();
     return;
   }
   // A chevron dismissal outranks the setting; showing it manually clears that.
@@ -465,7 +465,9 @@ document.addEventListener("keydown", (e) => {
   if (hardwareKeyboardSeen || !fromHardwareKeyboard(e, view.dom)) return;
   hardwareKeyboardSeen = true;
   rememberHardwareKeyboard(true);
-  if (settings.virtualKeyboard === "auto") applyVirtualKeyboard();
+  // Even with the on-screen keyboard switched off: a hardware key must keep
+  // the system IME away, or the letters never reach the decoder.
+  applyVirtualKeyboard();
 }, true);
 touchOnly.addEventListener("change", applyVirtualKeyboard);
 new ResizeObserver(() => {

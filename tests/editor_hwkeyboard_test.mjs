@@ -4,7 +4,7 @@
 //   cd site && npm ci && node ../tests/editor_hwkeyboard_test.mjs
 import assert from "node:assert/strict";
 import test from "node:test";
-import { fromHardwareKeyboard, labelShiftEm, virtualKeyboardVisible, virtualKeyboardWanted } from "../site/editor/keyboard.js";
+import { fromHardwareKeyboard, labelShiftEm, systemKeyboardSuppressed, virtualKeyboardVisible, virtualKeyboardWanted } from "../site/editor/keyboard.js";
 
 const body = {};
 const doc = { body };
@@ -56,6 +56,18 @@ test("the chevron hides even an explicitly requested keyboard", () => {
   assert.equal(virtualKeyboardVisible("auto", true, false, true), false);
   // A hidden chevron keyboard still suppresses the system keyboard.
   assert.equal(virtualKeyboardWanted("on", true, false), true);
+});
+
+test("a hardware keyboard keeps the system IME away with the on-screen one off", () => {
+  // iPad + Magic Keyboard after the 鍵盤 switch: the decoder still owns keys.
+  assert.equal(systemKeyboardSuppressed("off", true, true), true);
+  assert.equal(systemKeyboardSuppressed("auto", true, true), true);
+  // No hardware keyboard: off is the explicit choice to use the system one.
+  assert.equal(systemKeyboardSuppressed("off", true, false), false);
+  // A shown keyboard always suppresses the system one, even on a desktop.
+  assert.equal(systemKeyboardSuppressed("on", false, false), true);
+  // Auto on a desktop or phone keeps the old behaviour.
+  assert.equal(systemKeyboardSuppressed("auto", false, false), false);
 });
 
 test("key labels are nudged by the font's ink offset, not a fixed amount", () => {
