@@ -35,6 +35,16 @@ export function virtualKeyboardVisible(mode, touch, hardwareKeyboardSeen, dismis
 }
 
 /**
+ * Whether the page must keep the system keyboard (and its input method) away.
+ * A hardware keyboard means the decoder owns the keys even when the on-screen
+ * keyboard is switched off; without one, `off` is the explicit choice to use
+ * the system keyboard.
+ */
+export function systemKeyboardSuppressed(mode, touch, hardwareKeyboardSeen) {
+  return virtualKeyboardWanted(mode, touch, hardwareKeyboardSeen) || hardwareKeyboardSeen;
+}
+
+/**
  * How far a key label must move to sit on the key's optical centre, in em.
  * A font's ascent/descent box is not symmetric around the glyph ink, so
  * centring the line box leaves the glyph high (or low). Measured at start-up
