@@ -39,6 +39,10 @@ const modeLabel = $("#mode-label");
 const modeFlash = $("#mode-flash");
 const countEl = $("#count");
 const docTitleEl = $("#doc-title");
+// Build that the page is actually running. Compare Safari with the installed
+// app when one of them looks stale; Vite replaces this at build time.
+const buildLabelEl = $("#build-label");
+if (buildLabelEl) buildLabelEl.textContent = typeof __MISSTYPE_BUILD__ === "string" ? __MISSTYPE_BUILD__ : "dev";
 
 let ime = null;
 let imeState = null;

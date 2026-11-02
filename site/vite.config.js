@@ -4,6 +4,10 @@ import { join, relative, resolve } from "node:path";
 import { defineConfig } from "vite";
 
 const here = import.meta.dirname;
+// What the editor was built from. Pages sets GITHUB_SHA, Vercel sets
+// VERCEL_GIT_COMMIT_SHA; a local build gets a timestamp instead.
+const commit = process.env.GITHUB_SHA || process.env.VERCEL_GIT_COMMIT_SHA || "";
+const build = commit ? commit.slice(0, 7) : `local-${new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "")}`;
 
 // Emits editor/sw.js and editor/manifest.webmanifest next to the built page:
 // both need stable, unhashed URLs, and the service worker needs the list of
@@ -48,6 +52,7 @@ function editorPwa() {
 // GitHub Pages project URL (/misstype/) or a custom domain alike.
 export default defineConfig({
   base: "./",
+  define: { __MISSTYPE_BUILD__: JSON.stringify(build) },
   plugins: [editorPwa()],
   resolve: {
     // The misstype-wasm package lives outside site/ and has no node_modules of its own.

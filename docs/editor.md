@@ -380,7 +380,10 @@ Checked only with Chromium's iPad emulation (no safe-area insets there).
 
 An About dialog (status strip, or the palette) says what the page is for: the same
 IME inside a web page, for devices that cannot install a custom one, with links to
-the native macOS and Linux versions and the privacy note.
+the native macOS and Linux versions and the privacy note. It also shows the build
+it is running (the first seven characters of the commit, or a local timestamp):
+compare it between Safari and an installed app to tell whether one is still on an
+old service-worker cache.
 
 ## Known limits
 
