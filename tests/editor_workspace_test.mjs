@@ -22,12 +22,14 @@ const memory = () => {
 function memoryRemote() {
   const files = new Map();
   const writes = [];
+  const reads = [];
   let counter = 0;
   return {
     files,
     writes,
+    reads,
     list: async () => [...files].map(([name, f]) => ({ name, rev: f.rev })),
-    read: async (name) => files.get(name)?.text ?? "",
+    read: async (name) => { reads.push(name); return files.get(name)?.text ?? ""; },
     async write(name, text, rev) {
       const have = files.get(name);
       if ((have?.rev ?? null) !== rev) throw Object.assign(new Error("conflict"), { conflict: true });
@@ -294,4 +296,46 @@ test("a device that lost its local workspace state recovers it, and keeps offlin
   assert.equal(b.folder("Local")?.id, local);
   assert.equal(b.note(offline)?.folder, local);
   assert.ok(remote.files.has(`notes/${offline}.md`), "the offline note body still reached the remote");
+});
+
+test("a pass reads only the workspace files that changed since the last one", async () => {
+  const remote = memoryRemote();
+  const a = device(remote, { crdt: true });
+  const b = device(remote, { crdt: true });
+  const work = a.store.createFolder("Work");
+  a.store.create(work, "會議紀錄");
+  await a.sync();
+  await b.sync();
+  await a.sync();
+  await b.sync();
+  const workspaceReads = () => remote.reads.filter(isWorkspaceFile);
+
+  // Idle: both files are at the revisions the last pass saw.
+  remote.reads.length = 0;
+  await a.sync();
+  assert.deepEqual(workspaceReads(), []);
+
+  // b renames the folder: a reads b's file only, and sees the rename.
+  b.store.renameFolder(b.folder("Work").id, "Office");
+  await b.sync();
+  remote.reads.length = 0;
+  await a.sync();
+  assert.equal(workspaceReads().length, 1);
+  assert.ok(a.folder("Office"));
+  assert.equal(a.folder("Work"), undefined);
+
+  // Its own upload does not make a read its own file back next pass.
+  a.store.renameFolder(a.folder("Office").id, "Desk");
+  await a.sync();
+  remote.reads.length = 0;
+  await a.sync();
+  assert.deepEqual(workspaceReads(), []);
+
+  // A cleared profile with the old sync base still reads everything it lacks.
+  const c = device(remote, { crdt: true });
+  c.base = a.base;
+  remote.reads.length = 0;
+  await c.sync();
+  assert.equal(workspaceReads().length, 2);
+  assert.ok(c.folder("Desk"));
 });

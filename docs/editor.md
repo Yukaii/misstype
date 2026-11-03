@@ -223,7 +223,10 @@ merging more than rarely.
   since that device's previous chunk, so an edit uploads the edit; every 32
   chunks the device writes one full state and removes its older chunks.
   Every device writes only its own files, so Google Drive's lack of a
-  conditional write cannot lose an update; the files are read and merged.
+  conditional write cannot lose an update; the files are read and merged. A
+  workspace file still at the revision the last pass saw (the sync base keeps
+  `{rev, vector}` per file) is not read again unless the local document lacks
+  what it covered.
   `folders.json` and the front-matter `folder` remain for migration and as
   plain-text hints, but a client with workspace state ignores them. Dropbox:
   the app's App folder (`Apps/<app name>/`); Google Drive: a `Misstype`
@@ -293,6 +296,14 @@ merging more than rarely.
     notes).
   - 100 notes, two devices: a settled pass reads no note content; a pass that
     pulls one edit reads the changed `.md` and its one new chunk.
+  - Round trips a pass waits on one after another (`trips`, each call
+    delayed `LATENCY` ms; on Dropbox a trip is hundreds of ms): an edit pass
+    is list, then the `.md` and chunk writes together (2; it was 5: list, one
+    read per device's workspace file, chunk write, `.md` write); picking up
+    an edit is list, then both reads (2, was 5); an idle pass is the list
+    alone (1, was 3). Independent requests overlap: changed bodies download
+    during the workspace and content merge, and a note edited only here
+    uploads its `.md` alongside the content pass.
   - 1 kB note rewritten 2,000 times (the tombstone case): 44 kB of history
     (45× the text) without a checkpoint; the next idle pass checkpoints to
     ~2.9 kB (2.9× text, including the epoch-0 seed kept for older clients).

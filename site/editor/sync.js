@@ -88,14 +88,36 @@ export async function syncNotes({ store, remote, base = {}, busy = () => false, 
     changed: new Set(), replaced: [], contentChanged: [],
   };
   const files = new Map((await remote.list()).map((f) => [f.name, f]));
+  // Every request below is a network round trip (hundreds of ms on Dropbox), so
+  // independent ones overlap: changed note bodies download while the workspace
+  // and content merge run, and plain local edits upload alongside the content
+  // pass. Waiting on each in turn was most of a pass's time.
+  const readAll = async (names) => {
+    if (remote.readMany) return remote.readMany(names);
+    return new Map(await Promise.all(names.map(async (name) => [name, await remote.read(name)])));
+  };
+  const remoteNotes = new Map();
+  for (const file of files.values()) {
+    const m = NOTE_FILE.exec(file.name);
+    if (m) remoteNotes.set(m[1], file);
+  }
+  const noteReads = [...remoteNotes].filter(([id, file]) => {
+    const was = base.notes?.[id];
+    return !was || file.rev !== was.rev;
+  }).map(([, file]) => file.name);
+  const settle = (promise) => { promise.catch(() => {}); return promise; };
+  const prefetch = settle(noteReads.length ? readAll(noteReads) : Promise.resolve(new Map()));
   const workspaceFiles = new Map([...files].filter(([name]) => isWorkspaceFile(name)));
   // Once any device has written its workspace state, the CRDT owns folders and
   // note placement. Until then this pass is the one-time migration from
   // folders.json / the note front matter.
   const wsActive = Boolean(workspace) && workspaceFiles.size > 0;
   let wsVector = null;
+  let wsSeen = base.workspace ?? {};
   if (wsActive) {
-    wsVector = (await workspace.applyRemote(workspaceFiles, (name) => remote.read(name))).vector;
+    const applied = await workspace.applyRemote(workspaceFiles, readAll, wsSeen);
+    wsVector = applied.vector;
+    wsSeen = applied.seen;
     // Keep organization this device made while it had no workspace state (a
     // cleared profile, or an index from before the upgrade) before projecting
     // the remote view over it; ensure() only adds what the CRDT is missing.
@@ -106,7 +128,7 @@ export async function syncNotes({ store, remote, base = {}, busy = () => false, 
   // the remote folder was wiped (or is another one): a fresh start, not a
   // request to delete every note here. Workspace state replaces that signal.
   if (!wsActive && base.folders && !files.has(FOLDERS_FILE)) base = {};
-  const next = { folders: base.folders, notes: {}, content: base.content };
+  const next = { folders: base.folders, notes: {}, content: base.content, workspace: wsSeen };
 
   // Folders first, so remote notes find their folder. With workspace state the
   // merge above already projected the folder list, and folders.json is legacy.
@@ -134,22 +156,9 @@ export async function syncNotes({ store, remote, base = {}, busy = () => false, 
     }
   }
 
-  const remoteNotes = new Map();
-  for (const file of files.values()) {
-    const m = NOTE_FILE.exec(file.name);
-    if (m) remoteNotes.set(m[1], file);
-  }
-  // Fetch changed note bodies together.  Dropbox request latency dominates a
-  // pass with many notes; parsing and applying them still happens in the
-  // existing deterministic loop below.
-  const noteReads = [...remoteNotes].filter(([id, file]) => {
-    const was = base.notes?.[id];
-    return !was || file.rev !== was.rev;
-  }).map(([, file]) => file.name);
+  // Changed note bodies were requested together right after the list; parsing
+  // and applying them still happens in the deterministic loop below.
   const noteText = new Map();
-  if (noteReads.length && remote.readMany) {
-    for (const [name, text] of await remote.readMany(noteReads)) noteText.set(name, text);
-  }
   const readNote = async (name) => {
     if (noteText.has(name)) return noteText.get(name);
     const text = await remote.read(name);
@@ -164,6 +173,26 @@ export async function syncNotes({ store, remote, base = {}, busy = () => false, 
     const was = base.notes?.[id];
     return note ? (!was || !hashMatches(was, note)) : Boolean(was);
   };
+  const upload = async (note, rev) => {
+    const text = formatNote(note);
+    next.notes[note.id] = { rev: await remote.write(noteFile(note.id), text, rev), hash: noteHash(note) };
+    report.uploaded++;
+  };
+  // A note edited only here needs nothing from the content pass to upload its
+  // body (that is the loop's first branch), so it goes out alongside it. A
+  // content merge that changes it afterwards is a local change for next pass.
+  const early = new Map();
+  for (const [id, mine] of local) {
+    const was = base.notes?.[id];
+    const file = remoteNotes.get(id);
+    const theirsChanged = file ? !was || file.rev !== was.rev : Boolean(was);
+    if (theirsChanged || (was && hashMatches(was, mine)) || !(was || mine.body.trim())) continue;
+    early.set(id, settle(upload(mine, file?.rev ?? null).catch((err) => {
+      if (!err.conflict) throw err;
+      // Someone wrote the file in the meantime: keep the old base, next pass sees both sides.
+      if (was) next.notes[id] = was;
+    })));
+  }
   let contentResult = null;
   if (content) {
     contentResult = await syncContent({
@@ -180,6 +209,7 @@ export async function syncNotes({ store, remote, base = {}, busy = () => false, 
       checkpointBytes,
     });
   }
+  for (const [name, text] of await prefetch) noteText.set(name, text);
   // The note as stored right now, to skip one the user changed while this pass waited on the network.
   const untouched = (id, seen) => {
     if (busy(id)) return false;
@@ -189,11 +219,6 @@ export async function syncNotes({ store, remote, base = {}, busy = () => false, 
     const merged = contentResult?.merged.get(id);
     if (merged !== undefined && now?.body === merged) return true;
     return seen ? Boolean(now) && noteHash(now) === noteHash(seen) : !now;
-  };
-  const upload = async (note, rev) => {
-    const text = formatNote(note);
-    next.notes[note.id] = { rev: await remote.write(noteFile(note.id), text, rev), hash: noteHash(note) };
-    report.uploaded++;
   };
   const download = async (id, file) => {
     const parsed = parseNote(await readNote(file.name));
@@ -239,6 +264,7 @@ export async function syncNotes({ store, remote, base = {}, busy = () => false, 
   };
 
   for (const id of new Set([...local.keys(), ...remoteNotes.keys(), ...Object.keys(base.notes ?? {})])) {
+    if (early.has(id)) continue;
     const was = base.notes?.[id];
     const mine = local.get(id);
     const file = remoteNotes.get(id);
@@ -344,11 +370,17 @@ export async function syncNotes({ store, remote, base = {}, busy = () => false, 
     // merged organization to its own static file.
     workspace.ensure(store.workspaceState());
     workspace.project(store);
-    await workspace.upload({
-      files,
-      vector: wsVector,
-      write: (name, text, rev) => remote.write(name, text, rev),
-    });
+    const [written] = await Promise.all([
+      workspace.upload({
+        files,
+        vector: wsVector,
+        write: (name, text, rev) => remote.write(name, text, rev),
+      }),
+      ...early.values(),
+    ]);
+    if (written) next.workspace = { ...next.workspace, [written.name]: { rev: written.rev, vector: written.vector } };
+  } else {
+    await Promise.all(early.values());
   }
   report.changed = [...report.changed];
   if (contentResult) {

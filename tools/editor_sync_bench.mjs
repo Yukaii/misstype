@@ -11,6 +11,11 @@
 //   idle     two devices after the growth run, ten idle passes each
 //   many     100 notes, two devices, one edit, one more pass each
 //
+// "trips" (many notes) is the number of network round trips a pass waits on
+// one after another: each call sleeps LATENCY ms, and requests a pass issues
+// together overlap. On Dropbox a trip is hundreds of ms, so this, not bytes,
+// is what the user feels.
+//
 // What to read: "state" is the per-device content file the note uploads (the
 // whole Y.Doc state today); "up/read" are bytes written/read by a pass. A pass
 // that changes nothing should read and write nothing.
@@ -26,6 +31,7 @@ const NOTES = Number(process.env.NOTES || 100);
 const CHARS = Number(process.env.CHARS || 10);
 const CHURN = Number(process.env.CHURN || (CHECK ? 2000 : 200));
 const JSON_OUT = process.argv.includes("--json");
+const LATENCY = Number(process.env.LATENCY || 100);
 
 const memory = () => {
   const map = new Map();
@@ -46,15 +52,24 @@ function memoryRemote() {
   const reset = () => {
     for (const k of Object.keys(stats)) stats[k] = 0;
   };
-  return {
+  // Simulated round trip, only while measuring trips (latency > 0).
+  const remote = { latency: 0, starts: [] };
+  const trip = () => {
+    if (!remote.latency) return null;
+    remote.starts.push(Number(process.hrtime.bigint()) / 1e6);
+    return new Promise((r) => setTimeout(r, remote.latency));
+  };
+  return Object.assign(remote, {
     files,
     stats,
     reset,
     async list() {
+      await trip();
       stats.lists++;
       return [...files].map(([name, f]) => ({ name, rev: f.rev }));
     },
     async read(name) {
+      await trip();
       stats.reads++;
       const text = files.get(name)?.text ?? "";
       stats.readBytes += Buffer.byteLength(text);
@@ -62,6 +77,7 @@ function memoryRemote() {
       return text;
     },
     async write(name, text, rev) {
+      await trip();
       const have = files.get(name);
       if ((have?.rev ?? null) !== rev) throw Object.assign(new Error("conflict"), { conflict: true });
       stats.writes++;
@@ -72,13 +88,32 @@ function memoryRemote() {
       return `r${counter}`;
     },
     async remove(name) {
+      await trip();
       stats.removes++;
       files.delete(name);
     },
     size() {
       return [...files.values()].reduce((n, f) => n + Buffer.byteLength(f.text), 0);
     },
-  };
+  });
+}
+
+/**
+ * A pass with every call taking LATENCY ms: how many round trips it waits on
+ * in a row. A call that waited on another starts at least LATENCY after it;
+ * calls issued together start within the pass's CPU time of each other.
+ */
+async function trips(remote, dev) {
+  remote.latency = LATENCY;
+  remote.starts = [];
+  await dev.sync();
+  remote.latency = 0;
+  let waves = 0;
+  let waveStart = -Infinity;
+  for (const t of remote.starts) {
+    if (t - waveStart >= LATENCY) { waves++; waveStart = t; }
+  }
+  return waves;
 }
 
 function device(remote, name) {
@@ -266,6 +301,11 @@ const out = { config: { EDITS, NOTES, CHARS, CHURN }, growth: [], churn: [], idl
   await pass(remote, a);
   await pass(remote, b);
   const settled = await pass(remote, a);
+  a.edit(target, "note 0 changed again");
+  const editTrips = await trips(remote, a);
+  const pickupTrips = await trips(remote, b);
+  await pass(remote, a);
+  const idleTrips = await trips(remote, a);
   out.many = {
     notes: NOTES,
     files: remote.files.size,
@@ -273,6 +313,7 @@ const out = { config: { EDITS, NOTES, CHARS, CHURN }, growth: [], churn: [], idl
     firstPass: { reads: first.reads, readBytes: first.readBytes, writes: first.writes, ms: first.ms },
     editPass: { reads: changed.reads, readBytes: changed.readBytes, writes: changed.writes, writeBytes: changed.writeBytes, ms: changed.ms },
     idlePass: { reads: idle.reads, readBytes: idle.readBytes, writes: idle.writes, ms: idle.ms },
+    trips: { edit: editTrips, pickup: pickupTrips, idle: idleTrips },
     settled: { reads: settled.reads, readBytes: settled.readBytes, contentRead: settled.contentReadBytes, writes: settled.writes, ms: settled.ms },
   };
 }
@@ -293,6 +334,9 @@ if (CHECK) {
     ["an edit uploads a delta, not history", last.stateUp < 4096, `${last.stateUp} bytes`],
     ["a checkpoint folds churn history", churnIdle.state < 4 * churnIdle.text, `${(churnIdle.state / churnIdle.text).toFixed(2)}x text`],
     ["many notes: a settled pass reads no content", many.settled.contentRead === 0, `${many.settled.contentRead} bytes`],
+    ["an edit pass waits on at most 2 round trips", many.trips.edit <= 2, `${many.trips.edit}`],
+    ["picking up an edit waits on at most 2 round trips", many.trips.pickup <= 2, `${many.trips.pickup}`],
+    ["an idle pass waits on 1 round trip (the list)", many.trips.idle <= 1, `${many.trips.idle}`],
   ];
   let failed = 0;
   for (const [name, ok, detail] of checks) {
@@ -322,3 +366,4 @@ console.log(`\nmany notes (${NOTES} notes, two devices)`);
 const m = out.many;
 console.log(row(["files", "remote", "first reads", "first writes", "edit reads", "edit writes", "idle reads", "idle writes"]));
 console.log(row([m.files, kb(m.remoteTotal), m.firstPass.reads, m.firstPass.writes, m.editPass.reads, m.editPass.writes, m.idlePass.reads, m.idlePass.writes]));
+console.log(`round trips in a row: edit ${m.trips.edit}, pickup ${m.trips.pickup}, idle ${m.trips.idle}`);
