@@ -9,8 +9,9 @@
 //
 //   workspace.<device>.json   { v: 1, device, state: base64(Y.Doc update) }
 //
-// A pass reads every workspace.*.json, applies it (idempotent), then writes
-// its own file if the others do not already have its changes. Because no two
+// A pass reads every workspace.*.json it has not seen at its current revision,
+// applies it (idempotent), then writes its own file if the others do not
+// already have its changes. Because no two
 // devices write the same file, Google Drive's lack of a conditional write
 // cannot lose an update. The files are small: names, folder ids, order keys.
 //
@@ -221,28 +222,59 @@ export function createWorkspace({ storage = globalThis.localStorage, onChange = 
   }
 
   /**
-   * Reads and merges every remote workspace file. Returns the state vector
-   * those files cover, for upload(). Corrupt or foreign files are ignored.
+   * Reads and merges the remote workspace files. Returns the state vector
+   * those files cover, for upload(), and `seen` for the next pass. Corrupt or
+   * foreign files are ignored.
+   *
+   * `seen` is the last pass's { name: { rev, vector } }: a file still at that
+   * revision is not downloaded again when the local document already holds
+   * what it covered (a cleared profile reads everything). Each read is a
+   * network round trip, and every pass used to read every device's file.
+   * `readFiles(names)` returns Map(name -> text) and may fetch in parallel.
    */
-  async function applyRemote(files, readFile) {
+  async function applyRemote(files, readFiles, seen = {}) {
     reload();
     const before = Y.encodeStateVector(doc);
-    let merged = null;
-    for (const [name] of files) {
+    const have = Y.decodeStateVector(before);
+    const covered = new Map();
+    const nextSeen = {};
+    const cover = (vector) => {
+      for (const [client, clock] of Y.decodeStateVector(vector)) {
+        if ((covered.get(client) ?? 0) < clock) covered.set(client, clock);
+      }
+    };
+    const toRead = [];
+    for (const [name, file] of files) {
+      const was = seen[name];
+      let vector = null;
+      try { vector = was?.rev === file.rev && typeof was.vector === "string" ? b64ToBytes(was.vector) : null; } catch { vector = null; }
+      if (vector && [...Y.decodeStateVector(vector)].every(([client, clock]) => (have.get(client) ?? 0) >= clock)) {
+        cover(vector);
+        nextSeen[name] = was;
+      } else {
+        toRead.push(name);
+      }
+    }
+    const texts = toRead.length ? await readFiles(toRead) : new Map();
+    for (const name of toRead) {
       let parsed;
-      try { parsed = JSON.parse(await readFile(name) || ""); } catch { continue; }
+      try { parsed = JSON.parse(texts.get(name) || ""); } catch { continue; }
       if (parsed?.v !== 1 || typeof parsed.state !== "string") continue;
       try {
         const update = b64ToBytes(parsed.state);
         Y.applyUpdate(doc, update);
-        merged = merged ? Y.mergeUpdates([merged, update]) : update;
+        const vector = Y.encodeStateVectorFromUpdate(update);
+        cover(vector);
+        const rev = files.get(name)?.rev;
+        if (rev) nextSeen[name] = { rev, vector: bytesToB64(vector) };
       } catch { /* damaged file: the other devices still have it */ }
     }
     const changed = !sameVector(before, Y.encodeStateVector(doc));
     if (changed) persist();
     return {
       changed,
-      vector: merged ? Y.encodeStateVectorFromUpdate(merged) : new Uint8Array([0, 0]),
+      vector: Y.encodeStateVector(covered),
+      seen: nextSeen,
     };
   }
 
@@ -259,8 +291,10 @@ export function createWorkspace({ storage = globalThis.localStorage, onChange = 
     if (delta.length <= 2 && existing) return null;
     if (delta.length <= 2 && !existing && folders.size === 0 && notes.size === 0) return null;
     const text = JSON.stringify({ v: 1, device, state: bytesToB64(Y.encodeStateAsUpdate(doc)) });
+    // What the written file covers, so the next pass need not read it back.
+    const covers = bytesToB64(Y.encodeStateVector(doc));
     try {
-      return { name, rev: await writeFile(name, text, existing?.rev ?? null) };
+      return { name, rev: await writeFile(name, text, existing?.rev ?? null), vector: covers };
     } catch (err) {
       if (err?.conflict) return null;
       throw err;
