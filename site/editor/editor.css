@@ -296,6 +296,7 @@ dialog.sheet h3 span { margin-left: 6px; color: var(--muted); font-weight: norma
 .vk-key[data-icon] .vk-main { transform: none; }
 .vk-key[data-special] { background: var(--vk-key-alt); font-size: 16px; }
 .vk-key[data-special="space"] { background: var(--vk-key); font-size: 15px; }
+.vk-key[data-special="punct"] { background: var(--vk-key); font-size: calc(var(--vk-u) * 0.56); }
 /* Shift and Backspace draw their own icons instead of font glyphs, which came
    out thin and slightly off-centre on iOS. */
 .vk-key svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linejoin: round; stroke-linecap: round; }

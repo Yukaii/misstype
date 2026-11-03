@@ -25,7 +25,7 @@ test("all 37 Zhuyin symbols and 5 tone marks appear exactly once", () => {
 
 test("rows match the iOS Zhuyin keyboard", () => {
   const zhuyin = (r) => r.map((k) => k.zhuyin ?? k.special).join("");
-  assert.deepEqual(ROWS.map((r) => r.length), [11, 10, 10, 11, 3]);
+  assert.deepEqual(ROWS.map((r) => r.length), [11, 10, 10, 11, 5]);
   assert.equal(INDENT.length, ROWS.length);
   assert.equal(zhuyin(ROWS[0]), "ㄅㄉˇˋㄓˊ˙ㄚㄞㄢㄦ");
   assert.equal(zhuyin(ROWS[1]), "ㄆㄊㄍㄐㄔㄗㄧㄛㄟㄣ");
@@ -38,7 +38,7 @@ test("Zhuyin leads in Chinese mode; Shift or English shows Latin", () => {
   assert.deepEqual(capLabels(a), ["ㄇ", "a"]);
   assert.deepEqual(capLabels(a, { shift: true }), ["A", ""]);
   assert.deepEqual(capLabels(a, { english: true }), ["a", ""]);
-  assert.deepEqual(capLabels(byCode.get("Digit1"), { shift: true }), ["!", ""]);
+  assert.deepEqual(capLabels(byCode.get("Digit1"), { shift: true, english: true }), ["!", ""]);
   assert.deepEqual(capLabels(byCode.get("Space")), ["空白", ""]);
 });
 
@@ -49,4 +49,25 @@ test("key text matches what a US keyboard reports", () => {
   assert.equal(keyText(byCode.get("Slash"), true), "?");
   assert.equal(keyText(byCode.get("Space")), " ");
   assert.equal(keyText(byCode.get("Enter")), "Enter");
+});
+
+test("Shift in Chinese mode shows the full-width mark the decoder types", () => {
+  assert.deepEqual(capLabels(byCode.get("Digit1"), { shift: true }), ["！", ""]);
+  assert.deepEqual(capLabels(byCode.get("Comma"), { shift: true }), ["，", ""]);
+  assert.deepEqual(capLabels(byCode.get("Slash"), { shift: true }), ["？", ""]);
+  assert.deepEqual(capLabels(byCode.get("Comma"), { shift: true, english: true }), ["<", ""]);
+});
+
+test("the ，。 keys send Shift + the physical key in Chinese, the bare key in English", () => {
+  const comma = byCode.get("PunctComma");
+  const period = byCode.get("PunctPeriod");
+  assert.equal(comma.sends, "Comma");
+  assert.equal(period.sends, "Period");
+  assert.deepEqual(capLabels(comma), ["，", ""]);
+  assert.deepEqual(capLabels(comma, { english: true }), [",", ""]);
+  assert.equal(keyText(comma, true), "<");
+  assert.equal(keyText(comma, false, true), ",");
+  assert.deepEqual(capLabels(period), ["。", ""]);
+  assert.equal(keyText(period, false, true), ".");
+  assert.deepEqual(ROWS[4].map((k) => k.special), ["shift", "punct", "space", "punct", "enter"]);
 });

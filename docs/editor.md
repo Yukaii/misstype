@@ -112,10 +112,13 @@ been driven in a browser yet.
 ## On-screen keyboard
 
 Touch devices without a keyboard (`(pointer: coarse) and (hover: none)`) get
-a Zhuyin keyboard laid out like iOS's (rows of 11, 10, 10 and 11 keys, rows two and three staggered, Shift / space / Enter below; `keyboard.js`, layout and cap labels in
+a Zhuyin keyboard laid out like iOS's (rows of 11, 10, 10 and 11 keys, rows two and three staggered, Shift / ， / space / 。 / Enter below; `keyboard.js`, layout and cap labels in
 `vkeys.js`, tested by `tests/editor_vkeys_test.mjs`). Keys carry the standard
 Zhuyin layout: Zhuyin large with the Latin letter as a corner hint. Holding
-Shift (second thumb) swaps the caps to uppercase letters and shifted symbols;
+Shift (second thumb) swaps the caps to uppercase letters and shifted symbols
+(in Chinese mode the full-width marks the decoder types: ！ —— ： ， 。 ？);
+the ， and 。 keys beside space are one-tap Shift+`,` / Shift+`.` in Chinese
+mode (the candidates after ， offer 、；：) and plain `,` `.` in English;
 a lone Shift tap is the usual 中/英 toggle, and the caps follow the decoder's
 mode. Presses are replayed as `KeyboardEvent`s on the editor, so the decoder,
 settings and ProseMirror keymaps see what a hardware keyboard would send;
