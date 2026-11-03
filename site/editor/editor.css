@@ -146,6 +146,16 @@ main.pg {
 }
 #toast.show { opacity: .95; transform: translate(-50%, 0); }
 
+.sync-popover {
+  position: fixed; right: max(16px, env(safe-area-inset-right)); bottom: calc(env(safe-area-inset-bottom) + 56px);
+  display: grid; gap: 3px; width: min(300px, calc(100vw - 32px)); padding: 11px 13px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--ink);
+  box-shadow: 0 8px 28px rgba(0,0,0,.18); font-size: 13px; z-index: 1900;
+}
+.sync-popover[hidden] { display: none; }
+.sync-popover strong { font-size: 14px; }
+.sync-popover span { color: var(--muted); }
+
 /* Command palette and settings sheet */
 dialog.palette, dialog.sheet {
   border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--ink); padding: 0;
