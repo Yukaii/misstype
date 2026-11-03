@@ -36,25 +36,48 @@ export const ROWS = [
   ],
   [
     { code: "ShiftLeft", special: "shift", label: "⇧", wide: 1.5 },
+    punct("PunctComma", "Comma", "，", ",", "<"),
     { code: "Space", special: "space", label: "空白", text: " ", fill: true },
-    { code: "Enter", special: "enter", label: "換行", wide: 3.15 },
+    punct("PunctPeriod", "Period", "。", ".", ">"),
+    { code: "Enter", special: "enter", label: "換行", wide: 2.6 },
   ],
 ];
+
+/**
+ * A one-tap punctuation key. In Chinese mode it sends Shift + `sends`, which
+ * the decoder turns into the full-width mark (and offers its group: after ，
+ * the candidates are ，、；：); in English mode it sends the bare key.
+ * `code` only names the key on the keyboard; `sends` is the physical key.
+ */
+function punct(code, sends, label, latin, shifted) {
+  return { code, sends, special: "punct", label, latin, shifted };
+}
+
+/**
+ * What Shift + key types in Chinese mode (core-zig/src/punctuation.zig), shown
+ * on the caps while Shift is held instead of the US-ANSI symbol.
+ */
+export const CJK_SHIFTED = {
+  Digit1: "！", Minus: "——", Semicolon: "：", Comma: "，", Period: "。", Slash: "？",
+};
 
 /** Row start offsets in key pitches (key + gap): the iOS keyboard staggers rows two and three. */
 export const INDENT = [0, 0.35, 0.65, 0, 0];
 
 /** What the key prints on its cap: [main, hint]. Chinese mode leads with Zhuyin; Shift or English shows Latin. */
 export function capLabels(key, { shift = false, english = false } = {}) {
+  if (key.special === "punct") return [english ? key.latin : key.label, ""];
   if (key.special) return [key.label, ""];
+  if (shift && !english && CJK_SHIFTED[key.code]) return [CJK_SHIFTED[key.code], ""];
   const latin = shift ? key.upper : key.lower;
   if (shift || english || !key.zhuyin) return [latin, ""];
   return [key.zhuyin, key.lower];
 }
 
 /** The KeyboardEvent.key a physical keyboard would produce for this key. */
-export function keyText(key, shift = false) {
+export function keyText(key, shift = false, english = false) {
   switch (key.special) {
+    case "punct": return english ? key.latin : key.shifted;
     case "shift": return "Shift";
     case "backspace": return "Backspace";
     case "enter": return "Enter";

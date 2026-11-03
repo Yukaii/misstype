@@ -175,7 +175,7 @@ export class VirtualKeyboard {
       else main.textContent = m;
       hint.textContent = h;
       button.dataset.preview = m;
-      button.setAttribute("aria-label", ariaLabel(key, this.shift));
+      button.setAttribute("aria-label", key.special === "punct" ? m : ariaLabel(key, this.shift));
     }
   }
 
@@ -242,6 +242,8 @@ export class VirtualKeyboard {
   }
 
   fire(key) {
-    this.handlers.press(key.code, keyText(key, this.shift), this.shift);
+    // A punctuation key is Shift + its physical key in Chinese mode, whatever Shift is doing.
+    const shift = key.special === "punct" ? !this.english : this.shift;
+    this.handlers.press(key.sends ?? key.code, keyText(key, shift, this.english), shift);
   }
 }
