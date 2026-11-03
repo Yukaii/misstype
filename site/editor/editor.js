@@ -826,8 +826,11 @@ addEventListener("storage", (e) => {
 // Closing the tab or switching apps must not lose the last 400 ms of typing.
 addEventListener("pagehide", saveNow);
 document.addEventListener("visibilitychange", () => {
-  if (document.hidden) saveNow();
-  else scheduleSync(0);
+  if (document.hidden) {
+    saveNow();
+    // No open connection while in the background; the pass on return restarts it.
+    cloud.unwatch();
+  } else scheduleSync(0);
 });
 // Pull other devices' changes now and then, and as soon as the network is back.
 setInterval(() => { if (!document.hidden) scheduleSync(0); }, 120_000);
@@ -897,6 +900,8 @@ async function runSync({ manual = false } = {}) {
     renderSync(cloud.status);
   }
   if (!report) return;
+  // Dropbox tells us when another device changes something (cloud.js watch).
+  if (!document.hidden) cloud.watch(() => scheduleSync(0));
   const replaced = new Set(report.replaced ?? []);
   const contentChanged = new Set(report.contentChanged ?? []);
   for (const id of report.changed) if (id !== currentId) states.delete(id);

@@ -13,13 +13,16 @@
 // VITE_GOOGLE_CLIENT_ID); a provider without one is not offered. sync.js does
 // the merging; this file only moves files.
 import { syncNotes } from "./sync.js";
+import { applyEntries, emptyListing, filesOf, forget, remember, storedListing } from "./dropbox-list.js";
 
 const STATE_KEY = "misstype-editor-sync";
 export const PENDING_KEY = "misstype-oauth-pending";
 export const RESULT_KEY = "misstype-oauth-result";
 
-const DROPBOX_KEY = import.meta.env.VITE_DROPBOX_APP_KEY || "";
-const GOOGLE_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
+// Vite replaces import.meta.env at build time; under Node (tests) it is absent.
+const env = import.meta.env || {};
+const DROPBOX_KEY = env.VITE_DROPBOX_APP_KEY || "";
+const GOOGLE_ID = env.VITE_GOOGLE_CLIENT_ID || "";
 
 export const PROVIDERS = {
   dropbox: { name: "Dropbox", configured: Boolean(DROPBOX_KEY) },
@@ -64,7 +67,8 @@ async function check(res, what) {
 // Dropbox-API-Arg is an HTTP header, so non-ASCII must be escaped.
 const headerJson = (value) => JSON.stringify(value).replace(/[\u007f-￿]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`);
 
-function dropbox(account, saveAccount) {
+/** The Dropbox remote for sync.js. Exported for tests/editor_dropbox_list_test.mjs. */
+export function dropbox(account, saveAccount) {
   async function token() {
     if (account.access && account.expires > Date.now() + 60_000) return account.access;
     const res = await fetch("https://api.dropboxapi.com/oauth2/token", {
@@ -86,15 +90,41 @@ function dropbox(account, saveAccount) {
     }), `dropbox ${path}`);
     return res.json();
   };
+  // The listing kept with the account (dropbox-list.js). It is saved with the
+  // rest of the sync state at the end of a pass, never halfway: a pass that
+  // fails just continues from the old cursor next time.
+  let listing = storedListing(account.listing);
   return {
+    /** Whether the last list() found anything this device did not already know. */
+    changed: true,
     async list() {
-      const out = [];
-      let page = await rpc("files/list_folder", { path: "", recursive: true });
+      let next = null;
+      let page = null;
+      if (listing) {
+        next = { cursor: listing.cursor, files: { ...listing.files } };
+        try {
+          page = await rpc("files/list_folder/continue", { cursor: listing.cursor });
+        } catch (err) {
+          // An expired or reset cursor: list everything again.
+          if (!/reset/.test(err.message)) throw err;
+          page = null;
+        }
+      }
+      let changed = !page;
+      if (!page) {
+        next = emptyListing();
+        page = await rpc("files/list_folder", { path: "", recursive: true });
+      }
       for (;;) {
-        for (const e of page.entries) if (e[".tag"] === "file") out.push({ name: e.path_display.slice(1), rev: e.rev });
-        if (!page.has_more) return out;
+        if (applyEntries(next, page.entries)) changed = true;
+        if (!page.has_more) break;
         page = await rpc("files/list_folder/continue", { cursor: page.cursor });
       }
+      next.cursor = page.cursor;
+      listing = next;
+      account.listing = listing;
+      this.changed = changed;
+      return filesOf(listing);
     },
     async read(name) {
       const res = await check(await fetch("https://content.dropboxapi.com/2/files/download", {
@@ -129,7 +159,10 @@ function dropbox(account, saveAccount) {
         },
         body: new TextEncoder().encode(text),
       }), "dropbox upload");
-      return (await res.json()).rev;
+      const { rev: written } = await res.json();
+      // The next continue reports this write; known, it is not a remote change.
+      remember(listing, name, written);
+      return written;
     },
     async remove(name) {
       try {
@@ -137,6 +170,23 @@ function dropbox(account, saveAccount) {
       } catch (err) {
         if (!/not_found/.test(err.message)) throw err;
       }
+      forget(listing, name);
+    },
+    /**
+     * Waits (up to `timeout` s) for a change after the stored cursor. No token:
+     * the notify endpoint takes none. Resolves { changes, backoff }.
+     */
+    async waitForChange(timeout, signal) {
+      if (!listing) return { changes: true, backoff: 0 };
+      const res = await fetch("https://notify.dropboxapi.com/2/files/list_folder/longpoll", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cursor: listing.cursor, timeout }),
+        signal,
+      });
+      if (!res.ok) throw new Error(`dropbox longpoll: ${res.status}`);
+      const json = await res.json();
+      return { changes: Boolean(json.changes), backoff: Number(json.backoff) || 0 };
     },
   };
 }
@@ -340,8 +390,7 @@ export function createCloud({ notes, workspace, content, busy, onChange }) {
     status.busy = true;
     status.error = "";
     publish();
-    const locked = navigator.locks ? navigator.locks.request("misstype-sync", run) : run();
-    running = locked.then((report) => {
+    running = locked(run).then((report) => {
       status.needsSignIn = false;
       status.report = report;
       return report;
@@ -356,6 +405,61 @@ export function createCloud({ notes, workspace, content, busy, onChange }) {
       publish();
     });
     return running;
+  }
+
+  const locked = (fn) => (navigator.locks ? navigator.locks.request("misstype-sync", fn) : fn());
+
+  /**
+   * Lists the remote (Dropbox: only what changed since the stored cursor) and
+   * says whether anything is new to this device. Its own uploads are not.
+   * Shows nothing; a sync follows only when this returns true.
+   */
+  async function peekRun() {
+    const state = load();
+    if (state?.account?.provider !== "dropbox") return true;
+    const remote = dropbox(state.account, () => writeJson(STATE_KEY, state));
+    await remote.list();
+    if (load()?.account?.connected !== state.account.connected) return false;
+    writeJson(STATE_KEY, state);
+    return remote.changed;
+  }
+  const peek = () => locked(peekRun).catch(() => true);
+
+  // Dropbox longpoll: hear another device's change within seconds instead of
+  // at the next 2-minute pass. One loop at a time; `generation` retires a
+  // stopped loop that is still waiting or sleeping.
+  let generation = 0;
+  let abort = null;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  function watch(onRemoteChange) {
+    if (abort) return;
+    const mine = ++generation;
+    const controller = new AbortController();
+    abort = controller;
+    const done = () => { if (generation === mine) abort = null; };
+    (async () => {
+      while (generation === mine) {
+        const state = load();
+        if (state?.account?.provider !== "dropbox" || !storedListing(state.account.listing) || status.needsSignIn) break;
+        let result;
+        try {
+          result = await dropbox(state.account, () => {}).waitForChange(120, controller.signal);
+        } catch {
+          if (generation !== mine) break;
+          await sleep(60_000);
+          continue;
+        }
+        if (generation !== mine) break;
+        if (result.changes && await peek() && generation === mine) onRemoteChange();
+        if (result.backoff) await sleep(result.backoff * 1000);
+      }
+      done();
+    })();
+  }
+  function unwatch() {
+    generation++;
+    abort?.abort();
+    abort = null;
   }
 
   return {
@@ -386,11 +490,15 @@ export function createCloud({ notes, workspace, content, busy, onChange }) {
       return true;
     },
     disconnect() {
+      unwatch();
       writeJson(STATE_KEY, null);
       Object.assign(status, { error: "", needsSignIn: false, report: null });
       publish();
     },
     sync,
     publish,
+    /** Starts listening for remote changes (Dropbox; no-op elsewhere or if already listening). */
+    watch,
+    unwatch,
   };
 }
