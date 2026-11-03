@@ -91,8 +91,14 @@ export class VirtualKeyboard {
     this.alignCaps();
     document.fonts?.ready.then(() => this.alignCaps());
     el.addEventListener("pointerdown", (e) => this.down(e));
-    el.addEventListener("pointerup", (e) => this.up(e));
-    el.addEventListener("pointercancel", (e) => this.up(e));
+    // A held key (Backspace repeats) must stop whenever its touch ends, even when
+    // the release is not delivered to the key: something drawn over it, capture
+    // lost, the page hidden or the app switched away. A missed release used to
+    // keep deleting until the app was killed.
+    for (const type of ["pointerup", "pointercancel"]) window.addEventListener(type, (e) => this.up(e), true);
+    el.addEventListener("lostpointercapture", (e) => this.up(e));
+    window.addEventListener("blur", () => this.releaseAll());
+    document.addEventListener("visibilitychange", () => { if (document.hidden) this.releaseAll(); });
     el.addEventListener("contextmenu", (e) => e.preventDefault());
     // iOS ignores preventDefault on pointerdown for focus; these keep the editor focused.
     for (const type of ["touchstart", "mousedown"]) el.addEventListener(type, (e) => e.preventDefault(), { passive: false });
@@ -194,21 +200,36 @@ export class VirtualKeyboard {
     }
     this.fire(key);
     if (key.repeat) {
+      this.stopRepeat(e.pointerId);
+      const id = e.pointerId;
+      // Each tick re-checks that this touch still holds the key.
+      const held = () => button.dataset.pointer === String(id);
       const start = setTimeout(() => {
-        const every = setInterval(() => this.fire(key), REPEAT_EVERY);
-        this.timers.set(e.pointerId, { every });
+        if (!held()) return this.stopRepeat(id);
+        const every = setInterval(() => (held() ? this.fire(key) : this.stopRepeat(id)), REPEAT_EVERY);
+        this.timers.set(id, { every });
       }, REPEAT_DELAY);
-      this.timers.set(e.pointerId, { start });
+      this.timers.set(id, { start });
     }
   }
 
+  stopRepeat(pointerId) {
+    const timers = this.timers.get(pointerId);
+    if (!timers) return;
+    clearTimeout(timers.start);
+    clearInterval(timers.every);
+    this.timers.delete(pointerId);
+  }
+
+  /** Lets go of every key, as if all touches ended. */
+  releaseAll() {
+    const ids = new Set(this.timers.keys());
+    for (const { button } of this.caps.values()) if (button.dataset.pointer) ids.add(Number(button.dataset.pointer));
+    for (const pointerId of ids) this.up({ pointerId });
+  }
+
   up(e) {
-    const timers = this.timers.get(e.pointerId);
-    if (timers) {
-      clearTimeout(timers.start);
-      clearInterval(timers.every);
-      this.timers.delete(e.pointerId);
-    }
+    this.stopRepeat(e.pointerId);
     for (const { button, key } of this.caps.values()) {
       if (button.dataset.pointer !== String(e.pointerId)) continue;
       delete button.dataset.pointer;

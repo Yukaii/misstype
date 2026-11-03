@@ -120,7 +120,10 @@ a lone Shift tap is the usual 中/英 toggle, and the caps follow the decoder's
 mode. Presses are replayed as `KeyboardEvent`s on the editor, so the decoder,
 settings and ProseMirror keymaps see what a hardware keyboard would send;
 unclaimed printable keys are inserted as text. The system keyboard is
-suppressed with `inputmode="none"` while ours is up. Backspace repeats and, when neither the decoder nor a keymap takes it, deletes
+suppressed with `inputmode="none"` while ours is up. Backspace repeats until its touch ends; the repeat
+also stops on a release anywhere on the page, lost pointer capture, window
+blur or the page being hidden, so a release swallowed by something drawn over
+the key cannot leave it deleting. When neither the decoder nor a keymap takes it, the keyboard deletes
 the selection or the character before the caret itself (a synthetic event has
 no browser default). With the keyboard up the candidates dock above it as one row of all
 candidates that scrolls sideways (`.candidate-panel.docked`, as in the system
@@ -306,7 +309,10 @@ merging more than rarely.
 - When: 4 s after the last save (any change in `notes.js` fires `onChange`),
   on load, when the tab becomes visible or the network comes back, and every
   2 minutes while visible; not while composing. Tabs take turns through Web
-  Locks. The status strip shows the state and syncs on click; the palette has
+  Locks. The status strip shows the state and syncs on click. A sync the user
+  starts (strip, palette, Settings, connecting) also shows a progress popover
+  once it has run 2 s; the automatic passes never do. The popover takes no
+  touches and sits above the on-screen keyboard. The palette has
   立即同步; Settings → 雲端同步 connects, syncs and disconnects (disconnecting
   deletes nothing on either side). The strip stays one line on a phone: spacing
   tightens, the button keeps the state but drops the time (under 480px; the

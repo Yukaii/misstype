@@ -618,7 +618,7 @@ const commands = [
   { id: "dictionary", title: "我的詞庫", keywords: "dictionary words phrases user 詞庫 詞彙", combo: "Mod-Shift-d", chord: chord("Mod-Shift-d"), run: () => dictionary.open() },
   { id: "learning", title: "學習資料", keywords: "learning learned phrases slips forget 學習 學到的詞 打錯", run: () => learning.open() },
   { id: "sync", title: "立即同步", keywords: "sync cloud dropbox google drive backup 同步 雲端 備份",
-    run: () => (cloud.provider && !cloud.status.needsSignIn ? runSync() : openSettings()) },
+    run: () => (cloud.provider && !cloud.status.needsSignIn ? runSync({ manual: true }) : openSettings()) },
   { id: "about", title: "關於", keywords: "about info help 說明 介紹", run: () => openAbout() },
   { id: "settings", title: "設定", keywords: "settings options preferences 選項", combo: "Mod-,", chord: chord("Mod-,"), run: () => openSettings() },
   { id: "keyboard", title: "顯示／隱藏螢幕鍵盤", keywords: "keyboard virtual on-screen 螢幕鍵盤", run: toggleVirtualKeyboard },
@@ -875,7 +875,12 @@ function scheduleSync(delay = 4000) {
   syncTimer = setTimeout(runSync, delay);
 }
 
-async function runSync() {
+/**
+ * One sync pass. `manual` marks a pass the user asked for (sync button,
+ * palette, connecting an account): only those may show the progress popover.
+ * The passes scheduled after edits stay in the status strip.
+ */
+async function runSync({ manual = false } = {}) {
   clearTimeout(syncTimer);
   syncTimer = 0;
   if (!cloud.provider || cloud.status.needsSignIn) return;
@@ -883,7 +888,14 @@ async function runSync() {
   if (imeState?.preedit) { scheduleSync(); return; }
   saveNow();
   clearTimeout(syncTimer); // the save just above is part of this pass
-  const report = await cloud.sync();
+  syncManual = manual;
+  let report;
+  try {
+    report = await cloud.sync();
+  } finally {
+    syncManual = false;
+    renderSync(cloud.status);
+  }
   if (!report) return;
   const replaced = new Set(report.replaced ?? []);
   const contentChanged = new Set(report.contentChanged ?? []);
@@ -904,6 +916,9 @@ async function runSync() {
 const timeOf = (ms) => new Date(ms).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" });
 let syncStarted = 0;
 let syncProgressTimer = 0;
+let syncManual = false;
+// A sync the user asked for shows the popover only once it is clearly not instant.
+const SYNC_POPOVER_AFTER = 2000;
 
 /** Draws the sync state in the status strip and in Settings. */
 function renderSync(s) {
@@ -916,7 +931,7 @@ function renderSync(s) {
   if (s.busy) {
     if (!syncStarted) syncStarted = Date.now();
     button.textContent = "同步中⋯";
-    popover.hidden = false;
+    popover.hidden = !syncManual || Date.now() - syncStarted < SYNC_POPOVER_AFTER;
     popoverTitle.textContent = `正在同步${name ? ` ${name}` : ""}⋯`;
     popoverDetail.textContent = `已用 ${Math.floor((Date.now() - syncStarted) / 1000)} 秒。正在交換變更，編輯內容會保留。`;
     clearTimeout(syncProgressTimer);
@@ -964,7 +979,7 @@ function renderSync(s) {
 async function finishConnect() {
   if (!await cloud.finish()) return;
   toast(`已連結 ${PROVIDERS[cloud.provider].name}`);
-  runSync();
+  runSync({ manual: true });
 }
 
 document.querySelector("#cloud").addEventListener("click", (e) => {
@@ -974,7 +989,7 @@ document.querySelector("#cloud").addEventListener("click", (e) => {
     saveNow();
     cloud.connect(what);
   } else if (what === "sync") {
-    runSync();
+    runSync({ manual: true });
   } else if (what === "disconnect" && confirm(`中斷與 ${PROVIDERS[cloud.provider].name} 的連結？這台裝置和雲端上的筆記都會留著。`)) {
     clearTimeout(syncTimer);
     cloud.disconnect();
@@ -983,7 +998,7 @@ document.querySelector("#cloud").addEventListener("click", (e) => {
 $("#sync-btn").addEventListener("click", () => {
   flush();
   if (cloud.status.needsSignIn) openSettings();
-  else runSync();
+  else runSync({ manual: true });
 });
 
 // ---------------------------------------------------------------- settings
