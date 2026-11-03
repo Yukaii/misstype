@@ -902,13 +902,26 @@ async function runSync() {
 }
 
 const timeOf = (ms) => new Date(ms).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" });
+let syncStarted = 0;
+let syncProgressTimer = 0;
 
 /** Draws the sync state in the status strip and in Settings. */
 function renderSync(s) {
   const name = s.provider ? PROVIDERS[s.provider].name : "";
   const button = document.querySelector("#sync-btn");
+  const popover = document.querySelector("#sync-popover");
+  const popoverTitle = document.querySelector("#sync-popover-title");
+  const popoverDetail = document.querySelector("#sync-popover-detail");
   button.hidden = !s.provider;
-  if (s.busy) button.textContent = "同步中⋯";
+  if (s.busy) {
+    if (!syncStarted) syncStarted = Date.now();
+    button.textContent = "同步中⋯";
+    popover.hidden = false;
+    popoverTitle.textContent = `正在同步${name ? ` ${name}` : ""}⋯`;
+    popoverDetail.textContent = `已用 ${Math.floor((Date.now() - syncStarted) / 1000)} 秒。正在交換變更，編輯內容會保留。`;
+    clearTimeout(syncProgressTimer);
+    syncProgressTimer = setTimeout(() => renderSync({ ...s }), 1000);
+  }
   else if (s.error) button.textContent = s.error;
   else if (s.last) {
     const label = document.createElement("span");
@@ -918,6 +931,12 @@ function renderSync(s) {
     time.textContent = ` ${timeOf(s.last)}`;
     button.replaceChildren(label, time);
   } else button.textContent = name;
+  if (!s.busy) {
+    clearTimeout(syncProgressTimer);
+    syncProgressTimer = 0;
+    syncStarted = 0;
+    popover.hidden = true;
+  }
   button.title = s.provider ? `${name}${s.last ? ` · 上次同步 ${timeOf(s.last)}` : ""} · 點一下立即同步` : "";
   const box = document.querySelector("#cloud");
   const offered = Object.keys(PROVIDERS).filter((p) => PROVIDERS[p].configured);
