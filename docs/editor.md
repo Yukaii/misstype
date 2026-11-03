@@ -312,6 +312,14 @@ merging more than rarely.
     Likewise a note being typed in when the content pass ran is not decided
     by the body loop even if typing has paused since; it waits for the next
     pass (`skipped`). Both cases are in `tests/editor_content_test.mjs`.
+  - Dropbox list (`dropbox-list.js`, tested by
+    `tests/editor_dropbox_list_test.mjs` against a fake of the HTTP API): the
+    first pass lists the folder recursively; later passes call
+    `list_folder/continue` with the cursor kept in the sync state and apply
+    only the changed entries, so the list no longer grows with the number of
+    notes. A reset cursor lists everything again. This device's uploads and
+    removals update the kept listing, so the next continue does not count
+    them as remote changes. Google Drive still lists in full.
   - 1 kB note rewritten 2,000 times (the tombstone case): 44 kB of history
     (45× the text) without a checkpoint; the next idle pass checkpoints to
     ~2.9 kB (2.9× text, including the epoch-0 seed kept for older clients).
@@ -330,7 +338,12 @@ merging more than rarely.
   organization converge on the next pass.
 - When: 4 s after the last save (any change in `notes.js` fires `onChange`),
   on load, when the tab becomes visible or the network comes back, and every
-  2 minutes while visible; not while composing. Tabs take turns through Web
+  2 minutes while visible; not while composing. With Dropbox, a visible tab
+  also holds a `list_folder/longpoll` (2-minute timeout, no token; closed
+  while hidden): when it reports a change, a quiet incremental list checks
+  whether anything is new to this device, and only then does a pass run, so
+  another device's edit arrives in seconds while this device's own uploads
+  trigger nothing. Tabs take turns through Web
   Locks. The status strip shows the state and syncs on click. A sync the user
   starts (strip, palette, Settings, connecting) also shows a progress popover
   once it has run 2 s; the automatic passes never do. The popover takes no
