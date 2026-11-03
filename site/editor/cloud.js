@@ -103,6 +103,21 @@ function dropbox(account, saveAccount) {
       }), "dropbox download");
       return res.text();
     },
+    // Dropbox has no multi-download endpoint.  Keeping the fan-out here lets
+    // the sync layer fetch independent files concurrently without coupling it
+    // to a provider-specific API.
+    async readMany(names) {
+      const out = new Map();
+      // Keep enough parallelism to hide WAN latency without creating a burst
+      // large enough to trip Dropbox's per-user request limits.
+      for (let i = 0; i < names.length; i += 8) {
+        const batch = names.slice(i, i + 8);
+        for (const [name, text] of await Promise.all(batch.map(async (name) => [name, await this.read(name)]))) {
+          out.set(name, text);
+        }
+      }
+      return out;
+    },
     async write(name, text, rev) {
       const mode = rev ? { ".tag": "update", update: rev } : { ".tag": "add" };
       const res = await check(await fetch("https://content.dropboxapi.com/2/files/upload", {

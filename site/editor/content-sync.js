@@ -122,6 +122,21 @@ export async function writeContentChunk({ content, remote, files, seen, id, devi
  *   seen        name -> { rev, hash?, vector, bytes } for the next pass
  */
 export async function syncContent({ content, store, remote, files, busy, local, bodyIds, device, bodyChanged = () => false, seen = {}, checkpointBytes = null }) {
+  // Reads are independent, while applying Yjs updates remains deliberately
+  // ordered below. Dropbox's per-request latency otherwise turns a note with
+  // many chunks into a serial network walk.
+  const readCache = new Map();
+  const pendingReads = [...files].filter(([name]) => isContentFile(name)
+    && seen[name]?.rev !== files.get(name).rev).map(([name]) => name);
+  if (pendingReads.length && remote.readMany) {
+    for (const [name, text] of await remote.readMany(pendingReads)) readCache.set(name, text);
+  }
+  const readRemote = async (name) => {
+    if (readCache.has(name)) return readCache.get(name);
+    const text = await remote.read(name);
+    readCache.set(name, text);
+    return text;
+  };
   const seeds = new Map();
   const states = new Map();
   for (const [name, file] of files) {
@@ -277,7 +292,7 @@ export async function syncContent({ content, store, remote, files, busy, local, 
         let seedRaw;
         let seedText;
         try {
-          seedRaw = await remote.read(seed.name) || "";
+          seedRaw = await readRemote(seed.name) || "";
           seedText = JSON.parse(seedRaw);
         } catch { continue; }
         if (seedText?.v !== 1 || typeof seedText.state !== "string") continue;
@@ -308,7 +323,7 @@ export async function syncContent({ content, store, remote, files, busy, local, 
         continue;
       }
       try {
-        const text = await remote.read(file.name) || "";
+        const text = await readRemote(file.name) || "";
         const parsed = JSON.parse(text);
         if ((parsed?.v !== 1 && parsed?.v !== 2) || typeof parsed.state !== "string") continue;
         const vector = vectorOfUpdate(parsed.state);

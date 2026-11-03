@@ -139,6 +139,23 @@ export async function syncNotes({ store, remote, base = {}, busy = () => false, 
     const m = NOTE_FILE.exec(file.name);
     if (m) remoteNotes.set(m[1], file);
   }
+  // Fetch changed note bodies together.  Dropbox request latency dominates a
+  // pass with many notes; parsing and applying them still happens in the
+  // existing deterministic loop below.
+  const noteReads = [...remoteNotes].filter(([id, file]) => {
+    const was = base.notes?.[id];
+    return !was || file.rev !== was.rev;
+  }).map(([, file]) => file.name);
+  const noteText = new Map();
+  if (noteReads.length && remote.readMany) {
+    for (const [name, text] of await remote.readMany(noteReads)) noteText.set(name, text);
+  }
+  const readNote = async (name) => {
+    if (noteText.has(name)) return noteText.get(name);
+    const text = await remote.read(name);
+    noteText.set(name, text);
+    return text;
+  };
   // Bodies as they were before any CRDT merge, so a remote content update is
   // not mistaken for a local body edit in the loop below.
   const local = new Map(store.snapshot().notes.map((n) => [n.id, n]));
@@ -179,7 +196,7 @@ export async function syncNotes({ store, remote, base = {}, busy = () => false, 
     report.uploaded++;
   };
   const download = async (id, file) => {
-    const parsed = parseNote(await remote.read(file.name));
+    const parsed = parseNote(await readNote(file.name));
     const meta = workspace && wsActive ? workspace.meta(id) : null;
     return {
       id,
