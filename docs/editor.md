@@ -298,12 +298,20 @@ merging more than rarely.
     pulls one edit reads the changed `.md` and its one new chunk.
   - Round trips a pass waits on one after another (`trips`, each call
     delayed `LATENCY` ms; on Dropbox a trip is hundreds of ms): an edit pass
-    is list, then the `.md` and chunk writes together (2; it was 5: list, one
-    read per device's workspace file, chunk write, `.md` write); picking up
-    an edit is list, then both reads (2, was 5); an idle pass is the list
-    alone (1, was 3). Independent requests overlap: changed bodies download
-    during the workspace and content merge, and a note edited only here
-    uploads its `.md` alongside the content pass.
+    is list, chunk write, then the `.md` with the workspace file (3; it was 5:
+    list, one read per device's workspace file, chunk write, `.md` write);
+    picking up an edit is list, then both reads (2, was 5); an idle pass is
+    the list alone (1, was 3). Independent requests overlap: changed bodies
+    download during the workspace and content merge, and bodies upload
+    together with the workspace file.
+  - Ordering rule: a note's `.md` never goes up before the chunk carrying the
+    same text. Another device that sees a new body without the chunk cannot
+    merge it and keeps both versions (a duplicate note); #119 briefly wrote
+    them in parallel and did exactly that. A note the content pass skipped
+    as busy, or whose chunk did not go up, keeps its old body for a pass.
+    Likewise a note being typed in when the content pass ran is not decided
+    by the body loop even if typing has paused since; it waits for the next
+    pass (`skipped`). Both cases are in `tests/editor_content_test.mjs`.
   - Dropbox list (`dropbox-list.js`, tested by
     `tests/editor_dropbox_list_test.mjs` against a fake of the HTTP API): the
     first pass lists the folder recursively; later passes call

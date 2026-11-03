@@ -334,7 +334,9 @@ if (CHECK) {
     ["an edit uploads a delta, not history", last.stateUp < 4096, `${last.stateUp} bytes`],
     ["a checkpoint folds churn history", churnIdle.state < 4 * churnIdle.text, `${(churnIdle.state / churnIdle.text).toFixed(2)}x text`],
     ["many notes: a settled pass reads no content", many.settled.contentRead === 0, `${many.settled.contentRead} bytes`],
-    ["an edit pass waits on at most 2 round trips", many.trips.edit <= 2, `${many.trips.edit}`],
+    // list, chunk, then the body: a body ahead of its chunk cannot be merged by
+    // another device, which then keeps both versions (a duplicate note).
+    ["an edit pass waits on at most 3 round trips", many.trips.edit <= 3, `${many.trips.edit}`],
     ["picking up an edit waits on at most 2 round trips", many.trips.pickup <= 2, `${many.trips.pickup}`],
     ["an idle pass waits on 1 round trip (the list)", many.trips.idle <= 1, `${many.trips.idle}`],
   ];

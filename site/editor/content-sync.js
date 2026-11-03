@@ -119,6 +119,8 @@ export async function writeContentChunk({ content, remote, files, seen, id, devi
  *   replaced    ids whose Y.Doc object was replaced (the editor must rebuild a
  *               cached state bound to the old one)
  *   checkpointed ids whose history was folded into a new seed
+ *   skipped     ids left alone because they were busy (being typed in); sync.js
+ *               must wait on them too, even if typing paused since
  *   seen        name -> { rev, hash?, vector, bytes } for the next pass
  */
 export async function syncContent({ content, store, remote, files, busy, local, bodyIds, device, bodyChanged = () => false, seen = {}, checkpointBytes = null }) {
@@ -175,6 +177,7 @@ export async function syncContent({ content, store, remote, files, busy, local, 
   const uploaded = new Set();
   const checkpointed = new Set();
   const blocked = new Map();
+  const skipped = new Set();
   const nextSeen = { ...seen };
 
   const remember = (id, markdown) => {
@@ -223,7 +226,10 @@ export async function syncContent({ content, store, remote, files, busy, local, 
     const note = local.get(id);
     const hasBody = bodyIds.has(id);
     if (!note && !hasBody) continue;
-    if (busy(id)) continue;
+    if (busy(id)) {
+      skipped.add(id);
+      continue;
+    }
     const hasLocal = content.has(id);
     const localVector = hasLocal ? content.vector(id) : null;
     let seed = seeds.get(id);
@@ -410,5 +416,5 @@ export async function syncContent({ content, store, remote, files, busy, local, 
   // A note that was deleted, or a state file that disappeared, is not remembered.
   for (const name of Object.keys(nextSeen)) if (!files.has(name)) delete nextSeen[name];
 
-  return { merged, linked, applied, replaced, uploaded, blocked, checkpointed, seen: nextSeen };
+  return { merged, linked, applied, replaced, uploaded, blocked, checkpointed, skipped, seen: nextSeen };
 }
