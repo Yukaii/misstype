@@ -23,13 +23,16 @@ function memoryRemote() {
   const writes = [];
   const reads = [];
   let counter = 0;
-  return {
+  const remote = {
     files,
     writes,
     reads,
+    /** (name) => true makes that write fail like a dropped connection. */
+    failWrite: null,
     list: async () => [...files].map(([name, f]) => ({ name, rev: f.rev })),
     read: async (name) => { reads.push(name); return files.get(name)?.text ?? ""; },
     async write(name, text, rev) {
+      if (remote.failWrite?.(name)) throw new Error("network");
       const have = files.get(name);
       if ((have?.rev ?? null) !== rev) throw Object.assign(new Error("conflict"), { conflict: true });
       files.set(name, { text, rev: `r${++counter}` });
@@ -38,6 +41,7 @@ function memoryRemote() {
     },
     remove: async (name) => { files.delete(name); },
   };
+  return remote;
 }
 
 function device(remote, name) {
@@ -430,4 +434,69 @@ test("a full state file from an older client is still merged", async () => {
   await a.sync();
   assert.equal(a.store.read(id), "base plus");
   assert.equal(a.content.markdown(id), "base plus");
+});
+
+// Duplicates reported from daily use (2026-11-03). Each case below produced a
+// second copy of the note before the fix.
+
+const noteCount = (dev) => dev.store.snapshot().notes.filter((n) => n.body.trim()).length;
+const isChunk = (name, id, dev) => name.startsWith(`notes/${id}.${dev}-`);
+
+async function sharedNote() {
+  const remote = memoryRemote();
+  const a = device(remote, "a");
+  const b = device(remote, "b");
+  const id = a.create("shared line");
+  await a.sync();
+  await b.sync();
+  await a.sync();
+  await b.sync();
+  return { remote, a, b, id };
+}
+
+test("a pause in typing during a pass waits instead of keeping both versions", async () => {
+  const { a, b, id } = await sharedNote();
+  b.edit(id, "shared line B");
+  await b.sync();
+  a.edit(id, "A shared line");
+  // Busy when the content pass looks (mid-keystroke), idle by the body loop.
+  let calls = 0;
+  const report = await a.sync(() => calls++ === 0);
+  assert.equal(report.conflicts, 0);
+  await a.sync();
+  await b.sync();
+  assert.equal(noteCount(a), 1);
+  assert.equal(noteCount(b), 1);
+  assert.equal(a.store.read(id), "A shared line B");
+  assert.equal(b.store.read(id), a.store.read(id));
+});
+
+test("a note's body never goes up ahead of its content chunk", async () => {
+  const { remote, a, b, id } = await sharedNote();
+  // B's chunk upload fails mid-pass: its body must not go up either.
+  b.edit(id, "shared line B");
+  remote.failWrite = (name) => isChunk(name, id, "b");
+  const writes = remote.writes.length;
+  await b.sync().catch(() => {});
+  remote.failWrite = null;
+  assert.ok(!remote.writes.slice(writes).includes(`notes/${id}.md`));
+  // A edits meanwhile; once B retries, everything merges into one note.
+  a.edit(id, "A shared line");
+  await a.sync();
+  await b.sync();
+  await a.sync();
+  assert.equal(noteCount(a), 1);
+  assert.equal(noteCount(b), 1);
+  assert.equal(a.store.read(id), "A shared line B");
+
+  // Merging both sides: the merged chunk goes up before the merged body.
+  b.edit(id, "A shared line B!");
+  await b.sync();
+  a.edit(id, "A: shared line B");
+  const before = remote.writes.length;
+  const report = await a.sync();
+  assert.equal(report.merged, 1);
+  const pass = remote.writes.slice(before);
+  const body = pass.indexOf(`notes/${id}.md`);
+  assert.ok(body > 0 && pass.slice(0, body).some((name) => isChunk(name, id, "a")), pass.join(", "));
 });

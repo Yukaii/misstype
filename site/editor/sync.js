@@ -178,20 +178,15 @@ export async function syncNotes({ store, remote, base = {}, busy = () => false, 
     next.notes[note.id] = { rev: await remote.write(noteFile(note.id), text, rev), hash: noteHash(note) };
     report.uploaded++;
   };
-  // A note edited only here needs nothing from the content pass to upload its
-  // body (that is the loop's first branch), so it goes out alongside it. A
-  // content merge that changes it afterwards is a local change for next pass.
-  const early = new Map();
+  // Notes edited only here (the loop's first branch). Their bodies upload
+  // together after the content pass, alongside the workspace file.
+  const localOnly = [];
   for (const [id, mine] of local) {
     const was = base.notes?.[id];
     const file = remoteNotes.get(id);
     const theirsChanged = file ? !was || file.rev !== was.rev : Boolean(was);
     if (theirsChanged || (was && hashMatches(was, mine)) || !(was || mine.body.trim())) continue;
-    early.set(id, settle(upload(mine, file?.rev ?? null).catch((err) => {
-      if (!err.conflict) throw err;
-      // Someone wrote the file in the meantime: keep the old base, next pass sees both sides.
-      if (was) next.notes[id] = was;
-    })));
+    localOnly.push(id);
   }
   let contentResult = null;
   if (content) {
@@ -210,6 +205,30 @@ export async function syncNotes({ store, remote, base = {}, busy = () => false, 
     });
   }
   for (const [name, text] of await prefetch) noteText.set(name, text);
+  /**
+   * Whether a note's body may be uploaded now. Another device that sees a new
+   * `.md` without the content chunk carrying the same text cannot merge it
+   * and keeps both versions, so the body never goes up ahead of its chunk:
+   * not for a note the content pass skipped as busy, nor for one whose chunk
+   * did not go up (a conflict with another tab). The next pass retries.
+   */
+  const bodyReady = (id) => !content || !contentResult || !content.has(id)
+    || (!contentResult.skipped.has(id) && (contentResult.uploaded.has(id) || !content.dirty(id)));
+  const early = new Map();
+  for (const id of localOnly) {
+    const was = base.notes?.[id];
+    if (!bodyReady(id)) {
+      if (was) next.notes[id] = was;
+      early.set(id, Promise.resolve());
+      continue;
+    }
+    const file = remoteNotes.get(id);
+    early.set(id, settle(upload(local.get(id), file?.rev ?? null).catch((err) => {
+      if (!err.conflict) throw err;
+      // Someone wrote the file in the meantime: keep the old base, next pass sees both sides.
+      if (was) next.notes[id] = was;
+    })));
+  }
   // The note as stored right now, to skip one the user changed while this pass waited on the network.
   const untouched = (id, seen) => {
     if (busy(id)) return false;
@@ -317,25 +336,30 @@ export async function syncNotes({ store, remote, base = {}, busy = () => false, 
           adopt({ ...theirs, body }, file.rev);
         } else if (noteHash(theirs) === noteHash(mine)) {
           next.notes[id] = { rev: file.rev, hash: noteHash(mine) };
-        } else if (content && !busy(id) && (contentResult?.applied.has(id)
+        } else if (content && (busy(id) || contentResult?.skipped.has(id))) {
+          // Being typed in, now or when the content pass ran (typing pauses
+          // between keys): merging needs that pass, so wait for the next one.
+          // Deciding now fell through to "keep both" and duplicated the note.
+          if (was) next.notes[id] = was;
+        } else if (content && (contentResult?.applied.has(id)
           || (contentResult?.linked.has(id) && content.normalize(content.markdown(id)) === content.normalize(theirs.body)))) {
           // Both edited, and both share the content CRDT history (or the local
           // document already holds the remote text from an earlier pass): merge.
           const body = contentResult.merged.get(id) ?? content.markdown(id);
           const mergedNote = { ...mine, body };
           store.put({ ...theirs, body });
-          await upload(mergedNote, file.rev);
+          // Content first: the body must never be visible ahead of its chunk.
           if (!contentResult.uploaded.has(id)) await uploadContent(id);
+          await upload(mergedNote, file.rev);
           report.merged++;
           report.changed.add(id);
-        } else if (content && contentResult?.blocked.has(id) && !busy(id)) {
+        } else if (content && contentResult?.blocked.has(id)) {
           // An independent local history (edited before it saw the seed): keep
           // both texts as before, then rebase the kept local text onto the
           // seed so the next conflict merges instead of duplicating again.
           const copy = { ...theirs, id: store.newId() };
           adopt(copy, null);
           await upload(copy, null);
-          await upload(mine, file.rev);
           const blocked = contentResult.blocked.get(id);
           content.rebase(id, blocked.seed, blocked.states, mine.body);
           // The kept text belongs to the seed's epoch, and its old chunks (an
@@ -345,10 +369,8 @@ export async function syncNotes({ store, remote, base = {}, busy = () => false, 
           contentResult.replaced.add(id);
           report.contentChanged.push(id);
           await uploadContent(id, { reset: true });
+          await upload(mine, file.rev);
           report.conflicts++;
-        } else if (content && busy(id)) {
-          // Let the composition finish; the next pass merges.
-          if (was) next.notes[id] = was;
         } else {
           // Both edited: keep both. The remote text becomes a note of its own.
           const copy = { ...theirs, id: store.newId() };
