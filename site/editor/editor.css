@@ -151,6 +151,7 @@ main.pg {
   display: grid; gap: 3px; width: min(300px, calc(100vw - 32px)); padding: 11px 13px;
   border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--ink);
   box-shadow: 0 8px 28px rgba(0,0,0,.18); font-size: 13px; z-index: 1900;
+  pointer-events: none; /* status only: touches go through to whatever is beneath */
 }
 .sync-popover[hidden] { display: none; }
 .sync-popover strong { font-size: 14px; }
@@ -337,6 +338,8 @@ body.vk-on .status { padding-bottom: 6px; }
 /* On a phone a third of the screen of blank space after the note is most of it. */
 @media (pointer: coarse) { .ProseMirror { padding-bottom: 3em; } }
 body.vk-on #toast { bottom: calc(var(--vk-h, 0px) + var(--cb-h) + 56px); }
+/* Never over the keys: a popover appearing under a held key used to swallow its release. */
+body.vk-on .sync-popover { bottom: calc(var(--vk-h, 0px) + var(--cb-h) + 8px); }
 @media (max-height: 480px) { .vk { --vk-row-gap: 5px; --vk-h-key: min(34px, calc(var(--vk-u) * 1.28)); padding-top: 4px; } .vk-key:not([data-special]).down::before { height: 40px; } }
 
 /* With the on-screen keyboard the candidates dock above it as one row that
