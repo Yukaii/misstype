@@ -41,6 +41,29 @@ enum Runtime {
     }
 }
 
+/// Layer background re-resolved per appearance: `.cgColor` freezes a
+/// dynamic color, so assigning it once kept the launch-time (dark) fill
+/// in light mode while the label (dynamic labelColor) followed.
+private final class PillView: NSView {
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        wantsLayer = true
+        layer?.cornerRadius = 11
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override var wantsUpdateLayer: Bool { true }
+
+    override func updateLayer() {
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+        }
+    }
+}
+
 /// Transient 中/英 mode pill: flashes on every toggle (a blind toggle is
 /// unusable). Borderless nonactivating panel like CandidatesPanel — never
 /// steals focus; generation counter avoids hide-races on quick re-toggles.
@@ -61,10 +84,7 @@ final class ModeIndicator: NSPanel {
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         animationBehavior = .none
 
-        let body = NSView(frame: NSRect(x: 0, y: 0, width: 44, height: 44))
-        body.wantsLayer = true
-        body.layer?.cornerRadius = 11
-        body.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+        let body = PillView(frame: NSRect(x: 0, y: 0, width: 44, height: 44))
         contentView = body
 
         // NSTextField draws top-aligned in its frame — center the frame
