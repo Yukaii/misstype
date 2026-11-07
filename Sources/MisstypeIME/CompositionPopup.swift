@@ -141,7 +141,9 @@ final class CompositionPopup: NSPanel {
         let width = labelWidth + 20
         let height = ceil(textSize.height) + 10
         label.frame = NSRect(x: 10, y: 5, width: labelWidth, height: ceil(textSize.height) + 2)
-        (contentView as? NSView)?.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            (contentView as? NSView)?.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+        }
         let frame = Self.frame(width: width, height: height, anchor: anchor, sessionX: &sessionX)
         setFrame(frame, display: true)
         orderFront(nil)
