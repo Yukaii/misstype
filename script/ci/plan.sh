@@ -17,10 +17,11 @@ set -euo pipefail
 out=${GITHUB_OUTPUT:-/dev/stdout}
 HEAD=${HEAD:-HEAD}
 
-# Paths the macOS job compiles or bundles. Core decoder changes are covered on
+# Path rules shared with script/check.sh. Core decoder changes are covered on
 # Linux (same Zig source); the release workflow still builds and tests macOS
 # before anything ships, so a macOS-only compile break cannot reach users.
-macos_paths='^(Sources/|tests/MisstypeMacKitTests/|tests/fixtures/lexicon/|Package\.(swift|resolved)$|Resources/|script/zig/|script/ci/|core-zig/build\.zig|core-zig/src/(capi|root)\.zig$|\.github/workflows/ci\.yml$)'
+# shellcheck source=script/ci/layers.sh
+source "$(dirname "$0")/layers.sh"
 
 changed=
 if [[ ${EVENT:-} == workflow_dispatch || -z ${BASE:-} || ${BASE} =~ ^0+$ ]]; then
@@ -28,11 +29,11 @@ if [[ ${EVENT:-} == workflow_dispatch || -z ${BASE:-} || ${BASE} =~ ^0+$ ]]; the
   changed=ALL
 else
   git cat-file -e "$BASE^{commit}" 2>/dev/null || git fetch --quiet --depth=1 origin "$BASE"
-  changed=$(git diff --name-only "$BASE" "$HEAD")
+  changed=$(changed_files "$BASE" "$HEAD")
 fi
 
 macos=false
-if [[ $changed == ALL ]] || grep -Eq "$macos_paths" <<<"$changed"; then
+if touches macos "$changed"; then
   macos=true
 fi
 
