@@ -43,7 +43,7 @@ Run the fastest relevant check for your layer, then what CI will run for it:
 | macOS UI types | `swift test` (after `./script/zig/build_macos.sh`) |
 | Linux | `script/linux/dev.sh 'bash script/linux/test_all.sh'` |
 | wasm | `node tests/wasm_test.mjs` after `zig build wasm` |
-| Python prototype | `PYTHONPATH=src python -m unittest discover -s tests -v` |
+| Python tools | `python3 -m unittest discover -s tests -v` (after `zig build`) |
 
 Say in the PR what you could not run.
 

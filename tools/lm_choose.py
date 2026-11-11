@@ -29,13 +29,13 @@ or a user-lexicon path. The key comes from the environment and is never
 logged.
 
 Usage:
-  PYTHONPATH=src python tools/lm_choose.py            # 1.5b model
-  PYTHONPATH=src python tools/lm_choose.py --model qwen2.5:0.5b --reps 1
-  OPENAI_API_KEY=... PYTHONPATH=src python tools/lm_choose.py \
+  python3 tools/lm_choose.py            # 1.5b model
+  python3 tools/lm_choose.py --model qwen2.5:0.5b --reps 1
+  OPENAI_API_KEY=... python3 tools/lm_choose.py \
       --backend openai --model gpt-5.6-luna --reps 3
-  PYTHONPATH=src python tools/lm_choose.py --backend jev \
+  python3 tools/lm_choose.py --backend jev \
       --user-context '開場問候' --user-lexicon /path/to/phrases.json
-  PYTHONPATH=src python tools/lm_choose.py --backend jev-local \
+  python3 tools/lm_choose.py --backend jev-local \
       --local-url http://127.0.0.1:8000/predict   # Laya; default is jev-local
 """
 

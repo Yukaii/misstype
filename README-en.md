@@ -135,7 +135,6 @@ Key bindings and behavior (continuous typing, candidates, symbols, user dictiona
 | `linux/fcitx5/` | fcitx5 addon and GTK dictionary editor over the same core |
 | `linux/ibus/` | IBus engine and settings window over the same core |
 | `packages/misstype-wasm/` | npm browser bindings |
-| `src/misstype/` | Python capture/touch prototype (reference for touch semantics only) |
 | `tests/`, `tools/` | Golden files, replay fixtures, measurement scripts |
 | `docs/` | Architecture, cross-platform contract (C1–C15), design notes |
 | `site/` | Landing page and web editor (separate from this README by design) |

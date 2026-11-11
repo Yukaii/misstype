@@ -6,12 +6,15 @@ avoid neutral-tone words and 一/不 tone sandhi, where lexicons legitimately
 disagree. A probe is only valid if every IME under test decodes its CLEAN
 keystrokes to the expected text; run_clean_check flags the rest.
 
-Usage: PYTHONPATH=src python tools/baseline/make_probes.py > tools/baseline/probes.tsv
+Usage: python3 tools/baseline/make_probes.py > tools/baseline/probes.tsv
 """
 import sys
-from misstype.phonetic import KEY_TO_ZHUYIN, TONE_KEYS
+from pathlib import Path
 
-ZHUYIN_TO_KEY = {v: k for k, v in KEY_TO_ZHUYIN.items()}
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+import misstype_dev as dev  # noqa: E402  key map from the Zig core
+
+ZHUYIN_TO_KEY = dev.zhuyin_to_key()
 TONE_TO_KEY = {"ˇ": "3", "ˋ": "4", "ˊ": "6"}  # first tone = space
 
 SENTENCES = [

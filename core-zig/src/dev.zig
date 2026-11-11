@@ -9,6 +9,14 @@
 //!   misstype-dev --session-batch FILE|- [--carry] [--learned-out PATH] [same trace flags]
 //!   misstype-dev --build-mode     (Debug, ReleaseFast, ...: latency is only
 //!                                  meaningful from an optimized build)
+//!   misstype-dev --touch TAPS [--beam] [--no-spatial] [--no-fuzzy] [--top N]
+//!                TAPS: space-separated `l:X,Y` / `r:X,Y` taps on the
+//!                `full-split-1` surfaces (normalized 0..1; tone keys are taps
+//!                too). Prints `text<TAB>score<TAB>keys<TAB>spatial_cost`.
+//!   misstype-dev --touch-batch FILE|-  one TAPS per line, answers separated
+//!                by an empty line; same flags as --touch
+//!   misstype-dev --touch-layout   `layout<TAB>VERSION`, then `KEY<TAB>l|r<TAB>X<TAB>Y`
+//!   misstype-dev --keymap         `KEY<TAB>SYMBOL` (Zhuyin and tone keys)
 //!
 //! Trace keys are physical key labels; `⇧` is a lone Shift tap and
 //! `，。？！：` are Shift+punctuation (see `traceEvents`).
@@ -763,6 +771,90 @@ fn withCursor(a: Allocator, text: []const u8, caret: u32) ![]const u8 {
     return std.mem.concat(a, u8, &.{ text[0..at], "|", text[at..] });
 }
 
+/// Touch decoding over raw tap coordinates (`touch.decode`, the lattice
+/// version; `--beam` for the whole-phrase beam baseline). The measurement
+/// tools (tools/noise.py, tools/bench.py) jitter key centres and replay
+/// through this instead of a second implementation.
+fn touchDecode(cli: Cli, spec: []const u8) !void {
+    var arena: std.heap.ArenaAllocator = .init(cli.gpa);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const taps = try parseTaps(a, spec);
+    const lexicon = try cli.loadDecoder();
+    defer lexicon.destroy();
+    try printTouch(cli, a, lexicon, taps);
+}
+
+/// One TAPS line per input line; each answer is the `--touch` output followed
+/// by an empty line. Loads the lexicon once (the sweeps run thousands).
+fn touchBatch(cli: Cli, path: []const u8) !void {
+    const data = if (std.mem.eql(u8, path, "-"))
+        try readStdin(cli)
+    else
+        cli.read(path) orelse return usageError("cannot read", path);
+    defer cli.gpa.free(data);
+    const lexicon = try cli.loadDecoder();
+    defer lexicon.destroy();
+    var lines = std.mem.splitScalar(u8, data, '\n');
+    while (lines.next()) |line| {
+        if (std.mem.trim(u8, line, " \t\r").len == 0) continue;
+        var arena: std.heap.ArenaAllocator = .init(cli.gpa);
+        defer arena.deinit();
+        const a = arena.allocator();
+        try printTouch(cli, a, lexicon, try parseTaps(a, line));
+        try cli.print("\n", .{});
+    }
+}
+
+fn parseTaps(a: Allocator, spec: []const u8) ![]core.touch.Hypothesis {
+    var taps: std.ArrayList(core.touch.Hypothesis) = .empty;
+    var it = std.mem.tokenizeAny(u8, spec, " \t\r\n");
+    while (it.next()) |tap| {
+        if (tap.len < 3 or tap[1] != ':') return usageError("touch tap must be l:X,Y or r:X,Y", tap);
+        const surface: core.touch.Surface = switch (tap[0]) {
+            'l' => .left,
+            'r' => .right,
+            else => return usageError("touch surface must be l or r", tap),
+        };
+        const comma = std.mem.indexOfScalar(u8, tap, ',') orelse return usageError("touch tap needs X,Y", tap);
+        const x = std.fmt.parseFloat(f64, tap[2..comma]) catch return usageError("bad x", tap);
+        const y = std.fmt.parseFloat(f64, tap[comma + 1 ..]) catch return usageError("bad y", tap);
+        try taps.append(a, core.touch.hypothesis(surface, x, y) orelse return usageError("tap outside the surface", tap));
+    }
+    return taps.items;
+}
+
+fn printTouch(cli: Cli, a: Allocator, lexicon: *const core.Lexicon, taps: []const core.touch.Hypothesis) !void {
+    const opts: core.touch.Options = .{ .spatial = !cli.flag("--no-spatial"), .fuzzy = !cli.flag("--no-fuzzy") };
+    const results = if (cli.flag("--beam"))
+        try core.touch.decodeBeam(lexicon, a, taps, opts)
+    else
+        try core.touch.decode(lexicon, a, taps, opts);
+    const top = if (cli.value("--top")) |n| std.fmt.parseInt(usize, n, 10) catch 5 else 5;
+    for (results[0..@min(results.len, top)]) |c| {
+        try cli.print("{s}\t", .{c.sentence.text});
+        try writeDouble(cli, a, c.score());
+        try cli.print("\t{s}\t", .{c.keys});
+        try writeDouble(cli, a, c.spatial_cost);
+        try cli.print("\n", .{});
+    }
+}
+
+fn usageError(why: []const u8, arg: []const u8) error{InvalidArgument} {
+    if (!@import("builtin").is_test) std.debug.print("misstype-dev: {s}: {s}\n", .{ why, arg });
+    return error.InvalidArgument;
+}
+
+fn touchLayout(cli: Cli) !void {
+    try cli.print("layout\t{s}\n", .{core.touch.version});
+    for (core.touch.positions) |p| try cli.print("{c}\t{s}\t{d}\t{d}\n", .{ p.key, if (p.surface == .left) "l" else "r", p.x, p.y });
+}
+
+fn keymap(cli: Cli) !void {
+    for (core.keyboard.symbol_keys) |key| try cli.print("{c}\t{s}\n", .{ key, core.keyboard.symbol(key).? });
+    for ("3467") |key| try cli.print("{c}\t{s}\n", .{ key, core.keyboard.tone(key).? });
+}
+
 pub fn main(init: std.process.Init) !void {
     var out_buf: [8192]u8 = undefined;
     var out_file: Io.File.Writer = .init(.stdout(), init.io, &out_buf);
@@ -776,8 +868,16 @@ pub fn main(init: std.process.Init) !void {
         try trace(cli, keys);
     } else if (cli.value("--session-batch")) |path| {
         try batch(cli, path);
+    } else if (cli.value("--touch")) |taps| {
+        try touchDecode(cli, taps);
+    } else if (cli.value("--touch-batch")) |path| {
+        try touchBatch(cli, path);
+    } else if (cli.flag("--touch-layout")) {
+        try touchLayout(cli);
+    } else if (cli.flag("--keymap")) {
+        try keymap(cli);
     } else {
-        std.debug.print("usage: misstype-dev --decode KEYS | --session-trace KEYS | --session-batch FILE  (see the header of core-zig/src/dev.zig)\n", .{});
+        std.debug.print("usage: misstype-dev --decode KEYS | --session-trace KEYS | --session-batch FILE | --touch TAPS | --touch-batch FILE | --touch-layout | --keymap  (see the header of core-zig/src/dev.zig)\n", .{});
         std.process.exit(2);
     }
     try out_file.interface.flush();
@@ -822,4 +922,16 @@ test "correct punctuation needs no menu dismissal when text already matches" {
     try std.testing.expectEqualStrings("你。", result.committed.items);
     try std.testing.expectEqual(@as(usize, 0), result.picks);
     try std.testing.expectEqual(@as(usize, 0), result.fix_keys);
+}
+
+test "touch taps parse surfaces and reject bad input" {
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    const taps = try parseTaps(arena.allocator(), " l:0.5,0.8\tr:0.88,0.23 ");
+    try std.testing.expectEqual(@as(usize, 2), taps.len);
+    try std.testing.expectEqual(@as(u8, 's'), taps[0].key());
+    try std.testing.expectEqual(@as(u8, 'u'), taps[1].key());
+    try std.testing.expectError(error.InvalidArgument, parseTaps(arena.allocator(), "x:0.5,0.5"));
+    try std.testing.expectError(error.InvalidArgument, parseTaps(arena.allocator(), "l:0.5"));
+    try std.testing.expectError(error.InvalidArgument, parseTaps(arena.allocator(), "l:1.5,0.5"));
 }

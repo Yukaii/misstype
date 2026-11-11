@@ -32,8 +32,8 @@ This repository is an experimental input device and decoder. The current goal is
   pure Chinese is. Cost is no longer open (Zig, 2026-10-09:
   toneless mixed input 4.5 ms mean / 21 ms max per key, +2 ms over off;
   `tools/mixed_latency.py`; Swift was ~110-130 ms); real-typing
-  quality is unmeasured. Python remains the reference for the touch
-  semantics only; the "do not port" rule below applies to everything else.
+  quality is unmeasured. The Python touch prototype was retired on
+  2026-11-11; touch measurements drive `misstype-dev --touch-batch`.
 
 - **The core is Zig** (`core-zig/`, pinned Zig 0.17.0 via
   `script/zig/bootstrap.sh`) and is the single implementation on every
@@ -116,13 +116,15 @@ A change is ready when its behavior is covered by a replayable test or documente
 ## Canonical commands
 
 The Zig core (`core-zig/`) is the single source of truth for decoding and
-editing behavior. The Python package (`src/misstype`, Python 3.11+, no
-runtime dependencies) is the capture/touch prototype slated for replacement;
-do not port decoder changes to it. Its checks still run:
+editing behavior. The Python capture/touch prototype was retired on
+2026-11-11; the measurement tools under `tools/` (Python 3.11+, stdlib only)
+drive `misstype-dev` through `tools/misstype_dev.py`, including touch
+(`--touch`, `--touch-batch`, `--touch-layout`) and JSONL trace replay
+(`tools/replay.py`, `tools/bench.py`). Their tests:
 
 ```sh
-PYTHONPATH=src python -m unittest discover -s tests -v
-PYTHONPATH=src python -m misstype.cli examples/hello.jsonl
+python3 -m unittest discover -s tests -v   # Zig-backed tests skip without a built misstype-dev
+python3 tools/bench.py                     # JSONL fixtures through the real core
 ```
 
 Core checks (any host; the first run downloads the pinned Zig):
