@@ -97,26 +97,18 @@ pub fn build(b: *std.Build) void {
     });
     const install_memory = b.addInstallArtifact(index_memory, .{});
     b.step("index-memory", "Build developer-only index memory accounting").dependOn(&install_memory.step);
-    // WebAssembly build for the site demo (script/build_site_assets.sh).
+    // WebAssembly build for the browser (script/build_site_assets.sh): the C
+    // ABI of capi.zig compiled for wasm32-wasi; src/wasm.zig only adds _start.
     const wasm_target = b.resolveTargetQuery(.{ .cpu_arch = .wasm32, .os_tag = .wasi });
-    const wasm_core = b.createModule(.{
-        .root_source_file = b.path("src/root.zig"),
+    const wasm_module = b.createModule(.{
+        .root_source_file = b.path("src/wasm.zig"),
         .target = wasm_target,
         .optimize = .ReleaseSmall,
         .link_libc = true,
+        .strip = true,
     });
-    addUnicode(b, wasm_core);
-    const wasm = b.addExecutable(.{
-        .name = "misstype",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("src/wasm.zig"),
-            .target = wasm_target,
-            .optimize = .ReleaseSmall,
-            .link_libc = true,
-            .strip = true,
-            .imports = &.{.{ .name = "misstype", .module = wasm_core }},
-        }),
-    });
+    addUnicode(b, wasm_module);
+    const wasm = b.addExecutable(.{ .name = "misstype", .root_module = wasm_module });
     wasm.rdynamic = true;
     const install_wasm = b.addInstallArtifact(wasm, .{ .dest_dir = .{ .override = .{ .custom = "wasm" } } });
     b.step("wasm", "Build zig-out/wasm/misstype.wasm for the site demo").dependOn(&install_wasm.step);

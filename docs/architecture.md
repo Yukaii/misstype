@@ -335,7 +335,7 @@ The offline decoder accepts the full `MWLM` table and `MSLM` v1 through
 transfers deleted probability mass to unigram backoff; parsing validates
 normalization and special symbols. The scorer and repair search are shared.
 
-WASM exposes `misstype_wasm_load_word_model(ptr, len, weight)` for explicit
+The C ABI (and so the wasm module) exposes `misstype_engine_load_word_model(engine, ptr, len, weight)` for explicit
 experiments only: MSLM, at most 8 MiB, finite weight in [0,1], one successful
 load per initialization. The decoder owns a copy; the upload buffer can be
 freed. A positive weight replaces homophone reranking. The JS URL loader

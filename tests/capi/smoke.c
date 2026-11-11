@@ -587,6 +587,75 @@ void run_page_size(const char *res) {
     misstype_engine_free(eng);
 }
 
+
+static char *slurp(const char *path, size_t *len) {
+    FILE *f = fopen(path, "rb");
+    ASSERT(f, "open");
+    fseek(f, 0, SEEK_END);
+    long n = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    char *buf = malloc((size_t)n + 1);
+    ASSERT(buf && fread(buf, 1, (size_t)n, f) == (size_t)n, "read");
+    fclose(f);
+    buf[n] = 0;
+    *len = (size_t)n;
+    return buf;
+}
+
+/* ABI v3: an engine with no files, DOM key codes, handle_into, the JSON view,
+ * settings by name and learned state in/out as bytes (the wasm host's path). */
+void run_v3(const char *res) {
+    char path[4096];
+    snprintf(path, sizeof path, "%s/lexicon.tsv", res);
+    size_t lex_len = 0;
+    char *lex = slurp(path, &lex_len);
+    misstype_engine *eng = misstype_engine_new_from_data((const uint8_t *)lex, lex_len, NULL, 0);
+    free(lex);
+    ASSERT(eng, "engine from data");
+    ASSERT(misstype_engine_set_setting(eng, "pageSize", 5) == 1, "known setting");
+    ASSERT(misstype_engine_set_setting(eng, "noSuchSetting", 1) == 0, "unknown setting");
+    misstype_session *s = misstype_session_new(eng);
+    const char *codes[] = {"KeyS", "KeyU", "Digit3", "KeyC", "KeyL", "Digit3"};
+    const char *texts[] = {"s", "u", "3", "c", "l", "3"};
+    misstype_key_result r;
+    for (size_t i = 0; i < 6; i++) {
+        const char *label = NULL;
+        misstype_key_event ev = {0};
+        ev.kind = misstype_key_from_dom_code(codes[i], texts[i], &label);
+        ev.label = label;
+        ev.text = texts[i];
+        ev.native_code = -1;
+        ev.timestamp = -1;
+        ASSERT(misstype_session_handle_into(s, &ev, &r) == 1 && r.commit == NULL, "v3 key consumed");
+    }
+    const char *label = NULL;
+    ASSERT(misstype_key_from_dom_code("IntlRo", "q", &label) == MISSTYPE_KEY_CHARACTER && strcmp(label, "q") == 0, "dom text fallback");
+    ASSERT(misstype_key_from_dom_code("ShiftRight", NULL, &label) == MISSTYPE_KEY_SHIFT_RIGHT && label == NULL, "dom shift");
+    char *json = misstype_session_view_json(s);
+    ASSERT(json && strstr(json, "\"preedit\":\"你好\"") && strstr(json, "\"english\":false"), "view json");
+    misstype_string_free(json);
+    char *committed = misstype_session_set_english(s, 1);
+    ASSERT(committed && misstype_engine_is_english(eng), "set_english commits");
+    printf("v3 data engine dom keys json=你好 set_english commit=[%s]\n", committed);
+    misstype_string_free(committed);
+    ASSERT(misstype_session_set_english(s, 1) == NULL, "set_english no-op");
+
+    const char *learned = "{\"version\":2,\"entries\":{\"ㄋㄧㄏㄠ\":{\"妳好\":{\"count\":2,\"updatedAt\":5}}}}";
+    ASSERT(misstype_engine_load_learned_data(eng, (const uint8_t *)learned, strlen(learned)) == 1, "load learned");
+    ASSERT(misstype_engine_load_learned_data(eng, (const uint8_t *)"nope", 4) == 0, "bad learned refused");
+    char *data = misstype_engine_learned_data(eng);
+    ASSERT(misstype_engine_learned_phrase_count(eng) == 1 && strstr(data, "妳好"), "learned out");
+    misstype_string_free(data);
+    const char *dict = "測試 ㄘㄜˋ-ㄕˋ\n";
+    ASSERT(misstype_engine_set_user_dictionary_text(eng, (const uint8_t *)dict, strlen(dict)) == 1, "dict text");
+    printf("v3 learned=%d dictionary=%d\n", misstype_engine_learned_phrase_count(eng), misstype_engine_user_dictionary_count(eng));
+    void *p = misstype_alloc(16);
+    ASSERT(p, "alloc");
+    misstype_free(p);
+    misstype_session_free(s);
+    misstype_engine_free(eng);
+}
+
 int main(int argc, char **argv) {
     if (argc < 2) {
         fprintf(stderr, "usage: %s <resource_dir> [keys]\n", argv[0]);
@@ -611,6 +680,7 @@ int main(int argc, char **argv) {
         run_learned(res);
         run_repair_strength(res);
         run_page_size(res);
+        run_v3(res);
         test_keymap();
         printf("DONE\n");
         return 0;

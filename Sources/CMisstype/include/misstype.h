@@ -8,6 +8,7 @@
 #ifndef MISSTYPE_H
 #define MISSTYPE_H
 
+#include <stddef.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -18,7 +19,11 @@ extern "C" {
  * focus, key bindings, the macOS keycode table, user dictionary text and
  * learning editor functions. Fields were appended; misstype_key_result grew,
  * so callers rebuild against this header. */
-#define MISSTYPE_ABI_VERSION 2
+/* 3 (2026-11-11): functions only, appended; v2 callers are unaffected.
+ * In-memory hosts (engine from data, learned state in/out as bytes, settings
+ * by name), DOM key codes, the view as JSON, handle_into, alloc/free. The
+ * WebAssembly module is this ABI compiled for wasm32-wasi. */
+#define MISSTYPE_ABI_VERSION 3
 int32_t misstype_abi_version(void);
 
 typedef struct misstype_engine misstype_engine;
@@ -56,7 +61,8 @@ enum {
 typedef struct misstype_key_event {
     misstype_key_kind kind;
     const char *label;    /* MISSTYPE_KEY_CHARACTER only, else NULL */
-    const char *text;     /* UTF-8 the key types in the user's layout, or NULL */
+    const char *text;     /* UTF-8 the key types in the user's layout, or NULL; a
+                           * CHARACTER key with no text is swallowed (dead keys) */
     uint32_t modifiers;   /* MISSTYPE_MOD_* state AFTER this event */
     int32_t is_release;   /* 1 = key-up or modifier-only transition */
     int32_t native_code;  /* diagnostics only; -1 = unknown */
@@ -233,6 +239,54 @@ char *misstype_user_dictionary_import(const char *text, const char *source, int3
 
 void misstype_view_free(misstype_view *view);
 void misstype_string_free(char *string);
+
+/* ---- ABI v3: hosts without a filesystem (browser, sandboxed extensions) ----
+ * Byte arguments are (pointer, length) and need no terminating NUL. An engine
+ * made from data has no paths: learned phrases, typing slips and the user
+ * dictionary stay in memory; save *_data / user_dictionary_text when
+ * misstype_engine_learning_revision or misstype_engine_user_dictionary_count
+ * changes and hand them back with the load functions at start. */
+
+void *misstype_alloc(size_t size);   /* for hosts without malloc (wasm) */
+void misstype_free(void *ptr);
+
+misstype_engine *misstype_engine_new_from_data(const uint8_t *lexicon, size_t lexicon_len,
+                                               const uint8_t *toneless, size_t toneless_len);
+int32_t misstype_engine_load_english(misstype_engine *engine, const uint8_t *data, size_t len);
+int32_t misstype_engine_load_homophone(misstype_engine *engine, const uint8_t *data, size_t len);
+/* Experimental sparse model ("MSLM", <= 8 MiB, once per engine), weight 0...1. */
+int32_t misstype_engine_load_word_model(misstype_engine *engine, const uint8_t *data, size_t len,
+                                        double weight);
+
+/* One setting by name; 1 when the name is known. Booleans take 0/1:
+ * autoShowCandidates returnConfirmsSelection shiftToggle userLearning
+ * channelLearning mixedEnglish toneTolerance pageSize autoCommitSyllables
+ * repairStrength (0 off .. 3 strong) shiftTapLimitMs. */
+int32_t misstype_engine_set_setting(misstype_engine *engine, const char *name, int32_t value);
+
+int32_t misstype_engine_learning_revision(const misstype_engine *engine);
+char *misstype_engine_learned_data(const misstype_engine *engine);   /* user_lexicon.json */
+int32_t misstype_engine_load_learned_data(misstype_engine *engine, const uint8_t *data, size_t len);
+char *misstype_engine_channel_data(const misstype_engine *engine);   /* channel_model.json */
+int32_t misstype_engine_load_channel_data(misstype_engine *engine, const uint8_t *data, size_t len);
+int32_t misstype_engine_user_dictionary_count(const misstype_engine *engine);
+/* Replaces the dictionary (bad lines skipped); written to its path if set. */
+int32_t misstype_engine_set_user_dictionary_text(misstype_engine *engine, const uint8_t *data,
+                                                 size_t len);
+
+/* Explicit 中/英 switch; returns the composition it committed, or NULL. */
+char *misstype_session_set_english(misstype_session *session, int32_t enabled);
+/* misstype_session_handle with the result written to `out`; returns consumed. */
+int32_t misstype_session_handle_into(misstype_session *session, const misstype_key_event *event,
+                                     misstype_key_result *out);
+/* JSON view, offsets in UTF-16 units: preedit caret selected showsCandidates
+ * keysActive pageSize page pageCount pageSelected candidates pageCandidates
+ * selectionKeys segments focus mark{range,reading,action} english latinActive. */
+char *misstype_session_view_json(misstype_session *session);
+
+/* DOM KeyboardEvent.code ("KeyA", "Digit3", "Semicolon", "ShiftLeft", ...);
+ * `text` (may be NULL) is the fallback for non-US positions. */
+misstype_key_kind misstype_key_from_dom_code(const char *code, const char *text, const char **label);
 
 #ifdef __cplusplus
 }

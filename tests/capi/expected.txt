@@ -1,4 +1,4 @@
-abi=2
+abi=3
 C1 preedit=你好 caret_bytes=6 caret_utf16=2 shows=1 count=10
 C1 commit=[你好]
 C2 enter consumed=0 commit=(null)
@@ -19,5 +19,7 @@ channel off=0 learned=1 cleared=0
 learned listed=2 forgotten=1
 repair_strength off=ㄋˇ light=你
 page_size=5 keys=5
+v3 data engine dom keys json=你好 set_english commit=[你好]
+v3 learned=1 dictionary=1
 keymap evdev31=s evdev57=space evdev42=shift-left A=a+shift !=1+shift
 DONE

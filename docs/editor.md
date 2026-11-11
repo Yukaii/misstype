@@ -83,7 +83,7 @@ editor with live validation (line-numbered problems, word and hidden counts),
 Import (merges vChewing user data into the box), Export, Revert and Save.
 Open it from the palette (`Mod-Shift-D`) or Settings. The wasm module has no
 files, so `misstype-wasm` gained `userDictionaryText/Count`, `setUserDictionary`,
-`checkUserDictionary` and `importUserDictionary` (core: `wasm.zig`, tested in
+`checkUserDictionary` and `importUserDictionary` (core: the C ABI v3 in `capi.zig`, tested in
 `packages/misstype-wasm/test`); `dictionary.js` keeps the text in
 `localStorage` and re-applies it at start. Marking a phrase with Shift+←/→
 highlights it in the pre-edit with an Enter hint, and Return files it; the
@@ -100,7 +100,7 @@ phrases (reading, text, count) with per-phrase 忘記, Import/Export of the
 desktop `user_lexicon.json`, Clear, and the learned slips (`ㄥ → ㄣ`, about how
 often) with Clear. The wasm module has no files, so it exposes
 `learningRevision`, `learnedData`/`loadLearned`, `channelData`/`loadChannel`
-and friends (core: `wasm.zig`, `Engine.learning_revision`); `learning.js`
+and friends (core: the C ABI v3 in `capi.zig`, `Engine.learning_revision`); `learning.js`
 saves both JSON blobs to `localStorage` when the revision changes and restores
 them at start. The drop-in layer (`enable`, `embed.js`) does the same with
 `learningKey` (default `misstype-learned`, slips in `misstype-learned-slips`,

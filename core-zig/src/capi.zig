@@ -23,7 +23,7 @@ fn io() std.Io {
     return io_instance.io();
 }
 
-pub const abi_version: i32 = 2;
+pub const abi_version: i32 = 3;
 
 // MARK: - C types (layout of misstype.h)
 
@@ -740,4 +740,306 @@ export fn misstype_user_dictionary_import(text: ?[*:0]const u8, source: ?[*:0]co
     if (duplicates) |out| out.* = @intCast(result.duplicates);
     if (skipped) |out| out.* = @intCast(result.skipped);
     return dupZ(result.text);
+}
+
+// MARK: - ABI v3: hosts without a filesystem
+//
+// Everything a host needs when it cannot hand the engine paths (the browser,
+// sandboxed extensions): resources and learned state go in and out as bytes,
+// keys arrive as DOM `KeyboardEvent.code`, the view is available as JSON,
+// and results can be written through a pointer for FFIs that cannot receive
+// structs by value. The WebAssembly module is this file compiled for
+// wasm32-wasi (src/wasm.zig), so C and JavaScript hosts share one ABI.
+// Byte arguments are (pointer, length) and need no terminating NUL.
+
+fn bytesOf(ptr: ?[*]const u8, len: usize) []const u8 {
+    return if (ptr) |p| p[0..len] else "";
+}
+
+export fn misstype_alloc(size: usize) callconv(.c) ?*anyopaque {
+    return std.c.malloc(@max(1, size));
+}
+
+export fn misstype_free(ptr: ?*anyopaque) callconv(.c) void {
+    std.c.free(ptr);
+}
+
+/// An engine over in-memory lexicons, with no files: learning, the user
+/// dictionary and typing slips stay in memory until the host saves them
+/// (`misstype_engine_learned_data` and friends).
+export fn misstype_engine_new_from_data(lexicon: ?[*]const u8, lexicon_len: usize, toneless: ?[*]const u8, toneless_len: usize) callconv(.c) ?*Engine {
+    if (lexicon_len == 0) return null;
+    const decoder = core.Lexicon.create(gpa, &.{bytesOf(lexicon, lexicon_len)}, bytesOf(toneless, toneless_len)) catch return null;
+    decoder.word_penalty = 0.5; // as misstype_engine_new
+    const engine = Engine.create(gpa, io(), decoder) catch {
+        decoder.destroy();
+        return null;
+    };
+    engine.setUserDictionary(core.user_dictionary.UserDictionary.init(gpa), false) catch {
+        engine.release();
+        return null;
+    };
+    return engine;
+}
+
+/// english.tsv; replaces any loaded list. 1 on success.
+export fn misstype_engine_load_english(engine_: ?*Engine, data: ?[*]const u8, len: usize) callconv(.c) i32 {
+    const engine = engine_ orelse return 0;
+    const lexicon = core.english.EnglishLexicon.create(gpa, bytesOf(data, len)) catch return 0;
+    if (engine.english_lexicon) |old| old.destroy();
+    engine.english_lexicon = lexicon;
+    return 1;
+}
+
+/// homophone.bin (word-bigram table); 0 on a malformed table, which leaves
+/// decoding as it was.
+export fn misstype_engine_load_homophone(engine_: ?*Engine, data: ?[*]const u8, len: usize) callconv(.c) i32 {
+    const engine = engine_ orelse return 0;
+    engine.decoder.setHomophoneTable(bytesOf(data, len)) catch return 0;
+    return 1;
+}
+
+/// Experimental sparse word model (`MSLM`, at most 8 MiB, one per engine),
+/// mixed in at `weight` (0...1). 0 when refused; decoding is then unchanged.
+export fn misstype_engine_load_word_model(engine_: ?*Engine, data: ?[*]const u8, len: usize, weight: f64) callconv(.c) i32 {
+    const engine = engine_ orelse return 0;
+    const model = bytesOf(data, len);
+    if (engine.decoder.word_model != null or model.len > 8 * 1024 * 1024 or model.len < 4 or
+        !std.mem.eql(u8, model[0..4], "MSLM") or !std.math.isFinite(weight) or weight < 0 or weight > 1) return 0;
+    engine.decoder.setWordModel(model) catch return 0;
+    engine.decoder.word_model_weight = weight;
+    return 1;
+}
+
+/// One setting by name, for hosts that store settings as key/value pairs.
+/// Booleans take 0/1. Returns 1 when the name is known.
+///   autoShowCandidates returnConfirmsSelection shiftToggle userLearning
+///   channelLearning mixedEnglish toneTolerance pageSize autoCommitSyllables
+///   repairStrength (0 off, 1 light, 2 standard, 3 strong)
+///   shiftTapLimitMs (longest Shift press that still toggles 中/英)
+export fn misstype_engine_set_setting(engine_: ?*Engine, name_: ?[*:0]const u8, value: i32) callconv(.c) i32 {
+    const engine = engine_ orelse return 0;
+    const name = span(name_) orelse return 0;
+    const s = &engine.settings;
+    const on = value != 0;
+    const Flag = enum { autoShowCandidates, returnConfirmsSelection, shiftToggle, userLearning, channelLearning, mixedEnglish, toneTolerance, pageSize, autoCommitSyllables, repairStrength, shiftTapLimitMs };
+    switch (std.meta.stringToEnum(Flag, name) orelse return 0) {
+        .autoShowCandidates => s.auto_show_candidates = on,
+        .returnConfirmsSelection => s.return_confirms_selection = on,
+        .shiftToggle => s.shift_toggle = on,
+        .userLearning => s.user_learning = on,
+        .channelLearning => s.channel_learning = on,
+        .mixedEnglish => s.mixed_english = on,
+        .toneTolerance => s.tone_tolerance = on,
+        .pageSize => s.page_size = session_mod.clampPageSize(value),
+        .autoCommitSyllables => s.auto_commit_syllables = @intCast(@max(0, value)),
+        .repairStrength => {
+            if (value < 0 or value > 3) return 0;
+            s.repair_strength = @fromBackingInt(@intCast(value));
+        },
+        .shiftTapLimitMs => engine.shift_tap.tap_time_limit = @as(f64, @floatFromInt(@max(0, value))) / 1000,
+    }
+    return 1;
+}
+
+/// Changes whenever a phrase is learned or forgotten or a typing slip noted:
+/// save `learned_data` / `channel_data` when it moves.
+export fn misstype_engine_learning_revision(engine_: ?*const Engine) callconv(.c) i32 {
+    const engine = engine_ orelse return 0;
+    return @bitCast(engine.learning_revision);
+}
+
+/// The learned phrases as the desktop `user_lexicon.json`.
+export fn misstype_engine_learned_data(engine_: ?*const Engine) callconv(.c) ?[*:0]u8 {
+    const engine = engine_ orelse return dupZ("");
+    const data = engine.user_lexicon.encode(gpa) catch return dupZ("");
+    defer gpa.free(data);
+    return dupZ(data);
+}
+
+/// Replaces the learned phrases; 0 (nothing changed) when `data` does not parse.
+export fn misstype_engine_load_learned_data(engine_: ?*Engine, data: ?[*]const u8, len: usize) callconv(.c) i32 {
+    const engine = engine_ orelse return 0;
+    engine.installUserLexicon(bytesOf(data, len)) catch return 0;
+    return 1;
+}
+
+/// The learned typing slips as the desktop `channel_model.json`.
+export fn misstype_engine_channel_data(engine_: ?*const Engine) callconv(.c) ?[*:0]u8 {
+    const engine = engine_ orelse return dupZ("");
+    const data = engine.channel_learner.encode(gpa) catch return dupZ("");
+    defer gpa.free(data);
+    return dupZ(data);
+}
+
+export fn misstype_engine_load_channel_data(engine_: ?*Engine, data: ?[*]const u8, len: usize) callconv(.c) i32 {
+    const engine = engine_ orelse return 0;
+    engine.installChannel(bytesOf(data, len)) catch return 0;
+    return 1;
+}
+
+/// Added plus hidden words; changes when a phrase is filed (Shift+←/→, Return).
+export fn misstype_engine_user_dictionary_count(engine_: ?*const Engine) callconv(.c) i32 {
+    const engine = engine_ orelse return 0;
+    return @intCast(engine.user_dictionary.added.items.len + engine.user_dictionary.excluded.items.len);
+}
+
+/// Replaces the user dictionary with `text` (unparseable lines skipped).
+/// Written to the dictionary path when the engine has one.
+export fn misstype_engine_set_user_dictionary_text(engine_: ?*Engine, data: ?[*]const u8, len: usize) callconv(.c) i32 {
+    const engine = engine_ orelse return 0;
+    const dictionary = core.user_dictionary.UserDictionary.parse(gpa, bytesOf(data, len), null) catch return 0;
+    engine.setUserDictionary(dictionary, true) catch return 0;
+    return 1;
+}
+
+/// Switches 中/英 explicitly (a host button rather than the Shift tap).
+/// Pending composition is committed first and returned, else NULL.
+export fn misstype_session_set_english(session_: ?*Session, enabled: i32) callconv(.c) ?[*:0]u8 {
+    const session = session_ orelse return null;
+    const target = enabled != 0;
+    if (session.engine.english == target) return null;
+    const text = session.commit() catch null;
+    session.engine.english = target;
+    return if (text) |t| dupZ(t) else null;
+}
+
+/// misstype_session_handle writing the result through `out`; returns
+/// `out->consumed`. For FFIs that cannot receive a struct by value.
+export fn misstype_session_handle_into(session: ?*Session, event: ?*const CKeyEvent, out: ?*CKeyResult) callconv(.c) i32 {
+    const result = misstype_session_handle(session, event);
+    if (out) |o| o.* = result else misstype_string_free(result.commit);
+    return result.consumed;
+}
+
+/// DOM `KeyboardEvent.code` -> key kind, with the US-ANSI label for
+/// characters (static string). `text` (the typed character, may be NULL) is
+/// the fallback for codes that are not US positions.
+export fn misstype_key_from_dom_code(code_: ?[*:0]const u8, text_: ?[*:0]const u8, label: ?*?[*:0]const u8) callconv(.c) c_int {
+    if (label) |out| out.* = null;
+    const code = span(code_) orelse "";
+    const named = [_]struct { []const u8, KeyKind }{
+        .{ "Space", .space },          .{ "Enter", .enter },           .{ "NumpadEnter", .enter },
+        .{ "Tab", .tab },              .{ "Backspace", .backspace },   .{ "Delete", .forward_delete },
+        .{ "Escape", .escape },        .{ "ArrowLeft", .left },        .{ "ArrowRight", .right },
+        .{ "ArrowUp", .up },           .{ "ArrowDown", .down },        .{ "PageUp", .page_up },
+        .{ "PageDown", .page_down },   .{ "ShiftLeft", .shift_left },  .{ "ShiftRight", .shift_right },
+        .{ "ControlLeft", .modifier }, .{ "ControlRight", .modifier }, .{ "AltLeft", .modifier },
+        .{ "AltRight", .modifier },    .{ "MetaLeft", .modifier },     .{ "MetaRight", .modifier },
+    };
+    for (named) |n| if (std.mem.eql(u8, n[0], code)) return kindToC(n[1]);
+    const punctuation = [_]struct { []const u8, u8 }{
+        .{ "Minus", '-' },      .{ "Equal", '=' },     .{ "BracketLeft", '[' }, .{ "BracketRight", ']' },
+        .{ "Backslash", '\\' }, .{ "Semicolon", ';' }, .{ "Quote", '\'' },      .{ "Backquote", '`' },
+        .{ "Comma", ',' },      .{ "Period", '.' },    .{ "Slash", '/' },
+    };
+    var c: ?u8 = null;
+    if (std.mem.startsWith(u8, code, "Key") and code.len == 4 and std.ascii.isAlphabetic(code[3])) {
+        c = std.ascii.toLower(code[3]);
+    } else if (std.mem.startsWith(u8, code, "Digit") and code.len == 6 and std.ascii.isDigit(code[5])) {
+        c = code[5];
+    } else for (punctuation) |p| {
+        if (std.mem.eql(u8, p[0], code)) c = p[1];
+    }
+    if (c == null) if (span(text_)) |text| if (text.len == 1 and text[0] < 128 and std.ascii.isPrint(text[0]) and text[0] != ' ') {
+        c = std.ascii.toLower(text[0]);
+    };
+    const ch = c orelse return kindToC(.other);
+    if (label) |out| out.* = staticLabel(ch);
+    return kindToC(.character);
+}
+
+/// The view as JSON (UTF-16 offsets, as browsers count):
+/// {"preedit","caret","selected","showsCandidates","keysActive","pageSize",
+///  "page","pageCount","pageSelected","candidates","pageCandidates",
+///  "selectionKeys","segments":[[s,e]],"focus":[s,e]|null,
+///  "mark":{"range","reading","action"}|null,"english","latinActive"}
+export fn misstype_session_view_json(session_: ?*Session) callconv(.c) ?[*:0]u8 {
+    const session = session_ orelse return null;
+    var out: std.ArrayList(u8) = .empty;
+    defer out.deinit(gpa);
+    writeViewJson(&out, session) catch return null;
+    return dupZ(out.items);
+}
+
+fn jsonString(out: *std.ArrayList(u8), text: []const u8) !void {
+    try out.append(gpa, '"');
+    for (text) |c| switch (c) {
+        '\\' => try out.appendSlice(gpa, "\\\\"),
+        '"' => try out.appendSlice(gpa, "\\\""),
+        '\n' => try out.appendSlice(gpa, "\\n"),
+        '\r' => try out.appendSlice(gpa, "\\r"),
+        '\t' => try out.appendSlice(gpa, "\\t"),
+        0...8, 11, 12, 14...31 => try out.print(gpa, "\\u{x:0>4}", .{c}),
+        else => try out.append(gpa, c),
+    };
+    try out.append(gpa, '"');
+}
+
+fn jsonStrings(out: *std.ArrayList(u8), items: []const []const u8) !void {
+    try out.append(gpa, '[');
+    for (items, 0..) |item, i| {
+        if (i > 0) try out.append(gpa, ',');
+        try jsonString(out, item);
+    }
+    try out.append(gpa, ']');
+}
+
+fn writeViewJson(out: *std.ArrayList(u8), s: *Session) !void {
+    const view = try s.view();
+    const page_size = @max(1, view.page_size);
+    const page = view.selected / page_size;
+    const count = view.candidates.len;
+    const page_count = @max(1, (count + page_size - 1) / page_size);
+    const page_start = page * page_size;
+    const page_end = @min(page_start + page_size, count);
+    const page_candidates = if (page_start < count) view.candidates[page_start..page_end] else view.candidates[0..0];
+    try out.appendSlice(gpa, "{\"preedit\":");
+    try jsonString(out, view.preedit);
+    try out.print(gpa, ",\"caret\":{d},\"selected\":{d},\"showsCandidates\":{},\"keysActive\":{},\"pageSize\":{d},\"page\":{d},\"pageCount\":{d},\"pageSelected\":{d},", .{
+        view.caret, view.selected, view.shows_candidates, view.keys_active,
+        page_size,  page,          page_count,            view.selected % page_size,
+    });
+    try out.appendSlice(gpa, "\"candidates\":");
+    try jsonStrings(out, view.candidates);
+    try out.appendSlice(gpa, ",\"pageCandidates\":");
+    try jsonStrings(out, page_candidates);
+    try out.appendSlice(gpa, ",\"selectionKeys\":");
+    try jsonStrings(out, view.selection_keys);
+    try out.appendSlice(gpa, ",\"segments\":[");
+    for (view.segments, 0..) |seg, i| {
+        if (i > 0) try out.append(gpa, ',');
+        try out.print(gpa, "[{d},{d}]", .{ seg.start, seg.end });
+    }
+    try out.appendSlice(gpa, "],\"focus\":");
+    if (view.focus) |f| try out.print(gpa, "[{d},{d}]", .{ f.start, f.end }) else try out.appendSlice(gpa, "null");
+    try out.appendSlice(gpa, ",\"mark\":");
+    if (view.mark) |mark| {
+        try out.print(gpa, "{{\"range\":[{d},{d}],\"reading\":", .{ mark.range.start, mark.range.end });
+        try jsonString(out, mark.reading);
+        try out.appendSlice(gpa, ",\"action\":");
+        try jsonString(out, switch (mark.action) {
+            .add => "add",
+            .remove => "remove",
+            .too_short => "tooShort",
+            .too_long => "tooLong",
+            .unavailable, .none => "unavailable",
+        });
+        try out.append(gpa, '}');
+    } else try out.appendSlice(gpa, "null");
+    try out.print(gpa, ",\"english\":{},\"latinActive\":{}}}", .{ s.engine.english, s.latinActive() });
+}
+
+// The JavaScript binding (packages/misstype-wasm) writes and reads these
+// structs at fixed wasm32 offsets; fail the build rather than drift.
+comptime {
+    if (@import("builtin").cpu.arch == .wasm32) {
+        std.debug.assert(@sizeOf(CKeyEvent) == 32 and @offsetOf(CKeyEvent, "label") == 4 and
+            @offsetOf(CKeyEvent, "text") == 8 and @offsetOf(CKeyEvent, "modifiers") == 12 and
+            @offsetOf(CKeyEvent, "is_release") == 16 and @offsetOf(CKeyEvent, "native_code") == 20 and
+            @offsetOf(CKeyEvent, "timestamp") == 24);
+        std.debug.assert(@sizeOf(CKeyResult) == 20 and @offsetOf(CKeyResult, "commit") == 4 and
+            @offsetOf(CKeyResult, "beep") == 8 and @offsetOf(CKeyResult, "mode_changed") == 12 and
+            @offsetOf(CKeyResult, "latin_toggled") == 16);
+    }
 }
