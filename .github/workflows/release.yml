@@ -27,6 +27,7 @@ permissions:
   contents: write
   id-token: write
   attestations: write
+  actions: read   # release: look up the CI result for this commit
 
 jobs:
   linux:
@@ -121,7 +122,20 @@ jobs:
         with:
           path: .cache/zig
           key: release-zig-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('script/zig/bootstrap.sh') }}
+      # CI already ran the Zig suites (Debug and ReleaseFast, on the same
+      # source) for this commit; repeating them here costs ~3 macOS minutes
+      # (billed 10x). Only re-run when no green CI run exists for github.sha,
+      # e.g. a tag on a commit that never went through main.
+      - name: Check for green CI on this commit
+        id: ci
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          n=$(gh api "repos/${{ github.repository }}/actions/workflows/ci.yml/runs?head_sha=${{ github.sha }}&status=success" --jq .total_count || echo 0)
+          echo "green=$([ "${n:-0}" -gt 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "CI runs green on ${{ github.sha }}: ${n:-0}"
       - name: Test Zig core before release
+        if: steps.ci.outputs.green != 'true'
         run: |
           zig=$(script/zig/bootstrap.sh)
           cd core-zig

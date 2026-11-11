@@ -24,12 +24,40 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Decides what this event needs (script/ci/plan.sh): the 10x-billed macOS job
+  # only when Swift-side inputs change, and on a squash merge whose tree already
+  # passed as a PR only the main-only depth legs below.
+  plan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+    outputs:
+      macos: ${{ steps.plan.outputs.macos }}
+      verified: ${{ steps.plan.outputs.verified }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.sha }}
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+        run: script/ci/plan.sh
+
   macos-zig-port:
     # Build the Zig library on the platform that supplies lipo and SwiftPM's
     # InputMethodKit headers, then build the IME against it and run the Swift
     # UI-side tests and the Swift-to-Zig smoke test.
     # CI only needs a dylib its own architecture can load, so it builds the
     # native slice; the universal (x86_64 + arm64) library stays in release.yml.
+    needs: plan
+    if: needs.plan.outputs.macos == 'true'
     runs-on: macos-26
     timeout-minutes: 30
     env:
@@ -57,6 +85,8 @@ jobs:
     # Debug and ReleaseFast are independent compiles; run them in parallel
     # instead of one serial job so the wall time is the slower mode, not the sum.
     name: zig-core (${{ matrix.optimize }})
+    needs: plan
+    if: needs.plan.outputs.verified != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
@@ -85,6 +115,8 @@ jobs:
   # The site demo's WebAssembly build: the same `misstype_wasm_*` exports,
   # exercised by the browser-API suite under Node.
   wasm:
+    needs: plan
+    if: needs.plan.outputs.verified != 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -184,8 +216,11 @@ jobs:
   # Pull requests use reduced replay/golden samples below; main and manual runs
   # retain the full corpus and candidate/touch parity gate.
   # Each leg gets a fresh source copy and its own Linux-only build cache.
+  # Legs marked main_depth run deeper on main (400 replay cases, 10 golden
+  # repeats, full parity) and so still run on a verified squash merge; the
+  # rest skip their setup entirely when LEG_ON is false.
   fcitx5-linux:
-    needs: linux-image
+    needs: [plan, linux-image]
     name: linux (${{ matrix.name }})
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -198,6 +233,7 @@ jobs:
         include:
           - name: exact decoder golden
             optimize: ReleaseFast
+            main_depth: true
             run: script/ci/time.sh exact-decoder-golden core-zig/bench/compare.sh "$MISSTYPE_GOLDEN_REPEATS"
           - name: C ABI and addon, persistence and CLI
             run: |
@@ -209,21 +245,25 @@ jobs:
           - name: full candidates, touch and Unicode golden
             optimize: ReleaseFast
             skip_pr: true
+            main_depth: true
             run: script/ci/time.sh full-candidate-parity core-zig/bench/parity.sh
           - name: debug session replay
             # The Debug suite already ran in zig-core; this leg exists for the
             # replay-only behavior (overflow/bounds checks), so skip rebuilding
             # the test binaries here.
             skip_tests: "1"
+            main_depth: true
             run: script/ci/time.sh debug-replay core-zig/bench/replay.sh "$MISSTYPE_REPLAY_CASES" 1
           - name: ReleaseFast session replay
             optimize: ReleaseFast
             # Same reason as the debug leg: zig-core covers the optimized tests.
             skip_tests: "1"
+            main_depth: true
             run: |
               script/ci/time.sh release-replay-seed-1 core-zig/bench/replay.sh "$MISSTYPE_REPLAY_CASES" 1
               MISSTYPE_REPLAY_SKIP_BUILD=1 script/ci/time.sh release-replay-seed-487 core-zig/bench/replay.sh "$MISSTYPE_REPLAY_CASES" 487
     env:
+      LEG_ON: ${{ !(matrix.skip_pr && github.event_name == 'pull_request') && (needs.plan.outputs.verified != 'true' || matrix.main_depth == true) }}
       MISSTYPE_LINUX_PREBUILT: "1"
       MISSTYPE_LINUX_BUILD_CACHE: "1"
       MISSTYPE_LINUX_IMAGE: ${{ needs.linux-image.outputs.image }}
@@ -233,14 +273,18 @@ jobs:
       MISSTYPE_GOLDEN_REPEATS: ${{ github.event_name == 'pull_request' && '2' || '10' }}
     steps:
       - uses: actions/checkout@v4
+        if: env.LEG_ON == 'true'
       - uses: docker/login-action@v3
+        if: env.LEG_ON == 'true'
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Pull the Linux test image
+        if: env.LEG_ON == 'true'
         run: docker pull "$MISSTYPE_LINUX_IMAGE"
       - name: Cache container Zig and fcitx5 builds
+        if: env.LEG_ON == 'true'
         uses: actions/cache@v4
         with:
           path: .cache/linux-build
@@ -253,6 +297,7 @@ jobs:
           restore-keys: |
             linux-build-v2-${{ runner.arch }}-${{ hashFiles('linux/Dockerfile', 'script/zig/bootstrap.sh') }}-${{ strategy.job-index }}-
       - name: Cache pinned Zig toolchain and compiler
+        if: env.LEG_ON == 'true'
         uses: actions/cache@v4
         with:
           path: |
@@ -263,6 +308,7 @@ jobs:
           restore-keys: |
             zig-linux-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('script/zig/bootstrap.sh') }}-
       - name: Cache public dictionary sources
+        if: env.LEG_ON == 'true'
         uses: actions/cache@v4
         with:
           path: |
@@ -271,9 +317,10 @@ jobs:
             .cache/frequencywords
           key: zig-lexicon-${{ hashFiles('third_party/*/sources.json', 'script/prepare_lexicon.py', 'Resources/reading_order.tsv') }}
       - name: Prepare checksum-verified public lexicons
+        if: env.LEG_ON == 'true'
         run: python3 script/prepare_lexicon.py
       - name: ${{ matrix.name }}
-        if: matrix.skip_pr != true || github.event_name != 'pull_request'
+        if: env.LEG_ON == 'true'
         run: |
           TIMEFORMAT='timing: linux-leg wall=%3Rs user=%3Us sys=%3Ss'
           time {
