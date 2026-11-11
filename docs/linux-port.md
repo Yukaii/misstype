@@ -4,7 +4,7 @@ Current build (2026-10-09): Linux uses the Zig core and Zig `misstypectl`; the
 Swift reference was retired the same day (`docs/zig-port.md`). The Swift
 implementation notes below are historical, but still describe the adapter
 contract; commands that mention `swift test`, `MISSTYPE_CORE=swift` or
-`Sources/MisstypeCore` refer to the retired implementation (last present at
+the Swift `MisstypeCore` sources refer to the retired implementation (last present at
 commit `c89b857`). Run `script/linux/dev.sh 'script/linux/test_all.sh'` for
 all Linux layers. `test_desktop.sh` runs only inside a disposable test
 container and checks an installed addon through the production GTK frontend.
@@ -34,9 +34,9 @@ settings UI, distro packages. See the backlog (L7). (Jev, remote assistance, was
 1. `AGENTS.md`: product constraints, privacy rules, definition of done.
 2. `docs/cross-platform.md`: the adapter contract (§1–§6), delivery rules,
    and conformance scenarios C1–C15. **It is normative; this plan applies it.**
-3. `docs/architecture.md`, section "Platform boundary: InputSession".
-4. `Sources/MisstypeCore/InputSession.swift`, `KeyEvent.swift`, and
-   `tests/MisstypeCoreTests/InputSessionTests.swift`: the reference behavior.
+3. `docs/architecture.md`, section "Platform boundary: Session".
+4. `core-zig/src/session.zig`, `core-zig/src/keyboard.zig`, and
+   `core-zig/src/tests/session_test.zig`: the reference behavior.
 
 ## Ground rules (every task)
 
@@ -149,8 +149,8 @@ parallel with L4.
 
 ## L1: Evdev and US-character key tables (core)
 
-**Depends on:** nothing. **Touches:** `Sources/MisstypeCore/KeyEvent.swift`,
-new `tests/MisstypeCoreTests/KeyMapTests.swift`.
+**Depends on:** nothing. **Touched (Swift, retired; now `capi.zig` key tables):**
+`KeyEvent.swift`, new `KeyMapTests.swift`.
 
 **Spec**
 
@@ -208,7 +208,7 @@ minus space) is in `EvdevKeyCode.labels.values`;
 ## L2: C ABI (`CMisstype` + `MisstypeCAPI`)
 
 **Depends on:** L1. **Touches:** `Package.swift`, new `Sources/CMisstype/`,
-`Sources/MisstypeCAPI/`, `tests/fixtures/lexicon/lexicon.tsv`, `tests/capi/`,
+`MisstypeCAPI/` (Swift, retired; now `core-zig/src/capi.zig`), `tests/fixtures/lexicon/lexicon.tsv`, `tests/capi/`,
 `script/linux/test_capi.sh`.
 
 **Spec**
@@ -223,7 +223,7 @@ minus space) is in `EvdevKeyCode.labels.values`;
   Additive comment edits are fine; any signature change needs the user's
   approval because L3 and future adapters build on it.
 - `Sources/CMisstype/module.c`: a single comment line.
-- `Sources/MisstypeCAPI/`: `@_cdecl` implementations. Required behavior:
+- `MisstypeCAPI/` (Swift, retired; now `core-zig/src/capi.zig`): `@_cdecl` implementations. Required behavior:
   - Handles are `Unmanaged` retained Swift objects passed as
     `OpaquePointer`. Every function tolerates `NULL` handles and returns
     zero values/`NULL`.
@@ -442,7 +442,7 @@ rules), new `script/linux/build.sh`.
   `python3 script/prepare_lexicon.py` (pinned sources; reuses `.cache/`),
   build the `.so` (release, `-static-stdlib`), configure `linux/fcitx5` into
   `build/fcitx5` with `CMAKE_BUILD_TYPE=Release` and
-  `CMAKE_INSTALL_PREFIX=/usr`, build, and build `tests/capi/smoke` into
+  `CMAKE_INSTALL_PREFIX=/usr`, build, and build `tests/capi/smoke.c` into
   `build/capi/smoke`.
 - Install rules (`GNUInstallDirs`; fcitx5 dirs from `FCITX_INSTALL_ADDONDIR`
   and `FCITX_INSTALL_PKGDATADIR`, which `Fcitx5Utils` exports):

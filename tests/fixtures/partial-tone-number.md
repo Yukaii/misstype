@@ -36,4 +36,4 @@ unresolved syllables); 二屬 remains second at its original -16.100515.
 `MISSTYPE_NO_TONE_RUN_SPLITS=1` restores the old behavior for comparison.
 The 7,200-case before/after battery needs fewer picks in these two cases
 and more in none; holdout has no selection-cost changes. Learning-transfer
-failures elsewhere remain open (see the project outline).
+failures elsewhere remain open (see `docs/status.md` and the lab notebook).

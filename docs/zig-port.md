@@ -438,7 +438,7 @@ their first run against the existing Zig core.
 - The five env-gated measurement sweeps (`ChannelSweepTests`,
   `ChannelLearningSweepTests`, `MixedSweepTests`, `RepairStrengthSweepTests`,
   `TouchNoiseSweepTests`). They were research measurements that skip by
-  default; their results stay recorded in `docs/project-outline.md`. Re-running
+  default; their results stay recorded in `docs/lab-notebook.md`. Re-running
   one means a new Zig measurement tool.
 - `ContextBigrams` (the `MISSTYPE_BIGRAM` ChiaKey experiment hook), which never
   shipped in a lexicon.

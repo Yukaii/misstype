@@ -1,4 +1,4 @@
-//! Homophone word-bigram table (experiment; docs/project-outline.md, finding
+//! Homophone word-bigram table (experiment; docs/lab-notebook.md, finding
 //! of 2026-10-12). A read-only, sorted array of 8-byte entries searched in
 //! place: no parsing, no allocation, resident size is the file size.
 //!
