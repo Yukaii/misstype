@@ -74,6 +74,7 @@ final class ZigSessionAdapter {
         // misstype_engine_set_settings keeps these two, so they follow it.
         engine.setRepairStrength(settings.repairStrength.level)
         engine.setChannelLearning(settings.channelLearning)
+        engine.setSetting("arrowsTurnPages", settings.arrowsTurnPages ? 1 : 0)
         engine.setKeyBindings(settings.keyBindings.serialized)
     }
 

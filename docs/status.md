@@ -11,7 +11,9 @@ Last reviewed: 2026-11-12 (latest release v0.5.5, 2026-10-14).
 ## Platforms
 
 - **macOS IME** (Zig core + IMK adapter): daily-usable. Live conversion,
-  syllable cursor, candidate window, learning, a user dictionary
+  syllable cursor (Return ends the walk in one press, Cmd+←/→ jump to
+  the first word / back to the end, grid columns on ←/→ once the keys are
+  armed; 2026-11-12), candidate window, learning, a user dictionary
   (Shift+←/→ marks a phrase, Return files it; `user_dictionary.tsv`,
   Settings editor), chunked auto-commit, AppKit Settings with themes and a
   learned-phrase manager (2026-10-12). Packaging is verified on a Mac

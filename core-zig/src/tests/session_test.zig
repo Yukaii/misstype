@@ -843,3 +843,186 @@ test "a Shift tap keeps toneless Chinese that is already converted" {
     try t.expect(std.mem.endsWith(u8, try s.preedit(), "ok"));
     try t.expect(!std.mem.startsWith(u8, try s.preedit(), "sucl"));
 }
+
+test "Return after a correction mid-sentence leaves the cursor in one press" {
+    // Going back to fix an early word must not cost one Return per word
+    // after it: a pick advances the cursor, Return ends the walk, the next
+    // Return commits.
+    const s = try Harness.init(h.nihao);
+    defer s.deinit();
+    s.settings().return_confirms_selection = true;
+    try s.typed("su3cl3a87");
+    try s.expectPreedit("你好嗎");
+    for (0..3) |_| _ = try s.key(.left, 0, "\u{F702}");
+    _ = try s.tab();
+    try s.expectCandidates(&.{ "你好", "你", "妳", "尼", "泥" });
+    _ = try s.chr("d", 0, "d"); // row 3: 妳
+    try s.expectPreedit("妳好嗎");
+    try t.expect((try s.view()).focus != null); // the pick advanced to 好
+    try expectRes(.{ .consumed = true }, try s.enter());
+    const v = try s.view();
+    try t.expect(v.focus == null);
+    try t.expect(!v.keys_active);
+    try s.expectPreedit("妳好嗎");
+    try t.expectEqualStrings("妳好嗎", (try s.enter()).commit.?);
+}
+
+test "Return on a stepped focused word pins it and leaves the cursor" {
+    const s = try Harness.init(h.nihao);
+    defer s.deinit();
+    s.settings().return_confirms_selection = true;
+    try s.typed("su3cl3a87");
+    for (0..3) |_| _ = try s.key(.left, 0, "\u{F702}");
+    _ = try s.down(); // 你好 -> 你
+    _ = try s.down(); // -> 妳
+    try expectRes(.{ .consumed = true }, try s.enter());
+    try t.expect((try s.view()).focus == null);
+    try s.expectPreedit("妳好嗎");
+    try t.expectEqualStrings("妳好嗎", (try s.enter()).commit.?);
+}
+
+test "Cmd+Right leaves the cursor walk from any word without confirming" {
+    const s = try Harness.init(h.nihao);
+    defer s.deinit();
+    s.settings().return_confirms_selection = true;
+    try s.typed("su3cl3a87");
+    for (0..3) |_| _ = try s.key(.left, 0, "\u{F702}");
+    _ = try s.down(); // highlight moves, nothing confirmed
+    try t.expect((try s.view()).focus != null);
+    try expectRes(.{ .consumed = true }, try s.key(.right, h.command, null));
+    const v = try s.view();
+    try t.expect(v.focus == null);
+    try t.expect(!v.keys_active);
+    try s.expectPreedit("你好嗎");
+    try t.expectEqual(@as(u32, 3), v.caret);
+    // At the end with nothing open there is nowhere to go.
+    try t.expect((try s.key(.right, h.command, null)).beep);
+    try t.expectEqualStrings("你好嗎", (try s.enter()).commit.?);
+}
+
+test "Cmd+Left focuses the first word" {
+    const s = try Harness.init(h.nihao);
+    defer s.deinit();
+    try s.typed("su3cl3a87");
+    try expectRes(.{ .consumed = true }, try s.key(.left, h.command, null));
+    const v = try s.view();
+    try t.expect(v.focus != null);
+    try t.expectEqual(@as(u32, 0), v.caret);
+    try s.expectCandidates(&.{ "你好", "你", "妳", "尼", "泥" });
+    try t.expect((try s.key(.left, h.command, null)).beep);
+}
+
+test "Cmd+arrows with an empty composition still go to the app" {
+    const s = try Harness.init(h.nihao);
+    defer s.deinit();
+    try t.expect(!(try s.key(.right, h.command, null)).consumed);
+    try t.expect(!(try s.key(.left, h.command, null)).consumed);
+}
+
+test "Cmd+Left drops a stepped word highlight without accepting it" {
+    const s = try Harness.init(h.nihao);
+    defer s.deinit();
+    s.settings().return_confirms_selection = true;
+    try s.typed("su3cl3a87");
+    _ = try s.key(.left, 0, "\u{F702}");
+    _ = try s.key(.left, 0, "\u{F702}"); // focus 好 inside 你好
+    try s.expectCandidates(&.{ "你好", "好" });
+    _ = try s.down(); // highlight 好 alone, not confirmed
+    try t.expectEqual(@as(usize, 1), (try s.view()).selected);
+    try expectRes(.{ .consumed = true }, try s.key(.left, h.command, null));
+    const v = try s.view();
+    try t.expectEqual(@as(u32, 0), v.caret);
+    try t.expectEqual(@as(usize, 0), v.selected); // the shown word, not the stepped one
+    try s.expectPreedit("你好嗎");
+    _ = try s.key(.right, h.command, null);
+    try t.expectEqualStrings("你好嗎", (try s.enter()).commit.?);
+    try t.expectEqual(@as(usize, 0), s.engine.user_lexicon.count());
+}
+
+test "grid: Left/Right turn columns only while an armed list has 2+ pages" {
+    {
+        // Armed, 11 candidates over two pages: columns, row kept, wrapping.
+        const s = try homophoneSession();
+        defer s.deinit();
+        s.settings().arrows_turn_pages = true;
+        _ = try s.down(); // row 1, armed
+        try expectRes(.{ .consumed = true }, try s.key(.right, 0, null));
+        var v = try s.view();
+        try t.expectEqual(@as(usize, 9), v.selected);
+        try t.expect(v.focus == null);
+        _ = try s.key(.left, 0, null);
+        try t.expectEqual(@as(usize, 1), (try s.view()).selected);
+        _ = try s.key(.left, 0, null); // wraps to the last column, clamped row
+        try t.expectEqual(@as(usize, 9), (try s.view()).selected);
+        // Escape disarms: Left is the syllable cursor again.
+        _ = try s.key(.escape, 0, null);
+        _ = try s.key(.left, 0, null);
+        v = try s.view();
+        try t.expect(v.focus != null);
+        try t.expect(!v.keys_active);
+    }
+    {
+        // Not armed: the cursor, even with a multi-page list showing.
+        const s = try homophoneSession();
+        defer s.deinit();
+        s.settings().arrows_turn_pages = true;
+        _ = try s.key(.left, 0, null);
+        try t.expect((try s.view()).focus != null);
+    }
+    {
+        // Armed but one page (one column): the cursor.
+        const s = try Harness.init(h.nihao);
+        defer s.deinit();
+        s.settings().arrows_turn_pages = true;
+        try s.typed("su3cl3");
+        _ = try s.key(.left, 0, null); // focus 好: 你好, 好
+        _ = try s.down();
+        var v = try s.view();
+        try t.expect(v.keys_active);
+        try t.expectEqual(@as(u32, 1), v.caret);
+        _ = try s.key(.left, 0, null); // the cursor moves to 你
+        v = try s.view();
+        try t.expect(v.focus != null);
+        try t.expectEqual(@as(u32, 0), v.caret);
+    }
+    {
+        // Setting off (single-column panel): the cursor, as before.
+        const s = try homophoneSession();
+        defer s.deinit();
+        _ = try s.down();
+        _ = try s.key(.left, 0, null);
+        try t.expect((try s.view()).focus != null);
+    }
+    {
+        // Cmd+arrows stay first word / leave, never columns.
+        const s = try homophoneSession();
+        defer s.deinit();
+        s.settings().arrows_turn_pages = true;
+        _ = try s.down();
+        _ = try s.key(.right, h.command, null);
+        const v = try s.view();
+        try t.expect(!v.keys_active);
+        try t.expectEqual(@as(usize, 1), v.selected); // the stepped sentence stays, as with Escape
+    }
+}
+
+test "grid: a focused word's multi-page list turns columns once armed" {
+    const rows = try h.homophones(t.allocator, "ㄋㄧˇ", &h.ten_ni);
+    defer t.allocator.free(rows);
+    const all = try std.mem.concat(t.allocator, u8, &.{ rows, "ㄏㄠˇ\t好\t-5\n" });
+    defer t.allocator.free(all);
+    const s = try Harness.init(all);
+    defer s.deinit();
+    s.settings().arrows_turn_pages = true;
+    try s.typed("su3cl3");
+    _ = try s.key(.left, 0, null);
+    _ = try s.key(.left, 0, null); // focus 你: ten options, two pages
+    try t.expect(!(try s.view()).keys_active);
+    _ = try s.tab(); // arms (auto-show on: also turns to page 2)
+    const before = (try s.view()).selected;
+    _ = try s.key(.right, 0, null);
+    const v = try s.view();
+    try t.expect(v.focus != null); // still on 你
+    try t.expect(v.selected != before);
+    try t.expectEqual(before % 8, v.selected % 8);
+}

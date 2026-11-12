@@ -261,7 +261,9 @@ int32_t misstype_engine_load_word_model(misstype_engine *engine, const uint8_t *
 /* One setting by name; 1 when the name is known. Booleans take 0/1:
  * autoShowCandidates returnConfirmsSelection shiftToggle userLearning
  * channelLearning mixedEnglish toneTolerance pageSize autoCommitSyllables
- * repairStrength (0 off .. 3 strong) shiftTapLimitMs. */
+ * repairStrength (0 off .. 3 strong) shiftTapLimitMs
+ * arrowsTurnPages (Left/Right page an armed multi-page list, for grid panels;
+ * misstype_engine_set_settings keeps it). */
 int32_t misstype_engine_set_setting(misstype_engine *engine, const char *name, int32_t value);
 
 int32_t misstype_engine_learning_revision(const misstype_engine *engine);

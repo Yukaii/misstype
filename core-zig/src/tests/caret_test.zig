@@ -151,11 +151,13 @@ test "Option+arrows jump by word and typing follows the caret" {
     try t.expectEqualStrings("嗎你hello big world", (try s.enter()).commit.?);
 }
 
-test "Command+arrows still commit and pass" {
+test "Control+arrows still commit and pass; Command+arrows stay in the composition" {
     const s = try Harness.init(h.nihao);
     defer s.deinit();
     try s.typed("su3");
-    try expectRes(.{ .consumed = false, .commit = "你" }, try s.key(.left, h.command, null));
+    // Cmd+Left/Right are cursorStart/cursorEnd (decision 2026-11-12).
+    try expectRes(.{ .consumed = true }, try s.key(.left, h.command, null));
+    try expectRes(.{ .consumed = false, .commit = "你" }, try s.key(.left, h.control, null));
 }
 
 // MARK: - Building blocks

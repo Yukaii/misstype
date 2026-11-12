@@ -11,6 +11,8 @@ extension KeyAction {
         case .previousPage: return L("Previous page (also - while selecting)")
         case .cursorBack: return L("Syllable cursor back")
         case .cursorForward: return L("Syllable cursor forward")
+        case .cursorStart: return L("Syllable cursor to the first word")
+        case .cursorEnd: return L("Leave the syllable cursor (back to the end)")
         case .markBack: return L("Mark a phrase backward")
         case .markForward: return L("Mark a phrase forward")
         case .commit: return L("Commit")

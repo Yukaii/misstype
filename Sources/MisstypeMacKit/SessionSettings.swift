@@ -84,6 +84,9 @@ public struct SessionSettings: Equatable, Sendable {
     public var cursorCandidates: CursorCandidates
     /// Personal channel model: learn which keys this user swaps.
     public var channelLearning: Bool
+    /// Grid panel: Left/Right turn pages (columns) while an armed list has
+    /// more than one page; otherwise they stay the syllable cursor.
+    public var arrowsTurnPages: Bool
 
     public var fuzzyRepair: Bool { repairStrength != .off }
 
@@ -95,7 +98,8 @@ public struct SessionSettings: Equatable, Sendable {
                 pageSize: Int = SelectionKeys.defaultPageSize,
                 keyBindings: KeyBindings = KeyBindings(),
                 cursorCandidates: CursorCandidates = .covering,
-                channelLearning: Bool = false) {
+                channelLearning: Bool = false,
+                arrowsTurnPages: Bool = false) {
         self.repairStrength = repairStrength
         self.toneTolerance = toneTolerance
         self.candidateKeys = candidateKeys
@@ -109,5 +113,6 @@ public struct SessionSettings: Equatable, Sendable {
         self.keyBindings = keyBindings
         self.cursorCandidates = cursorCandidates
         self.channelLearning = channelLearning
+        self.arrowsTurnPages = arrowsTurnPages
     }
 }

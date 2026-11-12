@@ -270,6 +270,10 @@ pub const Settings = struct {
     page_size: usize = default_page_size,
     cursor_candidates: CursorCandidates = .covering,
     channel_learning: bool = false,
+    /// Left/Right turn pages while the selection keys are armed and the
+    /// list has more than one page (macOS grid panel: pages are columns).
+    /// Otherwise they stay the syllable cursor.
+    arrows_turn_pages: bool = false,
 
     pub fn fuzzyRepair(self: Settings) bool {
         return self.repair_strength != .off;
@@ -917,6 +921,10 @@ pub const Session = struct {
                         self.symbol_menu = null;
                         return .handled;
                     },
+                    .left, .right => if (menu.selecting and !shift and self.settings.arrows_turn_pages and count > self.settings.page_size) {
+                        if (self.pageTarget(menu.selected, count, kind == .right)) |index| return self.stepMenu(&menu, index);
+                        return .beeped;
+                    },
                     .enter => if (menu.selecting and !shift and self.settings.return_confirms_selection) {
                         self.symbol_menu = null;
                         return .handled;
@@ -978,6 +986,12 @@ pub const Session = struct {
             return self.page(kind == .page_down);
         }
         if ((kind == .left or kind == .right) and chord) {
+            // Cmd+Left/Right (bindable: cursorStart/cursorEnd) jump to the
+            // first word / leave the cursor walk, caret back at the end.
+            if (mods & (mod_command | mod_control | mod_option | mod_shift) == mod_command and !self.composition.isEmpty()) {
+                const moved = if (kind == .left) try self.cursorToStart() else try self.cursorToEnd();
+                return if (moved) .handled else .beeped;
+            }
             if (mods & (mod_command | mod_control) == 0 and !self.composition.isEmpty()) {
                 if (try self.moveWord(kind == .right)) |moved| return if (moved) .handled else .beeped;
             }
@@ -989,6 +1003,12 @@ pub const Session = struct {
         }
         if (kind == .left or kind == .right) {
             if (self.composition.isEmpty()) return self.pass(false);
+            // Grid panel: an armed list of 2+ pages is columns; they wrap
+            // like Tab and never fall through to the cursor.
+            if (self.settings.arrows_turn_pages and self.selecting) {
+                const count = if (self.segment_texts) |texts| texts.len else self.candidates.len;
+                if (count > self.settings.page_size) return self.page(kind == .right);
+            }
             const moved = if (kind == .left) try self.moveCursorBack() else try self.moveCursorForward();
             return if (moved) .handled else .beeped;
         }
@@ -1019,10 +1039,8 @@ pub const Session = struct {
             if (self.mark != null) return self.fileMark();
             if (shift) return .{ .consumed = true, .commit = try self.commitText(true) };
             if (self.settings.return_confirms_selection and (self.selecting or self.segment_texts != null)) {
-                if (self.segment_texts) |texts| {
-                    if (self.segment_selected < texts.len) {
-                        try self.pinAdvance(self.segment_selected);
-                    } else self.selecting = false;
+                if (self.segment_texts != null) {
+                    try self.confirmSegment(self.segment_selected);
                 } else self.selecting = false;
                 return .handled;
             }
@@ -1645,6 +1663,26 @@ pub const Session = struct {
         return true;
     }
 
+    fn cursorToStart(self: *Session) !bool {
+        _ = self.focusFrame() orelse return false;
+        if (self.cursor == 0) return false;
+        self.cursor = 0;
+        self.selecting = false;
+        try self.focusSegment();
+        return self.cursor != null;
+    }
+
+    /// Leaves the cursor walk without confirming (like Escape); false when
+    /// already at the end with nothing open.
+    fn cursorToEnd(self: *Session) !bool {
+        if (self.cursor == null and self.composition.caret == null and !self.selecting and self.segment_texts == null) return false;
+        self.selecting = false;
+        self.cursor = null;
+        self.clearSegment();
+        try self.returnCaretToEnd();
+        return true;
+    }
+
     fn moveCursorForward(self: *Session) !bool {
         const top = self.focusFrame() orelse return false;
         const end: i64 = top.alignment[top.alignment.len - 1].syllables.end;
@@ -1732,19 +1770,41 @@ pub const Session = struct {
         try self.refresh(false);
     }
 
+    /// A pick on a focused word: pin it and focus the next word, so
+    /// consecutive corrections need no arrow keys.
     fn pinAdvance(self: *Session, index: usize) !void {
-        if (index >= self.segment_options.len) return;
-        const top = self.focusFrame() orelse return;
+        const option = (try self.pinSegment(index, false)) orelse return;
+        self.cursor = option.span.end;
+        try self.refresh(true);
+    }
+
+    /// Return on a focused word: keep the highlighted option and end the
+    /// cursor walk, caret back at the end. One press, wherever the cursor
+    /// is; the next Return commits. Walking past a word without changing it
+    /// does not pin it.
+    fn confirmSegment(self: *Session, index: usize) !void {
+        _ = try self.pinSegment(index, true);
+        self.cursor = null;
+        self.selecting = false;
+        self.clearSegment();
+        self.composition.moveCaret(null);
+        try self.refresh(false);
+    }
+
+    fn pinSegment(self: *Session, index: usize, only_if_changed: bool) !?CursorOption {
+        if (index >= self.segment_options.len) return null;
+        const top = self.focusFrame() orelse return null;
         const option = self.segment_options[index];
-        try self.noteUnpicked();
         const shown = try self.spanTextOf(option.span, top);
-        if (shown == null or !unicode.equal(shown.?, option.text)) try self.learn_pins.pin(option, top);
+        const changed = shown == null or !unicode.equal(shown.?, option.text);
+        if (only_if_changed and !changed) return null;
+        try self.noteUnpicked();
+        if (changed) try self.learn_pins.pin(option, top);
         try self.session_pins.pin(option, top);
         self.settled_pins.clear();
         self.setPinnedPick(null);
         self.explicit_pick = true;
-        self.cursor = option.span.end;
-        try self.refresh(true);
+        return option;
     }
 
     // MARK: Phrase marking

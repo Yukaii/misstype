@@ -84,7 +84,7 @@ final class AppearancePane: SettingsPane {
 
         group(L("Candidate panel"), rows: [
             toggleRow(L("Show all pages side by side"),
-                      detail: L("Up to 4 pages in columns. ↑ ↓ move through every candidate and Tab turns pages; ← → stay the syllable cursor."),
+                      detail: L("Up to 4 pages in columns. ↑ ↓ move through every candidate and Tab turns pages; once the selection keys are active, ← → move between columns too (Esc returns them to the syllable cursor)."),
                       key: "MisstypeCandidateGrid"),
             schemeRow,
             row(L("Light or dark"), control: appearance),
