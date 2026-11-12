@@ -27,6 +27,12 @@ final class SettingsWindow: NSWindow, NSToolbarDelegate {
         bar.allowsUserCustomization = false
         toolbar = bar
         toolbarStyle = .unified
+        // No titlebar backing: AppKit drew it over the content section
+        // starting 2 pt inside the sidebar (measured 2026-11-12, macOS 27),
+        // with or without the separator. The views below already line up
+        // full height; panes start under the titlebar (safe area), so
+        // nothing scrolls beneath the title.
+        titlebarAppearsTransparent = true
         isMovableByWindowBackground = true
         contentViewController = SettingsSplitViewController()
         setContentSize(NSSize(width: 760, height: 640))
@@ -299,7 +305,7 @@ final class SettingsContentController: NSViewController {
         pane.view.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(pane.view)
         NSLayoutConstraint.activate([
-            pane.view.topAnchor.constraint(equalTo: view.topAnchor),
+            pane.view.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
             pane.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
             pane.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             pane.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
