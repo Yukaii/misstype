@@ -17,6 +17,7 @@
 # passed.
 set -uo pipefail
 cd "$(dirname "$0")/.." || exit 2
+root=$PWD
 # shellcheck source=script/ci/layers.sh
 source script/ci/layers.sh
 
@@ -46,7 +47,7 @@ else
 fi
 
 # shellcheck disable=SC2329  # called from the eval'd steps below
-zig() { "$(script/zig/bootstrap.sh)" "$@"; }
+zig() { "$("$root/script/zig/bootstrap.sh")" "$@"; }
 # npm_ready: install when node_modules is missing or older than the lockfile
 # (a stale tree fails with ERR_MODULE_NOT_FOUND that looks like a test bug).
 # shellcheck disable=SC2329
@@ -90,7 +91,7 @@ if touches site "$changed"; then
   step "site tests" "cd site && npm_ready && npm test"
 fi
 if touches obsidian "$changed"; then
-  step "obsidian plugin tests" "cd packages/obsidian-misstype && npm_ready && npm test"
+  step "obsidian plugin tests" "cd packages/obsidian-misstype && npm_ready && npm run build && npm test"
 fi
 if touches python "$changed"; then
   step "python tests" "PYTHONPATH=src python3 -m unittest discover -s tests"
