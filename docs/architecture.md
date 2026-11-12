@@ -175,14 +175,18 @@ Text Input Services never uses a 1024×1024 asset as a menu row. The smooth
 app master lives in `MisstypeIcon.svg`/`MisstypeIcon.png`; the menu version has
 its own pixel-grid source in `MisstypeMenuIcon.svg` and is exported as a hard
 edged 16×16 TIFF.
-The product logo (keyboard and tapping finger) is separate from the IME
-icon: `MisstypeLogo.svg` (light), `MisstypeLogo-dark.svg` and the 1024 px
-`MisstypeLogo.png` export. It is used by the Settings About pane, the website
-(`site/icon.svg`, `site/editor/icon.png`) and the READMEs. The favicon
-`site/favicon.svg` is a simplified 32-unit redraw (keyboard, pressed peach key and tap
-sparks, no finger)
-because the full logo's strokes drop below a pixel at 16 px; the bundle, input
-mode and menu icons above stay unchanged.
+The product logo is separate from the IME icon: a keycap whose face is
+two different eyes and a mouth. The dark bar is decoded text, the lilac
+caret (`#A496D6`) is text still being composed, and the peach wavy line under
+them is the raw trace, kept and never replaced (capture first, decode
+later). It names no input method, so it fits Bopomofo and any IME added
+later. Sources are `MisstypeLogo.svg` (light) and `MisstypeLogo-dark.svg`
+(the key lip turns muted lilac-grey so it does not merge with the face), on
+a 64-unit grid so shapes land on whole pixels at 16 and 32 px; `MisstypeLogo.png`
+is the 1024 px export. The same mark is the Settings About pane image, the
+website header and favicon (`site/icon.svg`, `site/favicon.svg`), the editor
+PWA icon (`site/editor/icon.png`) and the README logo. The bundle, input mode
+and menu icons above stay unchanged.
 
 Icon design rules (logo, favicon, any future mark), because small renders
 get misread:
