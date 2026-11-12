@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <title>Misstype</title>
+  <rect width="512" height="512" rx="128" fill="#34323F"/>
+  <path d="M127.1 238 L389.7 238 L453.3 384 L58.9 384Z" fill="#FCF5F1" stroke="#FCF5F1" stroke-width="68" stroke-linejoin="round"/>
+  <path d="M132.9 247 L383.7 247 L439.3 375 L73.1 375Z" fill="#34323F" stroke="#34323F" stroke-width="56" stroke-linejoin="round"/>
+  <path d="M141.8 258 L374.4 258 L420.6 364 L92.2 364Z" fill="#34323F" stroke="#34323F" stroke-width="48" stroke-linejoin="round"/>
+  <path d="M141.8 258 L199 258 L191.7 295 L124.5 295Z" fill="#FCF5F1" stroke="#FCF5F1" stroke-width="18" stroke-linejoin="round"/>
+  <path d="M229.5 258 L286.7 258 L291.1 295 L223.9 295Z" fill="#F8A88C" stroke="#F8A88C" stroke-width="18" stroke-linejoin="round"/>
+  <path d="M317.2 258 L374.4 258 L390.5 295 L323.3 295Z" fill="#FCF5F1" stroke="#FCF5F1" stroke-width="18" stroke-linejoin="round"/>
+  <path d="M109.5 327 L155.7 327 L145.2 364 L92.2 364Z" fill="#BDB3E0" stroke="#BDB3E0" stroke-width="18" stroke-linejoin="round"/>
+  <path d="M189.3 327 L324.7 327 L332.2 364 L180.5 364Z" fill="#FCF5F1" stroke="#FCF5F1" stroke-width="18" stroke-linejoin="round"/>
+  <path d="M358.3 327 L404.5 327 L420.6 364 L367.6 364Z" fill="#BDB3E0" stroke="#BDB3E0" stroke-width="18" stroke-linejoin="round"/>
+  <g stroke="#BDB3E0" stroke-width="15" stroke-linecap="round">
+    <path d="M171 127 L187 150"/><path d="M213 107 L222 135"/><path d="M146 178 L177 192"/>
+  </g>
+  <path d="M402 81 C370 76 346 84 322 112 L256 190 C238 212 242 240 262 254 C282 268 300 260 312 246 L353 196 C378 200 398 190 411 166 L418 70 Z" fill="#34323F"/>
+  <path d="M402 81 C370 76 346 84 322 112 L256 190 C238 212 242 240 262 254 C282 268 300 260 312 246 L353 196 C378 200 398 190 411 166" fill="none" stroke="#FCF5F1" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
