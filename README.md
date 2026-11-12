@@ -1,5 +1,8 @@
 <div align="center">
-  <img src="Resources/MisstypeIcon.png" alt="Misstype logo" width="96" height="96">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="Resources/MisstypeLogo-dark.svg">
+    <img src="Resources/MisstypeLogo.svg" alt="Misstype logo" width="96" height="96">
+  </picture>
   <br><sub><i>打注音，不用管聲調。</i></sub>
 
   <h1>隨打注音 (Misstype)</h1>
