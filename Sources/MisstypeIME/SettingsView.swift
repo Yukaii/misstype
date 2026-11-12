@@ -6,7 +6,7 @@ import MisstypeMacKit
 /// the panes). Controls bind straight to the `Misstype*` UserDefaults keys
 /// that `MisstypePrefs` reads per keystroke, so a change applies on the next
 /// key and `defaults write` shows up here live.
-final class SettingsWindow: NSWindow {
+final class SettingsWindow: NSWindow, NSToolbarDelegate {
     static let shared = SettingsWindow()
 
     private init() {
@@ -16,10 +16,23 @@ final class SettingsWindow: NSWindow {
         title = L("Misstype Settings")
         isReleasedWhenClosed = false
         contentMinSize = NSSize(width: 660, height: 440)
-        // An empty toolbar gives the unified titlebar: the sidebar runs under
-        // it with inline traffic lights and the title sits over the pane.
-        toolbar = NSToolbar(identifier: "MisstypeSettings")
+        // A toolbar gives the unified titlebar: the sidebar runs under it
+        // with inline traffic lights and the title sits over the pane. Its
+        // one item, the sidebar tracking separator, splits the toolbar at the
+        // split view's divider; without it the pane's title band bled a few
+        // points into the sidebar.
+        let bar = NSToolbar(identifier: "MisstypeSettings")
+        bar.delegate = self
+        bar.displayMode = .iconOnly
+        bar.allowsUserCustomization = false
+        toolbar = bar
         toolbarStyle = .unified
+        // No titlebar backing: AppKit drew it over the content section
+        // starting 2 pt inside the sidebar (measured 2026-11-12, macOS 27),
+        // with or without the separator. The views below already line up
+        // full height; panes start under the titlebar (safe area), so
+        // nothing scrolls beneath the title.
+        titlebarAppearsTransparent = true
         isMovableByWindowBackground = true
         contentViewController = SettingsSplitViewController()
         setContentSize(NSSize(width: 760, height: 640))
@@ -47,6 +60,19 @@ final class SettingsWindow: NSWindow {
         }
         guard let action else { return false }
         return NSApp.sendAction(action, to: nil, from: self)
+    }
+
+    func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        [.sidebarTrackingSeparator]
+    }
+
+    func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        [.sidebarTrackingSeparator]
+    }
+
+    func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier,
+                 willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
+        nil  // AppKit supplies the tracking separator itself.
     }
 
     func show() {
@@ -204,34 +230,46 @@ final class SettingsSidebarController: NSViewController, NSTableViewDataSource, 
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
         let topic = SettingsTopic.allCases[row]
         let cell = NSTableCellView()
-        let tile = NSView()
-        tile.wantsLayer = true
-        tile.layer?.cornerRadius = 6
-        tile.layer?.backgroundColor = topic.tint.cgColor
+        // One non-template image (tile + white glyph): a template symbol in a
+        // source list is redrawn with vibrancy and the row's background
+        // style, which turned unselected glyphs into a muted tile shade.
+        let tile = OpaqueImageView(image: Self.tileImage(topic))
         tile.translatesAutoresizingMaskIntoConstraints = false
-        let image = NSImageView(image: NSImage(systemSymbolName: topic.symbol, accessibilityDescription: nil) ?? NSImage())
-        image.contentTintColor = .white
-        image.symbolConfiguration = .init(pointSize: 12, weight: .medium)
-        image.translatesAutoresizingMaskIntoConstraints = false
-        tile.addSubview(image)
         let text = NSTextField(labelWithString: topic.title)
         text.translatesAutoresizingMaskIntoConstraints = false
         cell.addSubview(tile)
         cell.addSubview(text)
-        cell.imageView = image
         cell.textField = text
         NSLayoutConstraint.activate([
             tile.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 2),
             tile.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
             tile.widthAnchor.constraint(equalToConstant: 24),
             tile.heightAnchor.constraint(equalToConstant: 24),
-            image.centerXAnchor.constraint(equalTo: tile.centerXAnchor),
-            image.centerYAnchor.constraint(equalTo: tile.centerYAnchor),
             text.leadingAnchor.constraint(equalTo: tile.trailingAnchor, constant: 8),
             text.trailingAnchor.constraint(lessThanOrEqualTo: cell.trailingAnchor, constant: -4),
             text.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
         ])
         return cell
+    }
+
+    /// The topic's tile: rounded square in its tint, glyph in white.
+    /// Drawn on demand, so it follows the appearance and backing scale.
+    private static func tileImage(_ topic: SettingsTopic) -> NSImage {
+        let size = NSSize(width: 24, height: 24)
+        let image = NSImage(size: size, flipped: false) { rect in
+            topic.tint.setFill()
+            NSBezierPath(roundedRect: rect, xRadius: 6, yRadius: 6).fill()
+            let config = NSImage.SymbolConfiguration(pointSize: 12, weight: .medium)
+                .applying(.init(paletteColors: [.white]))
+            guard let glyph = NSImage(systemSymbolName: topic.symbol, accessibilityDescription: nil)?
+                .withSymbolConfiguration(config) else { return true }
+            let g = glyph.size
+            glyph.draw(in: NSRect(x: (rect.width - g.width) / 2, y: (rect.height - g.height) / 2,
+                                  width: g.width, height: g.height))
+            return true
+        }
+        image.isTemplate = false
+        return image
     }
 
     func tableViewSelectionDidChange(_ notification: Notification) {
@@ -267,7 +305,7 @@ final class SettingsContentController: NSViewController {
         pane.view.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(pane.view)
         NSLayoutConstraint.activate([
-            pane.view.topAnchor.constraint(equalTo: view.topAnchor),
+            pane.view.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
             pane.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
             pane.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             pane.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
@@ -278,4 +316,9 @@ final class SettingsContentController: NSViewController {
     func reloadAll() {
         for pane in panes.values where pane.isViewLoaded { pane.reload() }
     }
+}
+
+/// An image view the sidebar's vibrancy leaves alone, so colors stay exact.
+private final class OpaqueImageView: NSImageView {
+    override var allowsVibrancy: Bool { false }
 }

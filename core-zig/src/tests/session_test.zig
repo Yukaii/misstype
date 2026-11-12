@@ -1026,3 +1026,45 @@ test "grid: a focused word's multi-page list turns columns once armed" {
     try t.expect(v.selected != before);
     try t.expectEqual(before % 8, v.selected % 8);
 }
+test "Return with a Shift-tap run open keeps English mode after the commit" {
+    // The tap flashed 英, so accepting must not quietly flip back to 中.
+    const s = try Harness.init(h.nihao);
+    defer s.deinit();
+    try s.typed("su3");
+    try t.expect((try s.tapShift(100)).latin_toggled);
+    try s.typed("hi");
+    const r = try s.enter();
+    try t.expectEqualStrings("你hi", r.commit.?);
+    try t.expect(r.mode_changed);
+    try t.expect(s.engine.english);
+    try t.expect(!s.session.latinActive());
+    // English mode: the next keys go to the application.
+    try t.expect(!(try s.chr("d", 0, "d")).consumed);
+    try t.expect(!(try s.key(.backspace, 0, null)).consumed);
+    try t.expect(s.engine.english);
+}
+
+test "Return after the run is closed, or on a backtick run, stays Chinese" {
+    {
+        const s = try Harness.init(h.nihao);
+        defer s.deinit();
+        try s.typed("su3");
+        _ = try s.tapShift(100);
+        try s.typed("hi");
+        _ = try s.tapShift(101); // closes the run
+        const r = try s.enter();
+        try t.expect(!r.mode_changed);
+        try t.expect(!s.engine.english);
+    }
+    {
+        const s = try Harness.init(h.nihao);
+        defer s.deinit();
+        try s.typed("su3");
+        _ = try s.chr("`", 0, "`"); // an inline English chunk, not a mode
+        try s.typed("hi");
+        const r = try s.enter();
+        try t.expectEqualStrings("你hi", r.commit.?);
+        try t.expect(!r.mode_changed);
+        try t.expect(!s.engine.english);
+    }
+}
