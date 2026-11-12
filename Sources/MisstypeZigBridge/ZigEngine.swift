@@ -93,6 +93,12 @@ public final class ZigEngine {
         else { misstype_engine_set_channel_path(handle, nil) }
     }
 
+    /// One setting by name (`misstype_engine_set_setting`); false when unknown.
+    @discardableResult
+    public func setSetting(_ name: String, _ value: Int32) -> Bool {
+        name.withCString { misstype_engine_set_setting(handle, $0, value) } == 1
+    }
+
     public func setChannelLearning(_ enabled: Bool) { misstype_engine_set_channel_learning(handle, enabled ? 1 : 0) }
 
     /// 0 off, 1 light, 2 standard, 3 strong.

@@ -217,6 +217,7 @@ export fn misstype_engine_set_settings(engine_: ?*Engine, settings_: ?*const CSe
         else => .covering,
     };
     s.channel_learning = previous.channel_learning;
+    s.arrows_turn_pages = previous.arrows_turn_pages;
     s.candidate_keys = previous.candidate_keys;
     engine.settings = s;
     engine.setCandidateKeys(span(c.candidate_keys) orelse session_mod.default_keys) catch {};
@@ -817,12 +818,13 @@ export fn misstype_engine_load_word_model(engine_: ?*Engine, data: ?[*]const u8,
 ///   channelLearning mixedEnglish toneTolerance pageSize autoCommitSyllables
 ///   repairStrength (0 off, 1 light, 2 standard, 3 strong)
 ///   shiftTapLimitMs (longest Shift press that still toggles 中/英)
+///   arrowsTurnPages (Left/Right page an armed multi-page list; grid panels)
 export fn misstype_engine_set_setting(engine_: ?*Engine, name_: ?[*:0]const u8, value: i32) callconv(.c) i32 {
     const engine = engine_ orelse return 0;
     const name = span(name_) orelse return 0;
     const s = &engine.settings;
     const on = value != 0;
-    const Flag = enum { autoShowCandidates, returnConfirmsSelection, shiftToggle, userLearning, channelLearning, mixedEnglish, toneTolerance, pageSize, autoCommitSyllables, repairStrength, shiftTapLimitMs };
+    const Flag = enum { autoShowCandidates, returnConfirmsSelection, shiftToggle, userLearning, channelLearning, mixedEnglish, toneTolerance, pageSize, autoCommitSyllables, repairStrength, shiftTapLimitMs, arrowsTurnPages };
     switch (std.meta.stringToEnum(Flag, name) orelse return 0) {
         .autoShowCandidates => s.auto_show_candidates = on,
         .returnConfirmsSelection => s.return_confirms_selection = on,
@@ -838,6 +840,7 @@ export fn misstype_engine_set_setting(engine_: ?*Engine, name_: ?[*:0]const u8, 
             s.repair_strength = @fromBackingInt(@intCast(value));
         },
         .shiftTapLimitMs => engine.shift_tap.tap_time_limit = @as(f64, @floatFromInt(@max(0, value))) / 1000,
+        .arrowsTurnPages => s.arrows_turn_pages = on,
     }
     return 1;
 }

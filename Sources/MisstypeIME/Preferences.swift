@@ -212,7 +212,8 @@ enum MisstypePrefs {
                         pageSize: candidatesPerPage,
                         keyBindings: keyBindings,
                         cursorCandidates: cursorCandidates,
-                        channelLearning: channelLearning)
+                        channelLearning: channelLearning,
+                        arrowsTurnPages: UserDefaults.standard.bool(forKey: "MisstypeCandidateGrid"))
     }
 }
 

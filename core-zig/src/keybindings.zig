@@ -140,6 +140,8 @@ pub const Action = enum {
     previousPage,
     cursorBack,
     cursorForward,
+    cursorStart,
+    cursorEnd,
     markBack,
     markForward,
     commit,
@@ -157,6 +159,8 @@ pub const Action = enum {
             .previousPage => Chord.init(.page_up, 0),
             .cursorBack => Chord.init(.left, 0),
             .cursorForward => Chord.init(.right, 0),
+            .cursorStart => Chord.init(.left, command),
+            .cursorEnd => Chord.init(.right, command),
             .markBack => Chord.init(.left, shift),
             .markForward => Chord.init(.right, shift),
             .commit => Chord.init(.enter, 0),
@@ -176,6 +180,8 @@ pub const Action = enum {
             .previousCandidate => &default_previous,
             .cursorBack => &default_cursor_back,
             .cursorForward => &default_cursor_forward,
+            .cursorStart => &default_cursor_start,
+            .cursorEnd => &default_cursor_end,
             .markBack => &default_mark_back,
             .markForward => &default_mark_forward,
             .commit => &default_commit,
@@ -208,6 +214,8 @@ const default_next_page = [_]Chord{ Chord.init(.tab, 0), Chord.init(.page_down, 
 const default_previous_page = [_]Chord{ Chord.init(.tab, shift), Chord.init(.page_up, 0) };
 const default_cursor_back = [_]Chord{Chord.init(.left, 0)};
 const default_cursor_forward = [_]Chord{Chord.init(.right, 0)};
+const default_cursor_start = [_]Chord{Chord.init(.left, command)};
+const default_cursor_end = [_]Chord{Chord.init(.right, command)};
 const default_mark_back = [_]Chord{Chord.init(.left, shift)};
 const default_mark_forward = [_]Chord{Chord.init(.right, shift)};
 const default_commit = [_]Chord{Chord.init(.enter, 0)};
@@ -328,4 +336,14 @@ test "overrides, unbinding and Shift+Space" {
     try testing.expect(b.resolve(.space, shift, false) == .strip_shift);
     try testing.expect(Chord.parse("A") == null); // printable needs a modifier
     try testing.expect(Chord.parse("Ctrl+Comma").?.key.character == ',');
+}
+
+test "cursorEnd defaults to Cmd+Right and rebinds" {
+    const d: Bindings = .{};
+    try testing.expect(d.lookup(Chord.init(.right, command)).? == .cursorEnd);
+    try testing.expect(d.lookup(Chord.init(.left, command)).? == .cursorStart);
+    const b = Bindings.parse("cursorEnd = ctrl+e");
+    const e = b.resolve(.{ .character = 'e' }, control, false);
+    try testing.expect(e == .rewritten and e.rewritten.chord.eql(Chord.init(.right, command)));
+    try testing.expect(b.resolve(.right, command, false) == .unbound);
 }

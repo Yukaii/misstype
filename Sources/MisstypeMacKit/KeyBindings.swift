@@ -92,6 +92,8 @@ public enum KeyAction: String, CaseIterable, Sendable {
     /// Tab / PageDown and Shift+Tab / PageUp: one page at a time.
     case nextPage, previousPage
     case cursorBack, cursorForward
+    /// Cmd+Left / Cmd+Right: focus the first word / leave the cursor walk.
+    case cursorStart, cursorEnd
     case markBack, markForward
     case commit, commitRaw
     case cancel
@@ -107,6 +109,8 @@ public enum KeyAction: String, CaseIterable, Sendable {
         case .previousPage: return KeyChord(.pageUp)
         case .cursorBack: return KeyChord(.left)
         case .cursorForward: return KeyChord(.right)
+        case .cursorStart: return KeyChord(.left, .command)
+        case .cursorEnd: return KeyChord(.right, .command)
         case .markBack: return KeyChord(.left, .shift)
         case .markForward: return KeyChord(.right, .shift)
         case .commit: return KeyChord(.enter)

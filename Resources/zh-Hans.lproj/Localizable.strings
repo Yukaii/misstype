@@ -14,7 +14,7 @@
 "Previous candidate" = "上一个候选";
 "Previous page (also - while selecting)" = "上一页（选字时也可按 -）";
 "Show all pages side by side" = "并排显示所有页";
-"Up to 4 pages in columns. ↑ ↓ move through every candidate and Tab turns pages; ← → stay the syllable cursor." = "最多 4 页分栏显示。↑ ↓ 依次走过所有候选，Tab 翻页；← → 仍是音节光标。";
+"Up to 4 pages in columns. ↑ ↓ move through every candidate and Tab turns pages; once the selection keys are active, ← → move between columns too (Esc returns them to the syllable cursor)." = "最多 4 页并排成栏。↑ ↓ 走过所有候选字，Tab 翻页；选字键启用后 ← → 也能换栏（Esc 让它们回到音节光标）。";
 "Also bound to another action" = "也绑定在其他动作上";
 "Click + and press a key combination. Letters, digits and symbols need ⌃, ⌥ or ⌘, since alone they type Zhuyin. A removed default key goes to the app instead." = "按 + 后按下组合键。字母、数字与符号键需搭配 ⌃、⌥ 或 ⌘，因为单按它们会输入注音。移除的默认键会交给 App 处理。";
 "Key bindings" = "按键绑定";
@@ -26,6 +26,8 @@
 "Start or end an English run" = "开始或结束英文段落";
 "Syllable cursor back" = "音节光标往前";
 "Syllable cursor forward" = "音节光标往后";
+"Syllable cursor to the first word" = "音节光标移到第一个词";
+"Leave the syllable cursor (back to the end)" = "离开音节光标（回到结尾）";
 "Turn the Shift tap off if an app mishandles lone Shift presses. Shift+Space also switches; change it under Key bindings." = "若某个 App 误处理单独的 Shift 按键，可关闭单击 Shift。Shift+空格键也能切换，可在“按键绑定”中修改。";
 "With the Shift tap off and no binding for it, no key switches between Chinese and English." = "单击 Shift 已关闭且没有绑定切换键，目前没有任何按键能切换中英文。";
 "Syllable cursor" = "音节光标";
