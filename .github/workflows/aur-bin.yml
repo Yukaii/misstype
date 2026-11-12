@@ -37,8 +37,9 @@ on:
   pull_request:
     paths: ['linux/aur-*-bin/**', 'script/linux/*aur_bin*', 'script/linux/publish_aur.sh', 'tests/test_aur_bin.py', 'tests/aur-bin/**', '.github/workflows/aur-bin.yml']
   # Detect rolling Arch ABI changes against the latest published stable release.
+  # Weekly, not daily: ~9 runner-minutes a run, and ABI breaks land rarely.
   schedule:
-    - cron: '23 7 * * *'
+    - cron: '23 7 * * 1'
 
 permissions:
   contents: read
