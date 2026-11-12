@@ -2,59 +2,27 @@
 
 This repository is an experimental input device and decoder. The current goal is to validate the interaction model before committing to custom hardware.
 
-## Current state (2026-10-09)
+## Where things stand
 
-- The macOS Zhuyin IME (Zig core + IMK adapter) is approaching
-  daily-usable: live conversion, syllable cursor, candidate window, learning,
-  a user dictionary (Shift+←/→ marks a phrase, Return files it;
-  `user_dictionary.tsv`, Settings editor on macOS), chunked auto-commit. The
-  Linux fcitx5 port is actively maintained and held to the same conformance
-  scenarios (C1–C15, `docs/cross-platform.md`); a behavior change in the core
-  is not done until Linux still passes.
-- Keyboard fuzzy matching is edit repair (transpose, neighbor/phonetic
-  substitution, insert/delete, tone tolerance), costed against exact input.
-  The coordinate-aware **touch** fuzzy layer — distance-weighted neighbor
-  hypotheses from raw `(x, y)`, the `full-split-1` layout, `tools/noise.py`
-  measurements (project outline, M3) — has a v1 in `core-zig/src/touch.zig`
-  (2026-10-04, ported to Zig 2026-10-08): on the real lexicon it beats
-  keyboard repair by +15 to +45 pp at jitter 0.08–0.12 without touching
-  exact input; the lattice version (spatial costs inside each syllable's
-  reading options) adds +30 to +40 pp over the first beam version on 11+ tap
-  phrases. Break-even vs a keyboard is computed (touch must spread within
-  ~0.07–0.10 of key centre); the human tap-spread measurement is missing.
-  Open: that measurement, then wiring a touch surface to the session.
-- Mixed Chinese/English with no mode switch has a measured v1
-  (`core-zig/src/english.zig`, 2026-10-04): English words and one-letter
-  typos are recognized from bare keys with no false switches on 600
-  pure-Chinese inputs (English list: pinned FrequencyWords, CC BY-SA, see
-  `third_party/FrequencyWords/LICENSE.md`) and is wired into the session
-  (`mixedEnglish`, macOS default off): clean English is adopted 92%, 0% of
-  pure Chinese is. Cost is no longer open (Zig, 2026-10-09:
-  toneless mixed input 4.5 ms mean / 21 ms max per key, +2 ms over off;
-  `tools/mixed_latency.py`; Swift was ~110-130 ms); real-typing
-  quality is unmeasured. The Python touch prototype was retired on
-  2026-11-11; touch measurements drive `misstype-dev --touch-batch`.
+Read [`docs/status.md`](docs/status.md) first: platforms, what is open and
+in which order (dated). Goals and milestones: `docs/project-outline.md`;
+dated experiments and measurements: `docs/lab-notebook.md`. When a change
+lands that moves the state (a platform gains a feature, an open item
+closes, a measurement replaces a guess), update the matching bullet in
+`docs/status.md` in the same PR. This file holds only rules that rarely
+change.
 
-- **The core is Zig** (`core-zig/`, pinned Zig 0.17.0 via
-  `script/zig/bootstrap.sh`) and is the single implementation on every
-  platform: Linux fcitx5 and the macOS IMK adapter use its C ABI
-  (`Sources/CMisstype/include/misstype.h`), and the site demo and video
-  renderer use its wasm32-wasi build (`zig build wasm`). The Swift
-  `MisstypeCore`, its C ABI and CLI were retired on 2026-10-09 after a
-  differential campaign (bit-identical candidates, scores and session
-  transcripts, see `docs/zig-port.md`). Swift remains only on macOS for
-  the IMK adapter, the Settings UI, the installer and the Carbon source
-  tool; it holds no editing or decoding rules (`MisstypeMacKit` has the
-  UI-side types). The Swift reference's outputs are frozen as golden files
-  under `tests/golden/`; a behavior change is intentional only when the
-  golden files are regenerated and reviewed (`docs/zig-port.md`).
+Rules that outlive any status:
 
-- macOS packaging is verified on a Mac (2026-10-04, macOS 27) except a few
-  GUI paths: a per-user installer app in a DMG, Sparkle 2 updates from GitHub
-  Releases, signed and notarized by `release.yml` (dispatch run, Gatekeeper
-  accepts the quarantined DMG). The sandboxed IME updates itself in place,
-  and bad signatures/keys are refused. First public release: v0.0.1 (2026-10-04, DMG 4.4 MB).
-  Design, results and what is still unchecked: `docs/release.md`.
+- The Zig core (`core-zig/`) is the single implementation on every platform.
+  Native adapters link its C ABI (`Sources/CMisstype/include/misstype.h`);
+  the WebAssembly module is that same ABI compiled for wasm32-wasi, used
+  through `packages/misstype-wasm`. Adding a capability means adding it to
+  the C ABI once; there is no browser-only API.
+- A core behavior change is intentional only when the golden files under
+  `tests/golden/` are regenerated and reviewed (`docs/zig-port.md`), and it
+  is not done until Linux still passes the conformance scenarios C1–C15
+  (`docs/cross-platform.md`).
 
 ## Product constraints
 
@@ -66,7 +34,7 @@ This repository is an experimental input device and decoder. The current goal is
 
 ## Working loop
 
-1. Read `docs/project-outline.md` and `docs/architecture.md` before changing behavior.
+1. Read `docs/status.md`, `docs/project-outline.md` and `docs/architecture.md` before changing behavior; check `docs/lab-notebook.md` for earlier experiments on the same question.
 2. Write down the hypothesis and the smallest experiment that can falsify it.
 3. Keep changes in one layer where possible: capture, phonetic normalization, decoding, or platform adapter.
 4. Preserve replayable fixtures. Every bug found from an input trace should become a fixture without storing unnecessary personal text.

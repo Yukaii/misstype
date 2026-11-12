@@ -4,7 +4,7 @@ Hypothesis: when the top candidates differ only by homophones (same reading,
 different characters: 自/字, 在/再), a previous-word -> word association from
 a large Traditional Chinese corpus can pick the right one without touching
 syllable segmentation or repair, and without the colloquial-bias damage of
-the falsified char-level LCCC bigram (docs/project-outline.md).
+the falsified char-level LCCC bigram (docs/lab-notebook.md).
 
 Differences from the falsified runs:
   * counts are WORD pairs from a lexicon-DP segmentation, so 各自|的 is not

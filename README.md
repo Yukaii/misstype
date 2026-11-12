@@ -32,7 +32,7 @@
 
 ## 開始開發（人與代理程式）
 
-1. 先讀 [AGENTS.md](AGENTS.md)（工作流程、隱私規則、指令清單），再讀 [docs/architecture.md](docs/architecture.md) 與 [docs/project-outline.md](docs/project-outline.md)。
+1. 先讀 [AGENTS.md](AGENTS.md)（工作流程、隱私規則、指令清單），再讀 [docs/status.md](docs/status.md)（現況）、[docs/architecture.md](docs/architecture.md) 與 [docs/project-outline.md](docs/project-outline.md)。
 2. 建置並跑核心測試（第一次會下載固定版本的 Zig）：
 
    ```sh

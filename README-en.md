@@ -32,7 +32,7 @@ Everything runs locally; no network is needed. The project is still experimental
 
 ## Start here (humans and agents)
 
-1. Read [AGENTS.md](AGENTS.md) first (working loop, privacy rules, canonical commands), then [docs/architecture.md](docs/architecture.md) and [docs/project-outline.md](docs/project-outline.md).
+1. Read [AGENTS.md](AGENTS.md) first (working loop, privacy rules, canonical commands), then [docs/status.md](docs/status.md) (where things stand), [docs/architecture.md](docs/architecture.md) and [docs/project-outline.md](docs/project-outline.md).
 2. Build and run the core tests (the first run downloads the pinned Zig):
 
    ```sh

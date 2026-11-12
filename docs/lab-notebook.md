@@ -1,0 +1,1366 @@
+# Lab notebook
+
+Dated experiments, measurements and decisions moved verbatim from
+[`project-outline.md`](project-outline.md) on 2026-11-11, so the outline can
+stay a short statement of goals and milestones. Entries describe the code as
+it was on their date: paths under `Sources/MisstypeCore/` and `src/misstype/`
+are the retired Swift core (replaced by `core-zig/` on 2026-10-09, last
+present at commit `c89b857`; its `--decode`/`--replay` app modes and
+`MISSTYPE_*_SWEEP` tests were not ported, see
+[`zig-port.md`](zig-port.md)) and Python prototype (retired 2026-11-11);
+`PYTHONPATH=src python tools/...` is now `python3 tools/...`. The
+measurements stay valid as records; rerun them with the current tools before
+relying on a number. Add new experiments at the end, dated.
+
+## M4 — Local model and optional LLM: findings
+
+Finding (local-LM repair falsified, 4 synthetic cases, `tools/lm_rescore.py`):
+qwen2.5 0.5b/1.5b via localhost ollama, temp 0, repair-mode with a
+verify-then-accept gate (same length + per-char toneless-base match).
+Zero top-1 flips: 2 verbatim echoes, 1 near-miss pick (答對 for 打對,
+defensibly fluent), 2 hallucinations correctly gated to fallback
+(海 for 測, 汝 for 你). Warmed latency 0.6–2.7 s per sentence — usable
+only behind the async deadline seam, never inline. Lesson: the offline
+decoder's job is recall (truth in top-N, now top-8), and any generative
+adapter ships only with the verification gate. Next lever with proven
+ROI is a visible candidate window over the existing top-8.
+
+Finding (scoring rerank falsified for qwen2.5 ≤1.5b instruct,
+`tools/lm_rerank.py`, llama.cpp server + local GGUF, char-trie edge
+scoring): bare-prefix scoring flipped 打對 but was methodologically
+unsound (instruct model without template puts mass on 答案/Engl-style
+continuations; targets routinely miss top-200). Chat-template scoring
+is clean and fast (4–6 requests, 60–840 ms) but flips nothing —
+0.5b and 1.5b agree, controls hold. Verdict: instruct-tuned ≤1.5b
+models cannot rank single-character continuations reliably; rerank
+needs base (non-instruct) weights or bigger iron. The seam, protocol,
+and fixtures stay — the model choice (M4 open question) is still open.
+
+Finding (corpus bigram falsified decisively, 6.8M-dialogue LCCC/MIT
+counts via `tools/corpus_bigram.py`, same uniform mechanism as the
+wordlist run): the table loads (2.2M pairs) and the mechanism runs,
+but full sentences degenerate into common-char soup
+(A-case: 策是一下回不回答對 repairs=3; long: 好哦先在看看回不回…),
+because per-char bigram variance (±several points × 26 syllables)
+steamrolls word scores, tone exactness, and repair penalties alike.
+Pair margins confirm it: 不打/不大 11784/10663 (Δlog 0.1, needs β>12
+against word Δ1.18 — no sane weight works), 以辨/以便 17/308 and
+識成/是成 0/4009 (adversarial both sides), 功嗎/功麼 unattested.
+QingJian ships this shape successfully — likely because pinyin input
+has no tones, so bigram carries load that tones already carry for us,
+and because of careful interpolation we did not build. Lesson: for
+tonal Zhuyin fuzzy input, n-gram context is the wrong lever; the
+residual ties (不大/便是/麼/大隊) need user signals — phrase learning
+(explicit opt-in) or the visible window — not a bigger count table.
+Reverted fully (scores byte-identical to pre-experiment); the script
+and counts stay under ~/.cache as the negative-result record.
+
+Finding (trigram rerank falsified, same protocol via `tools/tri_rerank.py`,
+18M distinct trigrams from the same LCCC run): 0 flips, active damage —
+打對 falls to 測試以下會不會大對, 辨識 to the 哦-variant. Mechanism:
+only 2 of 17 needed trigrams are attested (formal phrasing absent from
+casual dialogue), so floors decide and the colloquial bias (哦, 以下)
+wins ties; controls hold only via the acoustic tiebreak. The count
+family is dead for this job (wordlist-bigram adversarial, corpus-bigram
+steamrolls, trigram sparse-and-colloquial). Remaining honest levers:
+user phrase learning (deterministic, local-only, now default-on) and the visible
+window (shipped); neural rerank needs base weights or bigger iron.
+
+Finding (choice rerank falsified, `tools/lm_choose.py`, localhost ollama,
+temp 0, strict index-parse with abstain-to-offline): repair asked for
+generation and scoring asked for calibration — choice asks only
+discrimination (pick one number from the offline top-8, hallucinations
+unrepresentable). Still dead. 1.5b: 0 flips (dada truth #8 打對 sits in
+the list, model picks #6 答對), 1 WORSE — the lone clean control 你好
+gets replaced by ㄋㄧˇ好, junk containing raw Bopomofo: the model cannot
+even recognize well-formed Chinese. 0.5b: 0 flips, 3 WORSE (你好→擬好,
+大對→大堆), always-vote-#3 position bias, 0 abstentions across both
+models (they always vote, even wrongly). yue (truth outside top-16) stays
+junk→junk as designed. Warmed latency 73–485 ms (1.5b; first call 5.4 s
+cold) — faster than repair-mode, moot on quality. Verdict: instruct-tuned
+≤1.5b is now 0-for-3 framings (generation, scoring, choice); neural rerank
+still needs base weights or bigger iron. Side calibration: nihao-wrongtone
+resolves to 泥好 (CER 0.5) on the real 112k lexicon — the old "wrong tone
+recovers to 你" finding was fixture-lexicon-backed and does not transfer;
+future controls must be cut against the real table.
+
+Decision 2026-10-09: Jev was removed from the product (IME, core and
+settings; maintainer decision during the Zig port). The findings below stay
+as the research record; the `tools/lm_choose.py` harness remains a
+tools-only experiment.
+
+Finding (Jev choice, `tools/lm_choose.py --backend jev` + `tools/jev_choice.cjs`,
+Vercel AI Gateway `typesafe-ai/jev`, 5 cases x 3 reps): architecturally the
+cleanest fit yet — typed Choice over the top-8 (no text, no parse), native
+probabilities, 307–585 ms in-model, ~8.6k input tokens total (~$0.0004).
+Behaviorally: safe but useless. 0 flips, 0 WORSE, 0 abstains, bit-identical
+picks across reps. Controls hold at sane confidences (你好 1.0 x3,
+junk-vs-junk ~0.5). But dada repeats the qwen miss almost exactly — #6 答對
+at 0.97 x3 with truth #8 打對 sitting in the list. A 0.97 on the wrong
+answer is a calibration data point against RLCD claims outside their
+workflow distribution (n=1 case, not a calibration study — stated as such).
+Confidence-threshold abstain changes nothing on this set (all picks >= 0.5,
+nothing WORSE to save). Verdict: Jev passes the safety bar qwen failed
+(never regresses, deterministic) but fails the flip bar all the same;
+the 答對/打對 class needs a user signal (learning/window), not a better
+voter. Toolchain note: Gateway evaluation is AI-SDK-only (no REST), so the
+backend is Python-orchestrated + thin node helper with a self-bootstrapping
+`ai` package (never vendored); ESM import ignores NODE_PATH, hence `.cjs`.
+
+Follow-up (flow design falsified too, `--jev-mode noul`): TypeSafe's own
+guidance says to decompose into parallel atomic questions combined in code,
+so the same 5 cases ran as 8 parallel boolean Nouls per request with code
+argmax. Identical picks to single-Choice on all decidable cases (long #1,
+dada #6 答對 at 0.86–0.88 with truth #8 at 0.16–0.18, wrongtone #1, toned
+#1 at 0.89–0.90); only pure-junk yue wobbles (#1 vs #6, max ~0.3 — honest
+low-confidence disagreement, same CER). Mechanism is not the blocker: two
+flows agree, both confidently wrong on dada. One constructive signal: Noul
+max-prob reads as a usable uncertainty meter (0.9 clean / ~0.5 mid / ~0.3
+junk), better behaved than Choice's 0.97-on-wrong — if Jev ever assists,
+Noul-argmax with a threshold is the right shape. Standing verdict across 2
+models x 4 framings (generation, scoring, choice, decomposed-noul): the
+答對/打對 class needs a user signal, not a better voter.
+
+Finding (ChiaKey word bigram, 2026-09-27, `tools/bigram_eval.py` +
+`tools/chiakey_export.py`, 40 dev + 40 holdout synthetic sentences from
+`cursor_replay`, toned + toneless; baseline top-1 dev 56/80, holdout
+55/80). Hypothesis: a word-level, Taiwan-corpus homophone bigram (ChiaKey
+Lexicon 2026.09.3, previous-word -> current-word bonus) can replace Jev
+for tie breaking where the char-level LCCC bigram failed. Results:
+(a) ChiaKey's bigram table over our lexicon: clean/ODbL 0 flips at any
+weight; full (CC BY-NC) at weight 3 +3/-0 (上線 after 還沒, 已經寄出).
+Safe but nearly inert — rows exist only where they change a pick under
+*ChiaKey's own* unigram, and most of our misses are single-char ties
+(帶/代, 再/在, 做/作, 吃/持, 得/的) that their unigram already decides, so
+no row covers them. (b) ChiaKey unigram replacing ours: +21/-21, net 0
+(scale 1/3/6 all alike); with its bigram +25/-22. It fixes exactly those
+function-word ties but breaks 他→她, 你→妳, 那→哪, 在→債/再, 時間→事件,
+and the damage concentrates in toneless input (+13/-15 vs toned +8/-6):
+KeyKey scores rank words *within* a reading, so they are not comparable
+across tones, which toneless decoding needs. Decode ~2x slower (27 → 55
+ms mean, bigger table). Verdict: no drop-in replacement for Jev; the
+lever that transfers is the *data*, not the table — a per-reading
+function-word tie fix on our unigram (the 帶/再/吃/得 class) and a
+bigram layer calibrated against our own unigram with our own held-out
+fix/steal gate. `ContextBigrams` stays as a nil-by-default seam
+(`MISSTYPE_BIGRAM`/`MISSTYPE_LEXICON` dev-only env hooks, byte-identical
+decode when unset); ChiaKey data stays in `~/.cache`, never committed
+(full table is CC BY-NC; clean is ODbL, share-alike on derived DBs).
+
+Follow-up (within-reading reorder, `chiakey_export.py --reorder`): keep
+our lexicon and scores, only permute score values inside one exact
+reading into ChiaKey's order, so cross-reading (toneless) comparisons
+keep our scale. Single-syllable readings only: +6/-1 (dev +4/-1, holdout
++2/-0; 帶, 做, 門 fixed; 喝→呵 broken, ChiaKey margin 0.03). All readings:
++7/-3 — multi-syllable reorder adds 你的→妳的 and 會不會→會部會, so
+it is worse. Adding the full bigram at weight 3 on top: +10/-3. The
+single-syllable reorder flips top-1 on 276 of 1309 readings, and the
+battery covers only a handful, so the flips need human review before
+shipping. ChiaKey's margins are near ties (帶/代 0.01), so no margin gate
+separates good flips from bad. Still open: accept or reject each flip,
+and the license terms for shipping a derived order.
+
+Shipped (curated order, `Resources/reading_order.tsv`): 276 flips
+hand-reviewed for "which char is typed alone in Taiwan everyday
+writing". 95 accepted (帶, 做, 門, 聊, 店, 記, 見, 住, 常, 話, 還, 睡, 認,
+嗯, 嘛, 的 ㄉㄧˊ …), about 40 rejected (呵 over 喝, 宜 over 一, 甚 over 蛇,
+中 over 重, 維 over 為, 各 over 個, 加 over 家, 劉 over 流 …), the rest
+left alone as near ties or rare chars. `prepare_lexicon.py` swaps only
+the reviewed pair's scores and fails on stale rows. Battery: +6/-0 (dev
+56→60, holdout 55→57, i.e. 111→117/160), offline, decode latency
+unchanged (dada ~50 ms, 26-syllable ~90 ms). The rows are our own
+decisions (no ChiaKey scores copied); ChiaKey was only the source of
+candidates. Toneless cross-reading misses (吃→持, 再→在) stay open;
+they need context, not per-reading order.
+
+Finding (toneless cross-tone order, NAER 通用詞頻表, 2026-09-27). After
+the curated order, 38 of 43 battery misses have no ChiaKey bigram row
+(so it is a data gap, not a trigger problem). Most are toneless
+cross-tone picks (吃→持, 請→情, 貴→規, 嗎→馬, 找→照): McBopomofo's char
+counts include bound morphemes (持 via 支持, 情 via 事情), so formal
+chars beat standalone ones. NAER's word-frequency table counts segmented
+tokens, so a single char's value is its standalone use (吃 931 vs 持 48
+per million; CC BY 4.0). Falsified first: interpolating it into
+unigrams. At 0.5 the gain nets ~0; single chars only at 0.9 gives +7/-4
+(記得→及的, 吃辣→吃那: standalone chars outgrow words and the 5.0 repair
+cost); all words at 0.9–0.99 also brings 週→周 variants. Scale changes
+leak everywhere. Also falsified: a lexicon-wide slot permutation within a
+toneless base. On a fresh set (400 Common Voice zh-TW sentences, CC0,
+unrelated to tuning, 800 cases) it scored +32/-17, but toned was +15/-16
+churn, because it rewrote each char's own-reading score. Shipped:
+the same permutation as a *toneless-only* override (`toneless.tsv`, 4,616
+chars). It is read only for a one-syllable span typed without a tone, so
+toned input is untouched by construction. Common Voice: 459→475/800,
++17/-1 (toned 0/0). Battery: 117→122/160, +6/-1. Both breaks are word
+vs char segmentation (這件事|請, 刷|處) that the old order hid by
+accident. Offline; latency unchanged (dada 51 vs 52 ms, 26-syllable 93
+vs 95 ms, sequential). `tools/bigram_eval.py --set cv` is the new
+held-out gate (sentences stay in `~/.cache`).
+
+Finding (word vs char segmentation, per-word cost, 2026-09-27). Of 325
+Common Voice misses, 179 are segmentation errors, mostly a dictionary
+word losing to a split into common chars (面試→面是, 各式→個是,
+進程→近成, 成見→成件). Scores explain it: relative to NAER's token
+counts, McBopomofo single chars are about 1.26 too high and words about 0.48
+too low (medians over 5.6k chars and 63k words). So each extra token is
+over-rewarded by about 1.7 (面試 -11.9 vs 面+是 -11.1; NAER -11.3 vs -13.1).
+Fix: the classic word insertion penalty, a constant cost per dictionary
+word on a path (`LexiconDecoder.wordPenalty`; `LexiconLoader` sets 0.5;
+core default 0 keeps fixtures identical). Sweep on Common Voice (800):
+0.5 +18/-3, 1.0 +25/-11, 1.5 +33/-15, 2 +33/-17, 3 +37/-22. Larger
+values fix more words but merge toneless coincidences faster (想吃→相持,
+在找→在朝, 弟弟→低低: under toneless input any tone forms a word).
+Synthetic battery at 0.5: +1/-2. Shipped 0.5, net +14 over 960 cases,
+latency unchanged. Deliberately not tuned further (e.g. a separate
+toneless value): both sets are too small to tune on without overfitting.
+Remaining: words that need >= 1.0 (面試), and context-bound picks
+(再/在, 得/的, 打對).
+
+Finding (homophone word-bigram rerank, 2026-10-12, `tools/homophone_bigram.py`,
+experiment only, not wired into the core). Trigger: 一串字 decoded as 一串自
+(-62.3 vs -63.8; lexicon unigram 自 -6.2, 字 -7.7). Earlier count families
+failed on char-level counts across word boundaries (各自|的 counted as 自|的)
+and on floors for unseen pairs. This run: HPLT zho_Hant (CC0 dataset; local
+cache only), words from our own lexicon DP, only pairs whose second word has
+a homophone, a pair speaks only at >= 3 sightings (unseen = 0), bonus is a
+capped, add-m smoothed PMI, and only candidates in the top-1's homophone class
+(same length, differing chars share a reading) are reordered; raw decoder
+scores otherwise untouched. Held-out: Common Voice zh-TW (CC0), 400
+sentences x toned/toneless, sentences found verbatim in the counted shards
+dropped. 1 shard (193M chars, 1.7M pairs, 23 MB tsv): 497 base, w=0.25
++22/-5, w=0.5 +33/-10, w=1 +39/-34. 4 shards (66 MB tsv): 459 base,
+smooth 3: w=0.5 +35/-7, w=0.75 +40/-12, w=1 +44/-17. dev+holdout synthetic
+(160 cases): w=0.5 +3/-0 including 一串字 and 再打/再聊; w>=1 breaks 他→她,
+去→娶 (corpus topic prior overriding the curated unigram). Verdict: unlike the
+char and ChiaKey tables this is a real net gain at a small weight (about
++3.5 pp top-1 on Common Voice), but the damage grows fast with weight and the
+table is far too big to ship (tens of MB). Open: calibrate per pair against
+our unigram (not corpus frequency), prune to a few MB, check toned/toneless
+split, port to the Zig core behind a nil-by-default seam and run the wasm
+size budget. Licence of a table derived from HPLT web text is undecided.
+
+Follow-up (shipped as an optional seam, 2026-10-12, `core-zig/src/homophone.zig`).
+The Python rerank above re-segmented candidates itself and compared any
+two words. The core version is stricter: a candidate is in the top-1's
+class only when its alignment has the same syllable spans and every word
+comes from the same trie node (same reading), and only then gains
+`weight * (bonus - top bonus)`; nothing else moves, so no repair or
+segmentation is overridden. Table: sorted 8-byte entries (40-bit FNV-1a key,
+i8 value in 0.25 nat), binary-searched in place, 8 bytes/pair, the top K by
+sqrt(count)*|capped add-3 PMI|. Native gate (`eval --native`, 4 HPLT shards,
+Common Voice zh-TW 400 sentences x toned/toneless + 160 synthetic cases,
+960 cases, baseline top-1 610): 100k pairs (0.8 MB) +9/-0; 200k (1.6 MB)
++17/-0 at weight 0.75, +19/-0 at 1.0, +19/-1 at 1.5, +19/-3 at 2.0, +19/-5
+at 3.0 (breaks: 與→語, 的→地, 零→齡); 400k (3.2 MB) +12/-0 at 0.5 and
++13/-0 at 0.75 on a 560-case subset; 1.2M (9.6 MB) +14/-0; all 3M (24 MB)
++14/-0. 200k at weight 1.0 is the knee and the default weight. Latency
+(60 toned sentences, 200k table): 7.15 -> 7.18 ms mean decode, max
+unchanged; resident +1.5 MB. Without `homophone.bin` decode is byte
+identical (replay and parity gates MATCH). Not wired into any adapter's
+packaging yet; the table is not committed (derived from HPLT web text,
+licence undecided).
+
+Finding (toneless cross-tone class, 2026-10-14, `tools/typing_eval.py`).
+Trigger: with no tones typed, a typo-free typist needed 5.8 picks per 100
+characters against 1.5 with tones, and most misses were a word of another
+tone outscoring the right one on unigram alone (喝→何, 杯→被, 寫→些,
+份→分, 棒→幫). The rerank above never saw them: its class requires the
+same trie node, i.e. the same toned reading. Hypothesis: over syllables
+typed without a tone, words that differ only by tone (another node, no
+extra repair or unresolved syllable) can join the top-1's class with their
+own weight, without touching toned input. Falsified if the typo-free toned
+control moves, or holdout does not improve. Dev sweep
+(`MISSTYPE_TONELESS_HOMOPHONE_WEIGHT`, 200k table, picks per case vs weight
+0): w=0.5 68 fewer / 5 more, w=1 79/5, w=2 80/20, w=3 81/74, w=4 76/182;
+clean-toneless no-pick 70.3 -> 74.5 %, picks/100 chars 5.52 -> 4.83 at
+w=1. Holdout at w=1: 41 fewer / 9 more (all 9 one sentence, 吃過→遲過),
+clean-toneless and toneless +2.7 pp, toned personas unchanged. Common
+Voice zh-TW (400 sentences, independent of both): toned +0/-0, toneless
++21/-4 (屍體, 事件, 蠻, 理智), picks/100 chars 10.38 -> 9.44. Shipped as
+`toneless_homophone_weight = 1.0` in the Lexicon. Golden gates MATCH (they
+decode without homophone.bin). Limit: the table only counts pairs whose
+second word has a same-reading homophone, so words confusable only across
+tones (當機/黨籍) have no pairs; a recount over HPLT keyed on toneless
+readings is the next step for this class.
+
+Finding (toneless re-split, 2026-10-14, same tools). Trigger: toneless
+input lets a rare multi-syllable word take the place of two common ones
+(齲齒 for 去吃, 青棒 for 請幫, 黨籍 for 當機): their unigram scores are
+close (齲齒 -14.2 vs 去 -6.4 + 吃 -7.9) and only the typed tone separates
+them. Hypothesis: over toneless syllables, candidates that split them into
+other words (same text length, no extra repair) can join the class, so the
+table's 去|吃 context decides. Expected risk: the table only holds pairs
+whose second word has a same-reading homophone, which single characters
+almost always have and many words lack, so the class is biased toward
+splitting. Dev sweep (`MISSTYPE_TONELESS_SEGMENT_WEIGHT`, on top of the
+cross-tone class): w=0.25 14 fewer / 7 more, w=0.5 23/20, w=1 43/56, w=2
+53/212 (the bias). Holdout at 0.25: 35 fewer / 0 more, clean-toneless +2.7
+pp; Common Voice toneless +6/-1 (享有→想有), toned +0/-0. Shipped as
+`toneless_segment_weight = 0.25`. Both toneless classes together vs the
+2026-10-14 typing baseline: clean-toneless no-pick 66.0 -> 71.4 %, picks
+per 100 chars 5.83 -> 4.98; toned personas unchanged.
+
+Finding (toneless-built table, 2026-10-14). Trigger: after the two toneless
+classes, most remaining clean-toneless misses were pairs the table never
+counted: `build` kept a pair only if its second word shared a *toned*
+reading with another word, so words confusable only across tones (當機/黨籍,
+幾點/祭典) had none. Rebuilt locally from the same four pinned HPLT shards
+with `build --ambiguity toneless` (second word ambiguous once tones are
+dropped; a superset). Exporting that pairs file with `--ambiguity reading
+--top-pairs 200000` reproduces the shipped table bit for bit, so the
+pipeline is faithful. Toneless exports vs the shipped table (typing_eval
+picks per case; Common Voice 400 sentences): 200k dev 44/0 but holdout
+30/49 (it keeps only 71.8 % of the old pairs: 再/在, 燈/等, 看劇 lost); 300k
+dev 43/9, holdout 30/0, CV toned +1/-0, toneless +3/-1; 400k dev 63/14,
+holdout 35/10, CV toned +1/-2. The 300k table is exactly the old 200k pairs
+plus 100k cross-tone ones, so it is the smallest export that loses no old
+coverage: shipped (2.4 MB, +0.8 MB). With it the re-split class takes more
+weight (multi-character words now have pairs, less split bias): dev 0.4
+29/0, 0.5 33/13, 0.8 52/20; holdout at 0.4 8/3, CV toneless +4/-0, toned
++0/-0. Shipped 0.4. Per-key latency with 400k pairs is p95 4.7 ms; the
+86 ms seen earlier was CPU contention, not table size. Against the #87
+baseline, all three steps: clean-toneless no-pick 66.0 -> 73.5 %, picks per
+100 chars 5.83 -> 4.38 (-25 %); clean (toned) 89.8 -> 90.5 %, 1.53 -> 1.38.
+
+Finding (learned picks and syllable splits, 2026-10-14, `typing_eval.py
+--learning`). Measure: one engine per persona types dev, dev again and then
+holdout with learning carried, each pass against the same keys on a fresh
+engine. Toned input remembers perfectly (clean repeat 1.28 -> 0.00 picks per
+100 chars, 13 fewer / 0 more). Toneless input remembered most (clean-toneless
+4.04 -> 0.39) but learning broke sentences it had right: after 他是一直貓 was
+fixed by picking 它是 (key ㄊㄚㄕ, toneless and boundary-free), 他說要買新手機
+became 它是我要買新手機, because the +6 learned bonus made the ㄊㄚ ㄕ ㄨㄛ split
+beat ㄊㄚ ㄕㄨㄛ. The pick taught a word, not how to split the keys.
+Hypothesis: learned (context-free) word bonuses may reorder candidates of
+the split that wins without them, but must not choose the split. Change:
+candidates carry their learned bonus; after merging the splits of a pending
+run, candidates from another split than the best unlearned one lose it
+(`learning_keeps_syllables`, `MISSTYPE_LEARN_ACROSS_SPLITS=1` restores the
+old behaviour). Result: clean-toneless repeat 0.39 -> 0.20 with 32 fewer /
+0 more (was 2 more), first pass 0 more (was 1), transfer 6/3 (was 7/4);
+toneless and partial-tones repeat 1 more -> 0; clean unchanged; no change
+without learned picks (typing baseline 0/0, golden gates MATCH, replay
+MATCH). Open: a learned short word can still split a longer word elsewhere
+(learned 程式 makes 工程師 into 供程式). Tried and not shipped: let a learned
+word move word boundaries only where learned words cover the whole
+unlearned word they disagree with (出國|旅行 over 處|過濾|性 yes, 程式 over
+工程師 no). Transfer over the four personas went from 15 fewer / 10 more to
+11 fewer / 6 more: the same net, a new toned regression (部分→部份), so no
+gain. Counting context-rule bonuses in the split rule as well cost repeat
+memory (partial-tones 19 -> 18 fewer), so only context-free words are
+counted.
+
+Finding (word-backed split of a valid tone run, 2026-10-14,
+`typing_eval.py`, working tree based on `4d5c1fd`). Added the missing
+`clean-partial-tones` control: no key/tone errors, independently seeded 50 %
+tone omission, alongside the existing noisy partial-tone persona. Its dev
+keys `w8rupsu0-4gj3njo` and `g-m,-4gj3b4` ended as 他今年二屬歲 and
+十二月二數日, unreachable by selection. `gj3` is already a valid ㄕㄨˇ,
+so `repairComplete` never offered ㄕ + ㄨˇ. Hypothesis: keep the atomic
+reading and also offer a dictionary-backed split, retaining the tone on the
+tail. No frequency or repair-weight changes. Tried and rejected: splitting
+all valid runs (one noisy dev sentence became uncorrectable), then all
+apical-initial runs (clean dev p95 rose from 0.43 to 1.99 ms). Kept only an
+apical initial plus the remaining keys when a two-syllable dictionary word
+supports them with no key/tone repair (`split_valid_tone_runs`, dev-only
+`MISSTYPE_NO_TONE_RUN_SPLITS=1` disables it for A/B).
+
+Same keys before/after, ReleaseFast, sequential `--jobs 1`, 346 independent
+synthetic sentences expanded into 7,200 cases (2 seeds, 8 personas, three
+mixed-English methods): 2 fewer-pick cases / 0 more, both formerly
+unreachable number sentences now correct without selection. Dev: 3,616
+cases, 2/0; holdout: 3,584, 0/0 (confirmation, not a generalization gain).
+Chinese clean-partial no-pick 81.8 -> 82.1 %, unreachable 0.9 -> 0.5 %;
+dev alone 82.8 -> 83.4 %, unreachable 0.7 -> 0 %. Fully toned and toneless
+control accuracy/picks unchanged. Per-key p95: clean 0.39 -> 0.50 ms,
+clean-toneless 3.28 -> 3.22, clean-partial 3.18 -> 3.23, noisy partial
+3.25 -> 3.23; small overhead on clean toned input, maxima remain noisy.
+Offline candidate example: 二屬 -16.100515 -> 二十五 -11.493356,
+zero repairs/unresolved; the atomic candidate survives at the same score.
+
+Checks: Zig unit/behavior suites, Linux Debug/ReleaseFast + C ABI + fcitx5
+and IBus C1-C15, wasm and Python checks. Exact golden gate unchanged;
+parity reviewed 14 lower-ranked records (top-1/top-5 quality unchanged).
+Four replay goldens reviewed: 30/30/34/32 candidate lists changed, plus
+two candidate-count fields for 400/487; first candidates, preedit text,
+commits and raw evidence unchanged. The macOS replay shell wrapper lost
+DYLD_LIBRARY_PATH through its timer script; ran the same native replay
+driver directly with the library path and compared all four transcripts.
+Fixture: `tests/fixtures/partial-tone-number.md`. Baseline refreshed with
+the new control. Limit: character-only splits and non-apical valid runs
+remain unexpanded; this fixes a narrow recall gap, not most homophone ties.
+The new control also exposes existing learning damage, including
+吃過 -> 出國 on the first pass; independent real typing is still unmeasured.
+
+Finding (grouped offline calibration, 2026-10-14, `tools/calibrate_decoder.py`,
+experiment only, product defaults unchanged). Fixed nine profiles before
+evaluation: word penalty 0.25/0.5/0.75, all three context weights multiplied
+together by 0.75/1/1.25. Chinese dev only, 145 sentences x 8 personas x
+2 seeds, 2,320 cases; all variants of a sentence in one of five SHA-256
+folds. Select on the other four folds, guarding every persona's coverage
+and every clean control's top-1, then evaluate the excluded sentences.
+All folds chose word penalty 0.75 with unchanged context weights: 18 fewer
+pick cases / 0 more, picks 386 -> 356, unreachable unchanged at 259.
+Clean p95 0.51 -> 0.53 ms; clean-toneless 3.46 -> 3.47; clean-partial
+3.40 -> 3.53; noisy partial 3.76 -> 3.81 (offline, ReleaseFast, serial).
+
+Freeze that choice and check existing holdout (regression set, already seen
+in previous experiments, not a new blind test): 3,584 cases including mixed
+English, 55 fewer / 19 more. Clean-toneless no-pick 69.8 -> 68.5 % and picks
+4.73 -> 4.93/100 chars; two mixed-English cases newly uncorrectable.
+Rejected the parameter change; retained word penalty 0.5. No second choice
+was made against holdout. Fixture `tests/fixtures/word-penalty-calibration.md`
+records 我先去洗澡 -> 我先取消. A language-weight change can also open the
+repair track when the initial top ceases to be clean, so score calibration
+and hypothesis search are coupled; that gate's causal contribution remains
+to be ablated. The tools retain binary/data/generator hashes and local
+per-case results; no personal files or network services used. Two protocol
+tests cover sentence leakage, coverage/control guards and default tie breaks;
+the Python suite now has 94 passing tests. Next: an independently reserved
+test set, then a smoothed/backoff word model with calibrated phonetic costs;
+do not keep optimizing weights against these already familiar sentences.
+
+Finding (repair-search gate ablation, 2026-10-14). The previous weight
+experiment suggested that a scoring change also opened new search. Added
+`repair_requires_no_clean` (disabled by default, developer-only
+`MISSTYPE_REPAIR_REQUIRES_NO_CLEAN=1`): require no complete zero-repair
+candidate in the initial beam before expanding extra repair segmentations.
+At fixed word penalty 0.75, 我先取消 disappears; 我想去洗澡 remains first
+(-33.989695) and the exact 我先去洗澡 second (-34.000084). An eight-entry
+unit fixture reproduces the contribution of search independently of the
+remaining ranking failure; invalid `scl` still gets repaired to 你好.
+
+Paired same-order dev batches at unchanged product penalty 0.5 (3,616
+cases, 2 seeds, all eight personas and mixed methods): fewer/more picks
+0/0, correction keys and coverage unchanged. Chinese CER 8.07 -> 8.08 %,
+preview churn 1,772 -> 1,792. Per-key p95 clean 0.53 -> 0.53 ms,
+clean-toneless 3.50 -> 3.48, clean-partial 3.49 -> 3.46, noisy partial
+3.84 -> 3.83 (offline ReleaseFast; timing noise not a speed claim).
+An initial comparison with the older full baseline showed two extra
+correction keys, but these vanished in the paired comparison and are not
+attributed to the gate. No selection benefit: retain only as a disabled
+developer ablation; product settings and baseline unchanged. Calibration
+clears this shell flag. The beam is still score-pruned, so this does not
+fully decouple evidence search from language ranking.
+
+Before any new word-model evaluation, reserved 200 external Common Voice
+25 zh-TW short sentences in `tools/eval/external_v1.json` (commit `6ec8187`):
+exclude the first 2,000 unique readable source-ID-ordered sentences and all
+known synthetic evaluation text, then fixed salted hash selection. Source,
+lexicon, text and pronunciation hashes pinned; no candidate results read.
+Generated TSV stays local; `tools/reserve_eval.py` regenerates it and refuses
+to change a frozen manifest. This is fresh text for model selection, not
+human typing or HPLT-decontaminated text; dictionary-derived pronunciations
+also need audit. Source/limitations in `docs/offline-evaluation.md`.
+
+Checks: host Zig behavior suites, Linux core/C ABI/fcitx5/IBus conformance,
+wasm, 11 CLI tests, 96 Python tests. Default decoder/parity/all four replay
+goldens MATCH with no updates. Existing sensitive/unrelated traces untouched.
+Next model experiment must be fixed on dev before consuming the reserved
+external test; do not use the new sample to tune the gate.
+
+Pilot (triage, NOT a finding yet, `--jev-mode trust`, n=5, threshold 0.6
+read post-hoc): one boolean on offline top-1 ("候選1是最正確的嗎")
+separates 10/10 — right top-1 trusts 0.82+ (hide-panel), wrong top-1
+0.10–0.52 (show-panel), 293–598 ms, one question per pause. Partially
+right long-toneless lands 0.52, i.e. the meter tracks graded correctness,
+not just binary. If this holds on the wider keynoise battery with a FROZEN
+threshold, the honest Jev job is interruption triage (drive panel
+auto-show), never reranking: a miss-show is status quo, a miss-hide is a
+regression vs today, so the threshold must bias toward showing. Remote use
+stays explicit opt-in per repo policy; nothing wired into the IME yet.
+
+Battery (`tools/lm_trust_battery.py`, frozen 0.6, 4 probes x 6 configs x
+10 seeds = 240, ~$0.005): hits=213, miss_show=0, miss_hide=27 -> DO NOT
+WIRE. trust|correct floor holds beautifully (mean 0.91, min 0.81, n=108 —
+the meter never doubts a right top-1), but trust|wrong reaches 0.96: the
+meter measures fluency, not correctness, so fluent-but-wrong ties (dada
+sub/swap cells) hide the panel exactly where the user needs it most. Dump
+(`--dump-misses`) shows it is worse than subtle ties: trusted top-1s at
+0.60–0.87 include literal Bopomofo fallback (會ㄅˊ會, ㄏㄨㄟㄅˋ無會,
+打ㄨㄉㄟˋ, 測字一蝦) from realistic single-key typos — a trust gate blind
+to visible garbage is unusable, not just unhelpful. Same
+root cause as every prior falsification, one level up. No threshold rescue
+claimed here (tuning on this battery would be overfitting; a new threshold
+needs fresh seeds). Standing order: triage stays an offline meter until a
+replacement signal separates fluent-wrong from fluent-right.
+
+Follow-up (evidence-aware harness, 5 cases x 3 reps, `tools/lm_choose.py`):
+the original Jev call accidentally passed an empty evidence string, so the
+model only saw candidate text. The harness now sends the raw key stream,
+pinned-dictionary Zhuyin readings with attached tones, offline rank/score and
+repair metadata, plus optional explicitly supplied context or matching local
+phrase-learning entries; it also reports candidate recall separately. On the
+corrected top-8 run, recall was 2/5 and
+all 15 Jev picks stayed at offline top-1 (0 flips, 0 worsens). This confirms
+the missing-evidence bug was real, but adding evidence alone does not resolve
+the remaining fluent homophone ties or candidates absent from the beam.
+
+Prompt sweep (`tools/jev_prompt_sweep.py`, 3 variants x 3 reps on 3 synthetic
+cases): structured, hard-constraint, and contrastive instructions were all
+stable and identical on the contextual holdout — the rank-8 `打對` tie stayed
+at rank 1 despite context describing an input-method test. A synthetic
+learned preference for the full `打對` phrase moved all 9 trials to rank 8
+under every variant, with no regressions. Prompt wording is therefore not the
+useful lever; an explicit user signal is.
+
+Rich-context follow-up (4 variants x 3 reps on 4 synthetic cases): the state
+also included per-character phonetic alignment, changed positions, and the
+decoder contract. This added metadata did not move the generic contextual
+holdout: all 12 calls stayed at rank 1. A second holdout with explicit
+action-versus-size intent moved the rank-8 `打對` candidate once under the
+structured prompt; two structured calls completed (one moved to rank 8 and one
+stayed at rank 1), while the third hit the fixed timeout and abstained. The
+hard-constraint, contrastive, and rich-audit arms stayed at rank 1. The learned
+preference still moved all 12 of its calls to
+rank 8. Across 48 calls there were 0 WORSE results; gateway calls generally
+completed in roughly 0.3–0.5 s, with one fixed 120 s timeout. More JSON is not
+the fix: useful semantic context can help, but the signal must explicitly
+describe the intended sense and the conservative prompt can suppress it.
+
+Local Jev replacements (2026-09-27, `--backend jev-local`, 12 synthetic cases
+x 1 rep, M3 24 GB, loopback only): the same Choice job (`jev_choice_job`, the
+state and criteria sent to hosted Jev) was POSTed to open-weight
+Jev-compatible servers. Hypothesis: a local model keeps hosted Jev's
+0-WORSE safety within an IME-sized deadline, so there is no request to pay
+for. Falsified on both. Laya `laya-multilingual` (322M encoder, MPS): 0
+flips, 6 WORSE (including the `不大` control -> `布大`), confidences mostly
+0.3–0.5, 120–600 ms warm. jev-local with Qwen2.5-3B-Instruct HF logprob
+scorer: 2 flips (辨識, 做作業), 4 WORSE (大對 -> 大堆 x3, 大錢包 -> 大前包),
+11–80 s per request (one forward pass per option, no KV reuse). For
+reference, the WIP candidate-only `ollama-logprobs` qwen2.5:1.5b arm gave 1
+flip / 6 WORSE / 1 abstain at ~0.1 s (it does not see phonetic evidence, so
+it is not an apples-to-apples comparison). Hosted Jev stays the only
+voter that never regressed. Nothing is wired into the IME; the local path
+remains a tools-only experiment. Setup notes: jev-local defaults to a
+deterministic stub scorer (`JEVLOCAL_SCORER=hf` is required), its `[hf]`
+extra omits `accelerate`, and both servers bind `0.0.0.0` by default, so
+run them with a loopback host.
+
+## M5 — macOS Input Method adapter: learning and candidate window
+
+User phrase learning v1 has landed (default on, opt-out in Preferences;
+local only; superseded 2026-09-27 by word-level + context learning, store
+v2 — see M5 item 9): an
+explicitly picked candidate committed on a single pure-Zhuyin run is
+recorded locally and boosted next time (+6 / +1 per repeat / cap +10).
+Falsified with `--decode --user-lexicon`: one 妳好 record flips top-1
+(#4 → #1, 9 syllables, decode stays <1 ms, offline source). v1 limits:
+pure runs only (mixed/latin/space-separated spans skip), commits with a
+pending tail skip, segment-lock heads never train, 500-entry LRU cap.
+Measure with: `MisstypeIME --decode "<keys>" --user-lexicon <path>`.
+
+### M5 roadmap — candidate window v1 landed, refinements queued
+
+v1 shipped: single-row `IMKCandidates` panel auto-shows on >1 candidate;
+Tab/Up/Down step, Return commits, click selects, Escape hides. Thesis
+holds — the panel stays out of the way when top-1 is right.
+
+Queued from typing feedback (falsify each with a manual check, keep the
+window out of the critical path):
+
+1. Panel direction + sync (resolved with a custom window): `IMKCandidates`
+   proved undrivable — `selectCandidateWithIdentifier:` returns YES and
+   moves nothing, synthesized stepping events only beep (both verified in
+   the file trace). Replaced by an owned borderless `CandidatesPanel`
+   (vertical list, caret-following, click-to-pick); highlight is single
+   source of truth by construction. Remaining polish: single-column vs
+   current rows styling, Spotlight-level edge cases.
+2. Digit selection (landed, superseded by item 3 below): Shift+2..8 selects without committing (same as
+   click/Tab; typing on commits via the sticky pick), active only while the
+   window is up so digits stay phonetic otherwise. Shift+1 stays ！ —
+   candidate #1 needs no shortcut.
+3. Letter-row selection (landed 2026-09-27, manual check pending): the
+   window still auto-shows while typing, but its key labels are dim and the
+   selection keys (Preferences, default `asdfghjk` — one page of 8) pick
+   only in selection mode: after Down/Up/Tab, or in the syllable cursor's
+   list. Picking, Esc, or typing any other key leaves the mode; the first
+   Esc keeps the text. Shift+digit no longer picks: the Shift row is the
+   full-width layer ＠＃＄％︿＆＊（）＋｛｝～ (大千 convention). Original
+   design note: switch to `asdfghjkl;`
+   selection keys, user-configurable string like McBopomofo's
+   `candidateKeys` preference. Conflict analysis: those keys ARE Zhuyin
+   initials, so modeless auto-show + letter-select cannot coexist — pair
+   this with a Tab-first-show invocation model: the window appears only on
+   explicit Tab, and only then do letter keys select; Esc or typing outside
+   the key set resumes composing. This retires Shift+digit entirely
+   (digits return fully to phonetic/punct) and ends the last Shift
+   conflict. Falsify with: Tab → `a` picks #1 without committing; `m`
+   with window closed still types ㄇ.
+   Page turning needs candidates beyond the visible 8: widen the beam only
+   after measuring that missing truths (不打/嗎) rank within reach —
+   otherwise paging just flips through junk.
+   Update (measured, landed): width-16 keeps 不打 #14, 嗎 #9, 打對 #8 at
+   ~50 ms for 26 syllables, so the beam widened to 16 and the panel shows
+   a window of 8 around the selection — Tab/arrows/digits walk the full
+    list, footer shows `n / m`. Update (landed): Left/Right never page (they
+    move the syllable cursor); PageUp/PageDown, and `-`/`=` while in
+    selection mode, flip a page keeping the row (clamped, wrapping at the
+    ends). Manual check pending: Fn+↑/↓ on laptop keyboards.
+    Panel frame hugs content (rows or preedit header, 300pt cap) with x
+    sticky per visible session and y bottom-anchored to the caret line —
+    resizes ease instead of snapping; height fits shown rows (plus the
+    preedit header) with a page-footer reserve. Direction is fixed above the
+    caret (never covers typed text), flipping below only when clipped.
+    Junk below #12 (策是/測是…) is the documented price; truths deeper
+    than 16 stay out of reach by design.
+    Update (measured, landed): per-reading entries 3 → full trie (daily
+    chars buried by frequency become reachable — 鍵 sat at #22 under
+    ㄐㄧㄢˋ, invisible to paging and learning alike). Decode walks 4 per
+    node on multi-syllable spans (+20% latency: dada 32→39 ms, 26-syl
+    71→86 ms; full walk measured 3x, rejected) and the full node on
+    single-syllable spans (~0.3 ms, no lattice to explode), so ㄐㄧㄢˋ pages
+    間建見件健漸監鍵… instead of repair junk; 12-point top-1 battery
+    byte-identical. Segment lists: single-span cap 64 (homophone browser),
+    multi-span 16; panel pages up to 64.
+4. English switching: a lone Shift tap mid-composition now opens/closes a latin run
+   instead of committing (2026-09-29; manual check pending). Shift-hold Latin appends inline and Shift+Space
+   toggles exist; collect the exact broken cases (mode indicator? CapsLock?
+   toggle state after commit?) before changing behavior.
+5. Punctuation (v1+v2 landed + pin-continue): CJK table in `Sources/MisstypeCore/Punctuation.swift`
+   (，的那 Shift+`,`/`.`/`/`/`;`/`1`, 「」『』 on quote/bracket keys,
+   、· on `\`, ； on Ctrl+`;`, —— on Shift+`-`). Zhuyin-position keys stay
+   phonetic so syllable-initial ㄝㄡㄥㄤㄦ keep working; separators pin the
+   current pick and continue (commit is Return's job); Cmd shortcuts never
+   hijacked. Follow-up: … needs a conflict-free key (Option layer).
+6. Seamless mixed input (v1 landed): backtick toggles a latin run — letters   append verbatim (`L:`-marked keys, case preserved), spaces stay inside
+   multi-word runs (`` `hello world` ``), punct/Return end the run (digits stay
+   in it since 2026-10-04; see the bug note below), one commit at the end. No Shift toggle, no pause:
+   `` `hello world`su3cl3 `` → `hello world你好`. Guessing is impossible by
+   construction (bare keys stay Zhuyin), so `hello`-as-keys still decodes
+   Chinese — auto-detect with English scoring: measured v1 in `MisstypeCore`
+   (`decodeMixed`, see "Mixed Chinese/English without a switch" below), not
+   yet wired to `InputSession`; digits-inside-latin stays future work.
+7. Preferences (v1 landed): UserDefaults-backed `MisstypePrefs`
+   (fuzzyRepair / toneTolerance / candidateKeys-reserved), read live per
+   keystroke, editable from the input-menu Preferences panel or
+   `defaults write`. Strict tone = explicit tones must match exactly
+   (toneless still decodes); fuzzy off = no edit rescue. Falsify by
+   toggling mid-session: behavior changes on the next key, no relaunch.
+   Jev prefs landed alongside (default off, offline baseline preserved):
+   `jevEnabled` master switch, `jevRichContext` richer-context gate,
+   `jevApiKey` gateway key (or AI_GATEWAY_API_KEY env), `jevModel`.
+   The adapter threads `JevConfig.canAttempt` through every decode entry
+   point with presence-only logging. (Correction 2026-09-27: a debounced
+   remote Choice request DID ship behind that gate and moves the highlight
+   when enabled with a key — the triage verdict covered panel auto-hide,
+   not this path. It waited for a settled run.) Removed 2026-10-09 with
+   Jev: launching the IME deletes the four Jev keys, including any stored
+   gateway key.
+8. Segment lock v1 + Rime alignment targets: RETIRED as Opt+Right (falsified
+   in the file trace: toneless input beeped, fully toned input committed
+   exactly like Return — the only case it served was toned-head plus
+   pending-tail). Replaced by the syllable cursor: plain Left/Right walk
+   back over the converted span, the panel shows that word's options,
+   Tab/digit/click/Return pin the pick (session-only, never disk) and move
+   on; any edit returns to end, Return still commits once. Rime alignment
+   so far: offline-first ✓, candidateKeys pref stored ✓, segmented lock-in
+   via pins ✓ (soft — no early partial insertText yet); per-segment paging
+   + span cursor beyond the pure-run gate stay future (the cursor needs a
+   fully-resolved top-1 — repaired welcome, raw fallback out — with
+   validated alignment; mixed/space-separated spans keep
+   whole-span paging).
+9. Cursor selection v2 (2026-09-27, `tools/cursor_replay.py`, 21 synthetic
+   sentences x toned/toneless, real 112k lexicon). Hypothesis: listing every
+   word that covers the cursor (McBopomofo-style, longest first) reaches the
+   expected text more often than the aligned-word list. Three findings:
+   (a) the cursor was dead on toneless input — the IME rebuilt syllables
+   from the composition, where a space-terminated toneless run is ONE fused
+   syllable, so the length check rejected every such sentence and Left only
+   beeped; candidates now carry their decoded `syllables`. (b) Decoder bug:
+   `repairComplete` emitted tail lengths shortest-first, so a one-symbol
+   tail (ㄟ 欸) filled the caller's top-6 and the real final syllable was
+   never decoded (大都欸, 作一誒, 很主恩, 不錯喔, 體議案, 中一奧); round-robin
+   by tail length fixed toneless top-1 8/21 -> 12/21 with keynoise (27 rows)
+   and the LM fixtures unchanged except 大都欸 -> 大對. (c) Covering options
+   reach 21/21 in both styles vs 19/21 toned / 20/21 toneless for the
+   aligned list (做作業, 已經寄出 need a different boundary), at a cost:
+   worst list position 12–13 vs 5–10 (one case per style on page 2; score
+   ordering was far worse, per-syllable ordering a wash). Picks now keep
+   earlier picks outside the new span (`UserLexicon.pin(_:over:)`): without
+   that, 錢包 after 帶錢 reverted 帶 -> 大 and the two pins cycled. Words
+   stay inside their Zhuyin run (`run(containing:)`). Manual IME check
+   pending; the end-of-span panel still lists whole sentences.
+   Follow-up: the set grew to dev 40 / holdout 40 (readings derived from
+   the pinned lexicon; holdout is confirm-only). Reading-only session pins
+   paid per occurrence, so one 吃 pick re-segmented 晚餐想吃什麼 into
+   灣吃安詳吃什麼 and pinning 做 rewrote both ㄗㄨㄛ (做做業); pins are now
+   positional (run + run-local offset + readings). Dev reachable 40/40 in
+   both styles. Holdout, aligned -> covering: reachable 40/40 both, picks
+   toned 12 -> 12 and toneless 27 -> 25, worst rank 7 -> 5 and 11 -> 6.
+   Remaining top-1 misses are context homophones the unigram table cannot
+   separate (再/在 x4, 帶/大, 吃/持, 老師/老實, 上線/上限, 月/說) plus
+   first-tone losses under the weak space-tone policy (喝/和, 約/說, 交/教).
+   Learning was inert for sentences: commit recorded whole-composition
+   readings -> whole text, but decode boosts only dictionary words
+   (測試一下會不會打對 learned x3 still decoded 大對; the word 打對 fixed it
+   and generalized). Learning is now word-level (`learnedWords`: pinned 2+
+   syllable picks, words changed by a sentence pick, one-word input).
+   `cursor_replay.py --learning` (dev teaches a temp lexicon): dev top-1
+   52 -> 67/80, dev picks 35 -> 17; holdout top-1 50 -> 53/80 with 0 lost.
+   Single chars inside sentences stay unlearned (再/在 needs context keys).
+   Space as strong first tone + live conversion (user decision: space means
+   ˉ as in RIME/鼠鬚管, and continuous typing must not need space to
+   convert). Toned top-1 dev 29 -> 32, holdout 29 -> 31, 0 lost (喝一杯,
+   約在, 喝水, 老師說, 這張); toned picks dev 13 -> 8, worst rank 12 -> 4.
+   Toneless is now typed without the trailing space and converts live:
+   identical to the old space-to-convert results; keynoise unchanged.
+   Context learning (user decision): single-char picks are stored as
+   "previous word|readings" -> text and boost only after that word. With
+   `--learning`: dev top-1 after teaching 67 -> 78/80 (words only vs words
+   + context), dev picks after 17 -> 2; holdout 52 -> 55/80, 0 lost —
+   context rules are specific, so they neither transfer nor harm. Store
+   bumped to v2; v1 files (mostly inert whole sentences) load empty.
+
+Live-conversion stability (2026-09-27, user report after install: already
+converted characters fell back to Bopomofo). `tools/live_trace.py` replays
+each synthetic sentence key by key through `--live-trace` (the IME's
+`livePreview`) and counts reverts (Han -> Bopomofo) and churn (a settled Han
+char changes). Clean typing never reverted; the cause was a tone key or
+Space closing a run whose last syllable is invalid (眼睛 + ㄐ + Space):
+`repairComplete` found no valid tail and the whole run fell back to one
+unresolved reading (ㄧㄢㄐㄧㄥㄐ). The clean lead now converts and only the
+invalid tail goes to decode (repaired if possible, else raw); runs of <= 4
+keys keep their whole-syllable repair. Replay unchanged, keynoise one row
+better (swap CER 1.067 -> 0.933). Remaining: churn 38/1738 keystrokes
+toned, 78/1168 toneless (e.g. 我進體 -> 我今天).
+
+Mixed-tone flip (2026-10-06, user report: 如果 turned into 如故喔 once a
+long sentence kept growing). Keys from the IME debug log replayed through
+`--session-trace` (now takes ⌫/⏎/arrow glyphs and copies of the user's
+learned state): ㄖㄨㄍㄨㄛˇ + ㄐㄧㄡㄓㄜㄧㄤㄧ␣ + ㄓˊ, no user state needed.
+Each fused run's `repairComplete` options come round-robin, so ㄍㄨ|ㄛˇ is
+listed before ㄍㄨㄛˇ; `decodeComposition` multiplied the runs' options
+in arrival order with a 6/12 cap, and the third complete syllable cut the
+list to the first head option only, so ㄍㄨㄛˇ never reached decode and
+喔 won with a tone repair. The product now keeps the cheapest 12 by clean
+split cost (ties in the old order). Toned/toneless replay and live_trace
+unchanged; every-third-syllable-toned top-1 168 -> 174/240 (6 fixed, 0
+lost: 最及嗯 -> 最近, 名你按 -> 明年, 與誒 -> 約, ...), decode p95 17.1 ->
+12.9 ms. Learning had recorded the bad split (如故|ㄛ -> 喔): the log
+shows Left/Right then Return on each word, and Return on a focused word
+pinned it as an explicit pick even though nothing changed. Only pins that
+change their span's text (and list picks off the top row) train now;
+confirmations stay session pins.
+
+Settling accepted text (2026-09-27, user report: long input listed
+sentence alternatives that only varied old text before a ，, while the
+part being typed was cut off). Earlier runs, and words ending 3+
+syllables before the end of the run being typed, settle automatically:
+character-level pins (word-level ones froze 這 as a one-char word and
+blocked the later merge into 這部 -> 這不電影), kept apart from explicit
+picks (never learned; explicit picks override them per run), and
+candidates that break a pin drop out of the list. `live_trace.py
+--settle K`: K=1 wrecks accuracy (toneless final dev 23 -> 8); K=2 loses
+one holdout sentence; K=3 keeps dev identical, holdout toned 31 = 31,
+toneless 21 -> 22, and 4-sentence ，-joined inputs identical. Panel
+windows longer than a row now keep the end nearest the cursor.
+2026-10-14: one-character words settle 4 back instead of 3. Transient
+splits leave single characters behind (處|過濾 while typing 出國旅行)
+that the 3-back rule froze. clean-toneless dev 224 -> 230/290, 59 cases
+need fewer picks and 6 need more; the list shows variants of old text one
+syllable longer (docs/development.md, 單字詞延後沉澱).
+
+Heterophone weighting (2026-09-27, user report: typed ㄗㄢˋ, got 暫):
+not a fuzzy slip — BPMFBase lists 暫 under both ㄓㄢˋ and the variant
+ㄗㄢˋ, and `prepare_lexicon.py` gave every reading the char's whole
+count. It now ports McBopomofo cook.py: heterophony1 keeps the count,
+heterophony2/3 drop 0.693 log10 per rank, unlisted readings sit at the
+-6.8 log10 floor (618 entries move; 長 ㄓㄤˇ alone relies on phrases like
+成長). Replay, no sentence lost: toned top-1 dev 32 -> 33, holdout
+31 -> 33 (散步, 下個月, 吃辣 fixed); toneless dev 23 = 23, holdout
+21 -> 22. ㄗㄢˋ now lists 贊 讚 暫 (贊/讚 0.29 apart; learning settles it).
+Shift+Return commits the keys as typed, for 注音文 made of valid
+syllables (a lone ㄗ decodes to 資).
+
+Long-composition latency and chunked auto-commit (2026-09-29, user report:
+the UI gets laggy as a composition grows, and Backspace sometimes eats a
+whole run). Cause: `livePreview` re-decodes the entire composition on every
+key, so cost grows with length; profiling put it in Swift's Unicode-
+normalizing String ==/< on long sentence text inside the beam's `add` and in
+O(n) `utf16.count` calls. Two changes. (1) Output-identical decoder speedup
+(240 replay cases byte-identical): reject hopeless candidates by score before
+building them, compare text as UTF-8 bytes, cache prefix lengths — toned 250
+keys 155 -> 48 ms per key, toneless 160 keys 1060 -> 380 ms. (2) Chunked
+auto-commit: past 24 syllables the settled head commits in whole-word chunks
+while the last 12 keep composing (`tools/session_latency.py`, 12 sentences as
+one composition, real lexicon): final text unchanged, toned mean 17.2 -> 4.0
+ms (p95 53 -> 9), toneless mean 169 -> 46 ms (p95 418 -> 83, max 548 -> 107).
+Backspace: toneless words typed continuously fuse into one body when a single
+tone or Space finally closes them, and Backspace removed the whole body; it
+now removes one decoded syllable. Limits: auto-commit waits while an explicit
+pick, pin, cursor or open list exists (their learning would otherwise be
+lost) and while the head has repairs or unresolved syllables; a committed
+chunk can no longer be revised by the IME (Backspace past the tail deletes
+it in the app). Manual check pending: chunk boundaries in real apps (marked
+text redraw), feel of the 24-syllable default, and whether it needs a
+Preferences control.
+
+Smart quotes, symbol menu, modern vocabulary (2026-09-29, user request).
+`'` now pairs itself inside the composition (「 opens, 」 closes while one is
+unclosed; Shift+`'` does the same for 『』; `[` `]` still type 『 』 directly).
+Only the composition is inspected, so a 「 already committed to the app is
+not seen. Symbol menu: typing a mark opens the candidate list with its group
+(`Punctuation.groups`: ，、；：, 。．…, quotes and brackets as separate open
+and close groups so a swap never flips direction, dashes, dots, and one
+group per Shift-row symbol — currency, math, ※★ …). The typed mark is row 1;
+Tab/Up/Down swap it live and arm the selection keys, which pick; Esc keeps
+what shows; any other key accepts it and acts normally; panel click picks.
+`…` now has a home (the period group). No ASCII choices: they would collide
+with physical key labels in the raw key stream. Manual check pending: panel
+noise after every comma, and whether Up/Down should open the menu without
+Tab. Lexicon: 預設 already ranked first alone; a 86-word modern probe list
+found 14 missing words (貼文, 預覽, 截圖, 資料夾, 表單, 推播, 貼圖, 迷因, 按讚,
+轉貼, 外送, 掃碼, 行動支付, 表情符號), now in `local_phrases.tsv`; the 240
+replay cases are byte-identical. Same-reading rivals still lose as rank 2
+(克服/客服, 便是/辨識, 城市/程式, 藍芽/藍牙, and toneless 同志/通知, 短線/斷線,
+癌症/驗證) — real homophone ties for learning, not a scoring bug.
+
+Learned single characters leaked into sentences (2026-09-29, user report:
+預設 came out as 育設 / 與設文字). Reproduced with the user's own store
+(`--decode --user-lexicon`): a single earlier pick `ㄕㄜ -> 設` (+6) outweighed
+the word 預設 (about 3 points ahead), because word-level learning keys
+toneless-joined readings and applied to every span of that reading. Sentence
+single chars are meant to be learned by context rules only (下次|ㄗㄞ -> 再).
+Fix: a learned one-syllable bonus is paid only when the whole input is that
+one syllable. Both reports decode 預設 again; the learning battery
+(`cursor_replay.py --learning`) is unchanged: dev top-1 63 -> 79/80, picks
+19 -> 1, holdout 58 -> 61, 0 lost. Regression test:
+`testLearnedSingleCharDoesNotBeatAWordInsideASentence`. Side effect to watch:
+a user who only ever types one character and wants it learned inside longer
+input must rely on context rules, which need a preceding word.
+
+## Next steps (queued 2026-10-02)
+
+State: the macOS Zhuyin IME is close to daily use and the Linux fcitx5 port
+passes the same conformance scenarios (C1–C15). Open work, in the order it
+should be taken:
+
+1. **Linux desktop acceptance (L6).** Type in a real fcitx5 session (docs/
+   linux-port.md). The headless suite cannot see client-side problems such as
+   marked-text styling (the macOS caret bug was exactly that). Done when the
+   L6 checklist passes on one X11/Wayland desktop.
+2. **Port touch/spatial fuzzy decoding to `MisstypeCore`.** *(v1 and
+   the lattice version landed 2026-10-04, see "Touch fuzzy port" below; open:
+   wiring into `InputSession`/a touch surface, fixed-cost floor.)* Coordinate-aware neighbor hypotheses from raw `(x, y)`, the
+   versioned `full-split-1` layout and the `tools/noise.py` jitter measurements
+   started in `src/misstype` (M2/M3); the layout, mapper and a beam-based
+   `decodeTouch` now live in `Sources/MisstypeCore/Touch.swift`.
+3. **Measure against a conventional keyboard.** *(Break-even target computed
+   2026-10-04, see "Keyboard comparison" above: taps must spread within
+   ~0.07-0.10; the human tap-spread measurement is what is missing.)* The gate in AGENTS.md for any
+   hardware work: task completion time, backspaces, interruptions (see
+   Measures), on the Swift decoder.
+4. **Linux user-dictionary editor.** The file is plain text; a `misstype-dict`
+   command (list / add / remove) or an fcitx5 config page. Low risk.
+5. **Personalization from use.** *(Keyboard half started 2026-10-06: the
+   decoder takes per-user substitution costs, learned from Backspace re-types,
+   picks and reverts. The replay beats generic on unseen sentences. It is off
+   by default: a macOS Settings toggle, and `ChannelLearning` on the fcitx5
+   settings page. See "Personal channel model"
+   below.)* Per-key tap
+   distributions learned from confirmed taps (a 2-D Gaussian per key replaces
+   the fixed `1 - 1.5d` weight), then per-user repair costs from Backspace
+   re-types. Labels come only from explicit signals (Backspace re-type, an
+   explicit pick), with decay and a cap like `UserLexicon`'s +10; falsify on a
+   synthetic user with a fixed tap offset, replayed offline. Parameters stay
+   local, exportable and clearable. Needs the touch baseline below first.
+6. **Pairing / calibration onboarding (idea, deferred by the user
+   2026-10-04).** A first-run flow that has the user tap a few known targets
+   to fit their key offsets and hand position before typing. Do it when custom
+   hardware pairing is actually being built; it is the natural seed for the
+   per-key distributions in item 5.
+7. **Hide gesture for the user dictionary** (only if wanted): a key on the
+   highlighted candidate that writes a `!` exclusion line. The file format and
+   decoder already support exclusions; only the gesture is missing.
+
+**Parked: porting the core to Rust (decision 2026-10-02: stay on Swift for
+now).** Revisit when a target Swift serves badly is real — web (wasm),
+Android, Windows, or a mobile keyboard with a tight memory limit — or when the
+~71 MB static Foundation in `libMisstypeCAPI.so` hurts distribution. Go was
+rejected (runtime and GC inside IME/mobile processes; the gain over Swift is
+mostly a size win, not speed). Zig is the lightweight alternative (tiny
+toolchain, fast builds, native C ABI) but pre-1.0. Notes for whoever does it:
+- Cheap checks first, in Swift: drop full Foundation from `MisstypeCore`
+  (`FoundationEssentials`) and re-measure the Linux library size; profile
+  `tools/bench.py` / `tools/session_latency.py` (p95 for a 25-syllable
+  sentence) before blaming the language.
+- Smallest experiment: port only the decoder (trie, `decode`,
+  `decodeComposition`, `decodeSegments`) plus the `CoreTests` that exercise it,
+  run on the real lexicon; require identical top candidates on the fixtures
+  and a clear latency win before porting `InputSession`.
+- The contract that makes a port safe already exists: the C ABI
+  (`misstype.h`) and conformance scenarios C1–C15 are language-neutral, and
+  the fcitx5 addon would not change. Alignment, caret and mark ranges are
+  UTF-16 offsets (macOS marked text), so a UTF-8 language needs explicit
+  conversion at those points.
+- Web would ship as wasm in a Web Worker with a prebuilt binary trie instead
+  of `lexicon.tsv` (cached in IndexedDB); the touch prototype is the natural
+  first web surface since it needs raw `(x, y)`. Do the touch-fuzzy port
+  (step 2) in whichever language the decoder will live in, to avoid porting it
+  twice.
+
+Done and recorded: user dictionary and its Linux parity (architecture.md,
+decode policy 9), styled marked text for IMK (the candidate window shows rows
+only; AGENTS.md).
+
+### Touch fuzzy port (2026-10-04)
+
+`TouchLayout` (`full-split-1`, same table as `touch.py`), `TouchMapper`
+(distance-ranked neighbors, weight `max(0.1, 1 - 1.5d)`) and
+`LexiconDecoder.decodeTouch` landed in `MisstypeCore`. Mapper parity with Python
+is locked by golden values from `nearest_key` (`TouchTests`); the recorded
+`touch-*.jsonl` fixtures replay to the same keys and decode to 你好 / 早上好.
+Design: a beam of at most 16 key sequences per phrase, each charged
+`spatialScale x (d - d_nearest)` per non-nearest tap, each decoded through the
+shipping `decodeSegments`; a tone tap stays exact and tone keys are never
+substitutes for Zhuyin taps (Python parity, an open lever).
+
+Measurement (`TouchNoiseSweepTests`, real McBopomofo lexicon, seeded
+uniform-disk jitter, top-1 exact match). Arms: A nearest key; B nearest key +
+today's keyboard edit repair; D spatial hypotheses + repair. 30-50 seeds/cell,
+spatialScale 10:
+
+| probe (taps) | r | A | B (today) | D (spatial) |
+|---|---|---|---|---|
+| ni-hao (6) | 0.08 | 70% | 77% | 93% |
+| ni-hao | 0.10 | 33% | 47% | 82% |
+| zao-shang-hao (9) | 0.10 | 20% | 37% | 80% |
+| wo-shi-xue-sheng (11) | 0.08 | 57% | 67% | 97% |
+| wo-shi-xue-sheng | 0.10 | 10% | 20% | 57% (80% at beam 64) |
+| dada (29) | 0.08 | 33% | 50% | 77% |
+| dada | 0.10 | 0% | 3% | 20% |
+
+Findings. (1) Hypothesis holds in the 0.08-0.12 band: spatial hypotheses beat
+the keyboard repair that ships today by +15 to +45 pp and exact input is
+untouched (r = 0: D equals B on 120/120 and 200/200 traces). Python's absolute
+rates are not comparable: its decoder is a 9-phrase fixture table, the Swift
+decoder is open-vocabulary over 112k entries, so the right reference is B.
+(2) `spatialScale` wants to be small (5 = 10 > 20 > 40 > 80): distance should
+only break near-ties, the language score carries the rest. (3) The beam is the
+limit on long phrases and does not scale: beam 64 lifts wo-shi-xue-sheng r=0.10
+57% -> 80% at ~4x latency, beam 256 83% at ~17x. Release-build latency at beam
+16 is 4-23 ms for 6-11 taps at r <= 0.10 but 99 ms for the 29-tap sentence, so
+the next step is not a wider beam but putting the per-tap costs inside the
+decoder's per-syllable alternatives (lattice) instead of enumerating key
+sequences. r >= 0.15 stays out of reach, as in the Python sweep.
+#### Lattice integration (same day)
+
+`decodeTouch` now prices spatial hypotheses inside each syllable's reading
+options (a slice of n taps offers the readings of its 24 cheapest key
+combinations; edit repair also runs on the 4 cheapest, in a second pass that
+fires only when the first leaves repairs or unresolved text) and lets the
+decoder's own beam weigh them. The beam version stays as `decodeTouchBeam` for
+comparison. Top-1, 30 seeds/cell, release build, scale 10, real lexicon
+(`Lat+R` is the default; its first version did not repair spatial combos and
+lost short phrases whose tone tap landed on a Zhuyin key, which needs one
+swap AND one deletion in the same slice):
+
+| probe (taps) | r | B (today) | Beam | Lattice | Beam ms | Lattice ms |
+|---|---|---|---|---|---|---|
+| ni-hao (6) | 0.10 | 47% | 83% | 80% | 7 | 6 |
+| ni-hao | 0.15 | 20% | 67% | 53% | 47 | 9 |
+| zao-shang-hao (9) | 0.12 | 13% | 47% | 53% | 32 | 14 |
+| zao-shang-hao | 0.15 | 7% | 20% | 33% | 35 | 16 |
+| wo-shi-xue-sheng (11) | 0.10 | 23% | 57% | 87% | 48 | 32 |
+| wo-shi-xue-sheng | 0.12 | 7% | 33% | 73% | 80 | 37 |
+| wo-shi-xue-sheng | 0.15 | 0% | 10% | 47% | 115 | 40 |
+| dada (29) | 0.10 | 3% | 20% | 37% | 100 | 86 |
+| dada | 0.12 | 0% | 0% | 13% | 132 | 90 |
+
+Findings. (1) The lattice wins from ~10 taps up (+30 to +40 pp over the beam,
++50 to +65 over today's keyboard repair) at lower latency, and exact input is
+still untouched (r = 0: identical to B on 120/120 traces). (2) On 6-tap
+phrases the beam is up to 14 pp better at r = 0.15 (small cells: 30 seeds, so
+4 traces); repair on 8 combos recovers 7 of them but costs latency and hurts
+the 29-tap probe, so the default stays 4. (3) Cost has a fixed floor: the
+29-tap sentence takes 35 ms at r = 0 (beam: 20 ms) because every slice prices
+24 combinations even when the taps are exact. Cheap next lever: skip spatial
+combos when the nearest-key reading is clean and the tap is well inside its
+key. (4) 29 taps at r >= 0.12 is still out of reach; that is a limit of the
+evidence (each tap is 1 of ~5 keys, errors compound), not of the search.
+Run: `MISSTYPE_TOUCH_SWEEP=1 swift test -c release -Xswiftc -enable-testing
+--filter TouchNoiseSweepTests` (needs `python3 script/prepare_lexicon.py`
+first; knobs in the test's header comment).
+
+#### Keyboard comparison: break-even target (2026-10-04, no human data)
+
+The AGENTS.md gate needs human measurements (completion time, backspaces,
+interruptions) that do not exist yet. What can be computed now is the target a
+real measurement has to hit: `TouchNoiseSweepTests.testBreakEven` compares a
+physical-keyboard typist (each Zhuyin key slips to its nearest neighbor with
+probability p, decoded as today with edit repair) against a touch typist (tap
+spread r, lattice decoder). Mean sentence top-1 over the four probes, 40 seeds:
+
+| touch + lattice, tap spread r | 0.04 | 0.06 | 0.08 | 0.10 | 0.12 | 0.14 |
+|---|---|---|---|---|---|---|
+| sentence top-1 | 100% | 99% | 84% | 68% | 53% | 38% |
+
+| keyboard + repair, slip rate p | 1% | 2% | 4% | 8% |
+|---|---|---|---|---|
+| sentence top-1 | 94% | 89% | 82% | 71% |
+
+Reading: touch matches a 4%-slip keyboard at r ~ 0.08, an 8%-slip one at
+r ~ 0.10, and a careful 1%-slip typist (94%) at r ~ 0.07. So the touch surface
+is competitive on decoded accuracy only if real taps spread within roughly
+0.07-0.10 of the key centre (normalized units, uniform-disk model); at 0.12
+and above it loses to a mediocre keyboard even with the lattice. Caveats: the
+keyboard model has only neighbor slips (no transposition or omission, which
+the keyboard repair also handles, so it flatters neither side), taps are
+isotropic in normalized units while a real surface is not square (on a
+10 x 7 cm pad, r = 0.08 is ~6 mm vertically), and accuracy is only one of the
+three gate measures: speed and interruptions are untouched by this.
+
+Real measurement protocol (needs no personal text, ~2 minutes per person):
+show a known target key, record the tap `(x, y)` with the target key id,
+repeat each of the 41 keys a few times on each surface, then report per
+person the RMS and 95th-percentile distance from the key centre in normalized
+units and in millimetres. Compare with the 0.07-0.10 band above. The same
+trace is the seed for per-key tap distributions and for a pairing /
+calibration onboarding (next-steps items 5 and 6).
+
+### Mixed Chinese/English without a switch (2026-10-04)
+
+Question: can bare keys be read as English when that is clearly what was
+typed, with typo repair, without hurting Chinese? Source of English words:
+hermitdave/FrequencyWords `en_50k` (2018, pinned, checksum-verified; CC BY-SA
+4.0 content, licence note in `third_party/FrequencyWords/LICENSE.md`; picked
+over the Google 10k list because that one carries LDC research-only terms,
+and over SCOWL because SCOWL has no counts and needs a build). 46,717
+lowercase a-z words after filtering; `script/prepare_lexicon.py` writes
+`.cache/frequencywords/english.tsv` (never committed).
+
+Design (`Sources/MisstypeCore/MixedDecode.swift`): candidate English spans are
+substrings (>= 3 letters) of consecutive letter keys that spell a word, or
+sit one edit (substitution, insertion, deletion, adjacent swap) from a word
+of >= 5 letters (symmetric-delete index). Every non-overlapping subset of up
+to 3 spans, including none, is decoded through the shipping `decodeSegments`
+(latin runs already split Zhuyin runs there) and priced
+`word ln p - 6 x edits - switchPenalty`; the best total wins, so the English
+reading must beat the Chinese reading of the same keys on score. Bare keys
+stay Zhuyin by default.
+
+Measurement (`MixedSweepTests`, real lexicons; 200 mixed inputs = Chinese
+piece + English word + Chinese piece, 600 pure-Chinese inputs of 3-6 lexicon
+words, 150 typo'd words; toned / toneless typing):
+
+| switch penalty | mixed top-1 | pure Chinese falsely switched | typo'd English top-1, fuzzy on | fuzzy off |
+|---|---|---|---|---|
+| 0 | 100% / 96% | 0% / 1% | 78% / 75% | 0% / 0% |
+| 2 | 100% / 96% | 0% / 0% | 80% / 78% | 0% / 0% |
+| **4 (default)** | 100% / 96% | 0% / 0% | 80% / 78% | 0% / 0% |
+| 6 | 92% / 90% | 0% / 0% | 80% / 78% | 0% / 0% |
+| 8 | 92% / 90% | 0% / 0% | 80% / 76% | 0% / 0% |
+
+Findings. (1) Yes, offline: no false switches in 600 pure-Chinese inputs from 2
+up, clean English words are found 100% / 96%, and one-letter typos are
+repaired 80% / 78% (nothing without the fuzzy layer). (2) The collision risk
+the design feared (short words such as the / you / for) did not show up:
+English words rarely spell valid Chinese key runs, because Zhuyin runs are
+syllable-shaped (initial + final) while English letter runs are not. (3) The
+cost is latency: `decodeMixed` takes 48 ms vs 18 ms for a plain decode of the
+same mixed input (release build), plus 350 ms once to build the index for
+46k words. Fine for a finished phrase; running it per keystroke needed pruning
+first (only when a letter run of >= 3 keys exists, cache spans per key
+prefix). Re-measured per key on the Zig core in a session (2026-10-09, `tools/mixed_latency.py`, 12 dev sentences with a spliced English word): toneless mixed input 4.5 ms mean, 15.6 ms p95, 21 ms max with `mixedEnglish` on (2.6 ms off); Chinese-only toneless 0.9 ms; toned mixed 0.9 ms; English adopted 12/12. Only six long English words, one machine. (4) Limits of the evidence: the negatives are random lexicon-word
+sequences, not real prose; the positives use 18 words and 5 Chinese pieces;
+typos are one slip in words of 6+ letters; the 20% typo misses and the 4%
+toneless misses are not yet classified; no uppercase, digits, or hyphenated
+words. Treat it as a validated mechanism, not a quality claim.
+
+#### Wired into `InputSession` (same day)
+
+`InputSession.refresh` now runs `applyEnglish` after the live preview: the
+English reading is inserted as the top candidate when it beats the Chinese one
+by 3 points on top of the switch penalty (`MixedDecoding.autoMargin`), listed
+second when within 8 below it (`suggestWindow`), and absent otherwise. The
+word list loads off-thread (`InputEngine.loadEnglishLexicon`, ~330 ms index)
+from `english.tsv` beside the lexicon; no file, no change. Setting:
+`SessionSettings.mixedEnglish` (core/Linux default on when the file exists,
+macOS `MisstypeMixedEnglish` default **off**, Settings toggle "Recognize English
+words while typing"). Bare Zhuyin/tone/space keys only: once a latin run or
+punctuation is in the composition the pass stays out. English readings are
+"complete" candidates (`completeTexts`): they show no raw tail and are kept
+out of settled/positional pins, the syllable cursor, chunked auto-commit and
+learning, because their run indexes do not match the composition's own.
+
+Measured on the shipping path (`testSessionPath`: live preview +
+`applyEnglish`, real lexicons, 200 mixed / 200 typo'd / 600 pure-Chinese
+inputs, toned / toneless):
+
+| | top-1 | in top 4 | adopted automatically |
+|---|---|---|---|
+| clean English | 92% / 90% | 100% / 99% | 92% / 92% |
+| one-letter typo | 80% / 77% | 86% / 82% | 95% / 97% |
+| pure Chinese | - | - | **0% / 0%** (English *suggested* in 0.7% / 4.7%) |
+
+Two things this run corrected. A first gate that only ran the pass when the
+Chinese reading showed trouble (repairs, unresolved text, raw tail) lost 18
+points of recall (clean English 82% / 80%) because words like you / for spell
+valid Chinese syllable pairs, so it was dropped. Span-level pruning replaced
+it: each span is scored alone against the Chinese reading and only survivors
+are combined, and the plain Chinese score is computed once.
+
+Cost, release build, per live refresh: toned inputs 7-10 ms vs 1 ms without the
+pass; toneless mixed inputs 111-134 ms vs 34-44 ms, i.e. a visible hiccup per
+keystroke while an English span is in the composition. That is why the macOS
+default is off. Pure Chinese costs 2-11 ms (a span scan). Worth doing before
+turning it on by default: reuse hypotheses across keystrokes (the composition
+grows by one key), and run the pass off the main thread.
+
+Not done: a Linux conformance scenario (the C1-C13 harness has no word list
+installed, so the fcitx5 suite is unaffected; coverage is `MixedSessionTests`);
+real-typing quality, which needs actual mixed text typed by a person.
+
+Run: `MISSTYPE_MIXED_SWEEP=1 swift test -c release -Xswiftc -enable-testing
+--filter MixedSweepTests` after `python3 script/prepare_lexicon.py`.
+
+### Digits inside a latin run (2026-10-04, user-reported bug)
+
+After English was started with a lone Shift tap (or the backtick), the number
+row still produced Zhuyin: `abc123` became `abcㄅㄉˇ`, because a digit ended the
+run and 3/4/6/7 are tone keys. Digits are now literal text inside a latin run
+(`KeyEvent.Key.digitLabel`, `Composition.appendLatin` accepts ASCII digits);
+Shift+digit stays the full-width symbol layer. Behavior change: a tone key can
+no longer be used to drop back to Zhuyin from a latin run; the toggle that
+opened it (backtick, lone Shift tap) closes it, and punctuation still ends it.
+Global 中/英 mode was never affected in the core (digits pass through,
+`LatinDigitTests`); if the number row misbehaves there on macOS the cause is
+in the IMK adapter or the client app, not the session.
+Tests: `LatinDigitTests` (incl. the Shift-tap case), `testBacktickLatinRun`.
+
+### English reverted to Zhuyin text after the next key (2026-10-04, user-reported)
+
+Reproduced with a per-key preedit trace on the real lexicons. Three causes,
+all in the first wiring of the mixed pass:
+
+1. **Punctuation.** `applyEnglish` required the composition to be bare
+   Zhuyin/tone/space keys, so the moment a punctuation literal (Shift+`,` ->
+   ，) joined it the whole English reading vanished and the letters went back
+   to being Zhuyin: `你好python` -> `你好嗯支持次欸四，`. The pass now carries
+   punctuation, earlier latin keys and spaces through unchanged.
+2. **Capitalized words.** `Python` typed as Shift+p then `ython` is one latin
+   key plus bare keys, never matched (`你好P字垂死`). A span may now start with
+   leading latin keys, provided at least one key is bare; the capital is kept.
+3. **The key just typed disappeared.** The live preview left the
+   syllable being typed raw, the mixed text did not, and fuzzy matching read
+   `pythonv` as a typo of `python`, swallowing the `v` of the next Chinese
+   syllable. Mixed readings now show the raw tail (and commit it), and a
+   different extra letter after a whole word is no longer a typo (a doubled
+   one, `pythonn`, still is). Scoring moved to the live-preview basis too: each key left
+   raw costs `MixedDecoding.rawKeyCost` (5), otherwise an unresolved tail was
+   charged to both readings and cancelled the English advantage.
+
+Shipping-path numbers did not change (clean English 92% / 90% adopted, pure
+Chinese 0% adopted), refresh cost fell slightly (95 vs 111 ms toneless).
+Tests: `MixedSessionTests` (punctuation then more Chinese, capital, raw tail).
+
+### Personal channel model (2026-10-06)
+
+A noisy-channel decoder has two halves: the language model (is this text
+likely) and the channel model (how does this person mistype). Learning
+(`UserLexicon`) and the user dictionary personalize only the first. The repair
+tiers price every user the same: a phonetic confusion such as ㄣ/ㄥ costs 5.0,
+which in our natural-log units means a slip rate of about e^-5, or 0.7%.
+
+Hypothesis: for a user who systematically types ㄥ for ㄣ, a cheaper personal
+ㄥ→ㄣ repair recovers their slips without flipping genuine ㄥ input. It is
+falsified if no cost gains more than it loses.
+
+Mechanism: `ChannelModel` (typed key → intended key → cost), set as
+`LexiconDecoder.channel`, follows the same overlay contract as
+`contextBigrams`. nil (the default) gives byte-identical decode. A personal pair
+replaces the generic cost for that pair only. It is directional, rides along
+with every syllable like the phonetic confusions, and is clamped at
+`ChannelModel.floor` (0.5) so exact input always keeps a margin. Nothing sets
+it yet.
+
+Oracle sweep (`ChannelSweepTests`, real lexicon): the synthetic user types
+every ㄣ as ㄥ. Probes are the most frequent reading per side (300) and the 80
+`cursor_replay` sentences. Only probes whose exact typing already decodes
+top-1 are counted. "Recovered" is the share of slipped ㄣ probes decoded
+right; "kept" is the share of exact ㄥ probes still right.
+
+| group, mode | generic 5.0 recovered | at 2.3 | at 1.2 | kept at 1.2 |
+|---|---|---|---|---|
+| words 2-4, toned | 65.7% | 96.3% | 99.0% | 100% |
+| words 2-4, toneless | 49.8% | 85.1% | 95.9% | 100% |
+| sentences, toned | 83.9% | 96.8% | 96.8% | 100% |
+| sentences, toneless | 59.1% | 81.8% | 90.9% | 100% |
+| single chars, toned | 8.8% | 22.0% | 42.9% | 86.5% |
+| single chars, toneless | 0% | 21.1% | 36.8% | 76.2% |
+
+Not falsified wherever there is context. In words and sentences the pair
+recovers most slips and no exact ㄥ probe flipped at any cost down to 0.5. A
+lone character is a real trade-off with nothing to break the tie: at 1.2,
+仍→人, 風→分, 寧→您 and so on flip. There the right cost depends on how often
+this user actually slips, which is the reason to learn the cost rather than
+fix it. Read as a log-odds, a 10% slip rate is cost ~2.3 and 30% is ~1.2.
+Latency: toned decoding is unchanged; toneless sentences go from 13.9 to about
+17 ms per decode at 1.2, because more repaired paths survive the beam.
+
+Learning half (landed 2026-10-06, off by default). This is two learners adapting to each
+other: the system adapts to the user, and the user adapts to the system's
+habits. The rule is that the system follows the user, but more slowly than the
+user changes (user decision 2026-10-06).
+
+- Estimate: a pair's cost is -ln(slips / opportunities), smoothed toward the
+  generic 5.0 and clamped to [learned floor, 5]. Opportunities come from
+  committed syllables.
+- Time decay: counts are exponentially decayed (a half-life in typed
+  syllables, not wall time). A habit the user has dropped therefore fades
+  back to the generic cost instead of "correcting" input that is now right.
+- Signal weights. The strongest signal is a reverted repair: the user picks
+  the exact-reading text over a repair the system made (typed ㄕㄥ, got 深,
+  picked 升). It means the system over-corrected, so it is weighted well
+  above one observation, against the slip side. A Backspace re-type of one
+  key inside a syllable counts as one slip. A repaired commit that is never
+  reverted counts only weakly, because it may simply be unnoticed.
+- Degenerate loop (sloppier typing → looser costs → sloppier typing):
+  learned costs never go below a learned floor of 1.2, about a 30% slip rate,
+  which is above the decoder's 0.5. Exact input therefore always stays
+  stronger evidence than a learned habit, and the user keeps the ability to
+  type precisely as a fallback. This is a default to revisit with real data.
+- Stability: costs move by a bounded step and only between compositions,
+  never mid-typing, so a frequent word's top-1 does not jump under the
+  user's compensating habits.
+
+Implementation: `ChannelLearner` in `ChannelModel.swift`, owned by
+`InputEngine` (`channelLearner`, persisted at `channelLearnerURL`, nil = memory
+only). It is on only when both `SessionSettings.channelLearning` (default
+off) and `userLearning` are on; off means the decoder overlay is nil. Evidence
+is gathered at learning-grade commits (no raw tail, not raw, not an English
+reading), not at chunked auto-commits:
+
+- intended keys per committed syllable, from `LexiconDecoder.readings(of:)`;
+- one-key substitutions the committed text repaired: weight 1 when the user
+  picked it, 0.25 when it only went unchallenged;
+- Backspace re-types: the keys before a Backspace streak against the keys
+  once they are back at that length, counted only when exactly one symbol key
+  changed;
+- reverts: the top candidate before the first explicit pick used a repair on
+  a syllable that the committed text spells exactly as typed. Each revert
+  cancels 3 slips.
+
+Constants: half-life 3000 syllables, prior 50 opportunities at the generic
+rate, learned floor 1.2, step 0.2 per commit toward cheaper and 1.0 toward
+generic. The store holds keys and counts, never text.
+
+Replay (`ChannelLearningSweepTests`): the synthetic user types the 40 dev
+sentences 6 times. Each ㄣ is typed as ㄥ at the given rate, and 30% of slips
+are noticed at once (Backspace, retype). Otherwise the user picks the right
+sentence when it is in the list, else commits. Word learning is on in both
+arms. Afterwards, the 40 holdout sentences, never typed in training, are typed
+with every ㄣ slipped, and only the first-pass preview is scored. 5 seeds per
+arm.
+
+| user | learned ㄥ→ㄣ cost | holdout slipped first-pass, generic → learned | exact ㄥ kept |
+|---|---|---|---|
+| never slips | none | 71.4% → 71.4% | 77.8% → 77.8% |
+| slips 10% | 3.0-4.5 | 71.4% → 82.9% | unchanged |
+| slips 30% | 2.3-3.0 | 71.4% → 90.5% | unchanged |
+| slips 60% | 1.7-1.9 | 71.4% → 90.5% | unchanged |
+| 30%, then 4x as long at 0% | none (decayed back) | 71.4% → 71.4% | unchanged |
+
+Not falsified. The learned cost tracks the slip rate. It generalizes to
+sentences never typed in training, which word learning cannot do. No exact
+ㄥ holdout sentence flipped (the 77.8% ceiling is the decoder's own exact-input
+miss rate on that set). A user who never slips learns nothing, and a dropped
+habit decays back to generic. The 60% user is still above the floor after 6
+epochs: that is the bounded step working as intended.
+
+Adapters (2026-10-06): macOS has Settings → Learning → "Learn my typing
+slips (experimental)". It is off by default, disabled while phrase learning is
+off, and lists learned pairs with their approximate slip rate next to a Clear
+button. The store is `channel_model.json` beside `user_phrases.json`. The C ABI
+gains appended functions (path, enable, clear, pair count; the settings struct
+is unchanged), covered by a `tests/capi/smoke.c` scenario. fcitx5 persists to
+`$XDG_DATA_HOME/misstype/channel_model.json` and enables learning with
+`MISSTYPE_CHANNEL_LEARNING=1`. The macOS pane was not built or checked on a
+Mac.
+
+Not done:
+- Real typing. The synthetic user slips one fixed pair and corrects
+  perfectly.
+- The touch half: per-key tap distributions, which need a touch surface
+  wired to `InputSession`.
+
+The replay takes ~8 minutes in a release build because every keystroke
+refreshes the session.
+
+Run: `MISSTYPE_CHANNEL_SWEEP=1 swift test -c release -Xswiftc -enable-testing
+--filter 'ChannelSweepTests|ChannelLearningSweepTests'` after
+`python3 script/prepare_lexicon.py`. Tests: `ChannelModelTests` (learner:
+bounded steps, floor, reverts, decay, persistence; evidence; session
+re-type).
+
+### Repair strength (2026-10-06)
+
+Issue #21: typists differ, so the user picks how readily keyboard slips are
+repaired: off, light, standard (the default, unchanged), strong
+(`RepairStrength`, macOS Settings → Decoding picker; fcitx5
+`MISSTYPE_REPAIR_STRENGTH`). The personal channel model learns which pairs
+one user swaps. This setting is the user's overall prior, chosen by hand.
+
+Hypothesis: shifting every generic repair tier by a log-space offset trades
+exact-input accuracy against slip recovery. Falsified if offset 0 is best or
+tied at every slip rate.
+
+Measured with `RepairStrengthSweepTests`: 80 cursor_replay sentences on the
+real lexicon, 6 seeds. Each symbol key slips with probability p into a
+neighbor key, a swap with the next key, a dropped key, or a phonetic
+confusion. Score: sentence top-1, offline decoder, release build. A
+clean-input check types the 1000 most frequent single chars and 1000 words
+(2-4 syllables) exactly and counts those an arm changes, out of the ones
+standard gets right.
+
+| arm | toned p=0/2/5/10/15% | toneless p=0/2/5/10/15% | ms (toned/toneless) | clean chars changed (toned/toneless) |
+|---|---|---|---|---|
+| standard (0, gated) | 87.5/76.7/63.1/37.3/24.8 | 63.8/54.2/41.5/25.6/15.6 | 0.5/9 | 0/0 |
+| light (+2, gated) | 87.5/76.2/61.7/34.8/23.5 | 63.8/54.0/41.2/24.0/14.8 | 0.5/9 | 0/0 |
+| strong (0, ungated, word-only) | 86.2/77.3/65.8/42.5/29.2 | 62.5/53.3/41.7/25.8/16.7 | 1/17 | 0/0 |
+| rejected: -1, ungated, word-only | 86.2/77.9/66.7/44.2/31.0 | 61.2/52.1/41.7/25.4/17.9 | 1/18 | 8/8 |
+
+No arm changed any of the clean words.
+
+What the arms showed:
+- The offset alone barely matters (about 2 pp either way; -1.5 gated was
+  within 1 pp of standard). Neighbor, swap and drop repairs only run on
+  syllables with no valid reading, so a slip that lands on another real
+  syllable is never tried, whatever it costs. Strong therefore opens that
+  gate (`LexiconDecoder.repairValidReadings`; insertion stays gated).
+- Results for strong:
+  - Toned input: +3 to +5 pp at 5-15% slips, for one lost sentence of 80 on
+    clean input.
+  - Toneless input: about neutral, at roughly twice the decode time.
+- The first strong (offset -1, ungated anywhere) turned 好喔 into 好一 in
+  real use. ㄛ and ㄧ are neighbor keys, and for a lone character only
+  frequency argues for the repair. So valid-reading repairs are word-only
+  (they may complete a multi-syllable word, never stand as one char), and
+  the clean-input check was added because the sentence sweep had missed it.
+  Offset -1 still changed 8 frequent chars (屋→一, 呢→了, 娘→年) through
+  the always-on phonetic confusions, so strong keeps offset 0.
+- Valid-reading repairs never land on user dictionary words (2026-10-14).
+  A user word's weight (default 0) ranks it above built-in words on its
+  own reading; it is not evidence of a slip. Toneless ㄅㄨ ㄕ ㄓㄜ ㄧㄤ ㄅㄚ
+  became 不識之無樣把 with that idiom in the user dictionary: ㄓㄜ split
+  into the real syllables ㄓ + ㄜ, ㄜ was repaired to its neighbor ㄨ (5.0),
+  and weight 0 outweighed the exact path by far more. The word still
+  wins on its own reading and through repairs of invalid readings.
+- 好喔 typed ㄛ˙ still becomes 好啊 under strong. 喔 has no ㄛ˙ reading, so
+  both readings are repairs (tone 4.0 vs the word 好啊 via ㄚ, 5.0).
+- Light measured no gain here. Clean-input errors at standard are
+  language-model misses, not false repairs, so there was nothing for light to
+  win back. It is kept for typists who want what they type to win.
+
+Not done: real typing at each level, and per-keystroke latency of strong on
+long toneless runs.
+
+Run: `MISSTYPE_REPAIR_SWEEP=1 swift test -c release -Xswiftc -enable-testing
+--filter RepairStrengthSweepTests` (~10 min; `testSpotChecks` alone for the
+reported phrases). Tests: `RepairStrengthTests` and the
+`run_repair_strength` scenario in `tests/capi/smoke.c`.
+
+## Settings window (2026-09-29)
+
+- Settings window (landed 2026-09-29): the 360pt utility panel became a full `SettingsWindow` (SwiftUI, sidebar: General / Decoding / Learning / Jev Assist (removed 2026-10-09) / About; controls bind to the same `Misstype*` UserDefaults keys). UI strings go through `L()` with English keys and `Resources/{zh-Hant,zh-Hans,ja}.lproj/Localizable.strings`, following the system language; `tools/check_localizations.py` fails on missing or stale keys. Manual check pending: language switch, Clear learned phrases.
