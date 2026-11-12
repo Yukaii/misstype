@@ -179,7 +179,8 @@ The product logo (keyboard and tapping finger) is separate from the IME
 icon: `MisstypeLogo.svg` (light), `MisstypeLogo-dark.svg` and the 1024 px
 `MisstypeLogo.png` export. It is used by the Settings About pane, the website
 (`site/icon.svg`, `site/editor/icon.png`) and the READMEs. The favicon
-`site/favicon.svg` is a simplified 32-unit redraw (solid finger, no sparks)
+`site/favicon.svg` is a simplified 32-unit redraw (keyboard, pressed peach key and tap
+sparks, no finger)
 because the full logo's strokes drop below a pixel at 16 px; the bundle, input
 mode and menu icons above stay unchanged.
 
