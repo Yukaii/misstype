@@ -328,7 +328,8 @@ final class AboutPane: SettingsPane {
 
     override func build() {
         var header: [NSView] = []
-        if let icon = Bundle.main.image(forResource: "MisstypeIcon") {
+        // The product logo; the IME/menu icon stays MisstypeIcon / MisstypeMenuIcon.
+        if let icon = Bundle.main.image(forResource: "MisstypeLogo") ?? Bundle.main.image(forResource: "MisstypeIcon") {
             let image = NSImageView(image: icon)
             image.widthAnchor.constraint(equalToConstant: 72).isActive = true
             image.heightAnchor.constraint(equalToConstant: 72).isActive = true

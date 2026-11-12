@@ -175,6 +175,34 @@ Text Input Services never uses a 1024×1024 asset as a menu row. The smooth
 app master lives in `MisstypeIcon.svg`/`MisstypeIcon.png`; the menu version has
 its own pixel-grid source in `MisstypeMenuIcon.svg` and is exported as a hard
 edged 16×16 TIFF.
+The product logo is separate from the IME icon: a keycap whose face is
+two different eyes and a mouth. The dark bar is decoded text, the lilac
+caret (`#A496D6`) is text still being composed, and the peach wavy line under
+them is the raw trace, kept and never replaced (capture first, decode
+later). It names no input method, so it fits Bopomofo and any IME added
+later. There is one variant: a flat cream key on a dark tile, sitting on a
+soft lilac-grey shadow rather than a solid lip so the bottom does not read
+heavy; the dark tile keeps it distinct on light and dark backgrounds alike.
+The source is `MisstypeLogo.svg`, on a 64-unit grid so shapes land on whole
+pixels at 16 and 32 px; `MisstypeLogo.png` is the 1024 px export. The same
+mark is the Settings About pane image, the website header and favicon
+(`site/icon.svg`, `site/favicon.svg`), the editor PWA icon
+(`site/editor/icon.png`) and the README logo. The bundle, input mode and
+menu icons above stay unchanged.
+
+Icon design rules (logo, favicon, any future mark), because small renders
+get misread:
+
+- No elongated or rounded shape pressing into, entering, or resting its tip
+  on the peach key or any small pink spot. Keep pointers apart from the key,
+  or drawn unmistakably as a hand (outlined, bent at the knuckle, with a
+  thumb).
+- Never fill a finger or hand solid; outline it, or leave it out. A solid
+  finger stops reading as a hand and becomes a wand, pen or blob.
+- Check every candidate at 16 px and 32 px and slightly blurred, on light
+  and dark backgrounds; that is where misreadings happen. If a detail is
+  under one pixel at 16 px, simplify the favicon rather than shrink the logo.
+- Have a second person look at the small sizes before an icon ships.
 
 **App Sandbox (macOS, decision 2026-10-04, from vChewing's design).** The IME is signed with `Resources/Misstype.entitlements`: `app-sandbox`, `network.client` (Sparkle update checks and downloads; decoding opens no socket), `files.user-selected.read-only` (Settings → My Dictionary → Import… reads the one file the user picks; the merge goes into the editor and applies only on Save) and the `mach-register.global-name` exception for the IMK connection name (must equal `InputMethodConnectionName`). A sandboxed process cannot obtain a global keyboard tap, which backs the privacy stance. Consequences: `homeDirectoryForCurrentUser` resolves into `~/Library/Containers/org.misstype.inputmethod.Misstype/Data`, so the user files and the debug log live there (the paths in `cross-platform.md` §6 are container-relative); pre-sandbox files in the real home are not migrated (closed beta, never published). Anything outside the container needs a user-granted bookmark (not used yet). Verified on a real Mac (2026-10-04, ad-hoc signed build): IMK connection, typing and marked text, candidate panel, Settings Reveal in Finder, user dictionary save. Not yet verified: Developer ID signed/notarized build from `package_release.sh`.
 

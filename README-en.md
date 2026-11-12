@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="Resources/MisstypeIcon.png" alt="Misstype logo" width="96" height="96">
+  <img src="Resources/MisstypeLogo.svg" alt="Misstype logo" width="96" height="96">
   <br><sub><i>Type Zhuyin. Skip the tones.</i></sub>
 
   <h1>Misstype (隨打注音)</h1>
