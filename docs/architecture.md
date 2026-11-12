@@ -181,11 +181,12 @@ caret (`#A496D6`) is text still being composed, and the peach wavy line under
 them is the raw trace, kept and never replaced (capture first, decode
 later). It names no input method, so it fits Bopomofo and any IME added
 later. Sources are `MisstypeLogo.svg` (light) and `MisstypeLogo-dark.svg`
-(the key drops its outline and sits on a soft lilac-grey shadow, so the
-lip does not merge with the face), on
+(no outline); both variants sit the key on a soft lilac-grey shadow
+rather than a solid lip, so the bottom does not read heavy, on
 a 64-unit grid so shapes land on whole pixels at 16 and 32 px; `MisstypeLogo.png`
 is the 1024 px export. The same mark is the Settings About pane image, the
-website header and favicon (`site/icon.svg`, `site/favicon.svg`), the editor
+website header (`site/icon.svg`, and `site/icon-dark.svg` when the page
+scheme is dark) and favicon (`site/favicon.svg`), the editor
 PWA icon (`site/editor/icon.png`) and the README logo. The bundle, input mode
 and menu icons above stay unchanged.
 

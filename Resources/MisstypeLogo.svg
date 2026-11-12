@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 64 64">
   <title>Misstype</title>
   <rect width="64" height="64" rx="14" fill="#FCF5F1"/>
-  <rect x="10" y="16" width="44" height="38" rx="10" fill="#34323F"/>
+  <rect x="10" y="15" width="44" height="38" rx="10" fill="#CFC9DE"/>
   <rect x="10" y="10" width="44" height="38" rx="10" fill="#FCF5F1" stroke="#34323F" stroke-width="3.5"/>
   <rect x="20" y="22" width="14" height="6" rx="3" fill="#34323F"/>
   <rect x="40" y="19" width="4.5" height="12" rx="2.25" fill="#A496D6"/>

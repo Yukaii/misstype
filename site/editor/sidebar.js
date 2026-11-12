@@ -3,6 +3,7 @@
 // (notes.js) itself; opening and deleting notes go through the editor, which
 // has to save or swap the document first.
 import iconUrl from "../icon.svg";
+import iconDarkUrl from "../icon-dark.svg";
 import { UNTITLED } from "./notes.js";
 
 const escapeHtml = (s) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[c]));
@@ -27,7 +28,7 @@ export class Sidebar {
     this.notes = hooks.notes;
     this.el.innerHTML = `
       <div class="side-brand">
-        <a class="brand" href="../" aria-label="回到首頁"><img src="${iconUrl}" alt="">隨打注音 <small>Markdown</small></a>
+        <a class="brand" href="../" aria-label="回到首頁"><img class="logo-light" src="${iconUrl}" alt=""><img class="logo-dark" src="${iconDarkUrl}" alt="">隨打注音 <small>Markdown</small></a>
         <button class="side-btn side-close" type="button" data-side="close" aria-label="關閉筆記列表" title="關閉筆記列表">${ICON.close}</button>
       </div>
       <div class="side-head">

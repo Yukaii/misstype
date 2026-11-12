@@ -75,6 +75,10 @@ a:hover { color: var(--mark); }
   text-decoration: none;
 }
 .brand img { width: 32px; height: 32px; }
+/* The logo follows the page scheme, not just the system's. */
+.brand .logo-dark { display: none; }
+:root[data-scheme="dark"] .brand .logo-light { display: none; }
+:root[data-scheme="dark"] .brand .logo-dark { display: inline; }
 .brand small { color: var(--muted); font-weight: 400; }
 .top nav { display: flex; gap: 20px; font-size: 15px; }
 .top nav a { text-decoration: none; color: var(--muted); }
