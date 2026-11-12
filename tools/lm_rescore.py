@@ -15,8 +15,8 @@ Fixtures are synthetic session cases (no personal text). Localhost only,
 no API keys, no new runtime dependencies (stdlib urllib).
 
 Usage:
-  PYTHONPATH=src python tools/lm_rescore.py            # 0.5b model
-  PYTHONPATH=src python tools/lm_rescore.py --model qwen2.5:1.5b
+  python3 tools/lm_rescore.py            # 0.5b model
+  python3 tools/lm_rescore.py --model qwen2.5:1.5b
 """
 
 import os

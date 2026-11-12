@@ -169,20 +169,19 @@ unigram 回退的條件機率，在 Zig 的詞路徑搜尋內插分數，可減�
 252 個選字改善、57 個退步，無聲調正確率提高，但部分聲調錯字組可修復率
 下降，未採用。外部 200 句未解碼；正式預設與 baseline 保持不變。
 
-## Python 早期原型
+## JSONL 軌跡與觸控量測
 
-最初的概念驗證切片（Python 3.11+、無外部執行期相依），用於驗證座標式觸控曲面輸入與取樣。解碼行為以 Zig 核心（`core-zig/`）為準，不要把解碼變更移植到 Python。
+最初的 Python 原型已於 2026-11-11 退役；觸控解碼與軌跡重放都走 Zig 核心（`misstype-dev`），工具共用 `tools/misstype_dev.py`。
 
 ```sh
-PYTHONPATH=src python -m unittest discover -s tests -v
-PYTHONPATH=src python -m misstype.cli examples/hello.jsonl
-PYTHONPATH=src python -m misstype.cli examples/keyboard-ni.jsonl
-PYTHONPATH=src python -m misstype.cli examples/touch-ni-hao.jsonl
-PYTHONPATH=src python tools/bench.py
+(cd core-zig && "$(../script/zig/bootstrap.sh)" build)
+python3 tools/bench.py                                   # tests/fixtures/*.jsonl 全部重放並比對
+python3 tools/replay.py tests/fixtures/touch-ni-hao.jsonl
+python3 tools/noise.py --seeds 20                        # 觸控抖動掃描：touch / keyboard / exact
+core-zig/zig-out/bin/misstype-dev --touch "l:0.5,0.8 r:0.88,0.23 l:0.7,0.1"
 ```
 
-測試軌跡使用 JSONL，能獨立於最終介面或硬體紀錄、遮蔽、比對與重放。可重放的詞組案例在 `tests/fixtures/`。
-
+測試軌跡使用 JSONL，能獨立於最終介面或硬體紀錄、遮蔽、比對與重放。可重放的詞組案例在 `tests/fixtures/`；按鍵軌跡經過真正的 `Session`，觸控軌跡經過格狀觸控解碼器（按鍵碼的轉換見 `tools/misstype_dev.py`）。
 
 ### 詞模型 Session 修復可達性實驗（2026-10-14）
 

@@ -11,8 +11,8 @@ it is **not** a decoder-only comparison; see "Confounds".
 ## Quantitative (headless, Linux, Docker)
 
 ```sh
-PYTHONPATH=src python tools/baseline/make_probes.py > tools/baseline/probes.tsv   # once
-PYTHONPATH=src python tools/baseline/compare.py gen --seeds 10 --out /tmp/inputs.tsv
+python3 tools/baseline/make_probes.py > tools/baseline/probes.tsv   # once
+python3 tools/baseline/compare.py gen --seeds 10 --out /tmp/inputs.tsv
 
 # Misstype: build the C ABI, then drive it (glibc: run the driver in the same
 # kind of container the .so was built in, host glibc may be older)
@@ -101,7 +101,7 @@ of vChewing is vendored or linked into Misstype.
 ## libchewing (headless, native macOS or Linux)
 
 ```sh
-PYTHONPATH=src python tools/baseline/compare.py gen --seeds 10 --out /tmp/inputs.tsv
+python3 tools/baseline/compare.py gen --seeds 10 --out /tmp/inputs.tsv
 tools/baseline/run_libchewing.sh /tmp/inputs.tsv /tmp/lc.tsv chewing,fuzzy
 
 # Misstype on macOS: the C ABI builds as a dylib, resources from the app build

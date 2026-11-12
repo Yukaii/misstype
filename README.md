@@ -134,7 +134,6 @@ Arch Linux 可從 AUR 安裝 `ibus-misstype-bin`（預編譯）或 `ibus-misstyp
 | `linux/fcitx5/` | 共用同一核心的 fcitx5 外掛與 GTK 詞庫編輯器 |
 | `linux/ibus/` | 共用同一核心的 IBus 引擎與設定視窗 |
 | `packages/misstype-wasm/` | npm 瀏覽器綁定 |
-| `src/misstype/` | Python 捕捉／觸控原型（僅作為觸控語意的參考） |
 | `tests/`、`tools/` | Golden 檔、重播測試資料、量測腳本 |
 | `docs/` | 架構、跨平台規範（C1–C15）、設計筆記 |
 | `site/` | 官網與網頁編輯器（刻意與本 README 分開） |

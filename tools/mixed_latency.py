@@ -10,7 +10,7 @@ mean/p95/max per-key latency. Offline; no user state. Needs a ReleaseFast build:
 
   (cd core-zig && ../script/zig/bootstrap.sh >/dev/null && zig build -Doptimize=ReleaseFast --prefix /tmp/mz)
   MISSTYPE_RESOURCES=dist/MisstypeIME.app/Contents/Resources \
-    PYTHONPATH=src python tools/mixed_latency.py [/tmp/mz/bin/misstype-dev]
+    python3 tools/mixed_latency.py [/tmp/mz/bin/misstype-dev]
 """
 import statistics
 import subprocess

@@ -21,7 +21,7 @@ weight that fixes cases also breaks toneless/controls.
   /tmp/venv_pq/bin/python -I tools/homophone_bigram.py build SHARD.parquet \\
       --resources site/public --out ~/.cache/misstype/hplt/pairs.tsv
   # eval: dev + holdout synthetic sentences, toned and toneless
-  PYTHONPATH=src python tools/homophone_bigram.py eval \\
+  python3 tools/homophone_bigram.py eval \\
       --pairs ~/.cache/misstype/hplt/pairs.tsv --resources site/public
 """
 
@@ -296,7 +296,6 @@ def rerank(rows, lex: Lex, bg: Bigram, weight: float):
 
 def evaluate(args):
     sys.path.insert(0, str(ROOT / "tools"))
-    sys.path.insert(0, str(ROOT / "src"))
     import cursor_replay as cr
     resources = Path(args.resources)
     cr.LEXICON = resources / "lexicon.tsv"

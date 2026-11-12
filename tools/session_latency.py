@@ -12,7 +12,7 @@ deterministic apart from timing; no user lexicon.
 
 Usage:
   ./script/build_and_run.sh --build-only
-  PYTHONPATH=src python tools/session_latency.py
+  python3 tools/session_latency.py
 """
 
 import subprocess,sys,statistics

@@ -26,8 +26,8 @@ top-1 with vs without that lexicon (a holdout loss is collateral damage).
 
 Usage:
   ./script/build_and_run.sh --build-only
-  PYTHONPATH=src python tools/cursor_replay.py [--set dev|holdout|all] [--json]
-  PYTHONPATH=src python tools/cursor_replay.py --learning
+  python3 tools/cursor_replay.py [--set dev|holdout|all] [--json]
+  python3 tools/cursor_replay.py --learning
 """
 
 import os
@@ -40,13 +40,13 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "src"))
-from misstype.phonetic import KEY_TO_ZHUYIN  # noqa: E402
+sys.path.insert(0, str(ROOT / "tools"))
+import misstype_dev as dev  # noqa: E402  key map from the Zig core
+from misstype_dev import ZHUYIN_TO_KEY  # noqa: E402,F401  (typing_eval imports it from here)
 
 APP_BIN = ROOT / "core-zig/zig-out/bin/misstype-dev"  # cd core-zig && zig build
 os.environ.setdefault("MISSTYPE_RESOURCES", str(ROOT / "dist/MisstypeIME.app/Contents/Resources"))
 LEXICON = ROOT / ".cache/mcbopomofo/lexicon.tsv"
-ZHUYIN_TO_KEY = {symbol: key for key, symbol in KEY_TO_ZHUYIN.items()}
 TONE_TO_KEY = {"": " ", "ˊ": "6", "ˇ": "3", "ˋ": "4", "˙": "7"}
 MODELS = ("aligned", "startAtCursor")
 

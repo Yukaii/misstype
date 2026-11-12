@@ -7,6 +7,7 @@ import unittest
 from pathlib import Path
 
 TOOLS = Path(__file__).parent.parent / "tools"
+FIXTURES = Path(__file__).parent / "fixtures"
 
 
 def load_tool(name):
@@ -17,6 +18,7 @@ def load_tool(name):
     return module
 
 
+misstype_dev = load_tool("misstype_dev")
 bench = load_tool("bench")
 replay = load_tool("replay")
 noise = load_tool("noise")
@@ -55,47 +57,60 @@ class ToolTests(unittest.TestCase):
         self.assertEqual(bench.group_of("touch-ni-hao.jsonl"), "touch")
         self.assertEqual(bench.group_of("notes.txt"), "other")
 
+    def test_trace_input_translates_prototype_key_codes(self):
+        events = [{"kind": "key", "code": c} for c in
+                  ("SPACE", "BPMF:s", "BPMF:u", "BPMF:3", "SPACE", "LATIN:AI", "LATIN:!", "BPMF:SPACE")]
+        # Leading and post-tone SPACE were separators; later SPACE is the key.
+        self.assertEqual(misstype_dev.trace_input(events), ("keys", "su3AI！ "))
+
+    def test_trace_input_reads_touch_taps(self):
+        events = misstype_dev.load_trace(FIXTURES / "touch-ni-hao.jsonl")
+        kind, taps = misstype_dev.trace_input(events)
+        self.assertEqual(kind, "touch")
+        self.assertEqual(taps[0], ("l", 0.5, 0.8))
+
+
+@unittest.skipUnless(misstype_dev.BIN.exists(),
+                     "needs misstype-dev: cd core-zig && zig build")
+class ZigToolTests(unittest.TestCase):
     def test_replay_summarizes_a_trace(self):
-        summary = replay.summarize(Path(__file__).parent / "fixtures" / "touch-ni-hao.jsonl")
+        summary = replay.summarize(FIXTURES / "touch-ni-hao.jsonl")
         self.assertEqual(summary["text"], "你好")
-        self.assertEqual(summary["decoder"], "offline-fixture")
-        self.assertEqual(summary["alignment"], [["ㄋ ㄧˇ ㄏ ㄠˇ", "你好"]])
+        self.assertEqual(summary["path"], "touch")
 
     def test_bench_passes_on_the_fixed_fixture_set(self):
         with contextlib.redirect_stdout(io.StringIO()):
-            self.assertEqual(bench.main(["--repeats", "3"]), 0)
+            self.assertEqual(bench.main([]), 0)
+
+    def test_keymap_matches_dachen(self):
+        self.assertEqual(misstype_dev.keymap()["s"], "ㄋ")
+        self.assertEqual(misstype_dev.keymap()["3"], "ˇ")
+        self.assertEqual(len(misstype_dev.keymap()), 37 + 4)
 
     def test_noise_is_deterministic_per_seed(self):
         first = noise.jitter_trace(["s", "u", "3"], 0.10, seed=7)
-        second = noise.jitter_trace(["s", "u", "3"], 0.10, seed=7)
-        third = noise.jitter_trace(["s", "u", "3"], 0.10, seed=8)
-        self.assertEqual(
-            [(event.code, event.payload["x"], event.payload["y"]) for event in first],
-            [(event.code, event.payload["x"], event.payload["y"]) for event in second])
-        self.assertNotEqual(
-            [(event.payload["x"], event.payload["y"]) for event in first],
-            [(event.payload["x"], event.payload["y"]) for event in third])
+        self.assertEqual(first, noise.jitter_trace(["s", "u", "3"], 0.10, seed=7))
+        self.assertNotEqual(first, noise.jitter_trace(["s", "u", "3"], 0.10, seed=8))
 
     def test_noise_radius_zero_taps_key_centers(self):
-        events = noise.jitter_trace(["s", "u", "3"], 0.0, seed=1)
-        self.assertEqual([event.code for event in events],
-                         ["BPMF_FUZZY:s", "BPMF_FUZZY:u", "BPMF:3"])
+        self.assertEqual(noise.jitter_trace(["s", "u", "3"], 0.0, seed=1),
+                         [("l", 0.5, 0.8), ("r", 0.88, 0.23), ("l", 0.7, 0.1)])
 
     def test_noise_clamps_to_the_surface(self):
-        for event in noise.jitter_trace(["s", "y", "-"], 0.6, seed=3):
-            if event.payload:
-                self.assertTrue(0 <= event.payload["x"] <= 1)
-                self.assertTrue(0 <= event.payload["y"] <= 1)
+        for _, x, y in noise.jitter_trace(["s", "y", "-"], 0.6, seed=3):
+            self.assertTrue(0 <= x <= 1 and 0 <= y <= 1)
 
-    def test_sweep_ablation_never_beats_fuzziness(self):
-        rows = noise.sweep(noise.PROBES, [0.0, 0.10, 0.20], seeds=8)
-        self.assertEqual(len(rows), len(noise.PROBES) * 3)
+    def test_sweep_exact_input_always_decodes(self):
+        rows = noise.sweep(noise.PROBES, [0.0, 0.10], seeds=8)
+        self.assertEqual(len(rows), len(noise.PROBES) * 2)
         for row in rows:
             with self.subTest(probe=row["probe"], radius=row["radius"]):
-                self.assertLessEqual(row["ablated_match"], row["fuzzy_match"])
+                self.assertLessEqual(row["exact"], row["touch"])
                 if row["radius"] == 0.0:
-                    self.assertEqual(row["fuzzy_match"], 1.0)
+                    self.assertEqual(row["touch"], 1.0)
 
+
+class MoreToolTests(unittest.TestCase):
     def test_parse_evidence_keeps_tones_attached(self):
         bases = {"ㄋㄧ", "ㄏㄠ", "ㄗㄠ", "ㄕㄤ"}
         evidence = lm_rescore.parse_evidence("su3cl4", bases)
@@ -157,6 +172,7 @@ class ToolTests(unittest.TestCase):
         self.assertFalse(lm_choose.is_loopback_url("https://ai-gateway.vercel.sh/v4"))
         self.assertFalse(lm_choose.is_loopback_url("http://127.0.0.1.example.com/"))
 
+    @unittest.skipUnless(misstype_dev.BIN.exists(), "needs misstype-dev")
     def test_cursor_replay_encodes_both_typing_styles(self):
         self.assertEqual(cursor_replay.encode("ㄋㄧˇ ㄏㄠˇ ㄇㄚ˙", toned=True), "su3cl3a87")
         self.assertEqual(cursor_replay.encode("ㄊㄚ ㄕㄨㄛ", toned=True), "w8 gji ")
@@ -290,6 +306,7 @@ class ToolTests(unittest.TestCase):
             self.assertNotEqual(preferred, displaced)
         self.assertEqual(len({row[0] for row in rows}), len(rows))
 
+    @unittest.skipUnless(misstype_dev.BIN.exists(), "needs misstype-dev")
     def test_typing_eval_typist_is_exact_without_errors_and_seeded(self):
         reverse = {"你好": ("ㄋㄧˇ ㄏㄠˇ", 1.0), "明天": ("ㄇㄧㄥˊ ㄊㄧㄢ", 1.0)}
         exact = typing_eval.Persona("exact", "all", 0.0, 0.0)

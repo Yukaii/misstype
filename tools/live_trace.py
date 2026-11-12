@@ -16,7 +16,7 @@ Offline and deterministic; sentences are the synthetic cursor_replay sets.
 Usage:
   ./script/build_and_run.sh --build-only   # bundle resources
   (cd core-zig && zig build)
-  PYTHONPATH=src python tools/live_trace.py [--set dev|holdout|all] [--show N]
+  python3 tools/live_trace.py [--set dev|holdout|all] [--show N]
 """
 
 import argparse

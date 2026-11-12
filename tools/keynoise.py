@@ -1,7 +1,7 @@
 """Seeded keyboard-error battery for the real Swift decoder (M3-style).
 
 Usage:
-    PYTHONPATH=src python tools/keynoise.py [--seeds 10] [--json]
+    python3 tools/keynoise.py [--seeds 10] [--json]
 
 For each probe sentence (correct keystrokes known), apply seeded key-level
 noise — dropped/extra-free: missing keys, adjacent swaps (key ORDER slips),

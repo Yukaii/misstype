@@ -1,57 +1,39 @@
-"""Deterministic single-trace replay shared by manual checks and bench.
+"""Replay one JSONL trace through the Zig core and print a JSON summary.
 
 Usage:
-    PYTHONPATH=src python tools/replay.py <trace.jsonl>
+    python3 tools/replay.py <trace.jsonl>
 
-Prints one JSON summary line: decoded text, token alignment, confidence,
-decoder provenance, and latency. No network, no model, no side effects.
+Key traces run through the real `Session` (`misstype-dev --session-trace`),
+touch traces through the lattice touch decoder (`misstype-dev --touch`).
+See tools/misstype_dev.py for the trace format and key translation. Needs a
+built misstype-dev (`cd core-zig && zig build`). Offline only.
 """
 
 import json
 import sys
 from pathlib import Path
 
-from misstype.decoder import OfflineDecoder
-from misstype.models import DecodeContext, DecodeResult, PhoneticToken, RawEvent
-from misstype.normalize import normalize_events
-
-
-def load_events(path: str | Path) -> list[RawEvent]:
-    """Load a JSONL trace; every line is one RawEvent dict."""
-    events = []
-    with open(path, encoding="utf-8") as handle:
-        for line in handle:
-            if line.strip():
-                events.append(RawEvent.from_dict(json.loads(line)))
-    return events
-
-
-def run(events: list[RawEvent], revision: int = 0) -> tuple[DecodeResult, list[PhoneticToken]]:
-    """Replay events through normalization and offline decoding."""
-    tokens = normalize_events(events)
-    return OfflineDecoder().decode(tokens, DecodeContext(revision=revision)), tokens
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import misstype_dev as dev  # noqa: E402
 
 
 def summarize(path: str | Path) -> dict:
     """Replay a trace file and return a JSON-serializable summary."""
-    result, tokens = run(load_events(path))
+    events = dev.load_trace(path)
+    kind, data = dev.trace_input(events)
     return {
         "trace": str(path),
-        "text": result.text,
-        "confidence": result.confidence,
-        "decoder": result.decoder_id,
-        "decoder_version": result.decoder_version,
-        "latency_ms": result.latency_ms,
-        "alignment": [list(pair) for pair in result.alignment],
-        "tokens": len(tokens),
+        "path": kind,
+        "input": data if kind == "keys" else dev.format_taps(data),
+        "events": len(events),
+        "text": dev.replay_trace(events),
     }
 
 
 def main(argv: list[str] | None = None) -> int:
     args = argv if argv is not None else sys.argv[1:]
     if len(args) != 1:
-        print("usage: PYTHONPATH=src python tools/replay.py <trace.jsonl>",
-              file=sys.stderr)
+        print("usage: python3 tools/replay.py <trace.jsonl>", file=sys.stderr)
         return 2
     print(json.dumps(summarize(args[0]), ensure_ascii=False))
     return 0

@@ -15,7 +15,7 @@ file passed via MISSTYPE_BIGRAM; it is downloaded, never committed:
 
 Usage:
   ./script/build_and_run.sh --build-only
-  PYTHONPATH=src python tools/bigram_eval.py [--configs full:3,ck+bi:3] [--set all]
+  python3 tools/bigram_eval.py [--configs full:3,ck+bi:3] [--set all]
 """
 
 import argparse
