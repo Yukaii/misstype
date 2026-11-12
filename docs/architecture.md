@@ -178,7 +178,9 @@ edged 16×16 TIFF.
 The product logo (keyboard and tapping finger) is separate from the IME
 icon: `MisstypeLogo.svg` (light), `MisstypeLogo-dark.svg` and the 1024 px
 `MisstypeLogo.png` export. It is used by the Settings About pane, the website
-(`site/icon.svg`, `site/editor/icon.png`) and the READMEs; the bundle, input
+(`site/icon.svg`, `site/editor/icon.png`) and the READMEs. The favicon
+`site/favicon.svg` is a simplified 32-unit redraw (solid finger, no sparks)
+because the full logo's strokes drop below a pixel at 16 px; the bundle, input
 mode and menu icons above stay unchanged.
 
 **App Sandbox (macOS, decision 2026-10-04, from vChewing's design).** The IME is signed with `Resources/Misstype.entitlements`: `app-sandbox`, `network.client` (Sparkle update checks and downloads; decoding opens no socket), `files.user-selected.read-only` (Settings → My Dictionary → Import… reads the one file the user picks; the merge goes into the editor and applies only on Save) and the `mach-register.global-name` exception for the IMK connection name (must equal `InputMethodConnectionName`). A sandboxed process cannot obtain a global keyboard tap, which backs the privacy stance. Consequences: `homeDirectoryForCurrentUser` resolves into `~/Library/Containers/org.misstype.inputmethod.Misstype/Data`, so the user files and the debug log live there (the paths in `cross-platform.md` §6 are container-relative); pre-sandbox files in the real home are not migrated (closed beta, never published). Anything outside the container needs a user-granted bookmark (not used yet). Verified on a real Mac (2026-10-04, ad-hoc signed build): IMK connection, typing and marked text, candidate panel, Settings Reveal in Finder, user dictionary save. Not yet verified: Developer ID signed/notarized build from `package_release.sh`.
