@@ -53,7 +53,7 @@ to `localStorage`; typing-slip learning is off unless you enable it). It does no
 iframes (load the script inside the frame) and cannot help where the page has
 its own key handling that runs before the capture phase.
 
-### Hosting it in an app (0.3.0)
+### Hosting it in an app (0.3.0+)
 
 For an editor with its own model and an on-screen keyboard (the Obsidian
 plugin, `packages/obsidian-misstype`, uses all of these):
@@ -107,11 +107,25 @@ press/release phase. `state()` returns the JSON view used by the site's demo;
 for custom UI integration. The package does not send input to a server.
 
 Modifier bits are Shift=1, Control=2, Alt=4, Meta=8, CapsLock=16; phase is
-0 for keydown and 1 for keyup. Settings supported by the current WASM module
-are `autoShowCandidates`, `returnConfirmsSelection`, `shiftToggle` (booleans)
-and `pageSize` (4–10), plus `userLearning` (default on) and `channelLearning`
-(default off, experimental). Loading an English lexicon does not enable automatic
-mixed-English recognition in the current WASM API.
+0 for keydown and 1 for keyup. `setSetting(name, value)` takes the names of
+`misstype_engine_set_setting` in `misstype.h`: booleans `autoShowCandidates`,
+`returnConfirmsSelection`, `shiftToggle`, `userLearning` (default on),
+`channelLearning` (default off, experimental), `mixedEnglish` (default on;
+English words are recognized from bare keys once `english.tsv` is loaded) and
+`toneTolerance`; numbers `pageSize` (4–10), `autoCommitSyllables`,
+`repairStrength` (0 off … 3 strong) and `shiftTapLimitMs`. It returns false
+for an unknown name.
+
+### The module is the desktop C ABI (0.4.0)
+
+`misstype.wasm` is the same C ABI the macOS and Linux IMEs link
+(`Sources/CMisstype/include/misstype.h`, ABI v3) compiled for wasm32-wasi:
+`ime.exports` holds `misstype_engine_*`, `misstype_session_*` and friends, and
+this class owns one engine (built from in-memory lexicons) and one session.
+0.4.0 removes the browser-only `misstype_wasm_*` exports; code that called
+them directly should use this class (the method API is unchanged) or the C
+functions. The binding checks `misstype_abi_version()` and refuses a module
+built for another ABI. `dispose()` frees the engine and session.
 
 User dictionary (the desktop IMEs' `user_dictionary.tsv`, vChewing user data):
 `userDictionaryText()`, `userDictionaryCount()`, `setUserDictionary(text)`,

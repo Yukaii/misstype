@@ -112,8 +112,8 @@ jobs:
           "$zig" fmt --check build.zig src
           "$zig" build test -Doptimize=${{ matrix.optimize }}
 
-  # The site demo's WebAssembly build: the same `misstype_wasm_*` exports,
-  # exercised by the browser-API suite under Node.
+  # The WebAssembly build: the C ABI of misstype.h compiled for wasm32-wasi,
+  # exercised through the npm binding (packages/misstype-wasm) under Node.
   wasm:
     needs: plan
     if: needs.plan.outputs.verified != 'true'
@@ -147,6 +147,9 @@ jobs:
           key: wasm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('script/zig/bootstrap.sh') }}-${{ hashFiles('third_party/utf8proc/*', 'core-zig/src/**', 'core-zig/build.zig', 'core-zig/build.zig.zon') }}
       - run: npm ci
         working-directory: site
+      # tests/wasm_test.mjs imports the binding, which needs its WASI shim.
+      - run: npm ci --ignore-scripts
+        working-directory: packages/misstype-wasm
       - name: Build wasm32-wasi and run the browser API suite
         run: |
           if [ ! -f core-zig/zig-out/wasm/misstype.wasm ]; then
@@ -159,7 +162,6 @@ jobs:
       - name: Test npm browser bindings
         working-directory: packages/misstype-wasm
         run: |
-          npm ci --ignore-scripts
           npm test
           npm pack --dry-run
       # Embeds the full lexicons (pinned public sources) and the wasm built above.

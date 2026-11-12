@@ -1,5 +1,5 @@
 // Standard (Dai-Chien) Zhuyin keyboard: symbol -> KeyboardEvent.code/key,
-// the same pair the playground passes to misstype_wasm_handle_key.
+// the same pair the playground passes to MisstypeWasm.key (DOM code + text).
 const rows: [string, string][] = [
   ["ㄅㄉˇˋㄓˊ˙ㄚㄞㄢㄦ", "1234567890-"],
   ["ㄆㄊㄍㄐㄔㄗㄧㄛㄟㄣ", "qwertyuiop"],

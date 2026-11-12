@@ -1,4 +1,4 @@
-import { WASI } from "@bjorn3/browser_wasi_shim";
+import MisstypeWasm from "../packages/misstype-wasm/src/index.js";
 import "./playground.css";
 
 /**
@@ -20,10 +20,7 @@ export class MisstypePlayground {
     this.onReady = options.onReady;
     this.onError = options.onError;
 
-    this.wasi = null;
-    this.instance = null;
-    this.exports = null;
-    this.memory = null;
+    this.ime = null; // MisstypeWasm (packages/misstype-wasm)
 
     this.ready = false;
     this.state = null;
@@ -33,137 +30,25 @@ export class MisstypePlayground {
     this.bindEvents();
   }
 
-  writeString(str) {
-    if (!this.exports) return { ptr: 0, len: 0 };
-    const enc = new TextEncoder();
-    const bytes = enc.encode(str);
-    const ptr = this.exports.misstype_wasm_alloc(bytes.length);
-    new Uint8Array(this.memory.buffer, ptr, bytes.length).set(bytes);
-    return { ptr, len: bytes.length };
-  }
-
-  readString(ptr) {
-    if (!ptr || !this.memory) return "";
-    const u8 = new Uint8Array(this.memory.buffer);
-    let end = ptr;
-    while (u8[end] !== 0) end++;
-    return new TextDecoder().decode(u8.subarray(ptr, end));
-  }
-
   getState() {
-    if (!this.exports) return null;
-    const ptr = this.exports.misstype_wasm_get_state_json();
-    const jsonStr = this.readString(ptr);
-    try {
-      return JSON.parse(jsonStr);
-    } catch (e) {
-      console.error("Failed to parse state JSON:", jsonStr, e);
-      return null;
-    }
+    return this.ime ? this.ime.state() : null;
   }
 
   async init() {
     this.showLoading("載入中，請稍候⋯");
-
     try {
-      this.wasi = new WASI([], [], []);
-      const wasiImport = { wasi_snapshot_preview1: this.wasi.wasiImport };
-
-      // Fetch wasm module and lexicons in parallel
-      const [wasmResponse, lexResponse, toneResponse] = await Promise.all([
-        fetch(this.wasmUrl),
-        fetch(this.lexiconUrl),
-        fetch(this.tonelessUrl).catch(() => ({ ok: false }))
-      ]);
-
-      if (!wasmResponse.ok) throw new Error(`載入失敗: HTTP ${wasmResponse.status}`);
-      if (!lexResponse.ok) throw new Error(`載入詞庫失敗: HTTP ${lexResponse.status}`);
-
-      const wasmBytes = await wasmResponse.arrayBuffer();
-      const { instance } = await WebAssembly.instantiate(wasmBytes, wasiImport);
-      this.instance = instance;
-      this.exports = instance.exports;
-      this.memory = instance.exports.memory;
-      this.wasi.start(instance);
-
-      this.showLoading("整理詞庫中⋯");
-      const [lexText, toneText] = await Promise.all([
-        lexResponse.text(),
-        toneResponse.ok ? toneResponse.text() : Promise.resolve("")
-      ]);
-
-      const lexBuf = this.writeString(lexText);
-      const toneBuf = this.writeString(toneText);
-
-      const res = this.exports.misstype_wasm_init(
-        lexBuf.ptr, lexBuf.len,
-        toneBuf.ptr, toneBuf.len
-      );
-
-      this.exports.misstype_wasm_free(lexBuf.ptr);
-      this.exports.misstype_wasm_free(toneBuf.ptr);
-
-      if (res !== 1) {
-        throw new Error("初始化失敗");
-      }
-
-      // Optional: word list for mixed Chinese/English typing. An older wasm
-      // without the export, or a missing file, just leaves that pass off.
-      if (this.englishUrl && this.exports.misstype_wasm_load_english) {
-        try {
-          const englishResponse = await fetch(this.englishUrl);
-          if (englishResponse.ok) {
-            const englishBuf = this.writeString(await englishResponse.text());
-            this.exports.misstype_wasm_load_english(englishBuf.ptr, englishBuf.len);
-            this.exports.misstype_wasm_free(englishBuf.ptr);
-          }
-        } catch (err) {
-          console.warn("english word list unavailable", err);
-        }
-      }
-
-      // Optional sparse search model; only fetch it when explicitly configured.
-      if (this.wordModelUrl && this.wordModelWeight > 0 && this.exports.misstype_wasm_load_word_model) {
-        try {
-          const response = await fetch(this.wordModelUrl);
-          if (response.ok) {
-            const bytes = new Uint8Array(await response.arrayBuffer());
-            if (bytes.length <= 8 * 1024 * 1024) {
-              const ptr = this.exports.misstype_wasm_alloc(bytes.length);
-              if (ptr) {
-                try {
-                  new Uint8Array(this.memory.buffer, ptr, bytes.length).set(bytes);
-                  this.wordModelLoaded = this.exports.misstype_wasm_load_word_model(ptr, bytes.length, this.wordModelWeight) === 1;
-                } finally {
-                  this.exports.misstype_wasm_free(ptr);
-                }
-              }
-            }
-          }
-        } catch (err) {
-          console.warn("optional word model unavailable", err);
-        }
-      }
-
-      // Optional: homophone word-bigram table (experimental). Missing file or
-      // an older wasm without the export leaves decoding unchanged.
-      if (!this.wordModelLoaded && this.exports.misstype_wasm_load_homophone) {
-        try {
-          const homophoneResponse = await fetch(this.homophoneUrl);
-          if (homophoneResponse.ok) {
-            const bytes = new Uint8Array(await homophoneResponse.arrayBuffer());
-            const ptr = this.exports.misstype_wasm_alloc(bytes.length);
-            if (ptr) {
-              new Uint8Array(this.memory.buffer, ptr, bytes.length).set(bytes);
-              this.exports.misstype_wasm_load_homophone(ptr, bytes.length);
-              this.exports.misstype_wasm_free(ptr);
-            }
-          }
-        } catch (err) {
-          console.warn("homophone table unavailable", err);
-        }
-      }
-
+      // Optional assets (toneless, English words, homophone table, the
+      // experimental word model) degrade to "off" when missing.
+      this.ime = await MisstypeWasm.load({
+        wasmUrl: this.wasmUrl,
+        lexiconUrl: this.lexiconUrl,
+        tonelessUrl: this.tonelessUrl,
+        englishUrl: this.englishUrl,
+        homophoneUrl: this.homophoneUrl,
+        wordModelUrl: this.wordModelUrl,
+        wordModelWeight: this.wordModelWeight,
+      });
+      this.wordModelLoaded = this.ime.wordModelLoaded;
       this.ready = true;
       this.hideLoading();
       this.updateState();
@@ -177,41 +62,27 @@ export class MisstypePlayground {
 
   updateState() {
     this.state = this.getState();
-    if (this.state && this.state.lastCommit) {
-      this.insertCommitted(this.state.lastCommit);
-      this.exports.misstype_wasm_clear_committed();
-    }
+    if (this.state?.lastCommit) this.insertCommitted(this.ime.takeCommitted());
   }
 
   sendKey(code, keyText = "", modifiers = 0, phase = 0) {
     if (!this.ready) return false;
-    const codeBuf = this.writeString(code);
-    const textBuf = this.writeString(keyText);
-    const consumed = this.exports.misstype_wasm_handle_key(
-      codeBuf.ptr, codeBuf.len,
-      textBuf.ptr, textBuf.len,
-      modifiers, phase, Date.now() / 1000
-    );
-    this.exports.misstype_wasm_free(codeBuf.ptr);
-    this.exports.misstype_wasm_free(textBuf.ptr);
-
+    const consumed = this.ime.key(code, keyText, modifiers, phase, Date.now() / 1000);
     this.updateState();
     this.render();
-    return consumed !== 0;
+    return consumed;
   }
 
   toggleEnglish() {
     if (!this.ready) return;
-    if (this.exports.misstype_wasm_toggle_english) {
-      this.exports.misstype_wasm_toggle_english();
-    }
+    this.ime.toggleEnglish();
     this.updateState();
     this.render();
   }
 
   pickCandidate(index) {
     if (!this.ready) return;
-    this.exports.misstype_wasm_pick_candidate(index);
+    this.ime.pick(index);
     this.updateState();
     this.render();
     this.boxEl?.focus();
@@ -221,7 +92,7 @@ export class MisstypePlayground {
     if (!this.ready) return;
     this.boxEl.textContent = "";
     this.preeditEl = null;
-    this.exports.misstype_wasm_reset();
+    this.ime.reset();
     this.updateState();
     this.render();
     this.boxEl?.focus();
@@ -373,7 +244,7 @@ export class MisstypePlayground {
   // Moving the caret elsewhere ends the composition where it is.
   commitPending() {
     if (!this.ready || !this.state?.preedit) return;
-    if (this.exports.misstype_wasm_commit() !== 0) {
+    if (this.ime.commit()) {
       this.updateState();
       this.render();
     }
