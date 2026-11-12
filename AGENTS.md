@@ -70,7 +70,11 @@ This repository is an experimental input device and decoder. The current goal is
 2. Write down the hypothesis and the smallest experiment that can falsify it.
 3. Keep changes in one layer where possible: capture, phonetic normalization, decoding, or platform adapter.
 4. Preserve replayable fixtures. Every bug found from an input trace should become a fixture without storing unnecessary personal text.
-5. Run the fastest relevant checks after each change, then the full test suite before merging.
+5. Before calling a change done, run `script/check.sh`: it picks the focused
+   checks for the layers you touched (same path rules as CI,
+   `script/ci/layers.sh`) and prints a pass/fail/skip summary. Fix every
+   FAIL; report every skip you could not run. Add `--deep` for core decoder
+   changes (golden gates, typing eval) and `--linux` for adapter changes.
 6. For decoder changes, report latency, candidate quality, and whether the result came from offline or LLM-assisted decoding.
 7. Update the architecture or decision record when a boundary, data contract, or user-visible behavior changes.
 

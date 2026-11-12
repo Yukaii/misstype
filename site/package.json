@@ -8,6 +8,7 @@
     "prebuild": "node ../script/prepare_site_notices.mjs",
     "build": "vite build && vite build -c vite.embed.config.js",
     "preview": "vite preview",
+    "test": "node --test ../tests/editor_markdown_test.mjs ../tests/editor_notes_test.mjs ../tests/editor_sync_test.mjs ../tests/editor_dropbox_list_test.mjs ../tests/editor_content_test.mjs ../tests/editor_workspace_test.mjs ../tests/editor_arrows_test.mjs ../tests/editor_vkeys_test.mjs ../tests/editor_hwkeyboard_test.mjs",
     "build:wasm": "cd .. && script/build_site_assets.sh",
     "test:wasm": "node ../tests/wasm_test.mjs"
   },
