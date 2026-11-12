@@ -88,7 +88,7 @@ jobs:
           PY
           # PKGBUILD is executable code: run it only in the credential-free job.
           docker run --rm -v "$RUNNER_TEMP/aur-package:/package" archlinux:base bash -euc '
-            pacman -Sy --noconfirm --needed pacman git
+            pacman -Syu --noconfirm --needed pacman git
             useradd -m builder
             chmod -R a+rwX /package
             cd /package
