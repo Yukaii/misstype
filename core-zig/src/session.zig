@@ -553,6 +553,11 @@ pub const Session = struct {
     candidates: []Candidate = &.{},
     selected: usize = 0,
     latin_mode: bool = false,
+    /// The open run came from a lone Shift tap, which flashes the 中/英
+    /// indicator: committing it keeps English mode. A backtick run is an
+    /// inline English chunk and closes on commit. Read only while
+    /// `latin_mode`; a run resumed by Backspace keeps its origin.
+    latin_from_shift: bool = false,
     pinned_pick: ?[]u8 = null,
     explicit_pick: bool = false,
     cursor: ?usize = null,
@@ -749,6 +754,7 @@ pub const Session = struct {
                 } else {
                     self.latin_mode = !self.latin_mode;
                 }
+                if (self.latin_mode) self.latin_from_shift = true;
                 return .{ .consumed = true, .latin_toggled = true };
             }
             return self.toggleEnglish();
@@ -898,6 +904,8 @@ pub const Session = struct {
         const latin_letter = self.latin_mode and !chord and
             (event.letterLabel() != null or (!shift and event.digitLabel() != null) or
                 (!shift and if (event.characterLabel()) |l| (l.len == 1 and composition_mod.isLatinPunctuation(l[0])) else false));
+        // Read before any non-letter key closes the run below.
+        const shift_run_open = self.latin_mode and self.latin_from_shift;
         if (!latin_letter and !event.isChar("`") and kind != .space and kind != .backspace and kind != .escape) {
             self.latin_mode = false;
         }
@@ -1048,10 +1056,16 @@ pub const Session = struct {
                 try self.pinAdvance(self.segment_selected);
                 self.selected = 0;
             };
-            return .{ .consumed = true, .commit = try self.commitText(false) };
+            // A Shift-tap run open at Return becomes English mode: the tap
+            // showed 英, so accepting must not quietly return to 中.
+            const keep_english = shift_run_open;
+            const committed = try self.commitText(false);
+            if (keep_english) self.engine.english = true;
+            return .{ .consumed = true, .commit = committed, .mode_changed = keep_english };
         }
         if (event.isChar("`") and !shift and !self.engine.english) {
             self.latin_mode = !self.latin_mode;
+            if (self.latin_mode) self.latin_from_shift = false;
             return .{ .consumed = true, .latin_toggled = true };
         }
         const page_size = self.settings.page_size;
