@@ -221,9 +221,7 @@ final class CandidatesPanel: NSPanel {
         applyColors() // also follows a system light/dark switch
         let size = min(max(pageSize, 1), SelectionKeys.pageSizes.upperBound)
         self.pageSize = size
-        // Up to 64 rows pageable (single-char homophone lists); paging math
-        // below is count-generic.
-        let total = Array(candidates.prefix(64))
+        let total = candidates
         let pages = max((total.count + size - 1) / size, 1)
         page = min(max(selected, 0) / size, pages - 1)
         // Grid: the window of `gridColumns` pages holding the current one.

@@ -80,6 +80,7 @@ pub const Lexicon = struct {
     /// Toneless form -> every toned reading with that base.
     toneless: std.StringHashMapUnmanaged(std.ArrayList(ReadingId)) = .empty,
     entry_count: usize = 0,
+    unattested: std.AutoHashMapUnmanaged(ReadingId, void) = .empty,
     /// Cost per dictionary word on a path (LexiconLoader sets 0.5).
     word_penalty: f64 = 0,
     /// Optional per-user substitution costs (null = byte-identical decode).
@@ -195,6 +196,14 @@ pub const Lexicon = struct {
         const a = self.arena.allocator();
         var lines = std.mem.tokenizeScalar(u8, tsv, '\n');
         while (lines.next()) |line| {
+            if (std.mem.startsWith(u8, line, "# unattested\t")) {
+                var it = std.mem.tokenizeScalar(u8, line["# unattested\t".len..], '\t');
+                while (it.next()) |reading| {
+                    const id = try self.intern(reading);
+                    try self.unattested.put(a, id, {});
+                }
+                continue;
+            }
             var fields: [3][]const u8 = undefined;
             if (!splitFields(line, &fields)) continue;
             const score = std.fmt.parseFloat(f64, fields[2]) catch continue;
@@ -286,6 +295,10 @@ pub const Lexicon = struct {
         return self.child(node, id);
     }
 
+    fn isAttested(self: *const Lexicon, id: ReadingId) bool {
+        return !self.unattested.contains(id);
+    }
+
     // MARK: - Reading options
 
     const Scored = struct {
@@ -307,6 +320,12 @@ pub const Lexicon = struct {
     /// edit repairs (transpose 4, substitute/phonetic 5, insert/delete 6,
     /// generic tiers shifted by `repair_cost_offset`).
     pub fn alternatives(self: *const Lexicon, arena: Allocator, syllable: Syllable, fuzzy: bool, tone_tolerance: bool) ![]Option {
+        return self.alternativesWith(arena, syllable, fuzzy, tone_tolerance, true);
+    }
+
+    /// Like `alternatives`, except `allow_unattested = false` also omits
+    /// unattested exact/toneless matches (for sub-slices and neighbor probes).
+    pub fn alternativesWith(self: *const Lexicon, arena: Allocator, syllable: Syllable, fuzzy: bool, tone_tolerance: bool, allow_unattested: bool) ![]Option {
         var buf: [Syllable.max_reading_bytes]u8 = undefined;
         var base_buf: [Syllable.max_reading_bytes]u8 = undefined;
         const reading = syllable.reading(&buf);
@@ -314,12 +333,16 @@ pub const Lexicon = struct {
         var scored: Scored = .{};
         if (syllable.tone != null) {
             const exact = self.reading_ids.get(reading);
-            if (exact) |id| try scored.add(arena, id, 0, 0, false);
+            if (exact) |id| {
+                if (allow_unattested or self.isAttested(id)) try scored.add(arena, id, 0, 0, false);
+            }
             if (tone_tolerance) if (variants) |list| for (list.items) |variant| {
-                if (variant != exact) try scored.add(arena, variant, 4.0, 1, false);
+                if (variant != exact and self.isAttested(variant)) try scored.add(arena, variant, 4.0, 1, false);
             };
         } else if (variants) |list| {
-            for (list.items) |variant| try scored.add(arena, variant, 0.5, 0, false);
+            for (list.items) |variant| {
+                if (allow_unattested or self.isAttested(variant)) try scored.add(arena, variant, 0.5, 0, false);
+            }
         }
         if (fuzzy) try self.repairs(arena, syllable, &scored);
         std.mem.sort(Option, scored.list.items, self, struct {
@@ -346,12 +369,16 @@ pub const Lexicon = struct {
             var buf: [Syllable.max_reading_bytes]u8 = undefined;
             const repaired = (Syllable{ .keys = keys, .tone = r.tone }).reading(&buf);
             if (r.tone != null) {
-                if (r.lexicon.reading_ids.get(repaired)) |id| try r.scored.add(r.arena, id, cost, 1, word_only);
+                if (r.lexicon.reading_ids.get(repaired)) |id| {
+                    if (r.lexicon.isAttested(id)) try r.scored.add(r.arena, id, cost, 1, word_only);
+                }
                 return;
             }
             var base_buf: [Syllable.max_reading_bytes]u8 = undefined;
             const list = r.lexicon.toneless.get(keyboard.withoutTone(repaired, &base_buf)) orelse return;
-            for (list.items) |variant| try r.scored.add(r.arena, variant, cost, 1, word_only);
+            for (list.items) |variant| {
+                if (r.lexicon.isAttested(variant)) try r.scored.add(r.arena, variant, cost, 1, word_only);
+            }
         }
     };
 
@@ -420,14 +447,6 @@ pub const Lexicon = struct {
         }
     }
 
-    fn cheapest(options: []const Option) ?f64 {
-        var best: ?f64 = null;
-        for (options) |o| {
-            if (best == null or o.cost < best.?) best = o.cost;
-        }
-        return best;
-    }
-
     // MARK: - Segmentation
 
     const Partial = struct { syllables: []const Syllable, cost: f64 };
@@ -454,7 +473,9 @@ pub const Lexicon = struct {
                 } else true;
                 if (!all_symbols) continue;
                 const probe = Syllable{ .keys = slice, .tone = null };
-                const best = cheapest(try self.alternatives(arena, probe, fuzzy, tone_tolerance)) orelse continue;
+                const options = try self.alternativesWith(arena, probe, fuzzy, tone_tolerance, len == keys.len);
+                if (options.len == 0) continue;
+                const best = options[0].cost;
                 const prefixes = lattice[start].items[0..@min(lattice[start].items.len, 8)];
                 for (prefixes) |prefix| {
                     const syllables = try arena.alloc(Syllable, prefix.syllables.len + 1);
@@ -501,11 +522,10 @@ pub const Lexicon = struct {
 
     // MARK: - Word lists
 
-    /// Distinct word options covering exactly `span` (best first; 64 for one
-    /// syllable, else 16).
+    /// Distinct word options covering exactly `span` (best first; all for
+    /// one syllable, else 16).
     pub fn segmentOptions(self: *const Lexicon, arena: Allocator, syllables: []const Syllable, span: Range, fuzzy: bool, tone_tolerance: bool) ![]WordOption {
         if (span.isEmpty() or span.len() > 8 or span.end > syllables.len) return &.{};
-        const cap: usize = if (span.len() == 1) 64 else 16;
         const options = try arena.alloc([]Option, syllables.len);
         for (span.start..span.end) |i| options[i] = try self.alternatives(arena, syllables[i], fuzzy, tone_tolerance);
         var found: std.StringArrayHashMapUnmanaged(f64) = .empty;
@@ -542,7 +562,7 @@ pub const Lexicon = struct {
                 return if (a.score == b.score) unicode.lessThan(a.text, b.text) else a.score > b.score;
             }
         }.lt);
-        return out[0..@min(out.len, cap)];
+        return if (span.len() == 1) out else out[0..@min(out.len, 16)];
     }
 
     /// The toned readings (hyphen-joined trie path) under which `text` is a
@@ -609,8 +629,8 @@ pub const Lexicon = struct {
                 return out.items;
             const head = Syllable{ .keys = syllable.keys[0..1], .tone = null };
             const tail = Syllable{ .keys = syllable.keys[1..], .tone = syllable.tone };
-            const heads = try self.alternatives(arena, head, false, tone_tolerance);
-            const tails = try self.alternatives(arena, tail, false, tone_tolerance);
+            const heads = try self.alternativesWith(arena, head, false, tone_tolerance, false);
+            const tails = try self.alternativesWith(arena, tail, false, tone_tolerance, false);
             supported: for (heads) |h| {
                 if (h.correction != 0) continue;
                 const first = self.child(0, h.reading) orelse continue;
@@ -629,7 +649,7 @@ pub const Lexicon = struct {
         var by_tail: std.ArrayList([]const []const Syllable) = .empty;
         for (1..@min(max_syllable_keys, keys.len - 1) + 1) |tail_len| {
             const tail = Syllable{ .keys = keys[keys.len - tail_len ..], .tone = syllable.tone };
-            if ((try self.alternatives(arena, tail, false, tone_tolerance)).len == 0) continue;
+            if ((try self.alternativesWith(arena, tail, false, tone_tolerance, false)).len == 0) continue;
             const leads = try self.segmentations(arena, keys[0 .. keys.len - tail_len], false, tone_tolerance);
             const options = try arena.alloc([]const Syllable, @min(leads.len, 6));
             for (leads[0..options.len], options) |lead, *o| o.* = try concat(arena, lead, &.{tail});
@@ -680,7 +700,7 @@ pub const Lexicon = struct {
         var buf: [3]u8 = undefined;
         const ordered = keyboard.slotOrdered(syllable.keys, &buf) orelse return false;
         const keys = try arena.dupe(u8, ordered);
-        return (try self.alternatives(arena, .{ .keys = keys, .tone = syllable.tone }, false, tone_tolerance)).len > 0;
+        return (try self.alternativesWith(arena, .{ .keys = keys, .tone = syllable.tone }, false, tone_tolerance, false)).len > 0;
     }
 
     pub const DecodeOptions = struct {
@@ -740,8 +760,8 @@ pub const Lexicon = struct {
         }
         // Repair track: when the best merge so far is not fully clean, also
         // decode repair-inclusive segmentations the clean track never had.
-        const top_clean = if (merger.merged.items.len > 0)
-            merger.merged.items[0].unresolved == 0 and merger.merged.items[0].repairs == 0
+        const top_clean = if (merger.best()) |top|
+            top.unresolved == 0 and top.repairs == 0
         else
             false;
         const has_clean = if (self.repair_requires_no_clean) for (merger.merged.items) |candidate| {
@@ -778,7 +798,8 @@ pub const Lexicon = struct {
     fn splitCost(self: *const Lexicon, arena: Allocator, option: []const Syllable, tone_tolerance: bool) !f64 {
         var total: f64 = 0;
         for (option) |syllable| {
-            const best = cheapest(try self.alternatives(arena, syllable, false, tone_tolerance));
+            const opts = try self.alternativesWith(arena, syllable, false, tone_tolerance, option.len == 1);
+            const best: ?f64 = if (opts.len > 0) opts[0].cost else null;
             total = total + (best orelse if (try self.slotReorderable(arena, syllable, tone_tolerance)) @as(f64, 4) else 6);
         }
         return total;
@@ -789,24 +810,38 @@ pub const Lexicon = struct {
         arena: Allocator,
         opts: DecodeOptions,
         merged: std.ArrayList(Candidate) = .empty,
+        by_text: std.StringHashMapUnmanaged(usize) = .empty,
+        unbounded: bool = false,
         budget: i32 = 12,
         /// Best score without learned picks, and the split it came from.
         plain_best: ?f64 = null,
         plain_split: []const Syllable = &.{},
 
+        fn best(m: *const Merger) ?Candidate {
+            const items = m.merged.items;
+            if (items.len == 0) return null;
+            if (!m.unbounded) return items[0];
+            var winner = items[0];
+            for (items[1..]) |c| {
+                if (candidate_mod.better(c, winner)) winner = c;
+            }
+            return winner;
+        }
+
         /// Learned picks do not carry a candidate of another split past the
         /// split that wins without them (`learning_keeps_syllables`).
         fn finish(m: *Merger) []Candidate {
             const items = m.merged.items;
-            if (!m.lexicon.learning_keeps_syllables or m.plain_best == null) return items;
-            var changed = false;
-            for (items) |*c| {
-                if (c.learned == 0 or sameSplit(c.syllables, m.plain_split)) continue;
-                c.score -= c.learned;
-                c.learned = 0;
-                changed = true;
+            var need_sort = m.unbounded;
+            if (m.lexicon.learning_keeps_syllables and m.plain_best != null) {
+                for (items) |*c| {
+                    if (c.learned == 0 or sameSplit(c.syllables, m.plain_split)) continue;
+                    c.score -= c.learned;
+                    c.learned = 0;
+                    need_sort = true;
+                }
             }
-            if (changed) std.mem.sort(Candidate, items, {}, struct {
+            if (need_sort) std.mem.sort(Candidate, items, {}, struct {
                 fn lt(_: void, a: Candidate, b: Candidate) bool {
                     return candidate_mod.better(a, b);
                 }
@@ -831,19 +866,38 @@ pub const Lexicon = struct {
                     m.plain_split = syllables;
                 }
             }
-            for (decoded) |c| {
-                var skip = false;
+            if (syllables.len == 1 and !m.unbounded) {
+                m.unbounded = true;
                 for (m.merged.items, 0..) |existing, i| {
-                    if (!unicode.equal(existing.text, c.text)) continue;
-                    if (existing.score >= c.score) {
-                        skip = true;
-                    } else {
-                        _ = m.merged.orderedRemove(i);
-                    }
-                    break;
+                    try m.by_text.put(m.arena, existing.text, i);
                 }
-                if (skip) continue;
-                try m.merged.append(m.arena, c);
+            }
+            if (m.unbounded) {
+                for (decoded) |c| {
+                    const slot = try m.by_text.getOrPut(m.arena, c.text);
+                    if (slot.found_existing) {
+                        const existing = &m.merged.items[slot.value_ptr.*];
+                        if (candidate_mod.better(c, existing.*)) existing.* = c;
+                    } else {
+                        slot.value_ptr.* = m.merged.items.len;
+                        try m.merged.append(m.arena, c);
+                    }
+                }
+            } else {
+                for (decoded) |c| {
+                    var skip = false;
+                    for (m.merged.items, 0..) |existing, i| {
+                        if (!unicode.equal(existing.text, c.text)) continue;
+                        if (existing.score >= c.score) {
+                            skip = true;
+                        } else {
+                            _ = m.merged.orderedRemove(i);
+                        }
+                        break;
+                    }
+                    if (skip) continue;
+                    try m.merged.append(m.arena, c);
+                }
                 std.mem.sort(Candidate, m.merged.items, {}, struct {
                     fn lt(_: void, a: Candidate, b: Candidate) bool {
                         return candidate_mod.better(a, b);
@@ -869,6 +923,8 @@ pub const Lexicon = struct {
             },
         };
         const run_tops = try arena.alloc([]const Candidate, runs.items.len);
+        var non_empty_runs: usize = 0;
+        var single_syllable_run = false;
         for (runs.items, 0..) |run, index| {
             const trailing = index == runs.items.len - 1;
             var run_opts = opts;
@@ -878,17 +934,23 @@ pub const Lexicon = struct {
             run_opts.locked = if (pins) |*p| p else null;
             const tops = try self.decodeComposition(arena, run.items, if (trailing) pending else &.{}, run_opts);
             run_tops[index] = if (tops.len == 0) try arena.dupe(Candidate, &.{Candidate.empty()}) else tops;
+            if (run.items.len > 0 or (trailing and pending.len > 0)) {
+                non_empty_runs += 1;
+                if (run_tops[index].len > beam_width) single_syllable_run = true;
+            }
         }
+        const keep_all = non_empty_runs == 1 and single_syllable_run;
         const base = try arena.alloc(Candidate, run_tops.len);
         for (run_tops, base) |tops, *b| b.* = tops[0];
         var out: std.ArrayList(Candidate) = .empty;
         try out.append(arena, try render(arena, base, seps.items));
         outer: for (run_tops, 0..) |tops, index| {
-            for (tops[1..]) |alt| {
+            const limit = if (keep_all) tops.len else @min(tops.len, beam_width);
+            for (tops[1..limit]) |alt| {
                 const picks = try arena.dupe(Candidate, base);
                 picks[index] = alt;
                 try out.append(arena, try render(arena, picks, seps.items));
-                if (out.items.len >= 64) break :outer;
+                if (!keep_all and out.items.len >= 64) break :outer;
             }
         }
         std.mem.sort(Candidate, out.items, {}, struct {
@@ -896,7 +958,7 @@ pub const Lexicon = struct {
                 return candidate_mod.better(a, b);
             }
         }.lt);
-        return out.items[0..@min(out.items.len, beam_width)];
+        return if (keep_all) out.items else out.items[0..@min(out.items.len, beam_width)];
     }
 
     fn render(arena: Allocator, picks: []const Candidate, seps: []const []const u8) !Candidate {
@@ -1008,12 +1070,26 @@ pub const Lexicon = struct {
         return reading.len < 2 or reading[reading.len - 2] != 0xcb;
     }
 
+    fn addUnbounded(arena: Allocator, items: *std.ArrayList(Candidate), by_text: *std.StringHashMapUnmanaged(usize), candidate: Candidate) !void {
+        const slot = try by_text.getOrPut(arena, candidate.text);
+        if (slot.found_existing) {
+            const existing = &items.items[slot.value_ptr.*];
+            if (candidate_mod.better(candidate, existing.*)) existing.* = candidate;
+        } else {
+            slot.value_ptr.* = items.items.len;
+            try items.append(arena, candidate);
+        }
+    }
+
     /// Decode with caller-supplied reading options per syllable.
     pub fn decodeOptions(self: *const Lexicon, arena: Allocator, syllables: []const Syllable, options: []const []Option, user_lexicon_: ?*const UserLexicon, locked: ?*const UserLexicon) ![]Candidate {
         if (syllables.len == 0 or options.len != syllables.len) return &.{};
         const context_rules = if (user_lexicon_) |u| try u.contextRules(arena) else null;
         const settled_units = if (locked) |l| try l.settledUnits(arena) else null;
         const locked_nonempty = if (locked) |l| !l.isEmpty() else false;
+        const single = syllables.len == 1;
+        var single_items: std.ArrayList(Candidate) = .empty;
+        var single_index: std.StringHashMapUnmanaged(usize) = .empty;
         const paths = try arena.alloc(Beam, syllables.len + 1);
         for (paths) |*beam| beam.* = .{};
         paths[0].add(Candidate.empty());
@@ -1031,8 +1107,11 @@ pub const Lexicon = struct {
             var raw_buf: [Syllable.max_reading_bytes]u8 = undefined;
             const raw = syllables[start].reading(&raw_buf);
             for (prefixes[0..prefix_count]) |prefix| {
-                if (!paths[start + 1].admits(prefix.score - 100)) continue;
-                paths[start + 1].add(try extend(arena, prefix, raw, prefix.score - 100, prefix.repairs, prefix.unresolved + 1, start, start + 1, Span.no_node));
+                if (single) {
+                    try addUnbounded(arena, &single_items, &single_index, try extend(arena, prefix, raw, prefix.score - 100, prefix.repairs, prefix.unresolved + 1, start, start + 1, Span.no_node));
+                } else if (paths[start + 1].admits(prefix.score - 100)) {
+                    paths[start + 1].add(try extend(arena, prefix, raw, prefix.score - 100, prefix.repairs, prefix.unresolved + 1, start, start + 1, Span.no_node));
+                }
             }
             if (context_rules != null or (self.word_model != null and self.word_model_weight > 0) or self.homophoneInSearch()) {
                 for (prefixes[0..prefix_count], 0..) |prefix, i| {
@@ -1129,10 +1208,14 @@ pub const Lexicon = struct {
                                 if (self.homophoneInSearch() and previous_words[index].len > 0)
                                     language_score += self.homophone_in_search * self.homophone.?.bonus(previous_words[index], entry.text);
                                 const score = prefix.score + language_score - state.penalty - option.cost + boost - self.word_penalty;
-                                if (!paths[end + 1].admits(score)) continue;
+                                if (!single and !paths[end + 1].admits(score)) continue;
                                 var grown_candidate = try extend(arena, prefix, entry.text, score, prefix.repairs + state.repairs + option.correction, prefix.unresolved, start, end + 1, child_node);
                                 grown_candidate.learned = prefix.learned + learned;
-                                paths[end + 1].add(grown_candidate);
+                                if (single) {
+                                    try addUnbounded(arena, &single_items, &single_index, grown_candidate);
+                                } else {
+                                    paths[end + 1].add(grown_candidate);
+                                }
                             }
                         }
                     }
@@ -1148,7 +1231,14 @@ pub const Lexicon = struct {
                 if (states.items.len == 0) break;
             }
         }
-        const final = paths[syllables.len].slice();
+        const final = if (single) blk: {
+            std.mem.sort(Candidate, single_items.items, {}, struct {
+                fn lt(_: void, a: Candidate, b: Candidate) bool {
+                    return candidate_mod.better(a, b);
+                }
+            }.lt);
+            break :blk single_items.items;
+        } else paths[syllables.len].slice();
         const out = try arena.alloc(Candidate, final.len);
         const runs = try arena.alloc(Range, 1);
         runs[0] = Range.of(0, syllables.len);

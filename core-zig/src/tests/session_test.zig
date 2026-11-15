@@ -953,6 +953,49 @@ test "Cmd+arrows with an empty composition still go to the app" {
     try t.expect(!(try s.key(.left, h.command, null)).consumed);
 }
 
+test "single-syllable candidates page and pick past 64 both alone and at cursor" {
+    var rows: std.ArrayList(u8) = .empty;
+    defer rows.deinit(t.allocator);
+    var last_buf: [4]u8 = undefined;
+    var last: []const u8 = "";
+    for (0..80) |i| {
+        var buf: [4]u8 = undefined;
+        const n = try std.unicode.utf8Encode(@intCast(0x4E00 + i), &buf);
+        try rows.print(t.allocator, "ㄩˋ\t{s}\t-{d}.{d}\n", .{ buf[0..n], 5 + i / 10, i % 10 });
+        if (i == 79) {
+            @memcpy(last_buf[0..n], buf[0..n]);
+            last = last_buf[0..n];
+        }
+    }
+    try rows.appendSlice(t.allocator, "ㄋㄧˇ\t你\t-5.0\nㄋㄧˇ-ㄩˋ\t擬玉\t-4.0\n");
+
+    const s = try Harness.init(rows.items);
+    defer s.deinit();
+
+    // 1. Standalone single syllable: >64 candidates, page to index 79 and pick it.
+    try s.typed("m4");
+    const v1 = try s.view();
+    try t.expect(v1.candidates.len >= 80);
+    try t.expectEqualStrings(last, v1.candidates[79]);
+    try s.session.pick(79);
+    try t.expectEqualStrings(last, (try s.enter()).commit.?);
+
+    // 2. Cursor-focused single syllable inside a multi-syllable composition.
+    s.settings().return_confirms_selection = true;
+    try s.typed("su3m4");
+    try s.expectPreedit("擬玉");
+    _ = try s.key(.left, 0, "\u{F702}"); // caret 1 -> focuses 玉 (span 1..2)
+    const v2 = try s.view();
+    try t.expect(v2.candidates.len >= 81);
+    try t.expectEqualStrings(last, v2.candidates[80]);
+    for (0..10) |_| _ = try s.key(.page_down, 0, null); // page 10: row 0 -> index 80
+    try t.expectEqual(@as(usize, 80), (try s.view()).selected);
+    _ = try s.enter();
+    const expected_joined = try std.fmt.allocPrint(t.allocator, "你{s}", .{last});
+    defer t.allocator.free(expected_joined);
+    try t.expectEqualStrings(expected_joined, (try s.enter()).commit.?);
+}
+
 test "Cmd+Left drops a stepped word highlight without accepting it" {
     const s = try Harness.init(h.nihao);
     defer s.deinit();

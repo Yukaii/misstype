@@ -24,6 +24,9 @@ def heterophone_score(score, rank):
     """Score of one reading of a heterophonic char (rank None = unlisted)."""
     if rank == 1:
         return score
+    if score <= HETEROPHONE_FLOOR:
+        shift = 3 if rank is None else (rank - 1)
+        return score - HETEROPHONE_STEP * shift
     if rank is None:
         return HETEROPHONE_FLOOR
     return max(score - HETEROPHONE_STEP * (rank - 1), HETEROPHONE_FLOOR)
@@ -157,6 +160,7 @@ def main():
             if len(fields) == 2 and not line.startswith('#'):
                 ranked.setdefault(fields[0], {})[fields[1]] = rank
     entries = {}
+    attested_readings = set()
     for filename in ('BPMFBase.txt', 'BPMFMappings.txt'):
         for line in (cache / filename).read_text().splitlines():
             fields = line.split()
@@ -168,16 +172,20 @@ def main():
                 continue
             if not 1 <= len(readings) <= 8 or len(text) != len(readings):
                 continue
-            # Skip standalone Bopomofo, punctuation and uncommon zero-count
-            # variants. This native trial uses the corpus's observed vocabulary.
+            # Skip standalone Bopomofo, punctuation and unattested multi-char
+            # phrases; keep every single-character reading in BPMFBase.txt so
+            # rare or variant characters remain typeable.
             count = counts.get(text, 0)
-            if count <= 0 or all('\u3105' <= c <= '\u3129' for c in text):
+            if (count <= 0 and filename != 'BPMFBase.txt') or all('\u3105' <= c <= '\u3129' for c in text):
                 continue
-            reading = '-'.join(r.replace('˙', '') + '˙' if '˙' in r else r for r in readings)
+            normalized = [r.replace('˙', '') + '˙' if '˙' in r else r for r in readings]
+            reading = '-'.join(normalized)
             score = math.log((count + 1) / total)
             if len(text) == 1 and text in ranked:
                 score = heterophone_score(score, ranked[text].get(readings[0]))
             entries[(reading, text)] = score
+            if count > 0:
+                attested_readings.update(normalized)
     apply_reading_order(entries, ROOT / 'Resources/reading_order.tsv')
     general = load_word_frequency(args.word_frequency or fetch_pinned(
         ROOT / 'third_party/NAER/sources.json', ROOT / '.cache/naer'))
@@ -187,8 +195,10 @@ def main():
                                      for (reading, text), score in sorted(toneless.items())))
     print(f'Prepared {len(toneless):,} toneless overrides: {toneless_path}')
     output = args.out or cache / 'lexicon.tsv'
-    output.write_text(''.join(f'{reading}\t{text}\t{score:.6f}\n'
-                             for (reading, text), score in sorted(entries.items())))
+    unattested = sorted({r for r, _ in entries if '-' not in r and r not in attested_readings})
+    header = ('# unattested\t' + '\t'.join(unattested) + '\n') if unattested else ''
+    output.write_text(header + ''.join(f'{reading}\t{text}\t{score:.6f}\n'
+                                        for (reading, text), score in sorted(entries.items())))
     print(f'Prepared {len(entries):,} lexicon entries: {output}')
     prepare_english(ROOT)
 

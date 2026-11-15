@@ -1650,3 +1650,169 @@ test "sparse word model uses the same optional decoder contract" {
     d.lex.word_model_weight = 0.5;
     try expectTop(try d.decodeParsed(try d.comp("su3"), .{}), "妳");
 }
+
+test "single-syllable decode, decodeSegments, and segmentOptions keep all homophones past 64" {
+    var rows: std.ArrayList(u8) = .empty;
+    defer rows.deinit(t.allocator);
+    var last_buf: [4]u8 = undefined;
+    var last: []const u8 = "";
+    for (0..80) |i| {
+        var buf: [4]u8 = undefined;
+        const n = try std.unicode.utf8Encode(@intCast(0x4E00 + i), &buf);
+        try rows.print(t.allocator, "ㄩˋ\t{s}\t-{d}.{d}\n", .{ buf[0..n], 5 + i / 10, i % 10 });
+        if (i == 79) {
+            @memcpy(last_buf[0..n], buf[0..n]);
+            last = last_buf[0..n];
+        }
+    }
+    try rows.appendSlice(t.allocator, "ㄋㄧˇ\t你\t-5.0\nㄋㄧˇ-ㄩˋ\t擬玉\t-6.0\n");
+
+    const d = try Dec.init(rows.items);
+    defer d.deinit();
+
+    const one = try d.decodeParsed(try d.comp("m4"), .{});
+    try t.expect(one.len >= 80);
+    try t.expect(h.containsText(one, last));
+
+    const segs = try d.decodeSegs(try d.comp("m4"), .{});
+    try t.expect(segs.len >= 80);
+    try t.expect(h.containsText(segs, last));
+
+    var punct_comp = composition_mod.Composition{};
+    defer punct_comp.deinit(d.a());
+    _ = try punct_comp.appendLiteral(d.a(), "「");
+    for ("m4") |c| _ = try punct_comp.append(d.a(), c);
+    const with_punct = try d.decodeSegs(punct_comp, .{});
+    try t.expect(with_punct.len >= 80);
+    const last_with_punct = try std.fmt.allocPrint(d.a(), "「{s}", .{last});
+    try t.expect(h.containsText(with_punct, last_with_punct));
+
+    const opts = try d.lex.segmentOptions(d.a(), &.{d.syl("m", h.t4)}, Range.of(0, 1), false, false);
+    try t.expectEqual(@as(usize, 80), opts.len);
+    try t.expectEqualStrings(last, opts[79].text);
+}
+
+test "unbounded single-syllable Merger.best picks top candidate across tone variants and repairs" {
+    var rows: std.ArrayList(u8) = .empty;
+    defer rows.deinit(t.allocator);
+    for (0..25) |i| {
+        var buf: [4]u8 = undefined;
+        const n = try std.unicode.utf8Encode(@intCast(0x4E00 + i), &buf);
+        try rows.print(t.allocator, "ㄩ\t{s}\t-{d}.0\n", .{ buf[0..n], 8 + i });
+    }
+    try rows.appendSlice(t.allocator, "ㄩˋ\t玉\t-3.0\n");
+
+    const d = try Dec.init(rows.items);
+    defer d.deinit();
+
+    // Pending `"m"` expands alphabetically ("ㄩ" before "ㄩˋ"), so "玉"
+    // enters Merger after the 25 "ㄩ" entries; unbounded finish() must
+    // still rank "玉" first with no duplicates.
+    const cands = try d.lex.decodeComposition(d.a(), &.{}, "m", .{});
+    try t.expectEqual(@as(usize, 27), cands.len);
+    try t.expectEqualStrings("玉", cands[0].text);
+}
+
+test "multi-run decodeSegments with >64 candidates in first run still offers second-run alternatives" {
+    var rows: std.ArrayList(u8) = .empty;
+    defer rows.deinit(t.allocator);
+    for (0..80) |i| {
+        var buf: [4]u8 = undefined;
+        const n = try std.unicode.utf8Encode(@intCast(0x4E00 + i), &buf);
+        try rows.print(t.allocator, "ㄩˋ\t{s}\t-{d}.{d}\n", .{ buf[0..n], 5 + i / 10, i % 10 });
+    }
+    try rows.appendSlice(t.allocator, "ㄏㄠˇ\t好\t-4.0\nㄏㄠˇ\t恏\t-4.5\n");
+
+    const d = try Dec.init(rows.items);
+    defer d.deinit();
+
+    var comp = composition_mod.Composition{};
+    defer comp.deinit(d.a());
+    for ("m4") |c| _ = try comp.append(d.a(), c);
+    _ = try comp.appendLiteral(d.a(), "！");
+    for ("cl3") |c| _ = try comp.append(d.a(), c);
+
+    const out = try d.decodeSegs(comp, .{});
+    try t.expect(h.containsText(out, "一！好"));
+    try t.expect(h.containsText(out, "一！恏"));
+}
+
+test "unattested readings stay directly typeable without hijacking repairs, sub-slices, or touch" {
+    const touch = @import("../touch.zig");
+    const rows = h.tsv(
+        \\# unattested|ㄥ|ㄤˇ|ㄊㄨㄢˇ
+        \\ㄥ|鞥|-17.0
+        \\ㄤˇ|軮|-17.0
+        \\ㄤˋ|盎|-14.5
+        \\ㄨㄛˇ|我|-4.0
+        \\ㄩˋ|用|-5.0
+        \\ㄨㄛˇ-ㄩˋ|我用|-3.0
+        \\ㄝˋ|誒|-21.0
+        \\ㄝˊ|耶|-7.0
+        \\ㄊㄧㄢ|天|-5.0
+        \\ㄊㄨㄢˊ|團|-6.0
+        \\ㄒㄩㄝˊ|學|-5.0
+        \\ㄕㄥ|生|-5.0
+        \\ㄒㄩㄝˊ-ㄕㄥ|學生|-3.0
+        \\
+    );
+    const d = try Dec.init(rows);
+    defer d.deinit();
+
+    // 1. Direct exact / standalone single-syllable toneless probe works.
+    try expectTop(try d.decodeParsed(try d.comp(";3"), .{}), "軮");
+    try expectTop(try d.decodeParsed(try d.comp("/ "), .{}), "鞥");
+    try expectTop(try d.decodeSegs(try d.comp("/"), .{}), "鞥");
+
+    // 2. Unattested readings do not enter tone tolerance, repairs, or slotReorderable.
+    const tone_alts = try d.lex.alternatives(d.a(), d.syl(";", h.t4), false, true);
+    try t.expectEqual(@as(usize, 1), tone_alts.len);
+    try t.expectEqualStrings("ㄤˋ", d.lex.readingName(tone_alts[0].reading));
+
+    const repair_alts = try d.lex.alternatives(d.a(), d.syl(";", h.t2), true, false);
+    for (repair_alts) |opt| {
+        try t.expect(!std.mem.eql(u8, d.lex.readingName(opt.reading), "ㄤˇ"));
+    }
+    try t.expect(!try d.lex.slotReorderable(d.a(), d.syl(";", h.t3), false));
+
+    // 3. Sub-slice `"/"` in `"ji/m4"` does not hijack multi-syllable decode.
+    try expectTop(try d.decodeSegs(try d.comp("ji/m4"), .{}), "我用");
+
+    // 4. Low-scored attested heterophone (not in `# unattested`) remains attested.
+    const heterophone_alts = try d.lex.alternatives(d.a(), d.syl(",", h.t2), false, true);
+    var saw_e4 = false;
+    for (heterophone_alts) |opt| {
+        if (std.mem.eql(u8, d.lex.readingName(opt.reading), "ㄝˋ")) saw_e4 = true;
+    }
+    try t.expect(saw_e4);
+
+    // 5. Touch sub-slice `"/"` in `"vm,yv/"` does not emit unattested `ㄥ`.
+    const vm_yv = try d.a().alloc(touch.Hypothesis, 6);
+    for ("vm,yv/", 0..) |ch, i| {
+        const pos = for (touch.positions) |p| {
+            if (p.key == ch) break p;
+        } else unreachable;
+        vm_yv[i] = touch.hypothesis(pos.surface, pos.x, pos.y).?;
+    }
+    const touch_cands = try touch.decode(d.lex, d.a(), vm_yv, .{ .spatial = false });
+    try t.expect(touch_cands.len > 0);
+    for (touch_cands) |tc| {
+        try t.expect(std.mem.indexOf(u8, tc.sentence.text, "鞥") == null);
+    }
+
+    // 6. Touch spatial neighbor combo (`wu0` near `wj0`) omits unattested `ㄊㄨㄢˇ`.
+    const wu0 = try d.a().alloc(touch.Hypothesis, 3);
+    for ("wu0", 0..) |ch, i| {
+        const pos = for (touch.positions) |p| {
+            if (p.key == ch) break p;
+        } else unreachable;
+        wu0[i] = touch.hypothesis(pos.surface, pos.x, pos.y).?;
+    }
+    const spatial_cands = try touch.decode(d.lex, d.a(), wu0, .{ .spatial = true });
+    for (spatial_cands) |tc| {
+        for (tc.sentence.syllables) |s| {
+            var buf: [32]u8 = undefined;
+            try t.expect(!std.mem.eql(u8, s.reading(&buf), "ㄊㄨㄢˇ"));
+        }
+    }
+}
