@@ -109,6 +109,33 @@ class ZigToolTests(unittest.TestCase):
                 if row["radius"] == 0.0:
                     self.assertEqual(row["touch"], 1.0)
 
+    def test_single_syllable_decode_uncapped_past_64(self):
+        with tempfile.TemporaryDirectory() as directory:
+            res = Path(directory)
+            rows = [f"ㄩˋ\t{chr(0x4E00 + i)}\t-{5 + i / 10:.1f}" for i in range(80)]
+            (res / "lexicon.tsv").write_text("\n".join(rows) + "\n", encoding="utf-8")
+            (res / "toneless.tsv").write_text("", encoding="utf-8")
+            (res / "english.tsv").write_text("", encoding="utf-8")
+            out = misstype_dev.run("--resources", str(res), "--decode", "m4")
+            texts = [line.split("\t", 1)[0] for line in out.splitlines()[1:] if line]
+            self.assertIn(chr(0x4E00 + 79), texts)
+            self.assertGreaterEqual(len(texts), 80)
+
+    @unittest.skipUnless(
+        (misstype_dev.ROOT / ".cache/mcbopomofo/lexicon.tsv").exists(),
+        "needs prepared lexicon in .cache/mcbopomofo",
+    )
+    def test_prepared_lexicon_includes_yu_for_m4(self):
+        with tempfile.TemporaryDirectory() as directory:
+            res = Path(directory)
+            cache = misstype_dev.ROOT / ".cache/mcbopomofo"
+            (res / "lexicon.tsv").symlink_to(cache / "lexicon.tsv")
+            if (cache / "toneless.tsv").exists():
+                (res / "toneless.tsv").symlink_to(cache / "toneless.tsv")
+            out = misstype_dev.run("--resources", str(res), "--decode", "m4")
+            texts = [line.split("\t", 1)[0] for line in out.splitlines()[1:] if line]
+            self.assertIn("鈺", texts)
+
 
 class MoreToolTests(unittest.TestCase):
     def test_parse_evidence_keeps_tones_attached(self):
@@ -259,6 +286,59 @@ class MoreToolTests(unittest.TestCase):
         self.assertAlmostEqual(prepare_lexicon.heterophone_score(-9.5, 2),
                                -9.5 - prepare_lexicon.HETEROPHONE_STEP)
         self.assertEqual(prepare_lexicon.heterophone_score(-15.0, 3), floor)
+
+    def test_heterophone_score_preserves_order_below_floor(self):
+        base = prepare_lexicon.HETEROPHONE_FLOOR - 1.0
+        s1 = prepare_lexicon.heterophone_score(base, 1)
+        s2 = prepare_lexicon.heterophone_score(base, 2)
+        s3 = prepare_lexicon.heterophone_score(base, 3)
+        sn = prepare_lexicon.heterophone_score(base, None)
+        self.assertEqual(s1, base)
+        self.assertGreater(s1, s2)
+        self.assertGreater(s2, s3)
+        self.assertGreater(s3, sn)
+
+    def test_prepare_lexicon_retains_zero_count_bpmfbase_entries(self):
+        import sys
+        from unittest import mock
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            cache = root / ".cache/mcbopomofo"
+            cache.mkdir(parents=True)
+            (root / "Resources").mkdir()
+            (cache / "phrase.occ").write_text("你 10\n誒 5\n", encoding="utf-8")
+            (cache / "heterophony1.list").write_text("誒 ㄝˊ\n", encoding="utf-8")
+            for rank in (2, 3):
+                (cache / f"heterophony{rank}.list").write_text("", encoding="utf-8")
+            # 鈺: zero-count single char in BPMFBase must be kept;
+            # 誒 ㄝˋ: count > 0 unlisted heterophone gets a low score yet stays attested;
+            # ㄅ: standalone Bopomofo must still be skipped;
+            # 罕詞: zero-count multi-char phrase in BPMFMappings must be skipped.
+            (cache / "BPMFBase.txt").write_text(
+                "你 ㄋㄧˇ 0\n鈺 ㄩˋ 0\n誒 ㄝˊ 0\n誒 ㄝˋ 0\nㄅ ㄅ 0\n", encoding="utf-8")
+            (cache / "BPMFMappings.txt").write_text(
+                "你好 ㄋㄧˇ ㄏㄠˇ\n罕詞 ㄏㄢˇ ㄘˊ\n", encoding="utf-8")
+            freq = root / "freq.txt"
+            freq.write_text("", encoding="utf-8")
+            out = root / "out/lexicon.tsv"
+            out.parent.mkdir()
+            with mock.patch.object(prepare_lexicon, "ROOT", root), \
+                 mock.patch.object(prepare_lexicon, "fetch_pinned", return_value=cache), \
+                 mock.patch.object(prepare_lexicon, "load_word_frequency", return_value={}), \
+                 mock.patch.object(prepare_lexicon, "prepare_english"), \
+                 mock.patch.object(sys, "argv", ["prepare_lexicon.py", "--word-frequency", str(freq), "--out", str(out)]), \
+                 contextlib.redirect_stdout(io.StringIO()):
+                prepare_lexicon.main()
+            lines = [line for line in out.read_text(encoding="utf-8").splitlines() if line]
+            headers = [line for line in lines if line.startswith("# unattested\t")]
+            self.assertEqual(headers, ["# unattested\tㄩˋ"])
+            rows = {tuple(line.split("\t")[:2]) for line in lines if not line.startswith("#")}
+            self.assertIn(("ㄋㄧˇ", "你"), rows)
+            self.assertIn(("ㄩˋ", "鈺"), rows)
+            self.assertIn(("ㄝˋ", "誒"), rows)
+            self.assertNotIn(("ㄅ", "ㄅ"), rows)
+            self.assertNotIn(("ㄏㄢˇ-ㄘˊ", "罕詞"), rows)
 
     def test_reading_order_swaps_only_the_reviewed_pair(self):
         entries = {("ㄉㄞˋ", "代"): -7.0, ("ㄉㄞˋ", "帶"): -7.6,

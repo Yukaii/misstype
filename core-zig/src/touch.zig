@@ -138,7 +138,7 @@ const Segmentation = struct {
         return a.cost < b.cost;
     }
 };
-const CacheKey = struct { start: usize, end: usize, tone: ?u8, repair: bool };
+const CacheKey = struct { start: usize, end: usize, tone: ?u8, repair: bool, allow_unattested: bool };
 const Decoder = struct {
     dec: *const lexicon.Lexicon,
     a: A,
@@ -147,8 +147,8 @@ const Decoder = struct {
     tap_options: []const []KeyOption,
     opts: Options,
     cache: std.AutoHashMapUnmanaged(CacheKey, []Option) = .empty,
-    fn sliceOptions(self: *Decoder, run: Run, repair: bool) ![]Option {
-        const id: CacheKey = .{ .start = run.start, .end = run.end, .tone = run.tone, .repair = repair };
+    fn sliceOptions(self: *Decoder, run: Run, repair: bool, is_full_run: bool) ![]Option {
+        const id: CacheKey = .{ .start = run.start, .end = run.end, .tone = run.tone, .repair = repair, .allow_unattested = is_full_run };
         if (self.cache.get(id)) |hit| return hit;
         const a = self.a;
         var combos: []const Combo = &.{.{ .keys = "", .cost = 0 }};
@@ -156,7 +156,7 @@ const Decoder = struct {
         var merged: std.ArrayList(Option) = .empty;
         for (combos, 0..) |combo, rank| {
             const nearest = std.mem.eql(u8, combo.keys, self.nearest[run.start..run.end]);
-            const alternatives = try self.dec.alternatives(a, .{ .keys = combo.keys, .tone = run.tone }, repair and rank < self.opts.repair_combos, self.opts.tone_tolerance);
+            const alternatives = try self.dec.alternativesWith(a, .{ .keys = combo.keys, .tone = run.tone }, repair and rank < self.opts.repair_combos, self.opts.tone_tolerance, is_full_run and nearest);
             for (alternatives) |option| {
                 var priced = option;
                 priced.cost += combo.cost;
@@ -191,7 +191,7 @@ const Decoder = struct {
             const max_len: usize = @min(4, n - offset);
             for (1..max_len + 1) |len| {
                 const span: Run = .{ .start = run.start + offset, .end = run.start + offset + len, .tone = if (offset + len == n) run.tone else null };
-                const options = try self.sliceOptions(span, repair);
+                const options = try self.sliceOptions(span, repair, offset == 0 and len == n);
                 if (options.len == 0) continue;
                 const slice: Slice = .{ .syllable = .{ .keys = self.nearest[span.start..span.end], .tone = span.tone }, .options = options };
                 const prefixes = lattice[offset].items;
