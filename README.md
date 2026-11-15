@@ -93,6 +93,26 @@ yay -S fcitx5-misstype-git
 
 這是從最新上游 Git 原始碼建置的套件，不固定於某個發布版本。安裝後重新啟動 fcitx5，並在 `fcitx5-configtool` 中加入 **Misstype**。套件建置、啟用與移除方式請參閱 [安裝說明](docs/arch-linux.md)；套件配方位於 `linux/aur/PKGBUILD`。
 
+如果要在中文組字中直接按 Shift 接英文，請先把 fcitx5 的全域
+「Temporarily Toggle Input Method」熱鍵中的 `Shift_L` 移除；否則 fcitx5
+會先切換輸入法，並在切換時提交尚未完成的中文組字。再到 Misstype 設定中
+開啟 `ShiftTogglesEnglish`。直接編輯 `~/.config/fcitx5/config` 時，請保留：
+
+```ini
+[Hotkey/AltTriggerKeys]
+0=
+```
+
+然後執行：
+
+```sh
+misstypectl config set ShiftTogglesEnglish on
+fcitx5-remote -r
+```
+
+這樣 Shift tap 會交給 Misstype 處理，中文 composition 會留在原位，不會因為
+切換輸入法而被 commit。
+
 也有預編譯、固定發布版本的套件，支援 **x86_64** 與 **aarch64**：
 `yay -S fcitx5-misstype-bin`（IBus 桌面則選 `yay -S ibus-misstype-bin`）。
 `-bin` 直接下載發布檔，不需編譯 Zig/C++；`-git` 仍從最新原始碼建置。
