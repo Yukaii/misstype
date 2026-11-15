@@ -59,13 +59,9 @@ pub const Key = union(enum) {
     }
 };
 
-/// ASCII punctuation that is plain text inside a Latin run although the key
-/// is a Zhuyin letter (ㄡㄝㄤㄥㄦ).
-pub fn isLatinPunctuation(c: u8) bool {
-    return switch (c) {
-        '.', ',', ';', '/', '-' => true,
-        else => false,
-    };
+/// Printable non-space ASCII text that appends verbatim inside a Latin run.
+pub fn isLatinChar(c: u8) bool {
+    return c > 0x20 and c < 0x7f;
 }
 
 pub const Segment = union(enum) {
@@ -283,12 +279,12 @@ pub const Composition = struct {
         self.fixCaret();
     }
 
-    /// Append one Latin character (ASCII letter or digit, or Latin
-    /// punctuation) into the running composition.
+    /// Append one Latin character (printable non-space ASCII) into the
+    /// running composition.
     pub fn appendLatin(self: *Composition, gpa: Allocator, text: []const u8) !bool {
         if (self.raw_keys.items.len >= max_keys or text.len != 1) return false;
         const c = text[0];
-        if (c >= 0x80 or !(std.ascii.isAlphanumeric(c) or isLatinPunctuation(c))) return false;
+        if (!isLatinChar(c)) return false;
         try self.raw_keys.append(gpa, .{ .latin = c });
         return true;
     }

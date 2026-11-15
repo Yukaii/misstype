@@ -382,9 +382,42 @@ test "a comma and friends inside a Latin run stay literal" {
     try s.typed("su3`hi, a-b/c;");
     try s.expectPreedit("你hi, a-b/c;");
     try t.expect(s.session.latinActive());
-    // Shift+, is still the full-width comma and ends the run.
+    // Shifted and unshifted ASCII symbols stay half-width inside the run.
+    _ = try s.chr("1", h.shift, "!");
     _ = try s.chr(",", h.shift, "<");
-    try s.expectPreedit("你hi, a-b/c;，");
+    _ = try s.chr("'", 0, "'");
+    _ = try s.chr("`", h.shift, "~");
+    try s.expectPreedit("你hi, a-b/c;!<'~");
+    try t.expect(s.session.latinActive());
+    // Closing the run returns to full-width CJK punctuation.
+    _ = try s.chr("`", 0, "`");
+    try t.expect(!s.session.latinActive());
+    _ = try s.chr("1", h.shift, "!");
+    _ = try s.chr(",", h.shift, "<");
+    try s.expectPreedit("你hi, a-b/c;!<'~！，");
+}
+
+test "Shift-tap English mode types half-width symbols" {
+    const s = try Harness.init(h.nihao);
+    defer s.deinit();
+    try s.typed("su3");
+    try t.expect((try s.tapShift(100)).latin_toggled);
+    try s.typed("hi");
+    _ = try s.chr("1", h.shift, "!");
+    _ = try s.chr("/", h.shift, "?");
+    _ = try s.chr("2", h.shift, "@");
+    _ = try s.chr("=", 0, "=");
+    _ = try s.chr("[", 0, "[");
+    _ = try s.chr("]", 0, "]");
+    try s.expectPreedit("你hi!?@=[]");
+    try t.expect(s.session.latinActive());
+    // Return commits the half-width symbols and keeps global English mode,
+    // where subsequent symbols pass through half-width too.
+    const r = try s.enter();
+    try t.expectEqualStrings("你hi!?@=[]", r.commit.?);
+    try t.expect(r.mode_changed);
+    try t.expect(s.engine.english);
+    try t.expect(!(try s.chr("1", h.shift, "!")).consumed);
 }
 
 test "backspace inside a Latin run keeps the run" {
@@ -399,7 +432,8 @@ test "backspace inside a Latin run keeps the run" {
     _ = try s.backspace();
     try s.typed("yo");
     try s.expectPreedit("你yo");
-    // Ended by punctuation, then edited back into the word: the run resumes.
+    // Ended by punctuation after closing the run, then edited back into the word: the run resumes.
+    _ = try s.chr("`", 0, "`");
     _ = try s.chr(",", h.shift, "<");
     try s.expectPreedit("你yo，");
     _ = try s.backspace();

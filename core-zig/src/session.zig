@@ -754,7 +754,10 @@ pub const Session = struct {
                 } else {
                     self.latin_mode = !self.latin_mode;
                 }
-                if (self.latin_mode) self.latin_from_shift = true;
+                if (self.latin_mode) {
+                    self.latin_from_shift = true;
+                    self.selecting = false;
+                }
                 return .{ .consumed = true, .latin_toggled = true };
             }
             return self.toggleEnglish();
@@ -901,12 +904,12 @@ pub const Session = struct {
         if ((kind == .character or kind == .other) and text.len == 0) return .handled;
         if (kind == .space and shift) return self.toggleEnglish();
         if (self.engine.english or mods & mod_caps_lock != 0) return self.pass(true);
-        const latin_letter = self.latin_mode and !chord and
-            (event.letterLabel() != null or (!shift and event.digitLabel() != null) or
-                (!shift and if (event.characterLabel()) |l| (l.len == 1 and composition_mod.isLatinPunctuation(l[0])) else false));
+        const latin_toggle = event.isChar("`") and !shift;
+        const latin_char = self.latin_mode and !chord and kind == .character and !latin_toggle and
+            text.len == 1 and composition_mod.isLatinChar(text[0]);
         // Read before any non-letter key closes the run below.
         const shift_run_open = self.latin_mode and self.latin_from_shift;
-        if (!latin_letter and !event.isChar("`") and kind != .space and kind != .backspace and kind != .escape) {
+        if (!latin_char and !latin_toggle and kind != .space and kind != .backspace and kind != .escape) {
             self.latin_mode = false;
         }
         if (self.symbol_menu) |*menu_ptr| {
@@ -1063,9 +1066,12 @@ pub const Session = struct {
             if (keep_english) self.engine.english = true;
             return .{ .consumed = true, .commit = committed, .mode_changed = keep_english };
         }
-        if (event.isChar("`") and !shift and !self.engine.english) {
+        if (latin_toggle and !self.engine.english) {
             self.latin_mode = !self.latin_mode;
-            if (self.latin_mode) self.latin_from_shift = false;
+            if (self.latin_mode) {
+                self.latin_from_shift = false;
+                self.selecting = false;
+            }
             return .{ .consumed = true, .latin_toggled = true };
         }
         const page_size = self.settings.page_size;
@@ -1090,7 +1096,7 @@ pub const Session = struct {
             }
         };
         // CJK punctuation pins the current pick and continues.
-        if (kind == .character) {
+        if (kind == .character and !latin_char) {
             const before = self.composition.beforeCaret();
             const lits = try self.arena().alloc(?[]const u8, before.len);
             for (before, lits) |k, *l| l.* = k.literalText();
@@ -1108,10 +1114,10 @@ pub const Session = struct {
                 return .handled;
             }
         }
-        // Latin letters append verbatim (Latin run, or Shift-hold).
-        if ((latin_letter or (shift and event.letterLabel() != null)) and text.len == 1) {
+        // Latin characters append verbatim (Latin run, or Shift-hold letters).
+        if ((latin_char or (shift and event.letterLabel() != null)) and text.len == 1) {
             const ch = text[0];
-            if (ch < 0x80 and (std.ascii.isAlphabetic(ch) or (latin_letter and (std.ascii.isDigit(ch) or composition_mod.isLatinPunctuation(ch))))) {
+            if (latin_char or (ch < 0x80 and std.ascii.isAlphabetic(ch))) {
                 const tail = try self.composition.splitAtCaret(self.gpa);
                 const ok = try self.composition.appendLatin(self.gpa, text);
                 try self.composition.joinTail(self.gpa, tail);
