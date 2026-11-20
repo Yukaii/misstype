@@ -22,15 +22,15 @@ Misstype is a Zhuyin (Bopomofo) input method built around two things:
 - **Tone-optional continuous typing**: skip the tones and the per-character candidate picking. Keep typing and the whole sentence is assembled from context.
 - **Automatic typo repair**: neighboring-key slips, swapped order, and extra or missing keys are repaired toward what you meant, without affecting correct input.
 
-Everything runs locally; no network is needed. The project is still experimental: it validates the typing model in software before deciding on custom hardware.
+Everything runs locally; no network is needed.
 
 > [!TIP]
 > No install needed: [try it in your browser](https://misstype.yukai.dev/editor/). The online editor runs the same Zig core (WebAssembly).
 
-> [!IMPORTANT]
-> This project is developed entirely with LLMs, and will keep being developed, delivered and tested by LLMs. Bug reports and feature prompts are welcome, and regular contributions are very welcome too, but be prepared for them to be closed and redone from scratch XD
+> [!NOTE]
+> This is my personal side project: built around my own typing habits, used every day, and still experimental. Bug reports, ideas and PRs are welcome, but the direction follows what I need, so a PR may be closed or reworked into something else. Sorry in advance XD
 
-## Start here (humans and agents)
+## Start here
 
 1. Read [AGENTS.md](AGENTS.md) first (working loop, privacy rules, canonical commands), then [docs/status.md](docs/status.md) (where things stand), [docs/architecture.md](docs/architecture.md) and [docs/project-outline.md](docs/project-outline.md).
 2. Build and run the core tests (the first run downloads the pinned Zig):
@@ -40,7 +40,7 @@ Everything runs locally; no network is needed. The project is still experimental
    ```
 
    Per-layer and per-platform checks: [CONTRIBUTING.md](CONTRIBUTING.md#checks) and [docs/development.md](docs/development.md).
-3. Before opening a PR read [CONTRIBUTING.md](CONTRIBUTING.md) and use the PR template. Agents open a PR only when their human asks, and disclose the model and harness in it.
+3. Before opening a PR read [CONTRIBUTING.md](CONTRIBUTING.md) and use the PR template.
 
 ## Why another input method?
 

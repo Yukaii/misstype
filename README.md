@@ -22,15 +22,15 @@
 - **免聲調連續輸入**：不用打聲調，也不用逐字選字，一路打下去，輸入法依前後文組成整句。
 - **自動修正打錯的字**：按錯鄰近的鍵、前後顛倒、多打或少打，都盡量還原成你想打的字，不影響正確輸入。
 
-全程在本地運算、不需網路。專案仍在實驗階段，先用軟體驗證打字方式，再決定是否製作專用硬體。
+全程在本地運算、不需網路。
 
 > [!TIP]
 > 不用安裝，直接[在瀏覽器試打](https://misstype.yukai.dev/editor/)：線上編輯器跑的是同一個 Zig 核心（WebAssembly）。
 
-> [!IMPORTANT]
-> 本專案完全使用 LLM 開發，之後也會持續交給 LLM 開發、交付與測試。歡迎貢獻 bug 與 feature prompt；一般的貢獻同樣絕讚歡迎，不過要有被關掉、完全重改的心理準備 XD
+> [!NOTE]
+> 這是我的個人 side project，照自己的打字習慣開發、每天自己在用，還在實驗階段。歡迎回報 bug、提想法或送 PR，不過方向會以我自己的需求為主，PR 有可能被關掉或改寫成別的樣子，先說聲抱歉 XD
 
-## 開始開發（人與代理程式）
+## 開始開發
 
 1. 先讀 [AGENTS.md](AGENTS.md)（工作流程、隱私規則、指令清單），再讀 [docs/status.md](docs/status.md)（現況）、[docs/architecture.md](docs/architecture.md) 與 [docs/project-outline.md](docs/project-outline.md)。
 2. 建置並跑核心測試（第一次會下載固定版本的 Zig）：
@@ -40,7 +40,7 @@
    ```
 
    各平台與各層的完整檢查見 [CONTRIBUTING.md](CONTRIBUTING.md#checks) 與 [docs/development.md](docs/development.md)。
-3. 送 PR 前讀 [CONTRIBUTING.md](CONTRIBUTING.md) 並使用 PR 範本。代理程式只在使用者明確要求時才開 PR，並在 PR 中揭露模型與 harness。
+3. 送 PR 前讀 [CONTRIBUTING.md](CONTRIBUTING.md) 並使用 PR 範本。
 
 ## 為什麼又寫一個輸入法？
 
