@@ -57,6 +57,13 @@ Last reviewed: 2026-11-12 (latest release v0.5.5, 2026-10-14).
   learned picks reorder words but never choose the syllable split.
   End-to-end quality is measured by `tools/typing_eval.py` (seeded typist
   personas through the real `Session`) against a checked-in baseline.
+  Word choice alone is measured on unseen text by
+  `tools/first_choice_eval.py` (2026-11-21): toned 74.8 % exact sentences
+  and 91.9 % words, toneless 53.4 % / 80.3 %, with the intended sentence in
+  the top 16 for 93.0 % / 77.5 %, so most misses are scoring, not
+  candidates (`lab-notebook.md`). **Open:** a corpus-trained word-pair
+  score, then a small reranker; typist personas are still uncalibrated
+  because the key trace stopped on 2026-10-09.
 - **Touch** (`core-zig/src/touch.zig`, `misstype-dev --touch`): on the real
   lexicon coordinate-aware decoding beats keyboard repair by 20–50 pp at
   jitter 0.10–0.12 without touching exact input (`tools/noise.py`,

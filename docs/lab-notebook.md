@@ -1364,3 +1364,52 @@ reported phrases). Tests: `RepairStrengthTests` and the
 ## Settings window (2026-09-29)
 
 - Settings window (landed 2026-09-29): the 360pt utility panel became a full `SettingsWindow` (SwiftUI, sidebar: General / Decoding / Learning / Jev Assist (removed 2026-10-09) / About; controls bind to the same `Misstype*` UserDefaults keys). UI strings go through `L()` with English keys and `Resources/{zh-Hant,zh-Hans,ja}.lproj/Localizable.strings`, following the system language; `tools/check_localizations.py` fails on missing or stale keys. Manual check pending: language switch, Clear learned phrases.
+
+## First-choice quality and reranker headroom (2026-11-21)
+
+Question: with no typos at all, how good is word choice on its own, and
+when the first choice is wrong, is the intended sentence already among the
+decoder's candidates? The typing personas mix typo repair with word choice,
+and their dev/holdout sentences are worn by tuning, so neither answers it.
+
+Tool: `tools/first_choice_eval.py` (new). It types each sentence cleanly,
+toned and toneless, through `misstype-dev --decode` and reports exact
+sentences, 1 − CER, per-word first choice (fewest-words dictionary
+segmentation) and whether the sentence is in the first 8 / all 16 returned
+candidates. `cv-legacy` is the 2,000-sentence Common Voice prefix that
+`external_v1` already excludes, so the reserved set stays unspent. Readings
+come from the pinned dictionary, not human typing. ReleaseFast, commit
+`043a872`, offline, 4,924 decodes in 35 s:
+
+| set (n) | mode | sentence | char | word | in top 8 | in top 16 | ms p95 |
+|---|---|---|---|---|---|---|---|
+| cv-legacy (2000) | toned | 74.8 % | 94.8 % | 91.9 % | 91.0 % | 93.0 % | 0.97 |
+| cv-legacy (2000) | toneless | 53.4 % | 86.4 % | 80.3 % | 74.3 % | 77.5 % | 6.51 |
+| corpus dev (226) | toned | 90.3 % | 98.4 % | 97.4 % | 99.6 % | 100 % | 1.00 |
+| corpus holdout (236) | toned | 86.0 % | 97.9 % | 96.3 % | 99.2 % | 99.6 % | 0.73 |
+
+Findings:
+
+- The worn corpus flatters word choice by 11–15 points of exact sentences
+  against unseen text; use `cv-legacy` for decisions about scoring.
+- Headroom over our own candidates is large: +18 points toned and +24
+  toneless between first choice and top 16. Most misses are scoring, not
+  candidate generation; examples are context homophones (再/在, 得/的,
+  已/以, 訂/定, 交/教) and sentence-level picks the word-frequency score
+  cannot see. A sample of sentences a stronger word-pair model decodes
+  correctly showed about 78 % (toned) already in our top 16; the rest were
+  missing vocabulary (已讀不回, 橘線 and similar recent or place names).
+- Direction, crediting the approach of statistical-engine-plus-reranker
+  IMEs: (1) a corpus-trained word-pair (bigram) score over the existing
+  lattice is the first lever, before any neural model; (2) a small
+  reranker over the top 8–16 candidates is the second; (3) lexicon coverage
+  of current vocabulary is a separate, smaller lever. Each is judged on
+  `cv-legacy` first and confirmed once on `external_v1`.
+
+Human typing calibration: `tools/keylog_calibrate.py` (new) reads the
+macOS key trace (keycodes only) and reports tone habit, noticed slips by
+kind (neighbour/far substitution, transposition, omission, insertion,
+tone) and picks per composition. Noticed slips are a lower bound; unnoticed
+errors need the intended text. The trace stopped being written when the
+Swift core retired (2026-10-09), so only older logs can be read until a
+consented, local key trace exists again in the Zig `Session`.
