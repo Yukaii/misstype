@@ -45,7 +45,8 @@ Every adapter, the macOS Swift one included, goes through the C ABI;
 - Physical keys are named by their **US-ANSI unshifted label** (`"a"`, `"1"`,
   `";"`, `` "`" ``), never by the character the user's layout produces: the
   大千 Zhuyin layout is positional.
-- Key-code tables are data in the core (`MacKeyCode`, `EvdevKeyCode`) so they
+- Key-code tables are data in the core (`MacKeyCode`, `EvdevKeyCode`, Windows
+  set-1 scan codes via `misstype_key_from_windows`) so they
   are unit-tested on every platform. Adapters never carry their own table.
 - When an event has no scancode (virtual keyboards, synthetic events), fall
   back to `USLayout.key(forCharacter:)` on the event's text.
