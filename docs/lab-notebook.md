@@ -1531,3 +1531,17 @@ Per the protocol these block promotion pending diagnosis; the set is now
 consumed, and its failures go to regression coverage, not tuning. A debug
 build gave slightly different exact rates (66.8 %), so some Session paths
 are timing-dependent; to investigate.
+
+Follow-up (same day): the three newly unreachable external_v1 cases.
+嚴復合集 (two partial-tone personas): with the model the top-1 is 嚴復|合輯;
+picking 復合 re-decodes the cut word 嚴復 and the 嚴 becomes 眼/言, so the
+corrector stalls. Tried: `UserLexicon.pin` keeping the displayed characters
+of any word the pick cuts (count-0 pins, not learned). It fixes both
+嚴復合集 cases, but on the typing sets without a model it is a net loss
+(15 cases cheaper, 67 costlier, 11 newly unreachable such as 把書還給我,
+where the cut word was itself wrong and must change). Rejected, not
+committed. 天氣即時預報粉絲團 (sloppy): picking 即時 lets the rest of the
+run re-decode (天氣 -> 土耳其), because explicit pins drop the run's settled
+pins; the same happens without the model, which only recovers by a
+different path. Both are pick semantics, not the word model; the model
+stays developer-only until a pick rule passes the same gate.
