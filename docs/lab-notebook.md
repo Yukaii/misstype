@@ -1584,3 +1584,27 @@ Follow-up (same day): the last two external_v1 failures.
 With the model, external_v1 zh: unreachable 12.0 -> 11.7 %, picks per 100
 characters 6.09 -> 4.49, 1 case newly unreachable (this one); dev/holdout
 none.
+
+Follow-up (same day): mixed English with the word model. The model lost
+mixed clean cases at the first Chinese word after English (你有IG媽,
+幫我check以下): each Chinese run between English words was scored from
+sentence start, and training split clauses at English, so 以下/媽 (common
+openers) won. Fix: training keeps English words and numbers inside a clause
+as one `<latin>` token; the decoder starts a run after a latin word there
+(models without the symbol unchanged). Rebuilt 5M v2 model (sha256
+ed726b21…, 22.1 MB, same exclusions). Against no model: mixed-holdout
+exact 48.2 -> 53.7 %, picks per 100 characters 2.51 -> 1.60 (the previous
+model: 50.0 % / 2.24); mixed-dev 55.8 -> 60.2 %, 1.35 -> 0.82; zh dev/holdout
+as before; cv-legacy Chinese-only 80.4 / 63.2 % vs 80.5 / 63.0 %; no typing
+case newly unreachable; external_v1 picks 6.09 -> 4.35, fix keys 4.04 ->
+2.90, only the settling case unreachable. Installed locally for testing.
+
+Found on the way, a bug without any model: with an inserted English
+reading selected, Backspace deleted back to the previous tone key (a slip
+plus a tone key after `python` lost the word, or the whole composition
+when the Chinese before it was toneless). Fixed (one key), regression test
+`Backspace on an English reading removes one key, not the run`.
+
+Open: the English/Chinese switch margins predate the model; with it,
+`bug` typed as bare keys loses to 這個日益是 (pickable), and 這台 now reads
+這臺 (the dictionary's form).
