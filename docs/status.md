@@ -6,7 +6,7 @@ for working in the repository live in `AGENTS.md`; goals and milestones in
 [`project-outline.md`](project-outline.md); experiments and measurements in
 [`lab-notebook.md`](lab-notebook.md).
 
-Last reviewed: 2026-11-12 (latest release v0.5.5, 2026-10-14).
+Last reviewed: 2026-11-21 (latest release v0.5.5, 2026-10-14).
 
 ## Platforms
 
@@ -57,6 +57,38 @@ Last reviewed: 2026-11-12 (latest release v0.5.5, 2026-10-14).
   learned picks reorder words but never choose the syllable split.
   End-to-end quality is measured by `tools/typing_eval.py` (seeded typist
   personas through the real `Session`) against a checked-in baseline.
+  Word choice alone is measured on unseen text by
+  `tools/first_choice_eval.py` (2026-11-21): toned 74.8 % exact sentences
+  and 91.9 % words, toneless 53.4 % / 80.3 %, with the intended sentence in
+  the top 16 for 93.0 % / 77.5 %, so most misses are scoring, not
+  candidates (`lab-notebook.md`). A pruned HPLT word-pair model
+  (MSLM v2, 22 MB, evaluation sentences excluded from training) lifts that
+  to 82.2 % / 64.5 % and halves dev/holdout picks, at +1 ms per-key p95.
+  It ships in `Resources/` (2026-11-21, MSLM v3, 22.8 MB, CC0) with
+  `place_names.tsv` (33,802 Taiwan road, village and district names, Open
+  Government Data License v1), which the core loads only together with the
+  model; macOS and Linux bundle both, the web demo does not.
+  `MISSTYPE_NO_WORD_MODEL` turns both off. Spent `external_v1` on it (2026-11-21): zh exact
+  59.2 -> 66.2 %, picks per 100 characters 5.87 -> 4.47, but 3 cases became
+  unreachable through pick semantics (a pick re-decodes text the typist had
+  accepted); after the pick fixes one case remains (settling a
+  mid-typing re-split). Typist personas are still
+  uncalibrated because the key trace stopped on 2026-10-09.
+- **Headline measure (2026-11-21): effort, not first guess.** Exact first
+  choice has a ceiling (some input is ambiguous from keys alone, more so
+  without tones; the intended sentence is in our top 16 for 95 % toned /
+  89 % toneless), so decoder work reports first `typing_eval`'s
+  `picks_100` + `fix_keys` (effort to reach the intended text) and
+  `unreach_pct` (target 0: every sentence fixable by picking), then
+  first-choice rates as a diagnostic. Corpus statistics for word choice
+  follow the established statistical-IME method; our own work goes into
+  picks that never undo accepted text, typo repair, toneless typing, local
+  personal learning and late correction from the kept raw keys.
+  Done (2026-11-21): picks keep the text before them, the word model reads
+  Chinese after English, place names, learning measured with the model
+  (bonuses unchanged). **Open, in order:** learning multi-character words
+  in context, settling a mid-typing re-split, a reading review of
+  polyphone place names, casual Taiwanese vocabulary.
 - **Touch** (`core-zig/src/touch.zig`, `misstype-dev --touch`): on the real
   lexicon coordinate-aware decoding beats keyboard repair by 20–50 pp at
   jitter 0.10–0.12 without touching exact input (`tools/noise.py`,

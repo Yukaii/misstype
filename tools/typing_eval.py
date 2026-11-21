@@ -240,10 +240,10 @@ def stable_rng(*parts: object) -> random.Random:
     return random.Random(int.from_bytes(digest[:8], "big"))
 
 
-def build_cases(sets: list[str], seeds: int, methods: list[str]) -> list[Case]:
+def build_cases(sets: list[str], seeds: int, methods: list[str], corpus: Path = CORPUS) -> list[Case]:
     reverse = load_reverse_lexicon()
     cases = []
-    for set_name, category, sentence, readings in load_corpus():
+    for set_name, category, sentence, readings in load_corpus(corpus):
         if set_name not in sets:
             continue
         mixed = set_name.startswith("mixed")
@@ -474,6 +474,10 @@ def main() -> int:
     parser.add_argument("--fail-on-regression", action="store_true")
     parser.add_argument("--learning", default="",
                         help="comma-separated personas: run the learning passes instead")
+    parser.add_argument("--corpus", type=Path, default=CORPUS,
+                        help="corpus TSV in typing_corpus.tsv format, e.g. the reserved "
+                             ".cache/eval-reserve/external-v1.tsv (docs/offline-evaluation.md: "
+                             "freeze the model before running it)")
     parser.add_argument("--bin", type=Path, default=APP_BIN,
                         help="misstype-dev to drive (e.g. another worktree's build)")
     args = parser.parse_args()
@@ -491,7 +495,7 @@ def main() -> int:
             "all": ["dev", "holdout", "mixed-dev", "mixed-holdout"]}[args.set]
     methods = [m for m in args.methods.split(",") if m]
     started = time.perf_counter()
-    cases = build_cases(sets, args.seeds, methods)
+    cases = build_cases(sets, args.seeds, methods, args.corpus)
     run(cases, args.jobs)
     summary, per_case = score(cases)
     baseline = json.loads(args.baseline.read_text(encoding="utf-8")) if args.baseline else None
@@ -510,7 +514,7 @@ def main() -> int:
     if baseline:
         _, worse = compare(per_case, baseline["cases"], args.limit)
     if args.save:
-        save(args.save, {"commit": git_commit(), "seeds": args.seeds, "set": args.set, "methods": methods,
+        save(args.save, {"commit": git_commit(), "seeds": args.seeds, "set": args.set, "corpus": str(args.corpus), "methods": methods,
                          "build": mode, "jobs": args.jobs}, summary, per_case)
         print(f"saved {args.save}")
     if args.fail_on_regression and baseline:

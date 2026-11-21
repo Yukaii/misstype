@@ -12,6 +12,8 @@ website demo. Platform-specific components are identified separately.
 | libtabe `tsi.src` (via McBopomofo's `BPMFMappings.txt`) | multi-character phrases | BSD-style, Copyright (c) 1999 TaBE Project, Pai-Hsiang Hsiao; Computer Systems and Communication Lab, Institute of Information Science, Academia Sinica | `third_party/libtabe/COPYING` |
 | hermitdave [FrequencyWords](https://github.com/hermitdave/FrequencyWords) English 50k (pinned in `third_party/FrequencyWords/sources.json`), from OpenSubtitles 2018 | `english.tsv`: English words and log-frequencies for recognizing English typed without a mode switch | Content CC BY-SA 4.0 (code MIT), Hermit Dave | `third_party/FrequencyWords/LICENSE.md` |
 | [HPLT 2.0 cleaned](https://huggingface.co/datasets/HPLT/HPLT2.0_cleaned), config `zho_Hant`, four shards (pinned in `third_party/HPLT/sources.json`) | `homophone.bin`: hashed word-pair association statistics (no text) used only to order homophones | HPLT licenses its packaging under CC0 1.0 and does not own the underlying web text (notice and take-down policy); Misstype dedicates its derived table under CC0 1.0 | `third_party/HPLT/LICENSE.md` |
+| [HPLT 2.0 cleaned](https://huggingface.co/datasets/HPLT/HPLT2.0_cleaned), same shards | `word_model.bin` (macOS and Linux): hashed word-pair language model (no text) used to choose words in context | as above; Misstype dedicates its derived model under CC0 1.0 | `third_party/HPLT/LICENSE.md` |
+| 內政部 (Ministry of the Interior, Taiwan) open data: 全國路名資料 and 村里清單 (pinned in `third_party/TaiwanOpenData/sources.json`) | `place_names.tsv` (macOS and Linux): Taiwan road, village and district names with derived readings | [Open Government Data License v1](https://data.gov.tw/license) (attribution; CC BY 4.0 compatible). 此開放資料依政府資料開放授權條款 (Open Government Data License) 進行公眾釋出，使用者於遵守本條款各項規定之前提下，得利用之。 | `third_party/TaiwanOpenData/LICENSE.md` |
 | [Sparkle](https://github.com/sparkle-project/Sparkle) (resolved by `Package.resolved`; license snapshot in `third_party/Sparkle/sources.json`) | macOS only: bundled update framework | MIT plus BSD, MIT and zlib-style notices for embedded components; retain the complete upstream license | `third_party/Sparkle/LICENSE` |
 | [fcitx5](https://github.com/fcitx/fcitx5) Core and Utils | Linux only: dynamically linked system libraries, not bundled | LGPL-2.1-or-later | `third_party/fcitx5/LGPL-2.1-or-later.txt` and `third_party/fcitx5/README.md` |
 | [Hairline](https://github.com/lucasmarkes/hairline), kernel from commit `bc78224` | Website only: hero keyboard figure; kernel modified by appending an ES module export | MIT, Copyright (c) 2026 Lucas Marques | `site/hairline/LICENSE` (website copy: `third_party/Hairline/LICENSE`) |
@@ -31,6 +33,13 @@ it holds hashes of word pairs and a quantized strength computed from the
 HPLT 2.0 `zho_Hant` corpus. HPLT states that it does not own the underlying
 web text and runs a notice-and-take-down policy; the table is regenerated
 without any source that is withdrawn (`third_party/HPLT/LICENSE.md`).
+
+`word_model.bin` (`Resources/word_model.bin`, optional) likewise holds hashed
+dictionary words and word pairs with quantized probabilities from the same
+HPLT shards, no corpus text, under CC0 1.0 (`third_party/HPLT/LICENSE.md`).
+`place_names.tsv` adapts Ministry of the Interior open data under the Open
+Government Data License v1 with the attribution above; the names are kept,
+stems and Bopomofo readings added (`third_party/TaiwanOpenData/LICENSE.md`).
 
 The Linux addon remains MIT licensed; its use of fcitx5 is covered by the LGPL.
 Users may modify it and replace the shared libraries, including to debug their

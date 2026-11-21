@@ -30,13 +30,14 @@ const sections = [
   ["libtabe (BSD-style)", "third_party/libtabe/COPYING"],
   ["NAER / 國家教育研究院 (CC BY 4.0)", "third_party/NAER/LICENSE.md", "https://creativecommons.org/licenses/by/4.0/"],
   ["FrequencyWords / english.tsv (CC BY-SA 4.0)", "third_party/FrequencyWords/LICENSE.md", "https://creativecommons.org/licenses/by-sa/4.0/"],
-  ["HPLT / homophone.bin (CC0 1.0)", "third_party/HPLT/LICENSE.md", "https://creativecommons.org/publicdomain/zero/1.0/"],
+  ["HPLT / homophone.bin, word_model.bin (CC0 1.0)", "third_party/HPLT/LICENSE.md", "https://creativecommons.org/publicdomain/zero/1.0/"],
+  ["內政部 open data / place_names.tsv (Open Government Data License v1)", "third_party/TaiwanOpenData/LICENSE.md", "https://data.gov.tw/license"],
   ...extra.map(([label, , target]) => [label, target]),
 ];
 const content = sections.map(([label, path, licenseURL]) => `
 <section>
   <h2>${escapeHTML(label)}</h2>
-  <p><a href="${path}">License / attribution file</a>${licenseURL ? ` · <a href="${licenseURL}">Creative Commons license</a>` : ""}</p>
+  <p><a href="${path}">License / attribution file</a>${licenseURL ? ` · <a href="${licenseURL}">License</a>` : ""}</p>
   <pre>${escapeHTML(readFileSync(resolve(out, path), "utf8"))}</pre>
 </section>`).join("\n");
 writeFileSync(resolve(out, "licenses.html"), `<!doctype html>

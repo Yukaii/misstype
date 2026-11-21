@@ -82,7 +82,10 @@ const Cli = struct {
         defer self.gpa.free(supplement);
         const toneless = (try self.resourceFile(dir, "toneless.tsv")) orelse try self.gpa.dupe(u8, "");
         defer self.gpa.free(toneless);
-        const lexicon = try core.Lexicon.create(self.gpa, &.{ lexicon_tsv, supplement }, toneless);
+        // place_names.tsv rides with a word model, as in the C ABI loader.
+        const places = (if (std.c.getenv("MISSTYPE_WORD_LM") != null) try self.resourceFile(dir, "place_names.tsv") else null) orelse try self.gpa.dupe(u8, "");
+        defer self.gpa.free(places);
+        const lexicon = try core.Lexicon.create(self.gpa, &.{ lexicon_tsv, supplement, places }, toneless);
         // Optional homophone word-bigram table (binary).
         const homophone_path = try std.fs.path.join(self.gpa, &.{ dir, "homophone.bin" });
         defer self.gpa.free(homophone_path);
@@ -109,6 +112,7 @@ const Cli = struct {
             std.fmt.parseFloat(f64, std.mem.span(w)) catch 0.5
         else
             0.5;
+        if (std.c.getenv("MISSTYPE_LEARNED_SCALE")) |w| lexicon.learned_scale = try std.fmt.parseFloat(f64, std.mem.span(w));
         if (std.c.getenv("MISSTYPE_WORD_LM")) |path| {
             const bytes = core.storage.readBytes(self.io, self.gpa, std.mem.span(path)) orelse return error.MissingWordModel;
             defer self.gpa.free(bytes);
@@ -525,26 +529,33 @@ fn correct(a: Allocator, session: *session_mod.Session, want_utf8: []const u8, t
                 continue;
             }
         }
-        // Walk the word cursor toward the first error, one way only: Left
-        // from the end (or from past the error), Right when a pick left it
-        // before the error. Read the listed words at each stop until one
-        // fits the target over the error, or the cursor has passed it.
+        // Walk the word cursor toward the first error: Left from the end (or
+        // from past the error), Right when a pick left it before the error.
+        // Read the listed words at each stop until one fits the target over
+        // the error, or the cursor has passed it. A focus can cover the
+        // error while listing words of another span (after a pick, 嚴復|合輯
+        // lists 符合/合輯, the fix 集 is one Right away), so a typist who
+        // finds nothing walks back the other way once.
         var found: ?usize = null;
         const start_focus = (try session.view()).focus;
-        const left = session.cursor == null or start_focus == null or start_focus.?.end > at;
-        var steps: usize = 0;
-        while (steps < 64) : (steps += 1) {
-            const v = try session.view();
-            if (session.cursor != null) if (v.focus) |f| {
-                if (f.start <= at) found = try wordOptionFor(a, v.candidates, want, diff);
-                if (found != null) break;
-                if (left and f.end <= at) break;
-                if (!left and f.start > at) break;
-            };
-            const before = session.cursor;
-            try press(session, typed, clock, .{ .kind = if (left) .left else .right });
-            if (before != null and session.cursor == before) break;
-            if (session.cursor == null) break; // walked off the end
+        const first_left = session.cursor == null or start_focus == null or start_focus.?.end > at;
+        for ([_]bool{ first_left, !first_left }, 0..) |left, turn| {
+            if (turn == 1 and session.cursor == null) break; // walked off the end: nothing to turn around
+            var steps: usize = 0;
+            while (steps < 64) : (steps += 1) {
+                const v = try session.view();
+                if (session.cursor != null) if (v.focus) |f| {
+                    if (f.start <= at) found = try wordOptionFor(a, v.candidates, want, diff);
+                    if (found != null) break;
+                    if (left and f.end <= at) break;
+                    if (!left and f.start > at) break;
+                };
+                const before = session.cursor;
+                try press(session, typed, clock, .{ .kind = if (left) .left else .right });
+                if (before != null and session.cursor == before) break;
+                if (session.cursor == null) break; // walked off the end
+            }
+            if (found != null) break;
         }
         const index = found orelse {
             typed.unreachable_fix = true;

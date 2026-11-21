@@ -76,7 +76,7 @@ pub const Table = struct {
         if (pair_total != outgoing_total or pair_total != table.tokens) return error.BadWordModel;
         return table;
     }
-    fn record(self: Table, want: u64) ?[]const u8 {
+    pub fn record(self: Table, want: u64) ?[]const u8 {
         var lo: usize = 0;
         var hi = self.vocabulary;
         while (lo < hi) {
@@ -88,9 +88,22 @@ pub const Table = struct {
         }
         return null;
     }
+    fn index(self: Table, want: u64) ?u32 {
+        const r = self.record(want) orelse return null;
+        return @intCast((@intFromPtr(r.ptr) - @intFromPtr(self.words.ptr)) / record_len);
+    }
+    pub fn historyId(self: Table, previous: []const u8) u32 {
+        return self.index(key(if (previous.len == 0) "<s>" else previous)) orelse self.index(key("<unk>")).?;
+    }
+    pub fn targetId(self: Table, word: []const u8) u32 {
+        return self.index(key(word)) orelse self.index(key("<unk>")).?;
+    }
     pub fn probability(self: Table, previous: []const u8, word: []const u8) f64 {
-        const target = self.record(key(word)) orelse self.record(key("<unk>")).?;
-        const history = self.record(key(if (previous.len == 0) "<s>" else previous)) orelse self.record(key("<unk>")).?;
+        return self.conditional(self.historyId(previous), self.targetId(word));
+    }
+    pub fn conditional(self: Table, h_id: u32, w_id: u32) f64 {
+        const target = self.words[@as(usize, w_id) * record_len ..][0..record_len];
+        const history = self.words[@as(usize, h_id) * record_len ..][0..record_len];
         const p = (@as(f64, @floatFromInt(u32at(target, 8))) + 1) / (@as(f64, @floatFromInt(self.tokens)) + @as(f64, @floatFromInt(self.vocabulary - 1)));
         const count: f64 = @floatFromInt(u32at(history, 12));
         if (count == 0) return p;

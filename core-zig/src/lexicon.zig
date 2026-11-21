@@ -93,6 +93,9 @@ pub const Lexicon = struct {
     homophone: ?homophone.Table = null,
     word_model: ?word_model.Table = null,
     word_model_weight: f64 = 0,
+    /// Multiplies learned-word and learned-context bonuses (not pins).
+    /// 1 = as tuned without a word model.
+    learned_scale: f64 = 1,
     /// Nats of table bonus per unit of difference between two homophones.
     homophone_weight: f64 = 1.0,
     /// Experiment: weight of the homophone table's bonus for (previous
@@ -708,6 +711,10 @@ pub const Lexicon = struct {
         tone_tolerance: bool = true,
         user_lexicon: ?*const UserLexicon = null,
         locked: ?*const UserLexicon = null,
+        /// The run follows English or digits in the same clause: a word
+        /// model with a `<latin>` symbol scores its first word after that
+        /// instead of after sentence start.
+        after_latin: bool = false,
     };
 
     /// Decode tone-terminated syllables plus an unsegmented pending key run.
@@ -915,11 +922,14 @@ pub const Lexicon = struct {
         var runs: std.ArrayList(std.ArrayList(Syllable)) = .empty;
         try runs.append(arena, .empty);
         var seps: std.ArrayList([]const u8) = .empty;
+        var latin_before: std.ArrayList(bool) = .empty;
+        try latin_before.append(arena, false);
         for (segments) |segment| switch (segment) {
             .syllable => |s| try runs.items[runs.items.len - 1].append(arena, s),
             .punct, .latin => |mark| {
                 try runs.append(arena, .empty);
                 try seps.append(arena, mark);
+                try latin_before.append(arena, segment == .latin and latinWord(mark));
             },
         };
         const run_tops = try arena.alloc([]const Candidate, runs.items.len);
@@ -928,6 +938,7 @@ pub const Lexicon = struct {
         for (runs.items, 0..) |run, index| {
             const trailing = index == runs.items.len - 1;
             var run_opts = opts;
+            run_opts.after_latin = latin_before.items[index];
             var pins: ?UserLexicon = null;
             if (opts.locked) |locked| pins = try locked.pinsForRun(index);
             defer if (pins) |*p| p.deinit();
@@ -1010,7 +1021,13 @@ pub const Lexicon = struct {
         if (syllables.len == 0) return &.{};
         const options = try arena.alloc([]Option, syllables.len);
         for (syllables, options) |syllable, *out| out.* = try self.alternatives(arena, syllable, opts.fuzzy, opts.tone_tolerance);
-        return self.decodeOptions(arena, syllables, options, opts.user_lexicon, opts.locked);
+        return self.decodeOptions(arena, syllables, options, opts.user_lexicon, opts.locked, opts.after_latin);
+    }
+
+    /// A latin separator that reads as a word or number (not spaces alone).
+    fn latinWord(mark: []const u8) bool {
+        for (mark) |c| if (std.ascii.isAlphanumeric(c)) return true;
+        return false;
     }
 
     const Beam = struct {
@@ -1082,7 +1099,7 @@ pub const Lexicon = struct {
     }
 
     /// Decode with caller-supplied reading options per syllable.
-    pub fn decodeOptions(self: *const Lexicon, arena: Allocator, syllables: []const Syllable, options: []const []Option, user_lexicon_: ?*const UserLexicon, locked: ?*const UserLexicon) ![]Candidate {
+    pub fn decodeOptions(self: *const Lexicon, arena: Allocator, syllables: []const Syllable, options: []const []Option, user_lexicon_: ?*const UserLexicon, locked: ?*const UserLexicon, after_latin: bool) ![]Candidate {
         if (syllables.len == 0 or options.len != syllables.len) return &.{};
         const context_rules = if (user_lexicon_) |u| try u.contextRules(arena) else null;
         const settled_units = if (locked) |l| try l.settledUnits(arena) else null;
@@ -1099,6 +1116,12 @@ pub const Lexicon = struct {
         var pin_key: std.ArrayList(u8) = .empty;
         var input_key: std.ArrayList(u8) = .empty;
         var previous_words: [beam_width][]const u8 = undefined;
+        // Word model: histories resolved once per span start, targets once per entry.
+        const model: ?word_model.Table = if (self.word_model != null and self.word_model_weight > 0) self.word_model.? else null;
+        var model_history: [beam_width]u32 = undefined;
+        // Models built with a `<latin>` symbol (tools/word_lm.py) start a run
+        // that follows English or digits there; older models keep sentence start.
+        const latin_history: ?u32 = if (model) |m| (if (after_latin and m.knows("<latin>")) m.history("<latin>") else null) else null;
         for (0..syllables.len) |start| {
             if (paths[start].len == 0) continue;
             const prefixes = paths[start].items;
@@ -1121,6 +1144,9 @@ pub const Lexicon = struct {
                     if (last.chars.end > prefix.utf16_len) continue;
                     previous_words[i] = try unicode.utf16Slice(arena, prefix.text, last.chars.start, last.chars.end);
                 }
+                if (model) |m| for (prefixes[0..prefix_count], 0..) |prefix, i| {
+                    model_history[i] = if (prefix.alignment.len == 0 and latin_history != null) latin_history.? else m.history(previous_words[i]);
+                };
             }
             states.clearRetainingCapacity();
             try states.append(arena, .{ .node = 0, .penalty = 0, .repairs = 0, .depth = 0, .readings = undefined });
@@ -1166,6 +1192,7 @@ pub const Lexicon = struct {
                                 (if (user_lexicon_) |u| u.bonus(span_key.items, entry.text) else 0)
                             else
                                 0;
+                            var target_id: ?u32 = null;
                             for (prefixes[0..prefix_count], 0..) |prefix, index| {
                                 var pinned = legacy_pinned;
                                 if (!pinned) if (locked) |l| {
@@ -1200,11 +1227,17 @@ pub const Lexicon = struct {
                                     }
                                 }
                                 const pin_term: f64 = if (pinned) user_lexicon.pin_bonus else 0;
-                                const boost = learned + contextual + pin_term + settled_hits * user_lexicon.pin_bonus;
-                                var language_score = if (self.word_model != null and self.word_model_weight > 0)
-                                    entry.score + self.word_model_weight * (@log(self.word_model.?.probability(previous_words[index], entry.text)) - entry.score)
-                                else
-                                    entry.score;
+                                const boost = self.learned_scale * (learned + contextual) + pin_term + settled_hits * user_lexicon.pin_bonus;
+                                var language_score = entry.score;
+                                if (model) |m| {
+                                    // log P <= 0, so the model can only lower this entry's score below
+                                    // (1 - weight) * score: skip the lookup when even that misses the beam.
+                                    const ceiling = (1 - self.word_model_weight) * entry.score + 1e-9;
+                                    if (!single and !self.homophoneInSearch() and
+                                        !paths[end + 1].admits(prefix.score + ceiling - state.penalty - option.cost + boost - self.word_penalty)) continue;
+                                    if (target_id == null) target_id = m.target(entry.text);
+                                    language_score = entry.score + self.word_model_weight * (@log(m.conditional(model_history[index], target_id.?)) - entry.score);
+                                }
                                 if (self.homophoneInSearch() and previous_words[index].len > 0)
                                     language_score += self.homophone_in_search * self.homophone.?.bonus(previous_words[index], entry.text);
                                 const score = prefix.score + language_score - state.penalty - option.cost + boost - self.word_penalty;

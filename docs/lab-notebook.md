@@ -1364,3 +1364,344 @@ reported phrases). Tests: `RepairStrengthTests` and the
 ## Settings window (2026-09-29)
 
 - Settings window (landed 2026-09-29): the 360pt utility panel became a full `SettingsWindow` (SwiftUI, sidebar: General / Decoding / Learning / Jev Assist (removed 2026-10-09) / About; controls bind to the same `Misstype*` UserDefaults keys). UI strings go through `L()` with English keys and `Resources/{zh-Hant,zh-Hans,ja}.lproj/Localizable.strings`, following the system language; `tools/check_localizations.py` fails on missing or stale keys. Manual check pending: language switch, Clear learned phrases.
+
+## First-choice quality and reranker headroom (2026-11-21)
+
+Question: with no typos at all, how good is word choice on its own, and
+when the first choice is wrong, is the intended sentence already among the
+decoder's candidates? The typing personas mix typo repair with word choice,
+and their dev/holdout sentences are worn by tuning, so neither answers it.
+
+Tool: `tools/first_choice_eval.py` (new). It types each sentence cleanly,
+toned and toneless, through `misstype-dev --decode` and reports exact
+sentences, 1 − CER, per-word first choice (fewest-words dictionary
+segmentation) and whether the sentence is in the first 8 / all 16 returned
+candidates. `cv-legacy` is the 2,000-sentence Common Voice prefix that
+`external_v1` already excludes, so the reserved set stays unspent. Readings
+come from the pinned dictionary, not human typing. ReleaseFast, commit
+`043a872`, offline, 4,924 decodes in 35 s:
+
+| set (n) | mode | sentence | char | word | in top 8 | in top 16 | ms p95 |
+|---|---|---|---|---|---|---|---|
+| cv-legacy (2000) | toned | 74.8 % | 94.8 % | 91.9 % | 91.0 % | 93.0 % | 0.97 |
+| cv-legacy (2000) | toneless | 53.4 % | 86.4 % | 80.3 % | 74.3 % | 77.5 % | 6.51 |
+| corpus dev (226) | toned | 90.3 % | 98.4 % | 97.4 % | 99.6 % | 100 % | 1.00 |
+| corpus holdout (236) | toned | 86.0 % | 97.9 % | 96.3 % | 99.2 % | 99.6 % | 0.73 |
+
+Findings:
+
+- The worn corpus flatters word choice by 11–15 points of exact sentences
+  against unseen text; use `cv-legacy` for decisions about scoring.
+- Headroom over our own candidates is large: +18 points toned and +24
+  toneless between first choice and top 16. Most misses are scoring, not
+  candidate generation; examples are context homophones (再/在, 得/的,
+  已/以, 訂/定, 交/教) and sentence-level picks the word-frequency score
+  cannot see. A sample of sentences a stronger word-pair model decodes
+  correctly showed about 78 % (toned) already in our top 16; the rest were
+  missing vocabulary (已讀不回, 橘線 and similar recent or place names).
+- Direction, crediting the approach of statistical-engine-plus-reranker
+  IMEs: (1) a corpus-trained word-pair (bigram) score over the existing
+  lattice is the first lever, before any neural model; (2) a small
+  reranker over the top 8–16 candidates is the second; (3) lexicon coverage
+  of current vocabulary is a separate, smaller lever. Each is judged on
+  `cv-legacy` first and confirmed once on `external_v1`.
+
+Human typing calibration: `tools/keylog_calibrate.py` (new) reads the
+macOS key trace (keycodes only) and reports tone habit, noticed slips by
+kind (neighbour/far substitution, transposition, omission, insertion,
+tone) and picks per composition. Noticed slips are a lower bound; unnoticed
+errors need the intended text. The trace stopped being written when the
+Swift core retired (2026-10-09), so only older logs can be read until a
+consented, local key trace exists again in the Zig `Session`.
+
+## Word-pair model on unseen text (2026-11-21)
+
+Question: the 2026-10-14 word bigram pilot (`docs/offline-word-model.md`)
+was judged only on the worn synthetic sets. Does it hold on unseen text, and
+how much of it survives at a size an IME could load?
+
+Checks on `cv-legacy` (`tools/first_choice_eval.py`, 2,000 sentences, clean
+keys, exact-sentence first choice, baseline 74.8 % toned / 53.4 % toneless):
+
+| model | size | weight | toned | toneless |
+|---|---:|---:|---:|---:|
+| 2026-10-14 count-pruned (200k pairs) | 4.1 MB | 0.5 | 76.6 | 53.7 |
+| 2026-10-14 full pilot (40k pages) | 170 MB | 0.25 | 79.8 | 58.6 |
+| 2026-10-14 full pilot (40k pages) | 170 MB | 0.5 | 81.8 | 62.5 |
+| clean, 40k pages, gain-pruned 1.5M | 19.7 MB | 0.5 | 79.5 | 58.9 |
+| clean, all 365k pages, gain-pruned 0.5M | 7.7 MB | 0.5 | 78.2 | 57.3 |
+| clean, all 365k pages, gain-pruned 1.5M | 19.7 MB | 0.5 | 80.4 | 60.1 |
+| clean, all 365k pages, gain-pruned 3M | 37.7 MB | 0.5 | **81.7** | **62.4** |
+| same 3M | 37.7 MB | 0.75 | 81.2 | 63.2 |
+| same 3M | 37.7 MB | 1.0 | 79.7 | 61.1 |
+
+Findings:
+
+- Contamination: the pilot's training text contained evaluation sentences
+  verbatim (2,143 Han runs equal to a `cv-legacy` or corpus sentence in the
+  first 40k pages; 19,453 in all 365k). `tools/word_lm.py --exclude` now
+  drops such runs; the "clean" rows use it with the 2,462 sentences of both
+  sets. The clean 40k-page model at 1.5M pairs is 0.9 / 1.2 points behind
+  the clean all-page one, so the contaminated pilot's numbers overstate it
+  by a few points at most.
+- Corpus size matters: all four pinned shards (`--documents 0`, 439M target
+  tokens, 35M pairs, 708 MB full model, 15 min and 5.9 GB peak to build)
+  beat the 40k-page subset at equal pair budget.
+- Pruning criterion matters more than budget: `tools/prune_word_lm.py
+  --rank gain` keeps pairs by c(h,w) * ln(P(w|h) / backoff-only P(w|h))
+  instead of raw count; at 200k pairs (4.1 MB) it beats count ranking
+  (76.9 / 54.6 vs 76.6 / 53.7), and 3M gain-ranked pairs match the 170 MB
+  pilot. Weight 0.5 stays the best overall.
+- Real Sessions (`tools/typing_eval.py`, MSLM 3M at 0.5, against the same
+  build without a model). Dev: zh exact 72.7 -> 79.6 %, picks per 100
+  characters 2.95 -> 1.63, unreachable 11.2 -> 11.1 %; every clean persona
+  improves and no persona's unreachable rate rises; two mixed shift-first
+  groups lose one case each (partial-tones, sloppy). Holdout (run once):
+  zh 70.0 -> 77.1 %, picks 3.43 -> 2.25, unreachable 10.8 -> 10.1 %;
+  clean-toneless 68.3 -> 79.5 %; only the `work` category's unreachable
+  moves (12.0 -> 12.2 %, one case) while its exact rate rises 55.2 -> 62.0 %.
+- Cost: per-key p95 1.1 -> 3.2 ms (zh average), but up to 10 -> 53 ms for
+  toneless mixed-English typing; max key 63 -> 144 ms. Developer CLI load
+  26 -> 41 ms and RSS 60 -> 136 MB (the table is copied into the arena; an
+  mmap would halve that). The decoder is fully offline.
+
+Not done: no adapter loads the model, nothing is bundled, defaults are
+unchanged. The table is derived from HPLT web text, whose licence for a
+shipped derivative is still undecided (same open question as
+`homophone.bin`). Next: cut the toneless/mixed latency tail, a compact
+quantized format (4–5 bytes per pair instead of 12), then a fixed candidate
+for one `external_v1` run.
+
+Follow-up (same day): speed and a compact format.
+
+- Search cost: with a model loaded the word-path search resolved both words
+  by hash for every (entry, prefix) pair. It now resolves histories once per
+  span start and targets once per entry, and skips an entry whose best
+  possible score, (1 - weight) * lexicon score since log P <= 0, misses the
+  beam. Results are identical (all 4,000 `cv-legacy` decodes and the typing
+  dev summary); toneless decode p95 30.5 -> 12.4 ms, Session per-key p95
+  14.6 -> 7.2 ms (dev, 3M v1 model).
+- MSLM v2 (`tools/prune_word_lm.py --format v2`, read by `sparse_lm.zig`):
+  per-history row offsets plus one u32 per pair (17-bit target ID, 15-bit
+  ln direct mass in 1/1024-nat steps), backoffs recomputed after
+  quantization so every distribution still sums to 1. 3M pairs: 37.7 ->
+  14.1 MB with identical first choices on all 4,000 decodes; toneless
+  decode p95 12.4 -> 7.6 ms (row search instead of a global one);
+  developer CLI RSS 136 -> 89 MB (60 MB without a model). gzip saves little
+  (14.1 -> 13.0 MB).
+- 5M pairs in v2 (22.1 MB): `cv-legacy` 82.2 % toned / 64.5 % toneless.
+  typing_eval against no model: dev zh exact 72.7 -> 80.6 %, picks per 100
+  characters 2.95 -> 1.47, no persona's unreachable rate rises; holdout
+  70.0 -> 78.7 %, picks 3.43 -> 1.92, unreachable 10.8 -> 10.1 %; two mixed
+  clean groups lose cases on holdout (shift-after clean 16 -> 14 of 76,
+  shift-first clean-partial-tones 56 -> 55). Per-key p95 5.2 -> 6.2 ms dev;
+  single slowest key 40 -> 112 ms.
+
+Licence note for an HPLT-derived table (sourced research summary, not legal
+advice): the dataset card dedicates HPLT's packaging under CC0 and disclaims
+rights in the underlying web text; aggregate word statistics are generally
+treated as facts (US *Feist*, *Authors Guild v. Google*), and precedents
+publish them openly (Google Books Ngram CC BY 3.0, wordfreq CC BY-SA 4.0,
+McBopomofo counts MIT). Shipping it under the same CC0 notice as
+`homophone.bin` (`third_party/HPLT/LICENSE.md`) is the likely path, with
+the shard hashes and build recipe in `third_party/HPLT/sources.json`;
+open: removal-request handling and whether rare pairs depend on single
+sites.
+
+## external_v1 spent on the frozen word-pair model (2026-11-21)
+
+Frozen before the run: MSLM v2, 5M gain-ranked pairs, 22.1 MB, sha256
+`c7929c9a4ceef0b74f5d1b7c98f4b97e331b8909d1758c96a20b0aae85332a53`,
+weight 0.5, loaded from `word_model.bin` (commit 059f708). The model was
+rebuilt with the 200 reserved sentences excluded from training as well:
+314 HPLT runs matched them verbatim, so the old "overlap not checked"
+limit was real. `tools/typing_eval.py --corpus` now runs any corpus file.
+
+Clean first choice (`first_choice_eval.py --sentences`, 200 sentences):
+toned 77.5 -> 83.5 %, toneless 56.0 -> 68.0 %.
+
+Real Sessions (`typing_eval.py --set holdout --corpus
+.cache/eval-reserve/external-v1.tsv`, 8 personas x 2 seeds, ReleaseFast):
+zh exact 59.2 -> 66.2 %, picks per 100 characters 5.87 -> 4.47,
+unreachable 12.8 -> 12.0 %; clean 77.0 -> 83.0 %, clean-toneless 55.5 ->
+65.5 %, toneless 48.2 -> 56.8 %. Per-key p95 7.6 -> 9.7 ms, max 83 -> 51 ms.
+Case level: clean controls 131 won / 30 lost; 3 newly unreachable
+(嚴復合集 under two partial-tone personas, 天氣即時預報粉絲團 sloppy).
+Per the protocol these block promotion pending diagnosis; the set is now
+consumed, and its failures go to regression coverage, not tuning. A debug
+build gave slightly different exact rates (66.8 %), so some Session paths
+are timing-dependent; to investigate.
+
+Follow-up (same day): the three newly unreachable external_v1 cases.
+嚴復合集 (two partial-tone personas): with the model the top-1 is 嚴復|合輯;
+picking 復合 re-decodes the cut word 嚴復 and the 嚴 becomes 眼/言, so the
+corrector stalls. Tried: `UserLexicon.pin` keeping the displayed characters
+of any word the pick cuts (count-0 pins, not learned). It fixes both
+嚴復合集 cases, but on the typing sets without a model it is a net loss
+(15 cases cheaper, 67 costlier, 11 newly unreachable such as 把書還給我,
+where the cut word was itself wrong and must change). Rejected, not
+committed. 天氣即時預報粉絲團 (sloppy): picking 即時 lets the rest of the
+run re-decode (天氣 -> 土耳其), because explicit pins drop the run's settled
+pins; the same happens without the model, which only recovers by a
+different path. Both are pick semantics, not the word model; the model
+stays developer-only until a pick rule passes the same gate.
+
+Follow-up (same day): pick rule, left side only. A pick that cuts an
+unpinned displayed word now keeps that word's characters *before* the pick
+(count-0 pins: held, not learned) and lets characters after it re-decode;
+pinned words keep both sides as before. Rationale: text left of a fix is
+what the typist has accepted; text right of it may still be wrong (the
+both-sides version stranded 把書還給我). Same-lexicon comparison against
+HEAD, no model, 11,200 typing cases: 13 cheaper, 0 costlier, 0 newly
+unreachable, exact unchanged. With the frozen model: dev/holdout no case
+newly unreachable vs no model; external_v1 newly unreachable 3 -> 2
+(嚴復合集 under clean partial tones fixed; partial-tones 嚴復合集 and
+sloppy 天氣即時預報粉絲團 remain). Session replay goldens regenerated: 3
+committed texts change, all closer to the intent (越來約快 -> 越來越筷 after
+picking 筷). Unit test `a pick keeps the shown text before it ...`.
+
+Note: `script/build_and_run.sh` regenerates `.cache/mcbopomofo/lexicon.tsv`;
+the 10:35 IME install moved it from 112,439 to 130,736 entries (the #133
+dictionary script), which also cleared the earlier decode-golden mismatch
+and the debug/release exact-rate difference (the runs straddled it). Every
+comparison here is paired on one lexicon; cv-legacy numbers above predate
+it. Linux C1–C15 not run locally (Docker containers had no network).
+Open from the model runs: it costs mixed-English no-switch clean cases
+(你有IG嗎, 幫我review一下 toneless/partial tones).
+
+Follow-up (same day): the last two external_v1 failures.
+- 嚴復合集 (partial tones) was the panel typist, not the IME: after picking
+  嚴復 the focus (嚴復|合輯) covers the error but lists 符合/合輯; 集 is one
+  Right away. `misstype-dev`'s corrector walked one direction only; it now
+  turns around once when the first direction finds nothing. typing_eval
+  without a model: 1 case newly reachable, none worse (baseline updated).
+- 天氣即時預報粉絲團 (sloppy, with the model) is settling: at the 9th key
+  the model prefers 土耳其技術 for a garbled prefix, three syllables later
+  `UserLexicon.settled` pins 土耳其, and the full decode's 天氣 (still
+  top-1 on the whole input) can no longer come back; picks cannot re-split.
+  Known class, not fixed: settling a mid-typing re-split. Settling over two
+  consecutive previews would not help (土耳其 stays top for 8 keys).
+With the model, external_v1 zh: unreachable 12.0 -> 11.7 %, picks per 100
+characters 6.09 -> 4.49, 1 case newly unreachable (this one); dev/holdout
+none.
+
+Follow-up (same day): mixed English with the word model. The model lost
+mixed clean cases at the first Chinese word after English (你有IG媽,
+幫我check以下): each Chinese run between English words was scored from
+sentence start, and training split clauses at English, so 以下/媽 (common
+openers) won. Fix: training keeps English words and numbers inside a clause
+as one `<latin>` token; the decoder starts a run after a latin word there
+(models without the symbol unchanged). Rebuilt 5M v2 model (sha256
+ed726b21…, 22.1 MB, same exclusions). Against no model: mixed-holdout
+exact 48.2 -> 53.7 %, picks per 100 characters 2.51 -> 1.60 (the previous
+model: 50.0 % / 2.24); mixed-dev 55.8 -> 60.2 %, 1.35 -> 0.82; zh dev/holdout
+as before; cv-legacy Chinese-only 80.4 / 63.2 % vs 80.5 / 63.0 %; no typing
+case newly unreachable; external_v1 picks 6.09 -> 4.35, fix keys 4.04 ->
+2.90, only the settling case unreachable. Installed locally for testing.
+
+Found on the way, a bug without any model: with an inserted English
+reading selected, Backspace deleted back to the previous tone key (a slip
+plus a tone key after `python` lost the word, or the whole composition
+when the Chinese before it was toneless). Fixed (one key), regression test
+`Backspace on an English reading removes one key, not the run`.
+
+Open: the English/Chinese switch margins predate the model; with it,
+`bug` typed as bare keys loses to 這個日益是 (pickable), and 這台 now reads
+這臺 (the dictionary's form).
+
+## Missing vocabulary and corpus quality (2026-11-21)
+
+Question: how many first-choice misses are words the dictionary lacks, and
+can the HPLT counts supply them?
+
+Misses on `cv-legacy` with the latin-aware model, by where the first wrong
+character sits (a heuristic; scratch script, not committed): spelling
+variant only (臺/台 and similar) 1.4 % toned / 1.6 % toneless of sentences;
+inside a run of single-character dictionary words, where a missing word
+shows up (熊讚, 多益, 神獸, 孫輩, 凱蒂貓, place and street names) 9.4 % /
+14.5 %; elsewhere 8.7 % / 19.6 %. About half of the misses are in the
+missing-word class (an upper bound: 沒再發生 counts too).
+
+`tools/mine_words.py` (new) mines two-character words from a full model's
+counts: pairs of single-character words with count, PMI and a one-sided
+association share, readings from the characters' best entries, scores on
+the dictionary scale by a fit of existing two-character words (score =
+0.65 ln(freq) - 5.0, 52,880 words). Result: the top candidates are
+Simplified-to-Traditional conversion errors (這里, 關系, 對于, 制造, 听到),
+spam and adult terms; the Taiwanese words above are rare or absent (熊讚 4
+times in 441M tokens, 已讀 32). Not usable without heavy review.
+
+Corpus quality: about a third of HPLT zho_Hant text is machine-converted
+from Simplified (one shard by documents' conversion markers: native 49 %,
+converted 28 %, both 6 %, neither 17 % of text). `tools/word_lm.py
+--drop-converted` skips any document with a marker (83,498 documents, 441M
+-> 268M tokens). Same 5M v2 export, weight 0.5:
+
+| | latin-aware, all text | without converted |
+|---|---|---|
+| cv-legacy toned / toneless | 80.4 / 63.2 % | 81.8 / 64.2 % |
+| external_v1 picks / fix keys per 100 chars, newly unreachable | 4.35 / 2.90, 1 | 4.28 / 2.78, 0 |
+| typing holdout picks per 100 chars | 1.93 | 2.15 |
+| mixed-holdout picks | 1.60 | 1.73 |
+| typing sets newly unreachable vs no model | 0 | 2 (sloppy) |
+
+Cleaner wins on real unseen text and loses on the colloquial synthetic
+sets: the converted mainland text carries casual speech the native part
+(news, government, Hong Kong) lacks. Kept the all-text model installed. The
+lever is casual Taiwanese text with a usable licence, which HPLT does not
+provide; the Common Voice remainder (18,577 sentences) shares authors with
+both test sets and is too small.
+
+Follow-up (same day): Taiwan place names from government open data.
+`tools/place_names.py` fetches the Ministry of the Interior road list
+(全國路名資料, year 115) and every village through the NLSC code API
+(7,871), Open Government Data License v1 (attribution), and builds 33,802
+lexicon rows absent from the dictionary (27,052 roads, 6,565 villages, 181
+districts, 4 cities; full names plus stems such as 裕農 and 翠屏), readings
+from each character's best entry (15,988 rows contain a polyphone, not
+reviewed), score -14 (the level of 三星鄉, 五股, 信義路).
+
+Added to the dictionary alone they hurt: cv-legacy 80.4 / 63.2 % -> 77.2 /
+54.5 % (295 sentences broken, 56 fixed), because the word model had never
+seen them (UNK) and obscure road stems won (成見 -> 城件, 信任 -> 新仁,
+文字 -> 塭仔). Retrained with the names in the segmentation lexicon
+(`word_lm.py --extra-lexicon`, 141,157 words, so a new MSLM v3 packing:
+18-bit targets, 14-bit q in 1/512-nat steps): 81.0 / 64.2 % (44 fixed, 13
+broken, mostly name against name: 靜安/景安, 新海/辛亥). typing_eval
+against the latin-aware model: neutral (2 cheaper, 11 costlier, no case
+newly unreachable vs no model); external_v1 exact 67.1 -> 67.5 %, picks per
+100 characters 4.35 -> 4.20, only the settling case unreachable. Installed
+locally: `script/build_and_run.sh` appends `.cache/gov/places.tsv` to the
+bundled supplement; nothing generated is committed. Before shipping: an
+attribution notice, and a reading review of the polyphone rows.
+
+## Personal learning with the word model (2026-11-21)
+
+Question: does learning from picks still pay with the word model, and do
+its fixed bonuses (tuned without a model) now fight the model's context?
+`typing_eval.py --learning` (dev first, dev repeat, holdout transfer; one
+engine carried vs fresh), installed model and place names, picks per 100
+characters:
+
+- Memory works: repeat 2.26 -> 0.30 (clean-toneless), 1.90 -> 0.36
+  (toneless), 0.59 -> 0.06 (clean).
+- Transfer is slightly negative (2.72 -> 2.77 clean-toneless; 3-5 sentences
+  worse per persona): learned 說|ㄉㄜ -> 得 (dev has both 你說的對 and
+  他說得對), 再/在, 周末 (the corpus spells both 週末 and 周末). These are
+  contradictions in the synthetic corpus that any learner pays for; without
+  the model transfer is neutral (11 fewer / 11 more), with it the model
+  already gets most of them right, so learning has fewer to fix.
+- Bonus strength: `MISSTYPE_LEARNED_SCALE` (developer hook,
+  `Lexicon.learned_scale`, default 1, pins untouched). Summed picks over
+  the three passes: scale 1 / 0.5 / 0.25: clean 1.83 / 1.77 / 1.83,
+  clean-toneless 5.33 / 5.40 / 5.83, toneless 4.68 / 4.68 / 5.01, partial
+  tones 2.90 / 2.90 / 3.20. A wash at 0.5, worse at 0.25: kept at 1.
+- New vocabulary comes from the user: user-dictionary words the model has
+  never seen (已讀不回, 小編) win alone and in a sentence (他已讀不回,
+  今天小編發文 -> 發問 is a context miss, not the word) with the model on;
+  the UNK floor does not block them.
+
+Not measured: real typing (the personas are uncalibrated). Open: learning
+multi-character words in context (only single characters learn a
+previous-word context today), which would generalize where global word
+bonuses leak.

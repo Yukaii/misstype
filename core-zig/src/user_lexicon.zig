@@ -290,20 +290,37 @@ pub const UserLexicon = struct {
             const text = try unicode.utf16Slice(gpa, top.text, word.chars.start, word.chars.end);
             defer if (!isSubslice(text, top.text)) gpa.free(text);
             const key = (try top.pinKey(word.syllables, &key_buf, gpa)) orelse continue;
-            if (!self.contains(key, text)) continue;
-            self.remove(key);
+            // A pinned word the option cuts keeps its characters outside the
+            // option. An unpinned displayed word it cuts keeps only those
+            // before the option: text left of a fix is what the typist has
+            // accepted (嚴復|合輯 + pick 復合 keeps 嚴), text right of it may
+            // still be wrong and re-decodes. Kept unpinned characters are
+            // pinned with count 0: they hold the text but are not the
+            // typist's choice, so `chosen` (learning) skips them.
+            const was_pinned = self.contains(key, text);
+            const kept_count: i64 = if (was_pinned and self.get(key).?.get(text).?.count > 0) 1 else 0;
+            if (was_pinned) self.remove(key);
+            if (!was_pinned and word.syllables.start >= option.span.start) continue;
             if (word.chars.len() != word.syllables.len()) continue;
             var index = word.syllables.start;
             while (index < word.syllables.end) : (index += 1) {
                 if (option.span.contains(index)) continue;
+                if (!was_pinned and index >= option.span.start) break;
                 const unit = word.chars.start + (index - word.syllables.start);
                 const single_key = (try top.pinKey(Range.of(index, index + 1), &key_buf, gpa)) orelse continue;
                 const char = try unicode.utf16Slice(gpa, top.text, unit, unit + 1);
                 defer if (!isSubslice(char, top.text)) gpa.free(char);
-                try self.setSingle(single_key, char, .{ .count = 1, .updated_at = 0 });
+                try self.setSingle(single_key, char, .{ .count = kept_count, .updated_at = 0 });
             }
         }
         try self.setSingle(option_key, option.text, .{ .count = 1, .updated_at = 0 });
+    }
+
+    /// A pin the typist chose (not a character kept around one).
+    pub fn chosen(self: *const UserLexicon, key: []const u8, text: []const u8) bool {
+        const texts = self.entries.getPtr(key) orelse return false;
+        const found = texts.get(text) orelse return false;
+        return found.count > 0;
     }
 
     /// Pin the words of `picked` that differ from `baseline` (every word
@@ -443,7 +460,7 @@ pub fn learnedWords(arena: Allocator, committed: Candidate, pins: *const UserLex
         if (word.chars.end > committed.utf16_len) continue;
         const text = try unicode.utf16Slice(arena, committed.text, word.chars.start, word.chars.end);
         const pin_key = try committed.pinKey(word.syllables, &key_buf, arena);
-        const pinned = if (pin_key) |k| pins.contains(k, text) else false;
+        const pinned = if (pin_key) |k| pins.chosen(k, text) else false;
         var changed = false;
         if (baseline) |base| if (base.utf16_len == committed.utf16_len) {
             changed = !unicode.equal(try unicode.utf16Slice(arena, base.text, word.chars.start, word.chars.end), text);

@@ -76,6 +76,12 @@ install(FILES
 if(EXISTS "${MISSTYPE_ROOT}/Resources/homophone.bin")
     install(FILES "${MISSTYPE_ROOT}/Resources/homophone.bin" DESTINATION "${CMAKE_INSTALL_DATADIR}/misstype")
 endif()
+# Word-pair model and the place names it was trained with (CC0 / Taiwan open
+# data, see third_party/HPLT and third_party/TaiwanOpenData); the core loads
+# place_names.tsv only together with the model. Absent = decoding as before.
+if(EXISTS "${MISSTYPE_ROOT}/Resources/word_model.bin")
+    install(FILES "${MISSTYPE_ROOT}/Resources/word_model.bin" "${MISSTYPE_ROOT}/Resources/place_names.tsv" DESTINATION "${CMAKE_INSTALL_DATADIR}/misstype")
+endif()
 if(EXISTS "${MISSTYPE_ROOT}/.cache/frequencywords/english.tsv")
     install(FILES "${MISSTYPE_ROOT}/.cache/frequencywords/english.tsv" DESTINATION "${CMAKE_INSTALL_DATADIR}/misstype")
 endif()

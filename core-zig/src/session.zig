@@ -1177,6 +1177,11 @@ pub const Session = struct {
         else
             null;
         const before = try self.syllableBeforeCaret();
+        // An inserted English reading (`complete_texts`) carries no syllables
+        // of the composition, and without them `erase` deletes back to the
+        // previous tone key: in toneless typing the whole run (這個featu6 + ⌫
+        // emptied the composition). There Backspace removes one key.
+        const english_shown = self.hasSelected() and self.isComplete(self.candidates[self.selected].text);
         self.selected = 0;
         self.settled_pins.clear();
         if (!self.explicit_pick) self.setPinnedPick(null);
@@ -1208,6 +1213,8 @@ pub const Session = struct {
             if (matches) {
                 self.composition.eraseTailSyllable(last.?.keys.len);
                 if (!self.composition.pendingNonEmpty()) self.composition.erase();
+            } else if (english_shown) {
+                self.composition.backspace();
             } else {
                 self.composition.erase();
             }

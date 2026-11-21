@@ -33,6 +33,17 @@ if [[ "${MISSTYPE_SKIP_HOMOPHONE:-0}" != "1" ]]; then
   cp Resources/homophone.bin "$APP_DIR/Contents/Resources/homophone.bin"
 fi
 cp .cache/frequencywords/english.tsv "$APP_DIR/Contents/Resources/english.tsv"
+# Word-pair model and the place names it was trained with (HPLT CC0 /
+# Taiwan open data; third_party/HPLT, third_party/TaiwanOpenData). The core
+# loads place_names.tsv only together with the model. MISSTYPE_SKIP_WORD_MODEL=1
+# leaves both out (decoding as before, with homophone.bin); a local
+# .cache/wordlm/word_model.bin overrides the shipped model for experiments.
+if [[ "${MISSTYPE_SKIP_WORD_MODEL:-0}" != "1" ]]; then
+  model=Resources/word_model.bin
+  [[ -f .cache/wordlm/word_model.bin ]] && model=.cache/wordlm/word_model.bin
+  cp "$model" "$APP_DIR/Contents/Resources/word_model.bin"
+  cp Resources/place_names.tsv "$APP_DIR/Contents/Resources/place_names.tsv"
+fi
 cp -R third_party "$APP_DIR/Contents/Resources/third_party"
 cp LICENSE THIRD_PARTY_NOTICES.md "$APP_DIR/Contents/Resources/"
 mkdir -p "$APP_DIR/Contents/Frameworks"

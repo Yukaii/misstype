@@ -17,4 +17,42 @@ pub const Table = union(enum) {
             .sparse => |table| table.probability(previous, word),
         };
     }
+    /// Word-path search scores many entries against few histories: resolve
+    /// each word once (`history`, `target`), then score pairs of IDs.
+    pub fn history(self: Table, previous: []const u8) u32 {
+        return switch (self) {
+            .full => |table| table.historyId(previous),
+            .sparse => |table| table.historyId(previous),
+        };
+    }
+    pub fn target(self: Table, word: []const u8) u32 {
+        return switch (self) {
+            .full => |table| table.targetId(word),
+            .sparse => |table| table.targetId(word),
+        };
+    }
+    /// Whether the model has its own record for `word` (not the UNK fallback).
+    pub fn knows(self: Table, word: []const u8) bool {
+        return switch (self) {
+            .full => |table| table.record(full.key(word)) != null,
+            .sparse => |table| table.lookup(full.key(word)) != null,
+        };
+    }
+    pub fn conditional(self: Table, h: u32, w: u32) f64 {
+        return switch (self) {
+            .full => |table| table.conditional(h, w),
+            .sparse => |table| table.conditional(h, w),
+        };
+    }
 };
+
+test "ID scoring equals string scoring" {
+    inline for (.{ &full.fixture, &sparse.fixture }) |bytes| {
+        const table = try Table.parse(bytes);
+        for ([_][]const u8{ "", "你", "妳", "unseen" }) |previous| {
+            for ([_][]const u8{ "你", "妳", "</s>", "absent" }) |word| {
+                try std.testing.expectEqual(table.probability(previous, word), table.conditional(table.history(previous), table.target(word)));
+            }
+        }
+    }
+}

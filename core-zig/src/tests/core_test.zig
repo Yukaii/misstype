@@ -1816,3 +1816,31 @@ test "unattested readings stay directly typeable without hijacking repairs, sub-
         }
     }
 }
+
+const cut_rows = h.tsv(
+    \\ㄧㄢˊ|言|-4
+    \\ㄧㄢˊ|嚴|-8
+    \\ㄧㄢˊ-ㄈㄨˋ|嚴復|-5
+    \\ㄈㄨˋ-ㄏㄜˊ|復合|-6
+    \\ㄏㄜˊ-ㄐㄧˊ|合輯|-5
+    \\ㄐㄧˊ|集|-4
+    \\ㄐㄧˊ|輯|-9
+    \\
+);
+
+test "a pick keeps the shown text before it and lets the text after it re-decode" {
+    const d = try Dec.init(cut_rows);
+    defer d.deinit();
+    const input = try d.comp("u06zj4ck6ru6");
+    const top = (try d.decodeSegs(input, .{}))[0];
+    try t.expectEqualStrings("嚴復合輯", top.text);
+    // Picking 復合 cuts both shown words: 嚴 (before the pick) stays,
+    // 輯 (after it) re-decodes; on its own 言 would win syllable 0.
+    var pins = UserLexicon.init(t.allocator);
+    defer pins.deinit();
+    try pins.pin(.{ .text = "復合", .span = Range.of(1, 3), .score = -6 }, top);
+    const picked = (try d.decodeSegs(input, .{ .locked = &pins }))[0];
+    try t.expectEqualStrings("嚴復合集", picked.text);
+    // The kept 嚴 holds the text but is not learned as the typist's choice.
+    for (try user_lexicon.learnedWords(d.a(), picked, &pins, null)) |w| try t.expect(!std.mem.eql(u8, w.text, "嚴"));
+}

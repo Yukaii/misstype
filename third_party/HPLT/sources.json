@@ -19,5 +19,21 @@
   "output": {
     "Resources/homophone.bin": "1a138dd028335161e9e82f87187acd32591f592ca68fc592b3c8a2093a243f77"
   },
-  "notes": "--ambiguity toneless counts pairs whose second word shares its reading with tones dropped (a superset of the 2026-10-12 build). Exporting the same pairs.tsv with --ambiguity reading --top-pairs 200000 reproduces the previous homophone.bin bit for bit (sha256 fda8d3167e5ca7c4e4c18a5f9a30ee1d7f7aa7144a16126d4ecaf8b11c840207); the 300,000-pair table contains all of its pairs plus 100,000 cross-tone ones."
+  "notes": "--ambiguity toneless counts pairs whose second word shares its reading with tones dropped (a superset of the 2026-10-12 build). Exporting the same pairs.tsv with --ambiguity reading --top-pairs 200000 reproduces the previous homophone.bin bit for bit (sha256 fda8d3167e5ca7c4e4c18a5f9a30ee1d7f7aa7144a16126d4ecaf8b11c840207); the 300,000-pair table contains all of its pairs plus 100,000 cross-tone ones.",
+  "word_model": {
+    "description": "Resources/word_model.bin: MSLM v3 word-pair model (5,000,000 gain-ranked pairs) counted over all documents of the four pinned shards",
+    "segmentation": "the pinned segmentation lexicon plus .cache/gov/places.tsv (third_party/TaiwanOpenData/sources.json, sha256 5e1d87cc...)",
+    "excluded": "Han runs equal to an evaluation sentence (tools/first_choice_eval.py cv-legacy, tools/eval/typing_corpus.tsv, .cache/eval-reserve/external-v1.tsv; 2,662 sentences, 19,764 runs) are not counted",
+    "build": [
+      "python tools/word_lm.py --documents 0 --extra-lexicon .cache/gov/places.tsv --exclude <evaluation sentences, one per line> --out all-clean.bin",
+      "python tools/prune_word_lm.py --source all-clean.bin --rank gain --budgets 5000000 --format v2  (writes v3 packing for vocabularies over 2**17)"
+    ],
+    "full_model_sha256": "b53a2b16214186580225f41db443f977a397357f836c350906184bc151f9894b",
+    "output": {
+      "Resources/word_model.bin": "0b0c45645f0287e95ed79c4c683294422be3f15f837cdbe9d891a330ef7d166d"
+    },
+    "vocabulary": 141157,
+    "target_tokens": 440397139,
+    "weight": 0.5
+  }
 }
