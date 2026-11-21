@@ -80,8 +80,15 @@ pub const Table = struct {
         return table;
     }
     pub fn probability(self: Table, previous: []const u8, text: []const u8) f64 {
-        const h = if (previous.len == 0) self.bos else (self.lookup(full.key(previous)) orelse self.unknown);
-        const w = self.lookup(full.key(text)) orelse self.unknown;
+        return self.conditional(self.historyId(previous), self.targetId(text));
+    }
+    pub fn historyId(self: Table, previous: []const u8) u32 {
+        return @intCast(if (previous.len == 0) self.bos else (self.lookup(full.key(previous)) orelse self.unknown));
+    }
+    pub fn targetId(self: Table, text: []const u8) u32 {
+        return @intCast(self.lookup(full.key(text)) orelse self.unknown);
+    }
+    pub fn conditional(self: Table, h: u32, w: u32) f64 {
         const backoff = number(self.word(h), 12) * number(self.word(w), 8);
         const want = (@as(u64, h) << 32) | w;
         var lo: usize = 0;

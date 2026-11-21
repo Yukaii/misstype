@@ -1099,6 +1099,9 @@ pub const Lexicon = struct {
         var pin_key: std.ArrayList(u8) = .empty;
         var input_key: std.ArrayList(u8) = .empty;
         var previous_words: [beam_width][]const u8 = undefined;
+        // Word model: histories resolved once per span start, targets once per entry.
+        const model: ?word_model.Table = if (self.word_model != null and self.word_model_weight > 0) self.word_model.? else null;
+        var model_history: [beam_width]u32 = undefined;
         for (0..syllables.len) |start| {
             if (paths[start].len == 0) continue;
             const prefixes = paths[start].items;
@@ -1121,6 +1124,9 @@ pub const Lexicon = struct {
                     if (last.chars.end > prefix.utf16_len) continue;
                     previous_words[i] = try unicode.utf16Slice(arena, prefix.text, last.chars.start, last.chars.end);
                 }
+                if (model) |m| for (0..prefix_count) |i| {
+                    model_history[i] = m.history(previous_words[i]);
+                };
             }
             states.clearRetainingCapacity();
             try states.append(arena, .{ .node = 0, .penalty = 0, .repairs = 0, .depth = 0, .readings = undefined });
@@ -1166,6 +1172,7 @@ pub const Lexicon = struct {
                                 (if (user_lexicon_) |u| u.bonus(span_key.items, entry.text) else 0)
                             else
                                 0;
+                            var target_id: ?u32 = null;
                             for (prefixes[0..prefix_count], 0..) |prefix, index| {
                                 var pinned = legacy_pinned;
                                 if (!pinned) if (locked) |l| {
@@ -1201,10 +1208,16 @@ pub const Lexicon = struct {
                                 }
                                 const pin_term: f64 = if (pinned) user_lexicon.pin_bonus else 0;
                                 const boost = learned + contextual + pin_term + settled_hits * user_lexicon.pin_bonus;
-                                var language_score = if (self.word_model != null and self.word_model_weight > 0)
-                                    entry.score + self.word_model_weight * (@log(self.word_model.?.probability(previous_words[index], entry.text)) - entry.score)
-                                else
-                                    entry.score;
+                                var language_score = entry.score;
+                                if (model) |m| {
+                                    // log P <= 0, so the model can only lower this entry's score below
+                                    // (1 - weight) * score: skip the lookup when even that misses the beam.
+                                    const ceiling = (1 - self.word_model_weight) * entry.score + 1e-9;
+                                    if (!single and !self.homophoneInSearch() and
+                                        !paths[end + 1].admits(prefix.score + ceiling - state.penalty - option.cost + boost - self.word_penalty)) continue;
+                                    if (target_id == null) target_id = m.target(entry.text);
+                                    language_score = entry.score + self.word_model_weight * (@log(m.conditional(model_history[index], target_id.?)) - entry.score);
+                                }
                                 if (self.homophoneInSearch() and previous_words[index].len > 0)
                                     language_score += self.homophone_in_search * self.homophone.?.bonus(previous_words[index], entry.text);
                                 const score = prefix.score + language_score - state.penalty - option.cost + boost - self.word_penalty;
