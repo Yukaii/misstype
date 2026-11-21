@@ -6,7 +6,7 @@ for working in the repository live in `AGENTS.md`; goals and milestones in
 [`project-outline.md`](project-outline.md); experiments and measurements in
 [`lab-notebook.md`](lab-notebook.md).
 
-Last reviewed: 2026-11-12 (latest release v0.5.5, 2026-10-14).
+Last reviewed: 2026-11-21 (latest release v0.5.5, 2026-10-14).
 
 ## Platforms
 
@@ -63,12 +63,26 @@ Last reviewed: 2026-11-12 (latest release v0.5.5, 2026-10-14).
   the top 16 for 93.0 % / 77.5 %, so most misses are scoring, not
   candidates (`lab-notebook.md`). A pruned HPLT word-pair model
   (MSLM v2, 22 MB, evaluation sentences excluded from training) lifts that
-  to 82.2 % / 64.5 % and halves dev/holdout picks with no persona's
-  unreachable rate rising, at +1 ms per-key p95 (2026-11-21,
-  developer-only, not bundled). **Open:** an adapter loader and the CC0
-  notice for an HPLT-derived table, one `external_v1` run, then a small
-  reranker; typist personas are still uncalibrated
-  because the key trace stopped on 2026-10-09.
+  to 82.2 % / 64.5 % and halves dev/holdout picks, at +1 ms per-key p95.
+  Adapters load an optional `word_model.bin` beside `homophone.bin`
+  (nothing bundled). Spent `external_v1` on it (2026-11-21): zh exact
+  59.2 -> 66.2 %, picks per 100 characters 5.87 -> 4.47, but 3 cases became
+  unreachable through pick semantics (a pick re-decodes text the typist had
+  accepted), so it stays developer-only. Typist personas are still
+  uncalibrated because the key trace stopped on 2026-10-09.
+- **Headline measure (2026-11-21): effort, not first guess.** Exact first
+  choice has a ceiling (some input is ambiguous from keys alone, more so
+  without tones; the intended sentence is in our top 16 for 95 % toned /
+  89 % toneless), so decoder work reports first `typing_eval`'s
+  `picks_100` + `fix_keys` (effort to reach the intended text) and
+  `unreach_pct` (target 0: every sentence fixable by picking), then
+  first-choice rates as a diagnostic. Corpus statistics for word choice
+  follow the established statistical-IME method; our own work goes into
+  picks that never undo accepted text, typo repair, toneless typing, local
+  personal learning and late correction from the kept raw keys.
+  **Open, in order:** a pick rule that keeps accepted text without
+  stranding a wrong cut word (the first try lost 67 cases, lab notebook),
+  missing vocabulary, personal learning on top of the word model.
 - **Touch** (`core-zig/src/touch.zig`, `misstype-dev --touch`): on the real
   lexicon coordinate-aware decoding beats keyboard repair by 20–50 pp at
   jitter 0.10–0.12 without touching exact input (`tools/noise.py`,
