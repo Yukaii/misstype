@@ -1413,3 +1413,61 @@ tone) and picks per composition. Noticed slips are a lower bound; unnoticed
 errors need the intended text. The trace stopped being written when the
 Swift core retired (2026-10-09), so only older logs can be read until a
 consented, local key trace exists again in the Zig `Session`.
+
+## Word-pair model on unseen text (2026-11-21)
+
+Question: the 2026-10-14 word bigram pilot (`docs/offline-word-model.md`)
+was judged only on the worn synthetic sets. Does it hold on unseen text, and
+how much of it survives at a size an IME could load?
+
+Checks on `cv-legacy` (`tools/first_choice_eval.py`, 2,000 sentences, clean
+keys, exact-sentence first choice, baseline 74.8 % toned / 53.4 % toneless):
+
+| model | size | weight | toned | toneless |
+|---|---:|---:|---:|---:|
+| 2026-10-14 count-pruned (200k pairs) | 4.1 MB | 0.5 | 76.6 | 53.7 |
+| 2026-10-14 full pilot (40k pages) | 170 MB | 0.25 | 79.8 | 58.6 |
+| 2026-10-14 full pilot (40k pages) | 170 MB | 0.5 | 81.8 | 62.5 |
+| clean, 40k pages, gain-pruned 1.5M | 19.7 MB | 0.5 | 79.5 | 58.9 |
+| clean, all 365k pages, gain-pruned 0.5M | 7.7 MB | 0.5 | 78.2 | 57.3 |
+| clean, all 365k pages, gain-pruned 1.5M | 19.7 MB | 0.5 | 80.4 | 60.1 |
+| clean, all 365k pages, gain-pruned 3M | 37.7 MB | 0.5 | **81.7** | **62.4** |
+| same 3M | 37.7 MB | 0.75 | 81.2 | 63.2 |
+| same 3M | 37.7 MB | 1.0 | 79.7 | 61.1 |
+
+Findings:
+
+- Contamination: the pilot's training text contained evaluation sentences
+  verbatim (2,143 Han runs equal to a `cv-legacy` or corpus sentence in the
+  first 40k pages; 19,453 in all 365k). `tools/word_lm.py --exclude` now
+  drops such runs; the "clean" rows use it with the 2,462 sentences of both
+  sets. The clean 40k-page model at 1.5M pairs is 0.9 / 1.2 points behind
+  the clean all-page one, so the contaminated pilot's numbers overstate it
+  by a few points at most.
+- Corpus size matters: all four pinned shards (`--documents 0`, 439M target
+  tokens, 35M pairs, 708 MB full model, 15 min and 5.9 GB peak to build)
+  beat the 40k-page subset at equal pair budget.
+- Pruning criterion matters more than budget: `tools/prune_word_lm.py
+  --rank gain` keeps pairs by c(h,w) * ln(P(w|h) / backoff-only P(w|h))
+  instead of raw count; at 200k pairs (4.1 MB) it beats count ranking
+  (76.9 / 54.6 vs 76.6 / 53.7), and 3M gain-ranked pairs match the 170 MB
+  pilot. Weight 0.5 stays the best overall.
+- Real Sessions (`tools/typing_eval.py`, MSLM 3M at 0.5, against the same
+  build without a model). Dev: zh exact 72.7 -> 79.6 %, picks per 100
+  characters 2.95 -> 1.63, unreachable 11.2 -> 11.1 %; every clean persona
+  improves and no persona's unreachable rate rises; two mixed shift-first
+  groups lose one case each (partial-tones, sloppy). Holdout (run once):
+  zh 70.0 -> 77.1 %, picks 3.43 -> 2.25, unreachable 10.8 -> 10.1 %;
+  clean-toneless 68.3 -> 79.5 %; only the `work` category's unreachable
+  moves (12.0 -> 12.2 %, one case) while its exact rate rises 55.2 -> 62.0 %.
+- Cost: per-key p95 1.1 -> 3.2 ms (zh average), but up to 10 -> 53 ms for
+  toneless mixed-English typing; max key 63 -> 144 ms. Developer CLI load
+  26 -> 41 ms and RSS 60 -> 136 MB (the table is copied into the arena; an
+  mmap would halve that). The decoder is fully offline.
+
+Not done: no adapter loads the model, nothing is bundled, defaults are
+unchanged. The table is derived from HPLT web text, whose licence for a
+shipped derivative is still undecided (same open question as
+`homophone.bin`). Next: cut the toneless/mixed latency tail, a compact
+quantized format (4–5 bytes per pair instead of 12), then a fixed candidate
+for one `external_v1` run.

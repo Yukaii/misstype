@@ -34,6 +34,22 @@ class WordModelTests(unittest.TestCase):
         self.assertEqual(pairs[(word_lm.BOS, '你')], 1)
         self.assertEqual(pairs[(word_lm.UNK, word_lm.EOS)], 1)
 
+    def test_excluded_sentences_not_counted(self):
+        class FakeLex:
+            score = {'你': -5, '好': -5}
+            def segment(self, text):
+                return list(text)
+        word_lm.lex = FakeLex()
+        word_lm.exclude = frozenset({'你好'})
+        try:
+            u, pairs = word_lm.count_batch(['你好，好你'])
+        finally:
+            word_lm.exclude = frozenset()
+        self.assertEqual(u.pop(word_lm.EXCLUDED), 1)
+        self.assertEqual(u[word_lm.EOS], 1)
+        self.assertNotIn((word_lm.BOS, '你'), pairs)
+        self.assertEqual(pairs[(word_lm.BOS, '好')], 1)
+
     def test_incomplete_counts_rejected(self):
         with self.assertRaises(ValueError):
             word_lm.export(['你'], Counter({'你': 2}), Counter({(word_lm.BOS, '你'): 1}))
