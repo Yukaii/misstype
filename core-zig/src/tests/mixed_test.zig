@@ -184,6 +184,20 @@ test "backspace edits the keys and the reading follows" {
     try s.expectPreedit("你好python");
 }
 
+test "Backspace on an English reading removes one key, not the run" {
+    // A slip then a tone key, read as python: Backspace used to delete back
+    // to the previous tone key, i.e. the word (toned 你好) or everything
+    // (toneless 你好).
+    for ([_][]const u8{ "su3cl3pythob6", "suclpythoj6" }) |typed| {
+        const s = try makeSession(true);
+        defer s.deinit();
+        try s.typed(typed);
+        try s.expectPreedit("你好python");
+        _ = try s.key(.backspace, 0, "\x7f");
+        try s.expectPreedit("你好python");
+    }
+}
+
 test "Option+Backspace deletes an English word read from bare keys" {
     // Issue #33: the word goes whole, not one letter per press.
     const s = try makeSession(true);
