@@ -1507,3 +1507,27 @@ McBopomofo counts MIT). Shipping it under the same CC0 notice as
 the shard hashes and build recipe in `third_party/HPLT/sources.json`;
 open: removal-request handling and whether rare pairs depend on single
 sites.
+
+## external_v1 spent on the frozen word-pair model (2026-11-21)
+
+Frozen before the run: MSLM v2, 5M gain-ranked pairs, 22.1 MB, sha256
+`c7929c9a4ceef0b74f5d1b7c98f4b97e331b8909d1758c96a20b0aae85332a53`,
+weight 0.5, loaded from `word_model.bin` (commit 059f708). The model was
+rebuilt with the 200 reserved sentences excluded from training as well:
+314 HPLT runs matched them verbatim, so the old "overlap not checked"
+limit was real. `tools/typing_eval.py --corpus` now runs any corpus file.
+
+Clean first choice (`first_choice_eval.py --sentences`, 200 sentences):
+toned 77.5 -> 83.5 %, toneless 56.0 -> 68.0 %.
+
+Real Sessions (`typing_eval.py --set holdout --corpus
+.cache/eval-reserve/external-v1.tsv`, 8 personas x 2 seeds, ReleaseFast):
+zh exact 59.2 -> 66.2 %, picks per 100 characters 5.87 -> 4.47,
+unreachable 12.8 -> 12.0 %; clean 77.0 -> 83.0 %, clean-toneless 55.5 ->
+65.5 %, toneless 48.2 -> 56.8 %. Per-key p95 7.6 -> 9.7 ms, max 83 -> 51 ms.
+Case level: clean controls 131 won / 30 lost; 3 newly unreachable
+(嚴復合集 under two partial-tone personas, 天氣即時預報粉絲團 sloppy).
+Per the protocol these block promotion pending diagnosis; the set is now
+consumed, and its failures go to regression coverage, not tuning. A debug
+build gave slightly different exact rates (66.8 %), so some Session paths
+are timing-dependent; to investigate.
