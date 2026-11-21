@@ -1568,3 +1568,19 @@ comparison here is paired on one lexicon; cv-legacy numbers above predate
 it. Linux C1–C15 not run locally (Docker containers had no network).
 Open from the model runs: it costs mixed-English no-switch clean cases
 (你有IG嗎, 幫我review一下 toneless/partial tones).
+
+Follow-up (same day): the last two external_v1 failures.
+- 嚴復合集 (partial tones) was the panel typist, not the IME: after picking
+  嚴復 the focus (嚴復|合輯) covers the error but lists 符合/合輯; 集 is one
+  Right away. `misstype-dev`'s corrector walked one direction only; it now
+  turns around once when the first direction finds nothing. typing_eval
+  without a model: 1 case newly reachable, none worse (baseline updated).
+- 天氣即時預報粉絲團 (sloppy, with the model) is settling: at the 9th key
+  the model prefers 土耳其技術 for a garbled prefix, three syllables later
+  `UserLexicon.settled` pins 土耳其, and the full decode's 天氣 (still
+  top-1 on the whole input) can no longer come back; picks cannot re-split.
+  Known class, not fixed: settling a mid-typing re-split. Settling over two
+  consecutive previews would not help (土耳其 stays top for 8 keys).
+With the model, external_v1 zh: unreachable 12.0 -> 11.7 %, picks per 100
+characters 6.09 -> 4.49, 1 case newly unreachable (this one); dev/holdout
+none.
