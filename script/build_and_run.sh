@@ -27,6 +27,13 @@ cp -R Resources/*.lproj "$APP_DIR/Contents/Resources/"
 cp .cache/mcbopomofo/lexicon.tsv "$APP_DIR/Contents/Resources/lexicon.tsv"
 cp .cache/mcbopomofo/toneless.tsv "$APP_DIR/Contents/Resources/toneless.tsv"
 cp Resources/local_phrases.tsv "$APP_DIR/Contents/Resources/local_phrases.tsv"
+# Optional Taiwan place names (tools/place_names.py build, Ministry of the
+# Interior open data, OGDL v1; built locally, never committed). Appended to
+# the bundled supplement; pair it with a word model built with
+# `word_lm.py --extra-lexicon` on the same file. MISSTYPE_SKIP_PLACES=1 leaves it out.
+if [[ "${MISSTYPE_SKIP_PLACES:-0}" != "1" && -f .cache/gov/places.tsv ]]; then
+  grep -v '^#' .cache/gov/places.tsv | cut -f1-3 >> "$APP_DIR/Contents/Resources/local_phrases.tsv"
+fi
 # Optional homophone word-bigram table (experimental). MISSTYPE_SKIP_HOMOPHONE=1
 # builds without it for an A/B comparison; decoding is then unchanged.
 if [[ "${MISSTYPE_SKIP_HOMOPHONE:-0}" != "1" ]]; then

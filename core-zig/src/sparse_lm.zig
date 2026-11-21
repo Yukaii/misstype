@@ -8,8 +8,13 @@
 const std = @import("std");
 const full = @import("word_lm.zig");
 
-const v2_step: f64 = 1.0 / 1024.0;
-const v2_q_bits = 15;
+/// Packed pair layouts: v2 has 17-bit targets and 15-bit q in 1/1024-nat
+/// steps; v3 (vocabularies over 131,072 words) 18-bit targets and 14-bit q
+/// in 1/512-nat steps. Same range (32 nat), v3 at half the precision.
+const Packing = struct { q_bits: u5, step: f64 };
+fn packing(version: u32) Packing {
+    return if (version == 3) .{ .q_bits = 14, .step = 1.0 / 512.0 } else .{ .q_bits = 15, .step = 1.0 / 1024.0 };
+}
 
 pub const Table = struct {
     words: []const u8,
@@ -20,8 +25,8 @@ pub const Table = struct {
     version: u32 = 1,
     offsets: []const u8 = &.{},
 
-    fn directV2(q: u32) f64 {
-        return @exp(-@as(f64, @floatFromInt(q)) * v2_step);
+    fn directPacked(self: Table, q: u32) f64 {
+        return @exp(-@as(f64, @floatFromInt(q)) * packing(self.version).step);
     }
     fn rowStart(self: Table, id: usize) usize {
         return u32at(self.offsets, id * 4);
@@ -32,9 +37,10 @@ pub const Table = struct {
         const m: usize = u32at(b, 12);
         const expected = 32 + @as(u64, n) * 16 + (@as(u64, n) + 1) * 4 + @as(u64, m) * 4;
         const discount: f64 = @bitCast(u64at(b, 24));
-        if (n < 3 or n > (1 << (32 - v2_q_bits)) or expected != b.len or !std.math.isFinite(discount) or discount <= 0 or discount >= 1) return error.BadSparseModel;
+        const pack = packing(u32at(b, 4));
+        if (n < 3 or n > (@as(usize, 1) << (31 - pack.q_bits) << 1) or expected != b.len or !std.math.isFinite(discount) or discount <= 0 or discount >= 1) return error.BadSparseModel;
         const offsets_at = 32 + n * 16;
-        var table: Table = .{ .words = b[32..offsets_at], .offsets = b[offsets_at .. offsets_at + (n + 1) * 4], .pairs = b[offsets_at + (n + 1) * 4 ..], .vocabulary = n, .version = 2 };
+        var table: Table = .{ .words = b[32..offsets_at], .offsets = b[offsets_at .. offsets_at + (n + 1) * 4], .pairs = b[offsets_at + (n + 1) * 4 ..], .vocabulary = n, .version = u32at(b, 4) };
         table.bos = table.lookup(full.key("<s>")) orelse return error.BadSparseModel;
         _ = table.lookup(full.key("</s>")) orelse return error.BadSparseModel;
         table.unknown = table.lookup(full.key("<unk>")) orelse return error.BadSparseModel;
@@ -58,11 +64,11 @@ pub const Table = struct {
             var previous_target: ?u32 = null;
             for (lo..hi) |i| {
                 const packed_pair = u32at(table.pairs, i * 4);
-                const target = packed_pair >> v2_q_bits;
+                const target = packed_pair >> pack.q_bits;
                 if (target >= n or target == table.bos) return error.BadSparseModel;
                 if (previous_target) |last| if (target <= last) return error.BadSparseModel;
                 previous_target = target;
-                mass += directV2(packed_pair & ((1 << v2_q_bits) - 1));
+                mass += table.directPacked(packed_pair & ((@as(u32, 1) << pack.q_bits) - 1));
             }
             if (@abs(mass - 1) > 1e-5) return error.BadSparseModel;
         }
@@ -95,7 +101,7 @@ pub const Table = struct {
     }
     pub fn parse(b: []const u8) !Table {
         if (b.len < 32 or !std.mem.eql(u8, b[0..4], "MSLM")) return error.BadSparseModel;
-        if (u32at(b, 4) == 2) return parseV2(b);
+        if (u32at(b, 4) == 2 or u32at(b, 4) == 3) return parseV2(b);
         if (u32at(b, 4) != 1) return error.BadSparseModel;
         const n: usize = u32at(b, 8);
         const m: usize = u32at(b, 12);
@@ -150,14 +156,15 @@ pub const Table = struct {
     }
     pub fn conditional(self: Table, h: u32, w: u32) f64 {
         const backoff = number(self.word(h), 12) * number(self.word(w), 8);
-        if (self.version == 2) {
+        if (self.version >= 2) {
+            const q_bits = packing(self.version).q_bits;
             var lo = self.rowStart(h);
             var hi = self.rowStart(@as(usize, h) + 1);
             while (lo < hi) {
                 const mid = lo + (hi - lo) / 2;
                 const packed_pair = u32at(self.pairs, mid * 4);
-                const have = packed_pair >> v2_q_bits;
-                if (have == w) return directV2(packed_pair & ((1 << v2_q_bits) - 1)) + backoff;
+                const have = packed_pair >> q_bits;
+                if (have == w) return self.directPacked(packed_pair & ((@as(u32, 1) << q_bits) - 1)) + backoff;
                 if (have < w) lo = mid + 1 else hi = mid;
             }
             return backoff;
@@ -212,4 +219,22 @@ test "v2 quantized pairs stay normalized and close to v1" {
     var bad = fixture_v2;
     bad[bad.len - 4] = 0; // a lighter quantized pair: mass no longer sums to 1
     try std.testing.expectError(error.BadSparseModel, Table.parse(&bad));
+}
+
+// `fixture` through tools/prune_word_lm.py `compact(.., 3)` (18-bit targets).
+pub const fixture_v3 = [_]u8{ 77, 83, 76, 77, 3, 0, 0, 0, 5, 0, 0, 0, 1, 0, 0, 0, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 232, 63, 211, 237, 100, 102, 27, 62, 30, 26, 85, 85, 213, 62, 0, 0, 128, 63, 94, 83, 145, 103, 27, 232, 98, 30, 171, 170, 170, 61, 0, 0, 128, 63, 18, 76, 227, 47, 24, 138, 212, 111, 0, 0, 0, 0, 67, 98, 50, 62, 153, 234, 39, 212, 26, 1, 212, 123, 171, 170, 234, 62, 0, 0, 128, 63, 225, 185, 111, 214, 77, 224, 1, 230, 171, 170, 42, 61, 0, 0, 128, 63, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 98, 0, 0, 0 };
+
+test "v3 packing reads like v1 within its precision" {
+    const v1 = try Table.parse(&fixture);
+    const v3 = try Table.parse(&fixture_v3);
+    for ([_][]const u8{ "", "你", "妳", "unknown" }) |history| {
+        var sum: f64 = 0;
+        for ([_][]const u8{ "你", "妳", "</s>", "<unk>" }) |text| {
+            sum += v3.probability(history, text);
+            // Quantization error in a direct mass moves into the recomputed
+            // backoff, so small backed-off values shift by up to ~1 %.
+            try std.testing.expectApproxEqRel(v1.probability(history, text), v3.probability(history, text), 1e-2);
+        }
+        try std.testing.expectApproxEqAbs(@as(f64, 1), sum, 1e-6);
+    }
 }

@@ -46,12 +46,14 @@ def export(words, pairs, tokens, discount=.75):
     return bytes(data)
 
 
-STEP = 1 / 1024  # MSLM v2 quantizes ln(direct mass) in steps of 1/1024 nat
-TARGET_BITS = 17
+# Packed pairs: v2 17-bit target + 15-bit q in 1/1024-nat steps; v3 (for
+# vocabularies over 2**17) 18-bit target + 14-bit q in 1/512-nat steps.
+PACKING = {2: (17, 1 / 1024), 3: (18, 1 / 512)}
+STEP = PACKING[2][1]
 
 
-def compact(v1):
-    """MSLM v1 -> v2 (4 bytes per pair instead of 12).
+def compact(v1, version=None):
+    """MSLM v1 -> v2/v3 (4 bytes per pair instead of 12; v3 when n > 2**17).
 
     v2: the v1 header with version 2; the same 16-byte word records, with
     each backoff recomputed from the quantized pairs so every distribution
@@ -59,26 +61,29 @@ def compact(v1):
     pair, `target << 15 | q`, sorted within each row, where the direct mass
     is exp(-q * STEP).
     """
-    magic, version, n, m, tokens, discount = struct.unpack_from('<4sIIIQd', v1)
-    if (magic, version) != (b'MSLM', 1) or len(v1) != 32 + n * 16 + m * 12:
+    magic, source_version, n, m, tokens, discount = struct.unpack_from('<4sIIIQd', v1)
+    if (magic, source_version) != (b'MSLM', 1) or len(v1) != 32 + n * 16 + m * 12:
         raise ValueError('not an MSLM v1 model')
-    if n > 1 << TARGET_BITS:
-        raise ValueError('vocabulary too large for 17-bit target IDs')
+    version = version or (2 if n <= 1 << 17 else 3)
+    target_bits, step = PACKING[version]
+    q_bits = 32 - target_bits
+    if n > 1 << target_bits:
+        raise ValueError(f'vocabulary too large for {target_bits}-bit target IDs')
     words = [list(struct.unpack_from('<Qff', v1, 32 + i * 16)) for i in range(n)]
     mass = [0.0] * n
     offsets = [0] * (n + 1)
     packed = bytearray()
     for hi, wi, direct in struct.iter_unpack('<IIf', memoryview(v1)[32 + n * 16:]):
-        q = min((1 << 15) - 1, round(-math.log(direct) / STEP))
-        mass[hi] += math.exp(-q * STEP)
+        q = min((1 << q_bits) - 1, round(-math.log(direct) / step))
+        mass[hi] += math.exp(-q * step)
         offsets[hi + 1] += 1
-        packed += struct.pack('<I', wi << 15 | q)
+        packed += struct.pack('<I', wi << q_bits | q)
     for i in range(n):
         offsets[i + 1] += offsets[i]
         if mass[i] >= 1:
             raise ValueError('quantized mass leaves no backoff')
         words[i][2] = 1 - mass[i]
-    data = bytearray(struct.pack('<4sIIIQd', b'MSLM', 2, n, m, tokens, discount))
+    data = bytearray(struct.pack('<4sIIIQd', b'MSLM', version, n, m, tokens, discount))
     for row in words:
         data += struct.pack('<Qff', *row)
     data += struct.pack(f'<{n + 1}I', *offsets)

@@ -110,6 +110,9 @@ def main():
     p.add_argument('--jobs', type=int, default=8)
     p.add_argument('--documents', type=int, default=10000,
                    help='documents read per shard, from the start (0 = all; the 2026-10-14 pilot used 10000)')
+    p.add_argument('--extra-lexicon', type=Path, action='append', default=[],
+                   help='rows (reading, text, score) appended to the pinned segmentation lexicon, e.g. '
+                        'tools/place_names.py output; their hashes go into the manifest')
     p.add_argument('--drop-converted', action='store_true',
                    help='skip documents with any Simplified->Traditional conversion marker (這里, 關系, 對于, ...)')
     p.add_argument('--exclude', type=Path, action='append', default=[],
@@ -125,6 +128,18 @@ def main():
     lex_hash = hashlib.sha256(args.lexicon.read_bytes()).hexdigest()
     if lex_hash != sources['segmentation_lexicon']['sha256']:
         raise ValueError('segmentation lexicon differs from pinned HPLT build')
+    extra_hashes = {}
+    if args.extra_lexicon:
+        # The pinned lexicon followed by reviewed extra rows (3 columns kept).
+        combined = args.out.with_name(args.out.stem + '-seglex.tsv')
+        combined.parent.mkdir(parents=True, exist_ok=True)
+        parts = [args.lexicon.read_text(encoding='utf-8')]
+        for path in args.extra_lexicon:
+            extra_hashes[str(path)] = hashlib.sha256(path.read_bytes()).hexdigest()
+            parts += ['\t'.join(line.split('\t')[:3]) + '\n' for line in path.read_text(encoding='utf-8').splitlines()
+                      if line and not line.startswith('#')]
+        combined.write_text(''.join(parts), encoding='utf-8')
+        args.lexicon = combined
     unigram, pairs, provenance = Counter(), Counter(), []
     names = {}  # one string object per word: a full-shard count holds tens of millions of pairs
 
@@ -156,7 +171,7 @@ def main():
     data = export(vocab, unigram, pairs)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_bytes(data)
-    manifest = {'version': 1, 'sources': provenance, 'lexicon_sha256': lex_hash,
+    manifest = {'version': 1, 'sources': provenance, 'lexicon_sha256': lex_hash, 'extra_lexicons': extra_hashes,
                 'discount': DISCOUNT, 'unigram_smoothing': 1, 'vocabulary': len(vocab)+4, 'latin_token': LATIN,
                 'target_tokens': sum(unigram.values()), 'pairs': len(pairs),
                 'excluded_sentences': len(excluded), 'excluded_runs': excluded_runs,

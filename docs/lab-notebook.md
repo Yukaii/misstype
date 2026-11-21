@@ -1651,3 +1651,26 @@ sets: the converted mainland text carries casual speech the native part
 lever is casual Taiwanese text with a usable licence, which HPLT does not
 provide; the Common Voice remainder (18,577 sentences) shares authors with
 both test sets and is too small.
+
+Follow-up (same day): Taiwan place names from government open data.
+`tools/place_names.py` fetches the Ministry of the Interior road list
+(全國路名資料, year 115) and every village through the NLSC code API
+(7,871), Open Government Data License v1 (attribution), and builds 33,802
+lexicon rows absent from the dictionary (27,052 roads, 6,565 villages, 181
+districts, 4 cities; full names plus stems such as 裕農 and 翠屏), readings
+from each character's best entry (15,988 rows contain a polyphone, not
+reviewed), score -14 (the level of 三星鄉, 五股, 信義路).
+
+Added to the dictionary alone they hurt: cv-legacy 80.4 / 63.2 % -> 77.2 /
+54.5 % (295 sentences broken, 56 fixed), because the word model had never
+seen them (UNK) and obscure road stems won (成見 -> 城件, 信任 -> 新仁,
+文字 -> 塭仔). Retrained with the names in the segmentation lexicon
+(`word_lm.py --extra-lexicon`, 141,157 words, so a new MSLM v3 packing:
+18-bit targets, 14-bit q in 1/512-nat steps): 81.0 / 64.2 % (44 fixed, 13
+broken, mostly name against name: 靜安/景安, 新海/辛亥). typing_eval
+against the latin-aware model: neutral (2 cheaper, 11 costlier, no case
+newly unreachable vs no model); external_v1 exact 67.1 -> 67.5 %, picks per
+100 characters 4.35 -> 4.20, only the settling case unreachable. Installed
+locally: `script/build_and_run.sh` appends `.cache/gov/places.tsv` to the
+bundled supplement; nothing generated is committed. Before shipping: an
+attribution notice, and a reading review of the polyphone rows.
