@@ -149,7 +149,9 @@ misstype_settings misstype_settings_default(void);
 
 /* resource_dir holds lexicon.tsv (required), local_phrases.tsv, toneless.tsv and
  * the optional homophone.bin (binary word-bigram table; absent or malformed =
- * decoding unchanged).
+ * decoding unchanged) and word_model.bin (MSLM word-pair model, loaded at weight
+ * 0.5 and replacing the homophone rerank; absent or malformed = unchanged;
+ * the environment variable MISSTYPE_NO_WORD_MODEL skips it).
  * user_lexicon_path: NULL = user_phrases.json in the platform data directory
  * (~/Library/Application Support/Misstype on macOS, $XDG_DATA_HOME/misstype
  * elsewhere), "" = memory only.
@@ -254,7 +256,7 @@ misstype_engine *misstype_engine_new_from_data(const uint8_t *lexicon, size_t le
                                                const uint8_t *toneless, size_t toneless_len);
 int32_t misstype_engine_load_english(misstype_engine *engine, const uint8_t *data, size_t len);
 int32_t misstype_engine_load_homophone(misstype_engine *engine, const uint8_t *data, size_t len);
-/* Experimental sparse model ("MSLM", <= 8 MiB, once per engine), weight 0...1. */
+/* Experimental sparse model ("MSLM" v1/v2, <= 48 MiB, once per engine), weight 0...1. */
 int32_t misstype_engine_load_word_model(misstype_engine *engine, const uint8_t *data, size_t len,
                                         double weight);
 

@@ -33,6 +33,12 @@ if [[ "${MISSTYPE_SKIP_HOMOPHONE:-0}" != "1" ]]; then
   cp Resources/homophone.bin "$APP_DIR/Contents/Resources/homophone.bin"
 fi
 cp .cache/frequencywords/english.tsv "$APP_DIR/Contents/Resources/english.tsv"
+# Optional word-pair model (experimental, built locally by tools/word_lm.py and
+# tools/prune_word_lm.py --format v2; never committed). Replaces the homophone
+# rerank; absent = decoding unchanged. MISSTYPE_SKIP_WORD_MODEL=1 leaves it out.
+if [[ "${MISSTYPE_SKIP_WORD_MODEL:-0}" != "1" && -f .cache/wordlm/word_model.bin ]]; then
+  cp .cache/wordlm/word_model.bin "$APP_DIR/Contents/Resources/word_model.bin"
+fi
 cp -R third_party "$APP_DIR/Contents/Resources/third_party"
 cp LICENSE THIRD_PARTY_NOTICES.md "$APP_DIR/Contents/Resources/"
 mkdir -p "$APP_DIR/Contents/Frameworks"

@@ -160,6 +160,16 @@ fn loadDecoder(dir: []const u8) !?*core.Lexicon {
         defer gpa.free(bytes);
         decoder.setHomophoneTable(bytes) catch {};
     }
+    // Optional word-pair model; it replaces the homophone rerank. Absent or
+    // malformed = decode as before. MISSTYPE_NO_WORD_MODEL skips it.
+    if (std.c.getenv("MISSTYPE_NO_WORD_MODEL") == null) {
+        const model_path = try joinPath(dir, "word_model.bin");
+        defer gpa.free(model_path);
+        if (storage.readBytes(io(), gpa, model_path)) |bytes| {
+            defer gpa.free(bytes);
+            _ = loadWordModel(decoder, bytes, default_word_model_weight);
+        }
+    }
     return decoder;
 }
 
@@ -800,16 +810,26 @@ export fn misstype_engine_load_homophone(engine_: ?*Engine, data: ?[*]const u8, 
     return 1;
 }
 
-/// Experimental sparse word model (`MSLM`, at most 8 MiB, one per engine),
-/// mixed in at `weight` (0...1). 0 when refused; decoding is then unchanged.
+/// Experimental sparse word model (`MSLM` v1 or v2, at most
+/// `max_word_model_bytes`, one per engine), mixed in at `weight` (0...1).
+/// 0 when refused; decoding is then unchanged.
 export fn misstype_engine_load_word_model(engine_: ?*Engine, data: ?[*]const u8, len: usize, weight: f64) callconv(.c) i32 {
     const engine = engine_ orelse return 0;
-    const model = bytesOf(data, len);
-    if (engine.decoder.word_model != null or model.len > 8 * 1024 * 1024 or model.len < 4 or
-        !std.mem.eql(u8, model[0..4], "MSLM") or !std.math.isFinite(weight) or weight < 0 or weight > 1) return 0;
-    engine.decoder.setWordModel(model) catch return 0;
-    engine.decoder.word_model_weight = weight;
-    return 1;
+    return @intFromBool(loadWordModel(engine.decoder, bytesOf(data, len), weight));
+}
+
+/// 5M pairs in MSLM v2 are 22 MB (docs/lab-notebook.md, 2026-11-21).
+const max_word_model_bytes = 48 * 1024 * 1024;
+/// The weight `word_model.bin` in a resource directory is loaded at
+/// (best on cv-legacy and typing_eval, 2026-11-21).
+const default_word_model_weight = 0.5;
+
+fn loadWordModel(decoder: *core.Lexicon, model: []const u8, weight: f64) bool {
+    if (decoder.word_model != null or model.len > max_word_model_bytes or model.len < 4 or
+        !std.mem.eql(u8, model[0..4], "MSLM") or !std.math.isFinite(weight) or weight < 0 or weight > 1) return false;
+    decoder.setWordModel(model) catch return false;
+    decoder.word_model_weight = weight;
+    return true;
 }
 
 /// One setting by name, for hosts that store settings as key/value pairs.
