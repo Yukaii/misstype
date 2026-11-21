@@ -64,11 +64,15 @@ Last reviewed: 2026-11-21 (latest release v0.5.5, 2026-10-14).
   candidates (`lab-notebook.md`). A pruned HPLT word-pair model
   (MSLM v2, 22 MB, evaluation sentences excluded from training) lifts that
   to 82.2 % / 64.5 % and halves dev/holdout picks, at +1 ms per-key p95.
-  Adapters load an optional `word_model.bin` beside `homophone.bin`
-  (nothing bundled). Spent `external_v1` on it (2026-11-21): zh exact
+  It ships in `Resources/` (2026-11-21, MSLM v3, 22.8 MB, CC0) with
+  `place_names.tsv` (33,802 Taiwan road, village and district names, Open
+  Government Data License v1), which the core loads only together with the
+  model; macOS and Linux bundle both, the web demo does not.
+  `MISSTYPE_NO_WORD_MODEL` turns both off. Spent `external_v1` on it (2026-11-21): zh exact
   59.2 -> 66.2 %, picks per 100 characters 5.87 -> 4.47, but 3 cases became
   unreachable through pick semantics (a pick re-decodes text the typist had
-  accepted), so it stays developer-only. Typist personas are still
+  accepted); after the pick fixes one case remains (settling a
+  mid-typing re-split). Typist personas are still
   uncalibrated because the key trace stopped on 2026-10-09.
 - **Headline measure (2026-11-21): effort, not first guess.** Exact first
   choice has a ceiling (some input is ambiguous from keys alone, more so
@@ -80,9 +84,11 @@ Last reviewed: 2026-11-21 (latest release v0.5.5, 2026-10-14).
   follow the established statistical-IME method; our own work goes into
   picks that never undo accepted text, typo repair, toneless typing, local
   personal learning and late correction from the kept raw keys.
-  **Open, in order:** a pick rule that keeps accepted text without
-  stranding a wrong cut word (the first try lost 67 cases, lab notebook),
-  missing vocabulary, personal learning on top of the word model.
+  Done (2026-11-21): picks keep the text before them, the word model reads
+  Chinese after English, place names, learning measured with the model
+  (bonuses unchanged). **Open, in order:** learning multi-character words
+  in context, settling a mid-typing re-split, a reading review of
+  polyphone place names, casual Taiwanese vocabulary.
 - **Touch** (`core-zig/src/touch.zig`, `misstype-dev --touch`): on the real
   lexicon coordinate-aware decoding beats keyboard repair by 20–50 pp at
   jitter 0.10–0.12 without touching exact input (`tools/noise.py`,

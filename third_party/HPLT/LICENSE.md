@@ -1,6 +1,7 @@
-# HPLT 2.0 (zho_Hant) — attribution for `homophone.bin`
+# HPLT 2.0 (zho_Hant) — attribution for `homophone.bin` and `word_model.bin`
 
-`Resources/homophone.bin` is a table of word-pair association statistics
+`Resources/homophone.bin` is a table of word-pair association statistics,
+and `Resources/word_model.bin` a word-pair (bigram) language model, both
 computed from the Traditional Chinese part of the HPLT 2.0 cleaned corpus:
 HPLT, *HPLT2.0_cleaned*, config `zho_Hant`, shards `train-00000` to
 `train-00003` of 1722 (pinned with checksums in `sources.json`),
@@ -40,10 +41,22 @@ whatever rights it holds in `homophone.bin` to the public domain under
 separate from the MIT license of Misstype's code. It makes no claim about the
 web pages the counts were drawn from, which remain their owners'.
 
+`word_model.bin` holds no corpus text either: 64-bit hashes of dictionary
+words with smoothed unigram probabilities and backoff weights, and 5,000,000
+(previous word, word) pairs, each a word ID and a quantized conditional
+probability, kept by how much they improve prediction. Pairs only, never
+longer sequences; sentences cannot be rebuilt from it. Before counting, any
+text run identical to one of Misstype's evaluation sentences was dropped.
+Misstype dedicates whatever rights it holds in `word_model.bin` to the
+public domain under CC0 1.0, on the same terms as `homophone.bin`. Its
+vocabulary includes the place names of `place_names.tsv`
+(`third_party/TaiwanOpenData/LICENSE.md`); the model carries only hashes of
+them. Build steps and checksums: `sources.json`, `word_model`.
+
 ## Take-down
 
 If HPLT removes sources, or a rights holder raises a legitimate objection,
 the table is regenerated without the affected sources (the steps are in
 `sources.json`) and a new version ships; the table is optional and the
 decoder falls back to its unchanged behavior without it. Deleting
-`homophone.bin` from an install turns the feature off.
+`homophone.bin` or `word_model.bin` from an install turns that feature off.

@@ -151,7 +151,8 @@ misstype_settings misstype_settings_default(void);
  * the optional homophone.bin (binary word-bigram table; absent or malformed =
  * decoding unchanged) and word_model.bin (MSLM word-pair model, loaded at weight
  * 0.5 and replacing the homophone rerank; absent or malformed = unchanged;
- * the environment variable MISSTYPE_NO_WORD_MODEL skips it).
+ * the environment variable MISSTYPE_NO_WORD_MODEL skips it) with
+ * place_names.tsv (extra lexicon rows, loaded only with a usable model).
  * user_lexicon_path: NULL = user_phrases.json in the platform data directory
  * (~/Library/Application Support/Misstype on macOS, $XDG_DATA_HOME/misstype
  * elsewhere), "" = memory only.

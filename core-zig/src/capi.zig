@@ -148,7 +148,20 @@ fn loadDecoder(dir: []const u8) !?*core.Lexicon {
     defer gpa.free(toneless_path);
     const toneless = storage.read(io(), gpa, toneless_path);
     defer if (toneless) |t| gpa.free(t);
-    const decoder = try core.Lexicon.create(gpa, &.{ tsv, supplement orelse "" }, toneless orelse "");
+    // Optional word-pair model and the place names it was trained with
+    // (place_names.tsv): the names load only with a usable model, since
+    // without its counts obscure place stems outrank everyday words
+    // (docs/lab-notebook.md, 2026-11-21). MISSTYPE_NO_WORD_MODEL skips both.
+    const model_path = try joinPath(dir, "word_model.bin");
+    defer gpa.free(model_path);
+    const model: ?[]u8 = if (std.c.getenv("MISSTYPE_NO_WORD_MODEL") == null) storage.readBytes(io(), gpa, model_path) else null;
+    defer if (model) |m| gpa.free(m);
+    const model_ok = if (model) |m| wordModelAcceptable(m) else false;
+    const places_path = try joinPath(dir, "place_names.tsv");
+    defer gpa.free(places_path);
+    const places: ?[]u8 = if (model_ok) storage.read(io(), gpa, places_path) else null;
+    defer if (places) |p| gpa.free(p);
+    const decoder = try core.Lexicon.create(gpa, &.{ tsv, supplement orelse "", places orelse "" }, toneless orelse "");
     decoder.word_penalty = 0.5;
     if (std.c.getenv("MISSTYPE_WORD_PENALTY")) |value| {
         decoder.word_penalty = std.fmt.parseFloat(f64, std.mem.span(value)) catch 0.5;
@@ -160,16 +173,8 @@ fn loadDecoder(dir: []const u8) !?*core.Lexicon {
         defer gpa.free(bytes);
         decoder.setHomophoneTable(bytes) catch {};
     }
-    // Optional word-pair model; it replaces the homophone rerank. Absent or
-    // malformed = decode as before. MISSTYPE_NO_WORD_MODEL skips it.
-    if (std.c.getenv("MISSTYPE_NO_WORD_MODEL") == null) {
-        const model_path = try joinPath(dir, "word_model.bin");
-        defer gpa.free(model_path);
-        if (storage.readBytes(io(), gpa, model_path)) |bytes| {
-            defer gpa.free(bytes);
-            _ = loadWordModel(decoder, bytes, default_word_model_weight);
-        }
-    }
+    // The model replaces the homophone rerank. Absent or malformed = decode as before.
+    if (model_ok) _ = loadWordModel(decoder, model.?, default_word_model_weight);
     return decoder;
 }
 
@@ -824,9 +829,14 @@ const max_word_model_bytes = 48 * 1024 * 1024;
 /// (best on cv-legacy and typing_eval, 2026-11-21).
 const default_word_model_weight = 0.5;
 
+fn wordModelAcceptable(model: []const u8) bool {
+    if (model.len > max_word_model_bytes or model.len < 4 or !std.mem.eql(u8, model[0..4], "MSLM")) return false;
+    _ = core.word_model.Table.parse(model) catch return false;
+    return true;
+}
+
 fn loadWordModel(decoder: *core.Lexicon, model: []const u8, weight: f64) bool {
-    if (decoder.word_model != null or model.len > max_word_model_bytes or model.len < 4 or
-        !std.mem.eql(u8, model[0..4], "MSLM") or !std.math.isFinite(weight) or weight < 0 or weight > 1) return false;
+    if (decoder.word_model != null or !wordModelAcceptable(model) or !std.math.isFinite(weight) or weight < 0 or weight > 1) return false;
     decoder.setWordModel(model) catch return false;
     decoder.word_model_weight = weight;
     return true;

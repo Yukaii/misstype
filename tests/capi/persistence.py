@@ -206,20 +206,24 @@ def run(path):
         import re
         source = Path('core-zig/src/sparse_lm.zig').read_text()
         fixture_v2 = bytes(int(b) for b in re.search(r'fixture_v2 = \[_\]u8\{([^}]*)\}', source).group(1).split(','))
-        tops = {}
+        tops, places = {}, {}
+        # place_names.tsv (here a row for 擬, which would win) loads only with a usable model.
         for name, model in [('absent', None), ('malformed', b'MSLM\x02garbage'), ('valid', fixture_v2)]:
             directory = root / f'word-model-{name}'; directory.mkdir()
             resource = directory / 'resources'; resource.mkdir()
             (resource / 'lexicon.tsv').write_text('ㄋㄧˇ\t你\t-3\nㄋㄧˇ\t妳\t-5\n')
+            (resource / 'place_names.tsv').write_text('# test\nㄋㄧˇ-ㄏㄠˇ\t擬好\t-1\n')
             if model is not None:
                 (resource / 'word_model.bin').write_bytes(model)
             engine = Engine(api, resource, directory)
             try:
                 tops[name] = engine.top('su3')
+                places[name] = engine.top('su3cl3') == '擬好'
             finally:
                 engine.close()
         assert tops == {'absent': '你', 'malformed': '你', 'valid': '妳'}, tops
-        print('PASS word_model.bin: absent and malformed change nothing, a valid model takes effect')
+        assert places == {'absent': False, 'malformed': False, 'valid': True}, places
+        print('PASS word_model.bin: absent and malformed change nothing (place_names.tsv ignored), a valid model takes effect with its place names')
 
         expected_rows = json.loads((golden / 'swift_rows.json').read_text())
         for case, payload in enumerate([

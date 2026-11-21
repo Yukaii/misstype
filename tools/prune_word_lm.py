@@ -136,7 +136,7 @@ def main():
             path.write_bytes(binary)
             compressed=gzip.compress(binary,compresslevel=9,mtime=0)
             path.with_suffix('.bin.gz').write_bytes(compressed)
-            meta={**manifest,'format':f'MSLM-{args.format}','source_model_sha256':actual,
+            meta={**manifest,'format':'MSLM-v%d'%struct.unpack_from('<I',binary,4)[0],'source_model_sha256':actual,
                   'pairs':len(kept),'source_pairs':manifest['pairs'],
                   'pruning':('highest count' if args.rank=='count' else 'highest count-weighted log gain over backoff')
                              +', hash order breaks ties','retained_pairs':len(kept),

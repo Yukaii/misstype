@@ -1,0 +1,29 @@
+{
+  "license": "Open Government Data License, version 1.0 (https://data.gov.tw/license)",
+  "provider": "內政部 (Ministry of the Interior, Taiwan)",
+  "files": {
+    "roads": {
+      "dataset": "https://data.gov.tw/dataset/35321",
+      "title": "115全國路名資料",
+      "url": "https://opdadm.moi.gov.tw/api/v1/no-auth/resource/api/dataset/E2EDC47D-2D3F-4EB1-878A-4DEB6160FD4C/resource/EB1B8C49-5C2A-42E0-8CC3-6B69B37DA66F/download",
+      "sha256": "a58a31cebef9540412753bbf60f35415735b2a26983ccd4d795faa4aa110a05b"
+    },
+    "villages": {
+      "dataset": "https://data.gov.tw/dataset/102017",
+      "title": "代碼服務－村里清單 (NLSC ListCounty / ListTown / ListVillage), fetched 2026-11-21",
+      "url": "https://api.nlsc.gov.tw/other/ListVillage/{county}/{town}",
+      "sha256_of_fetched_tsv": "40d133454777434a77cf9ab890150b8debb1b6430751fa9ec0d13ce20ab65dd1",
+      "villages": 7871
+    }
+  },
+  "build": [
+    "python3 tools/place_names.py fetch",
+    "python3 tools/place_names.py build --lexicon <shipping lexicon.tsv> --lexicon Resources/local_phrases.tsv --out .cache/gov/places.tsv",
+    "Resources/place_names.tsv = a header plus columns 1-3 of .cache/gov/places.tsv"
+  ],
+  "output": {
+    ".cache/gov/places.tsv": "5e1d87cc5ce468bacc81933bc7263b2b89ab2344080a34c8f68647dee6d7fbef",
+    "Resources/place_names.tsv": "ae8a30bcae1b83f8554cda9af3f61cff34d6b27c0ed50bc26825fcd8bf68ec1b"
+  },
+  "rows": 33802
+}

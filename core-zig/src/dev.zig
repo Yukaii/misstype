@@ -82,7 +82,10 @@ const Cli = struct {
         defer self.gpa.free(supplement);
         const toneless = (try self.resourceFile(dir, "toneless.tsv")) orelse try self.gpa.dupe(u8, "");
         defer self.gpa.free(toneless);
-        const lexicon = try core.Lexicon.create(self.gpa, &.{ lexicon_tsv, supplement }, toneless);
+        // place_names.tsv rides with a word model, as in the C ABI loader.
+        const places = (if (std.c.getenv("MISSTYPE_WORD_LM") != null) try self.resourceFile(dir, "place_names.tsv") else null) orelse try self.gpa.dupe(u8, "");
+        defer self.gpa.free(places);
+        const lexicon = try core.Lexicon.create(self.gpa, &.{ lexicon_tsv, supplement, places }, toneless);
         // Optional homophone word-bigram table (binary).
         const homophone_path = try std.fs.path.join(self.gpa, &.{ dir, "homophone.bin" });
         defer self.gpa.free(homophone_path);

@@ -27,24 +27,22 @@ cp -R Resources/*.lproj "$APP_DIR/Contents/Resources/"
 cp .cache/mcbopomofo/lexicon.tsv "$APP_DIR/Contents/Resources/lexicon.tsv"
 cp .cache/mcbopomofo/toneless.tsv "$APP_DIR/Contents/Resources/toneless.tsv"
 cp Resources/local_phrases.tsv "$APP_DIR/Contents/Resources/local_phrases.tsv"
-# Optional Taiwan place names (tools/place_names.py build, Ministry of the
-# Interior open data, OGDL v1; built locally, never committed). Appended to
-# the bundled supplement; pair it with a word model built with
-# `word_lm.py --extra-lexicon` on the same file. MISSTYPE_SKIP_PLACES=1 leaves it out.
-if [[ "${MISSTYPE_SKIP_PLACES:-0}" != "1" && -f .cache/gov/places.tsv ]]; then
-  grep -v '^#' .cache/gov/places.tsv | cut -f1-3 >> "$APP_DIR/Contents/Resources/local_phrases.tsv"
-fi
 # Optional homophone word-bigram table (experimental). MISSTYPE_SKIP_HOMOPHONE=1
 # builds without it for an A/B comparison; decoding is then unchanged.
 if [[ "${MISSTYPE_SKIP_HOMOPHONE:-0}" != "1" ]]; then
   cp Resources/homophone.bin "$APP_DIR/Contents/Resources/homophone.bin"
 fi
 cp .cache/frequencywords/english.tsv "$APP_DIR/Contents/Resources/english.tsv"
-# Optional word-pair model (experimental, built locally by tools/word_lm.py and
-# tools/prune_word_lm.py --format v2; never committed). Replaces the homophone
-# rerank; absent = decoding unchanged. MISSTYPE_SKIP_WORD_MODEL=1 leaves it out.
-if [[ "${MISSTYPE_SKIP_WORD_MODEL:-0}" != "1" && -f .cache/wordlm/word_model.bin ]]; then
-  cp .cache/wordlm/word_model.bin "$APP_DIR/Contents/Resources/word_model.bin"
+# Word-pair model and the place names it was trained with (HPLT CC0 /
+# Taiwan open data; third_party/HPLT, third_party/TaiwanOpenData). The core
+# loads place_names.tsv only together with the model. MISSTYPE_SKIP_WORD_MODEL=1
+# leaves both out (decoding as before, with homophone.bin); a local
+# .cache/wordlm/word_model.bin overrides the shipped model for experiments.
+if [[ "${MISSTYPE_SKIP_WORD_MODEL:-0}" != "1" ]]; then
+  model=Resources/word_model.bin
+  [[ -f .cache/wordlm/word_model.bin ]] && model=.cache/wordlm/word_model.bin
+  cp "$model" "$APP_DIR/Contents/Resources/word_model.bin"
+  cp Resources/place_names.tsv "$APP_DIR/Contents/Resources/place_names.tsv"
 fi
 cp -R third_party "$APP_DIR/Contents/Resources/third_party"
 cp LICENSE THIRD_PARTY_NOTICES.md "$APP_DIR/Contents/Resources/"
