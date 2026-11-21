@@ -17,7 +17,7 @@ class WordModelTests(unittest.TestCase):
         data = word_lm.export(['你', '妳'], uni, pairs)
         self.assertEqual(data, word_lm.export(['妳', '你'], uni, Counter(dict(reversed(list(pairs.items()))))))
         magic, version, vocab, count, tokens, discount = struct.unpack_from('<4sIIIQd', data)
-        self.assertEqual((magic, version, vocab, count, tokens, discount), (b'MWLM', 1, 5, 4, 20, .75))
+        self.assertEqual((magic, version, vocab, count, tokens, discount), (b'MWLM', 1, 6, 4, 20, .75))  # 你 妳 + BOS EOS UNK LATIN
         records = [struct.unpack_from('<QQI', data, 32 + vocab*20 + i*20) for i in range(count)]
         self.assertIn((word_lm.key(word_lm.BOS), word_lm.key('你'), 1), records)
         self.assertEqual(records, sorted(records))
@@ -49,6 +49,18 @@ class WordModelTests(unittest.TestCase):
         self.assertEqual(u[word_lm.EOS], 1)
         self.assertNotIn((word_lm.BOS, '你'), pairs)
         self.assertEqual(pairs[(word_lm.BOS, '好')], 1)
+
+    def test_latin_runs_join_the_clause(self):
+        class FakeLex:
+            score = {'幫': -5, '我': -5, '一下': -5}
+            def segment(self, text):
+                return ['一下'] if text == '一下' else list(text)
+        word_lm.lex = FakeLex()
+        u, pairs = word_lm.count_batch(['幫我check it一下。2024'])
+        self.assertEqual(pairs[('我', word_lm.LATIN)], 1)
+        self.assertEqual(pairs[(word_lm.LATIN, '一下')], 1)
+        self.assertEqual(u[word_lm.LATIN], 1)  # check it: one token
+        self.assertEqual(u[word_lm.EOS], 1)    # 2024 alone is no clause
 
     def test_incomplete_counts_rejected(self):
         with self.assertRaises(ValueError):

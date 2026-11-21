@@ -708,6 +708,10 @@ pub const Lexicon = struct {
         tone_tolerance: bool = true,
         user_lexicon: ?*const UserLexicon = null,
         locked: ?*const UserLexicon = null,
+        /// The run follows English or digits in the same clause: a word
+        /// model with a `<latin>` symbol scores its first word after that
+        /// instead of after sentence start.
+        after_latin: bool = false,
     };
 
     /// Decode tone-terminated syllables plus an unsegmented pending key run.
@@ -915,11 +919,14 @@ pub const Lexicon = struct {
         var runs: std.ArrayList(std.ArrayList(Syllable)) = .empty;
         try runs.append(arena, .empty);
         var seps: std.ArrayList([]const u8) = .empty;
+        var latin_before: std.ArrayList(bool) = .empty;
+        try latin_before.append(arena, false);
         for (segments) |segment| switch (segment) {
             .syllable => |s| try runs.items[runs.items.len - 1].append(arena, s),
             .punct, .latin => |mark| {
                 try runs.append(arena, .empty);
                 try seps.append(arena, mark);
+                try latin_before.append(arena, segment == .latin and latinWord(mark));
             },
         };
         const run_tops = try arena.alloc([]const Candidate, runs.items.len);
@@ -928,6 +935,7 @@ pub const Lexicon = struct {
         for (runs.items, 0..) |run, index| {
             const trailing = index == runs.items.len - 1;
             var run_opts = opts;
+            run_opts.after_latin = latin_before.items[index];
             var pins: ?UserLexicon = null;
             if (opts.locked) |locked| pins = try locked.pinsForRun(index);
             defer if (pins) |*p| p.deinit();
@@ -1010,7 +1018,13 @@ pub const Lexicon = struct {
         if (syllables.len == 0) return &.{};
         const options = try arena.alloc([]Option, syllables.len);
         for (syllables, options) |syllable, *out| out.* = try self.alternatives(arena, syllable, opts.fuzzy, opts.tone_tolerance);
-        return self.decodeOptions(arena, syllables, options, opts.user_lexicon, opts.locked);
+        return self.decodeOptions(arena, syllables, options, opts.user_lexicon, opts.locked, opts.after_latin);
+    }
+
+    /// A latin separator that reads as a word or number (not spaces alone).
+    fn latinWord(mark: []const u8) bool {
+        for (mark) |c| if (std.ascii.isAlphanumeric(c)) return true;
+        return false;
     }
 
     const Beam = struct {
@@ -1082,7 +1096,7 @@ pub const Lexicon = struct {
     }
 
     /// Decode with caller-supplied reading options per syllable.
-    pub fn decodeOptions(self: *const Lexicon, arena: Allocator, syllables: []const Syllable, options: []const []Option, user_lexicon_: ?*const UserLexicon, locked: ?*const UserLexicon) ![]Candidate {
+    pub fn decodeOptions(self: *const Lexicon, arena: Allocator, syllables: []const Syllable, options: []const []Option, user_lexicon_: ?*const UserLexicon, locked: ?*const UserLexicon, after_latin: bool) ![]Candidate {
         if (syllables.len == 0 or options.len != syllables.len) return &.{};
         const context_rules = if (user_lexicon_) |u| try u.contextRules(arena) else null;
         const settled_units = if (locked) |l| try l.settledUnits(arena) else null;
@@ -1102,6 +1116,9 @@ pub const Lexicon = struct {
         // Word model: histories resolved once per span start, targets once per entry.
         const model: ?word_model.Table = if (self.word_model != null and self.word_model_weight > 0) self.word_model.? else null;
         var model_history: [beam_width]u32 = undefined;
+        // Models built with a `<latin>` symbol (tools/word_lm.py) start a run
+        // that follows English or digits there; older models keep sentence start.
+        const latin_history: ?u32 = if (model) |m| (if (after_latin and m.knows("<latin>")) m.history("<latin>") else null) else null;
         for (0..syllables.len) |start| {
             if (paths[start].len == 0) continue;
             const prefixes = paths[start].items;
@@ -1124,8 +1141,8 @@ pub const Lexicon = struct {
                     if (last.chars.end > prefix.utf16_len) continue;
                     previous_words[i] = try unicode.utf16Slice(arena, prefix.text, last.chars.start, last.chars.end);
                 }
-                if (model) |m| for (0..prefix_count) |i| {
-                    model_history[i] = m.history(previous_words[i]);
+                if (model) |m| for (prefixes[0..prefix_count], 0..) |prefix, i| {
+                    model_history[i] = if (prefix.alignment.len == 0 and latin_history != null) latin_history.? else m.history(previous_words[i]);
                 };
             }
             states.clearRetainingCapacity();

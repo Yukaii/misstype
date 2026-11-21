@@ -238,7 +238,7 @@ const Decoder = struct {
                 s.* = slice.syllable;
                 o.* = slice.options;
             }
-            try found.appendSlice(a, try self.dec.decodeOptions(a, syllables, options, self.opts.user_lexicon, null));
+            try found.appendSlice(a, try self.dec.decodeOptions(a, syllables, options, self.opts.user_lexicon, null, false));
         }
         return found.items;
     }

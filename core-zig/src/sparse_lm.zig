@@ -82,7 +82,7 @@ pub const Table = struct {
     fn word(self: Table, id: usize) []const u8 {
         return self.words[id * 16 ..][0..16];
     }
-    fn lookup(self: Table, want: u64) ?usize {
+    pub fn lookup(self: Table, want: u64) ?usize {
         var lo: usize = 0;
         var hi = self.vocabulary;
         while (lo < hi) {

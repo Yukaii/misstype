@@ -76,7 +76,7 @@ pub const Table = struct {
         if (pair_total != outgoing_total or pair_total != table.tokens) return error.BadWordModel;
         return table;
     }
-    fn record(self: Table, want: u64) ?[]const u8 {
+    pub fn record(self: Table, want: u64) ?[]const u8 {
         var lo: usize = 0;
         var hi = self.vocabulary;
         while (lo < hi) {

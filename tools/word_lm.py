@@ -7,6 +7,7 @@ import argparse
 from collections import Counter
 import hashlib
 import json
+import re
 from multiprocessing import Pool
 from pathlib import Path
 import struct
@@ -16,6 +17,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from homophone_bigram import Lex, HAN
 
 BOS, EOS, UNK = '<s>', '</s>', '<unk>'
+LATIN = '<latin>'  # an English word or number inside a Chinese clause
+CLAUSE = re.compile(r'[一-鿿A-Za-z0-9 ]+')
+PIECE = re.compile(r'[一-鿿]+|[A-Za-z0-9]+')
 DISCOUNT = .75
 
 
@@ -39,11 +43,23 @@ def initialize(path, excluded=()):
 def count_batch(texts):
     uni, pairs = Counter(), Counter()
     for text in texts:
-        for match in HAN.finditer(text):
-            if match.group() in exclude:
+        # A clause is Han text with English words or numbers inside it, up to
+        # punctuation; each latin run is one LATIN token, so the model learns
+        # what follows `check` in 幫我check一下 rather than a sentence start.
+        for match in CLAUSE.finditer(text):
+            pieces = PIECE.findall(match.group())
+            if not any(HAN.fullmatch(p) for p in pieces):
+                continue
+            if any(p in exclude for p in pieces):
                 uni[EXCLUDED] += 1  # an evaluation sentence verbatim: keep it out of the counts
                 continue
-            words = [w if w in lex.score else UNK for w in lex.segment(match.group())]
+            words = []
+            for piece in pieces:
+                if not HAN.fullmatch(piece):
+                    if not words or words[-1] != LATIN:
+                        words.append(LATIN)
+                    continue
+                words.extend(w if w in lex.score else UNK for w in lex.segment(piece))
             words.append(EOS)
             uni.update(words)
             pairs.update(zip([BOS] + words[:-1], words))
@@ -51,7 +67,7 @@ def count_batch(texts):
 
 
 def export(vocab, uni, pairs):
-    vocab = set(vocab) | {BOS, EOS, UNK}
+    vocab = set(vocab) | {BOS, EOS, UNK, LATIN}
     if BOS in uni or any(c <= 0 for c in pairs.values()) or any(c < 0 for c in uni.values()):
         raise ValueError('invalid counts')
     incoming = Counter()
@@ -128,7 +144,7 @@ def main():
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_bytes(data)
     manifest = {'version': 1, 'sources': provenance, 'lexicon_sha256': lex_hash,
-                'discount': DISCOUNT, 'unigram_smoothing': 1, 'vocabulary': len(vocab)+3,
+                'discount': DISCOUNT, 'unigram_smoothing': 1, 'vocabulary': len(vocab)+4, 'latin_token': LATIN,
                 'target_tokens': sum(unigram.values()), 'pairs': len(pairs),
                 'excluded_sentences': len(excluded), 'excluded_runs': excluded_runs,
                 'model_sha256': hashlib.sha256(data).hexdigest(), 'bytes': len(data)}

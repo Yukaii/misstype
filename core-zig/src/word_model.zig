@@ -31,6 +31,13 @@ pub const Table = union(enum) {
             .sparse => |table| table.targetId(word),
         };
     }
+    /// Whether the model has its own record for `word` (not the UNK fallback).
+    pub fn knows(self: Table, word: []const u8) bool {
+        return switch (self) {
+            .full => |table| table.record(full.key(word)) != null,
+            .sparse => |table| table.lookup(full.key(word)) != null,
+        };
+    }
     pub fn conditional(self: Table, h: u32, w: u32) f64 {
         return switch (self) {
             .full => |table| table.conditional(h, w),
