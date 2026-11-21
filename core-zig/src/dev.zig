@@ -109,6 +109,7 @@ const Cli = struct {
             std.fmt.parseFloat(f64, std.mem.span(w)) catch 0.5
         else
             0.5;
+        if (std.c.getenv("MISSTYPE_LEARNED_SCALE")) |w| lexicon.learned_scale = try std.fmt.parseFloat(f64, std.mem.span(w));
         if (std.c.getenv("MISSTYPE_WORD_LM")) |path| {
             const bytes = core.storage.readBytes(self.io, self.gpa, std.mem.span(path)) orelse return error.MissingWordModel;
             defer self.gpa.free(bytes);

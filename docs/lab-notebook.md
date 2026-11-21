@@ -1674,3 +1674,34 @@ newly unreachable vs no model); external_v1 exact 67.1 -> 67.5 %, picks per
 locally: `script/build_and_run.sh` appends `.cache/gov/places.tsv` to the
 bundled supplement; nothing generated is committed. Before shipping: an
 attribution notice, and a reading review of the polyphone rows.
+
+## Personal learning with the word model (2026-11-21)
+
+Question: does learning from picks still pay with the word model, and do
+its fixed bonuses (tuned without a model) now fight the model's context?
+`typing_eval.py --learning` (dev first, dev repeat, holdout transfer; one
+engine carried vs fresh), installed model and place names, picks per 100
+characters:
+
+- Memory works: repeat 2.26 -> 0.30 (clean-toneless), 1.90 -> 0.36
+  (toneless), 0.59 -> 0.06 (clean).
+- Transfer is slightly negative (2.72 -> 2.77 clean-toneless; 3-5 sentences
+  worse per persona): learned 說|ㄉㄜ -> 得 (dev has both 你說的對 and
+  他說得對), 再/在, 周末 (the corpus spells both 週末 and 周末). These are
+  contradictions in the synthetic corpus that any learner pays for; without
+  the model transfer is neutral (11 fewer / 11 more), with it the model
+  already gets most of them right, so learning has fewer to fix.
+- Bonus strength: `MISSTYPE_LEARNED_SCALE` (developer hook,
+  `Lexicon.learned_scale`, default 1, pins untouched). Summed picks over
+  the three passes: scale 1 / 0.5 / 0.25: clean 1.83 / 1.77 / 1.83,
+  clean-toneless 5.33 / 5.40 / 5.83, toneless 4.68 / 4.68 / 5.01, partial
+  tones 2.90 / 2.90 / 3.20. A wash at 0.5, worse at 0.25: kept at 1.
+- New vocabulary comes from the user: user-dictionary words the model has
+  never seen (已讀不回, 小編) win alone and in a sentence (他已讀不回,
+  今天小編發文 -> 發問 is a context miss, not the word) with the model on;
+  the UNK floor does not block them.
+
+Not measured: real typing (the personas are uncalibrated). Open: learning
+multi-character words in context (only single characters learn a
+previous-word context today), which would generalize where global word
+bonuses leak.

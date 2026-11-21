@@ -93,6 +93,9 @@ pub const Lexicon = struct {
     homophone: ?homophone.Table = null,
     word_model: ?word_model.Table = null,
     word_model_weight: f64 = 0,
+    /// Multiplies learned-word and learned-context bonuses (not pins).
+    /// 1 = as tuned without a word model.
+    learned_scale: f64 = 1,
     /// Nats of table bonus per unit of difference between two homophones.
     homophone_weight: f64 = 1.0,
     /// Experiment: weight of the homophone table's bonus for (previous
@@ -1224,7 +1227,7 @@ pub const Lexicon = struct {
                                     }
                                 }
                                 const pin_term: f64 = if (pinned) user_lexicon.pin_bonus else 0;
-                                const boost = learned + contextual + pin_term + settled_hits * user_lexicon.pin_bonus;
+                                const boost = self.learned_scale * (learned + contextual) + pin_term + settled_hits * user_lexicon.pin_bonus;
                                 var language_score = entry.score;
                                 if (model) |m| {
                                     // log P <= 0, so the model can only lower this entry's score below
