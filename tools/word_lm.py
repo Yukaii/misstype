@@ -20,6 +20,12 @@ BOS, EOS, UNK = '<s>', '</s>', '<unk>'
 LATIN = '<latin>'  # an English word or number inside a Chinese clause
 CLAUSE = re.compile(r'[一-鿿A-Za-z0-9 ]+')
 PIECE = re.compile(r'[一-鿿]+|[A-Za-z0-9]+')
+# Forms a Simplified -> Traditional converter leaves that native Traditional
+# text does not use, and their native counterparts (--drop-converted).
+CONVERTED = re.compile('這里|那里|哪里|心里|里面|關系|對于|終于|由于|制造|听|戰斗|眼楮|發布會|游戲')
+NATIVE = re.compile('這裡|那裡|哪裡|裡面|關係|對於|終於|由於|製造|聽|戰鬥|眼睛')
+CONVERTED_DOC = '<converted-doc>'  # count of skipped documents, popped before export
+drop_converted = False
 DISCOUNT = .75
 
 
@@ -34,15 +40,19 @@ EXCLUDED = '<excluded>'  # count of skipped runs, popped before export
 exclude = frozenset()
 
 
-def initialize(path, excluded=()):
-    global lex, exclude
+def initialize(path, excluded=(), drop=False):
+    global lex, exclude, drop_converted
     lex = Lex(Path(path))
     exclude = frozenset(excluded)
+    drop_converted = drop
 
 
 def count_batch(texts):
     uni, pairs = Counter(), Counter()
     for text in texts:
+        if drop_converted and CONVERTED.search(text):
+            uni[CONVERTED_DOC] += 1  # machine-converted from Simplified (any marker): not native usage
+            continue
         # A clause is Han text with English words or numbers inside it, up to
         # punctuation; each latin run is one LATIN token, so the model learns
         # what follows `check` in 幫我check一下 rather than a sentence start.
@@ -100,6 +110,8 @@ def main():
     p.add_argument('--jobs', type=int, default=8)
     p.add_argument('--documents', type=int, default=10000,
                    help='documents read per shard, from the start (0 = all; the 2026-10-14 pilot used 10000)')
+    p.add_argument('--drop-converted', action='store_true',
+                   help='skip documents with any Simplified->Traditional conversion marker (這里, 關系, 對于, ...)')
     p.add_argument('--exclude', type=Path, action='append', default=[],
                    help='text file, one sentence per line (first TSV field): Han runs equal to one are not counted')
     args = p.parse_args()
@@ -120,7 +132,7 @@ def main():
         return names.setdefault(word, word)
 
     limit = args.documents or None
-    with Pool(args.jobs, initializer=initialize, initargs=(str(args.lexicon), excluded)) as pool:
+    with Pool(args.jobs, initializer=initialize, initargs=(str(args.lexicon), excluded, args.drop_converted)) as pool:
         for name, expected in sources['files'].items():
             path = args.shards / Path(name).name
             digest = hashlib.file_digest(path.open('rb'), 'sha256').hexdigest()
@@ -139,6 +151,7 @@ def main():
             print(f'{name}: {len(texts)} documents; {sum(unigram.values())} target tokens; '
                   f'{len(pairs)} pairs', flush=True)
     excluded_runs = unigram.pop(EXCLUDED, 0)
+    converted_docs = unigram.pop(CONVERTED_DOC, 0)
     vocab = Lex(args.lexicon).score
     data = export(vocab, unigram, pairs)
     args.out.parent.mkdir(parents=True, exist_ok=True)
@@ -147,6 +160,7 @@ def main():
                 'discount': DISCOUNT, 'unigram_smoothing': 1, 'vocabulary': len(vocab)+4, 'latin_token': LATIN,
                 'target_tokens': sum(unigram.values()), 'pairs': len(pairs),
                 'excluded_sentences': len(excluded), 'excluded_runs': excluded_runs,
+                'drop_converted': args.drop_converted, 'converted_documents': converted_docs,
                 'model_sha256': hashlib.sha256(data).hexdigest(), 'bytes': len(data)}
     args.out.with_suffix('.json').write_text(json.dumps(manifest, indent=2)+'\n')
     print(json.dumps(manifest, indent=2))

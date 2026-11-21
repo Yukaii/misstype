@@ -1608,3 +1608,46 @@ when the Chinese before it was toneless). Fixed (one key), regression test
 Open: the English/Chinese switch margins predate the model; with it,
 `bug` typed as bare keys loses to 這個日益是 (pickable), and 這台 now reads
 這臺 (the dictionary's form).
+
+## Missing vocabulary and corpus quality (2026-11-21)
+
+Question: how many first-choice misses are words the dictionary lacks, and
+can the HPLT counts supply them?
+
+Misses on `cv-legacy` with the latin-aware model, by where the first wrong
+character sits (a heuristic; scratch script, not committed): spelling
+variant only (臺/台 and similar) 1.4 % toned / 1.6 % toneless of sentences;
+inside a run of single-character dictionary words, where a missing word
+shows up (熊讚, 多益, 神獸, 孫輩, 凱蒂貓, place and street names) 9.4 % /
+14.5 %; elsewhere 8.7 % / 19.6 %. About half of the misses are in the
+missing-word class (an upper bound: 沒再發生 counts too).
+
+`tools/mine_words.py` (new) mines two-character words from a full model's
+counts: pairs of single-character words with count, PMI and a one-sided
+association share, readings from the characters' best entries, scores on
+the dictionary scale by a fit of existing two-character words (score =
+0.65 ln(freq) - 5.0, 52,880 words). Result: the top candidates are
+Simplified-to-Traditional conversion errors (這里, 關系, 對于, 制造, 听到),
+spam and adult terms; the Taiwanese words above are rare or absent (熊讚 4
+times in 441M tokens, 已讀 32). Not usable without heavy review.
+
+Corpus quality: about a third of HPLT zho_Hant text is machine-converted
+from Simplified (one shard by documents' conversion markers: native 49 %,
+converted 28 %, both 6 %, neither 17 % of text). `tools/word_lm.py
+--drop-converted` skips any document with a marker (83,498 documents, 441M
+-> 268M tokens). Same 5M v2 export, weight 0.5:
+
+| | latin-aware, all text | without converted |
+|---|---|---|
+| cv-legacy toned / toneless | 80.4 / 63.2 % | 81.8 / 64.2 % |
+| external_v1 picks / fix keys per 100 chars, newly unreachable | 4.35 / 2.90, 1 | 4.28 / 2.78, 0 |
+| typing holdout picks per 100 chars | 1.93 | 2.15 |
+| mixed-holdout picks | 1.60 | 1.73 |
+| typing sets newly unreachable vs no model | 0 | 2 (sloppy) |
+
+Cleaner wins on real unseen text and loses on the colloquial synthetic
+sets: the converted mainland text carries casual speech the native part
+(news, government, Hong Kong) lacks. Kept the all-text model installed. The
+lever is casual Taiwanese text with a usable licence, which HPLT does not
+provide; the Common Voice remainder (18,577 sentences) shares authors with
+both test sets and is too small.

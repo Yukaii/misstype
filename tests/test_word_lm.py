@@ -62,6 +62,20 @@ class WordModelTests(unittest.TestCase):
         self.assertEqual(u[word_lm.LATIN], 1)  # check it: one token
         self.assertEqual(u[word_lm.EOS], 1)    # 2024 alone is no clause
 
+    def test_converted_documents_dropped(self):
+        class FakeLex:
+            score = {'這': -5, '裡': -5, '里': -5}
+            def segment(self, text):
+                return list(text)
+        word_lm.lex = FakeLex()
+        word_lm.drop_converted = True
+        try:
+            u, _ = word_lm.count_batch(['這裡', '這里'])
+        finally:
+            word_lm.drop_converted = False
+        self.assertEqual(u.pop(word_lm.CONVERTED_DOC), 1)
+        self.assertEqual(u['里'], 0)
+
     def test_incomplete_counts_rejected(self):
         with self.assertRaises(ValueError):
             word_lm.export(['你'], Counter({'你': 2}), Counter({(word_lm.BOS, '你'): 1}))
