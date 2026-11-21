@@ -62,11 +62,12 @@ Last reviewed: 2026-11-12 (latest release v0.5.5, 2026-10-14).
   and 91.9 % words, toneless 53.4 % / 80.3 %, with the intended sentence in
   the top 16 for 93.0 % / 77.5 %, so most misses are scoring, not
   candidates (`lab-notebook.md`). A pruned HPLT word-pair model
-  (37.7 MB, evaluation sentences excluded from training) lifts that to
-  81.7 % / 62.4 % and cuts dev/holdout picks by a third with no persona's
-  unreachable rate rising (2026-11-21, developer-only, not bundled).
-  **Open:** shrink its format and toneless latency tail, decide the
-  licence of an HPLT-derived table, then a small reranker; typist personas are still uncalibrated
+  (MSLM v2, 22 MB, evaluation sentences excluded from training) lifts that
+  to 82.2 % / 64.5 % and halves dev/holdout picks with no persona's
+  unreachable rate rising, at +1 ms per-key p95 (2026-11-21,
+  developer-only, not bundled). **Open:** an adapter loader and the CC0
+  notice for an HPLT-derived table, one `external_v1` run, then a small
+  reranker; typist personas are still uncalibrated
   because the key trace stopped on 2026-10-09.
 - **Touch** (`core-zig/src/touch.zig`, `misstype-dev --touch`): on the real
   lexicon coordinate-aware decoding beats keyboard repair by 20–50 pp at

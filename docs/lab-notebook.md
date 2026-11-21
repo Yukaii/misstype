@@ -1471,3 +1471,39 @@ shipped derivative is still undecided (same open question as
 `homophone.bin`). Next: cut the toneless/mixed latency tail, a compact
 quantized format (4–5 bytes per pair instead of 12), then a fixed candidate
 for one `external_v1` run.
+
+Follow-up (same day): speed and a compact format.
+
+- Search cost: with a model loaded the word-path search resolved both words
+  by hash for every (entry, prefix) pair. It now resolves histories once per
+  span start and targets once per entry, and skips an entry whose best
+  possible score, (1 - weight) * lexicon score since log P <= 0, misses the
+  beam. Results are identical (all 4,000 `cv-legacy` decodes and the typing
+  dev summary); toneless decode p95 30.5 -> 12.4 ms, Session per-key p95
+  14.6 -> 7.2 ms (dev, 3M v1 model).
+- MSLM v2 (`tools/prune_word_lm.py --format v2`, read by `sparse_lm.zig`):
+  per-history row offsets plus one u32 per pair (17-bit target ID, 15-bit
+  ln direct mass in 1/1024-nat steps), backoffs recomputed after
+  quantization so every distribution still sums to 1. 3M pairs: 37.7 ->
+  14.1 MB with identical first choices on all 4,000 decodes; toneless
+  decode p95 12.4 -> 7.6 ms (row search instead of a global one);
+  developer CLI RSS 136 -> 89 MB (60 MB without a model). gzip saves little
+  (14.1 -> 13.0 MB).
+- 5M pairs in v2 (22.1 MB): `cv-legacy` 82.2 % toned / 64.5 % toneless.
+  typing_eval against no model: dev zh exact 72.7 -> 80.6 %, picks per 100
+  characters 2.95 -> 1.47, no persona's unreachable rate rises; holdout
+  70.0 -> 78.7 %, picks 3.43 -> 1.92, unreachable 10.8 -> 10.1 %; two mixed
+  clean groups lose cases on holdout (shift-after clean 16 -> 14 of 76,
+  shift-first clean-partial-tones 56 -> 55). Per-key p95 5.2 -> 6.2 ms dev;
+  single slowest key 40 -> 112 ms.
+
+Licence note for an HPLT-derived table (sourced research summary, not legal
+advice): the dataset card dedicates HPLT's packaging under CC0 and disclaims
+rights in the underlying web text; aggregate word statistics are generally
+treated as facts (US *Feist*, *Authors Guild v. Google*), and precedents
+publish them openly (Google Books Ngram CC BY 3.0, wordfreq CC BY-SA 4.0,
+McBopomofo counts MIT). Shipping it under the same CC0 notice as
+`homophone.bin` (`third_party/HPLT/LICENSE.md`) is the likely path, with
+the shard hashes and build recipe in `third_party/HPLT/sources.json`;
+open: removal-request handling and whether rare pairs depend on single
+sites.

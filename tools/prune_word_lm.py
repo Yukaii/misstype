@@ -46,6 +46,45 @@ def export(words, pairs, tokens, discount=.75):
     return bytes(data)
 
 
+STEP = 1 / 1024  # MSLM v2 quantizes ln(direct mass) in steps of 1/1024 nat
+TARGET_BITS = 17
+
+
+def compact(v1):
+    """MSLM v1 -> v2 (4 bytes per pair instead of 12).
+
+    v2: the v1 header with version 2; the same 16-byte word records, with
+    each backoff recomputed from the quantized pairs so every distribution
+    still sums to 1; (n + 1) u32 row offsets by history ID; then one u32 per
+    pair, `target << 15 | q`, sorted within each row, where the direct mass
+    is exp(-q * STEP).
+    """
+    magic, version, n, m, tokens, discount = struct.unpack_from('<4sIIIQd', v1)
+    if (magic, version) != (b'MSLM', 1) or len(v1) != 32 + n * 16 + m * 12:
+        raise ValueError('not an MSLM v1 model')
+    if n > 1 << TARGET_BITS:
+        raise ValueError('vocabulary too large for 17-bit target IDs')
+    words = [list(struct.unpack_from('<Qff', v1, 32 + i * 16)) for i in range(n)]
+    mass = [0.0] * n
+    offsets = [0] * (n + 1)
+    packed = bytearray()
+    for hi, wi, direct in struct.iter_unpack('<IIf', memoryview(v1)[32 + n * 16:]):
+        q = min((1 << 15) - 1, round(-math.log(direct) / STEP))
+        mass[hi] += math.exp(-q * STEP)
+        offsets[hi + 1] += 1
+        packed += struct.pack('<I', wi << 15 | q)
+    for i in range(n):
+        offsets[i + 1] += offsets[i]
+        if mass[i] >= 1:
+            raise ValueError('quantized mass leaves no backoff')
+        words[i][2] = 1 - mass[i]
+    data = bytearray(struct.pack('<4sIIIQd', b'MSLM', 2, n, m, tokens, discount))
+    for row in words:
+        data += struct.pack('<Qff', *row)
+    data += struct.pack(f'<{n + 1}I', *offsets)
+    return bytes(data + packed)
+
+
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--source', type=Path, default=Path('.cache/wordlm/pilot.bin'))
@@ -55,6 +94,8 @@ def main():
                         'P(w|h)), the count-weighted log-probability a pair adds over backoff (a cheap '
                         'stand-in for relative-entropy pruning)')
     p.add_argument('--budgets', default='50000,200000', help='comma list of retained pair counts')
+    p.add_argument('--format', choices=('v1', 'v2'), default='v1',
+                   help='v1: float32 pairs, 12 bytes each; v2: quantized, 4 bytes each (see compact)')
     args=p.parse_args()
     budgets=sorted(int(b) for b in args.budgets.split(','))
     manifest=json.loads(args.source.with_suffix('.json').read_text())
@@ -84,15 +125,18 @@ def main():
         for budget in budgets:
             kept=[(-h,-w,c) for _,h,w,c in ranked[:budget]]
             binary=export(words,kept,tokens,discount)
-            path=args.out/(f'pairs-{budget}.bin' if args.rank=='count' else f'{args.rank}-{budget}.bin')
+            if args.format=='v2':binary=compact(binary)
+            suffix='' if args.format=='v1' else '-v2'
+            path=args.out/(f'pairs-{budget}{suffix}.bin' if args.rank=='count' else f'{args.rank}-{budget}{suffix}.bin')
             path.write_bytes(binary)
             compressed=gzip.compress(binary,compresslevel=9,mtime=0)
             path.with_suffix('.bin.gz').write_bytes(compressed)
-            meta={**manifest,'format':'MSLM-v1','source_model_sha256':actual,
+            meta={**manifest,'format':f'MSLM-{args.format}','source_model_sha256':actual,
                   'pairs':len(kept),'source_pairs':manifest['pairs'],
                   'pruning':('highest count' if args.rank=='count' else 'highest count-weighted log gain over backoff')
                              +', hash order breaks ties','retained_pairs':len(kept),
-                  'pair_budget':budget,'probability_precision':'float32',
+                  'pair_budget':budget,
+                  'probability_precision':'float32' if args.format=='v1' else f'ln steps of {STEP} nat',
                   'model_sha256':hashlib.sha256(binary).hexdigest(),'bytes':len(binary),
                   'gzip_bytes':len(compressed)}
             path.with_suffix('.json').write_text(json.dumps(meta,indent=2)+'\n')
