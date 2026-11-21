@@ -1545,3 +1545,26 @@ run re-decode (天氣 -> 土耳其), because explicit pins drop the run's settle
 pins; the same happens without the model, which only recovers by a
 different path. Both are pick semantics, not the word model; the model
 stays developer-only until a pick rule passes the same gate.
+
+Follow-up (same day): pick rule, left side only. A pick that cuts an
+unpinned displayed word now keeps that word's characters *before* the pick
+(count-0 pins: held, not learned) and lets characters after it re-decode;
+pinned words keep both sides as before. Rationale: text left of a fix is
+what the typist has accepted; text right of it may still be wrong (the
+both-sides version stranded 把書還給我). Same-lexicon comparison against
+HEAD, no model, 11,200 typing cases: 13 cheaper, 0 costlier, 0 newly
+unreachable, exact unchanged. With the frozen model: dev/holdout no case
+newly unreachable vs no model; external_v1 newly unreachable 3 -> 2
+(嚴復合集 under clean partial tones fixed; partial-tones 嚴復合集 and
+sloppy 天氣即時預報粉絲團 remain). Session replay goldens regenerated: 3
+committed texts change, all closer to the intent (越來約快 -> 越來越筷 after
+picking 筷). Unit test `a pick keeps the shown text before it ...`.
+
+Note: `script/build_and_run.sh` regenerates `.cache/mcbopomofo/lexicon.tsv`;
+the 10:35 IME install moved it from 112,439 to 130,736 entries (the #133
+dictionary script), which also cleared the earlier decode-golden mismatch
+and the debug/release exact-rate difference (the runs straddled it). Every
+comparison here is paired on one lexicon; cv-legacy numbers above predate
+it. Linux C1–C15 not run locally (Docker containers had no network).
+Open from the model runs: it costs mixed-English no-switch clean cases
+(你有IG嗎, 幫我review一下 toneless/partial tones).
