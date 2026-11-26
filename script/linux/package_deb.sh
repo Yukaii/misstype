@@ -9,7 +9,7 @@ flavor=${2:-fcitx5}
 version=${version#v}
 [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$ ]] || { echo 'Invalid version' >&2; exit 2; }
 # Debian sorts prereleases before their stable release.
-deb_version=${version/-/~}
+deb_version=${version/-/'~'}
 arch=$(dpkg --print-architecture)
 source /etc/os-release
 [[ $ID == ubuntu && $VERSION_ID == 24.04 ]] || { echo 'Build this package on Ubuntu 24.04' >&2; exit 2; }
