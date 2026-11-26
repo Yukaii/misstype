@@ -1,6 +1,6 @@
 name: Release
 
-# Push a tag like v0.2.0 to publish a GitHub Release with a DMG.
+# Push a tag like v0.2.0 to publish a GitHub Release with macOS + Linux packages.
 # Signing/notarization activates only when the secrets below exist; without
 # them the DMG is ad-hoc signed (usable after `xattr -dr com.apple.quarantine`).
 #   MACOS_CERT_P12_BASE64, MACOS_CERT_PASSWORD   Developer ID Application .p12
@@ -27,77 +27,23 @@ permissions:
   contents: write
   id-token: write
   attestations: write
-  actions: read   # release: look up the CI result for this commit
+  actions: read   # look up the CI result for this commit
+  packages: read  # pull pre-baked GHCR packaging images
 
 jobs:
-  linux:
-    name: Linux package (${{ matrix.name }})
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 45
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: ubuntu24.04
-            distro: ubuntu24.04
-            runner: ubuntu-24.04
-            image: ubuntu:24.04
-          - name: arch
-            distro: arch
-            runner: ubuntu-24.04
-            image: archlinux:base
-          # Arch Linux ARM has no Docker Hub image; the rootfs is imported below.
-          - name: arch-aarch64
-            distro: arch
-            runner: ubuntu-24.04-arm
-            image: archlinuxarm:latest
-          - name: fedora43
-            distro: fedora43
-            runner: ubuntu-24.04
-            image: fedora:43
+  # Verify source/ref guards and check whether CI already ran the full Zig
+  # Debug + ReleaseFast test suites on github.sha.
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      ci_green: ${{ steps.ci.outputs.green }}
     env:
       VERSION: ${{ github.event_name == 'push' && github.ref_name || inputs.version }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.sha }}
-          fetch-depth: 0
-      - name: Import Arch Linux ARM rootfs
-        if: matrix.name == 'arch-aarch64'
-        run: bash script/linux/import_alarm_rootfs.sh "$IMAGE"
-        env:
-          IMAGE: ${{ matrix.image }}
-      - name: Build and test native package
-        env:
-          IMAGE: ${{ matrix.image }}
-          DISTRO: ${{ matrix.distro }}
-        run: |
-          mkdir -p dist
-          docker run --rm -e VERSION -e DISTRO \
-            -v "$PWD":/src:ro -v "$PWD/dist":/output "$IMAGE" \
-            bash /src/script/linux/release_container.sh
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: linux-${{ matrix.name }}
-          path: |
-            dist/Misstype-*
-            dist/MisstypeIBus-*
-          if-no-files-found: error
-
-  release:
-    needs: linux
-    runs-on: macos-26
-    env:
-      VERSION: ${{ github.event_name == 'push' && github.ref_name || inputs.version }}
-      HAS_CERT: ${{ secrets.MACOS_CERT_P12_BASE64 != '' }}
-      HAS_NOTARY: ${{ secrets.NOTARY_KEY_ID != '' }}
-      HAS_SPARKLE: ${{ secrets.SPARKLE_ED_PRIVATE_KEY != '' }}
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          # Match the source SHA in the OIDC certificate, even if the ref moves.
-          ref: ${{ github.sha }}
-
       - name: Verify build source
         env:
           PUBLISH: ${{ github.event_name == 'push' || inputs.publish }}
@@ -110,22 +56,6 @@ jobs:
             echo '::error::Publishing requires dispatching at the version tag (--ref <tag> -f version=<tag>), not a branch.'
             exit 1
           fi
-
-      # Pinned public dictionary sources only (checksum-verified).
-      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: .cache
-          key: lexicon-${{ hashFiles('third_party/*/sources.json') }}
-
-      - name: Cache pinned Zig toolchain
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: .cache/zig
-          key: release-zig-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('script/zig/bootstrap.sh') }}
-      # CI already ran the Zig suites (Debug and ReleaseFast, on the same
-      # source) for this commit; repeating them here costs ~3 macOS minutes
-      # (billed 10x). Only re-run when no green CI run exists for github.sha,
-      # e.g. a tag on a commit that never went through main.
       - name: Check for green CI on this commit
         id: ci
         env:
@@ -134,18 +64,264 @@ jobs:
           n=$(gh api "repos/${{ github.repository }}/actions/workflows/ci.yml/runs?head_sha=${{ github.sha }}&status=success" --jq .total_count || echo 0)
           echo "green=$([ "${n:-0}" -gt 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
           echo "CI runs green on ${{ github.sha }}: ${n:-0}"
-      - name: Test Zig core before release
-        if: steps.ci.outputs.green != 'true'
+
+  # Cross-compile the Zig C ABI (and Linux misstypectl) once per target in
+  # parallel on cheap Linux runners instead of compiling Zig on 5 separate
+  # runners (including 10x-billed macOS). Starts at t=0 alongside prepare.
+  zig-build:
+    name: Zig core (${{ matrix.name }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x86_64
+            step: linux
+            target: x86_64-linux-gnu.2.39
+            paths: |
+              core-zig/zig-out/lib/libMisstypeCAPI.so
+              core-zig/zig-out/bin/misstypectl
+          - name: linux-aarch64
+            step: linux
+            target: aarch64-linux-gnu.2.39
+            paths: |
+              core-zig/zig-out/lib/libMisstypeCAPI.so
+              core-zig/zig-out/bin/misstypectl
+          - name: macos-x86_64
+            step: capi
+            target: x86_64-macos.13.0
+            paths: |
+              core-zig/zig-out/lib/libMisstypeCAPI.dylib
+          - name: macos-arm64
+            step: capi
+            target: aarch64-macos.13.0
+            paths: |
+              core-zig/zig-out/lib/libMisstypeCAPI.dylib
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+      # Restore only: caches saved on a tag ref cannot be read by future tags.
+      - name: Restore Zig toolchain and compiler cache from main
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            .cache/zig
+            ~/.cache/zig
+            core-zig/.zig-cache
+          key: zig-core-Linux-X64-ReleaseFast-${{ hashFiles('script/zig/bootstrap.sh') }}-${{ hashFiles('third_party/utf8proc/*', 'core-zig/src/**', 'core-zig/build.zig', 'core-zig/build.zig.zon') }}
+          restore-keys: |
+            zig-core-Linux-X64-ReleaseFast-${{ hashFiles('script/zig/bootstrap.sh') }}-
+            zig-linux-Linux-X64-${{ hashFiles('script/zig/bootstrap.sh') }}-
+      - name: Cross-compile ${{ matrix.name }}
+        run: |
+          zig=$(script/zig/bootstrap.sh)
+          (cd core-zig && "$zig" build "${{ matrix.step }}" -Dtarget="${{ matrix.target }}" -Doptimize=ReleaseFast)
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: zig-${{ matrix.name }}
+          path: ${{ matrix.paths }}
+          retention-days: 1
+          if-no-files-found: error
+
+  # Only runs when tagging a commit with no green CI run (e.g. a hotfix tag
+  # bypassing main). Runs on 1x Linux instead of 10x macOS.
+  zig-test:
+    name: Zig core tests (fallback)
+    needs: prepare
+    if: needs.prepare.outputs.ci_green != 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+      - name: Restore Zig toolchain and compiler cache from main
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            .cache/zig
+            ~/.cache/zig
+            core-zig/.zig-cache
+          key: zig-core-Linux-X64-ReleaseFast-${{ hashFiles('script/zig/bootstrap.sh') }}-${{ hashFiles('third_party/utf8proc/*', 'core-zig/src/**', 'core-zig/build.zig', 'core-zig/build.zig.zon') }}
+          restore-keys: |
+            zig-core-Linux-X64-ReleaseFast-${{ hashFiles('script/zig/bootstrap.sh') }}-
+            zig-linux-Linux-X64-${{ hashFiles('script/zig/bootstrap.sh') }}-
+      - name: Run Zig Debug and ReleaseFast test suites
         run: |
           zig=$(script/zig/bootstrap.sh)
           cd core-zig
           "$zig" build test
           "$zig" build test -Doptimize=ReleaseFast
 
-      # The IME and its tests link the universal Zig library by path.
-      - name: Build the Zig library and test the Swift UI side
+  linux:
+    name: Linux package (${{ matrix.name }})
+    needs: [prepare, zig-build]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: ubuntu24.04
+            distro: ubuntu24.04
+            arch: x86_64
+            runner: ubuntu-24.04
+            fallback_image: ubuntu:24.04
+            pkg_image: ubuntu24.04
+          - name: arch
+            distro: arch
+            arch: x86_64
+            runner: ubuntu-24.04
+            fallback_image: archlinux:base
+            pkg_image: arch-x86_64
+          # Arch Linux ARM has no Docker Hub image; falls back to importing the
+          # signed rootfs if the pre-baked GHCR image is unavailable.
+          - name: arch-aarch64
+            distro: arch
+            arch: aarch64
+            runner: ubuntu-24.04-arm
+            fallback_image: archlinuxarm:latest
+            pkg_image: arch-aarch64
+          - name: fedora43
+            distro: fedora43
+            arch: x86_64
+            runner: ubuntu-24.04
+            fallback_image: fedora:43
+            pkg_image: fedora43
+    env:
+      VERSION: ${{ github.event_name == 'push' && github.ref_name || inputs.version }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Download prebuilt Zig C ABI
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: zig-linux-${{ matrix.arch }}
+          path: prebuilt-capi
+      - name: Flatten prebuilt C ABI binaries
         run: |
-          script/zig/build_macos.sh
+          mkdir -p prebuilt-capi-flat
+          find prebuilt-capi -name libMisstypeCAPI.so -exec cp {} prebuilt-capi-flat/libMisstypeCAPI.so \;
+          find prebuilt-capi -name misstypectl -exec cp {} prebuilt-capi-flat/misstypectl \;
+          chmod -R a+rX prebuilt-capi-flat
+          chmod a+rx prebuilt-capi-flat/libMisstypeCAPI.so prebuilt-capi-flat/misstypectl
+      - name: Restore public dictionary cache from main
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            .cache/mcbopomofo
+            .cache/naer
+            .cache/frequencywords
+          key: zig-lexicon-${{ hashFiles('third_party/*/sources.json', 'script/prepare_lexicon.py', 'Resources/reading_order.tsv') }}
+      - name: Ensure prepared lexicons exist
+        run: |
+          if [[ ! -f .cache/mcbopomofo/lexicon.tsv || ! -f .cache/frequencywords/english.tsv ]]; then
+            python3 script/prepare_lexicon.py
+          fi
+      - name: Select packaging container image
+        id: img
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PKG_IMAGE: ${{ matrix.pkg_image }}
+          FALLBACK_IMAGE: ${{ matrix.fallback_image }}
+        run: |
+          owner="${GITHUB_REPOSITORY%%/*}"
+          owner="${owner,,}"
+          ghcr_image="ghcr.io/${owner}/misstype-pkg-${PKG_IMAGE}:latest"
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin >/dev/null 2>&1 || true
+          if docker pull "$ghcr_image"; then
+            echo "image=$ghcr_image" >> "$GITHUB_OUTPUT"
+            echo "prebaked=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::Pre-baked image $ghcr_image unavailable; falling back to $FALLBACK_IMAGE"
+            echo "image=$FALLBACK_IMAGE" >> "$GITHUB_OUTPUT"
+            echo "prebaked=0" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Import Arch Linux ARM rootfs (fallback)
+        if: matrix.name == 'arch-aarch64' && steps.img.outputs.prebaked != '1'
+        run: bash script/linux/import_alarm_rootfs.sh "$IMAGE"
+        env:
+          IMAGE: ${{ steps.img.outputs.image }}
+      - name: Build and test native package
+        env:
+          IMAGE: ${{ steps.img.outputs.image }}
+          DISTRO: ${{ matrix.distro }}
+          MISSTYPE_PKG_PREBAKED: ${{ steps.img.outputs.prebaked }}
+          MISSTYPE_SKIP_ZIG_TESTS: ${{ needs.prepare.outputs.ci_green == 'true' && '1' || '0' }}
+        run: |
+          mkdir -p dist
+          docker run --rm \
+            -e VERSION -e DISTRO -e MISSTYPE_PKG_PREBAKED -e MISSTYPE_SKIP_ZIG_TESTS \
+            -v "$PWD":/src:ro \
+            -v "$PWD/dist":/output \
+            -v "$PWD/prebuilt-capi-flat":/prebuilt-capi:ro \
+            -v "$PWD/.cache":/lexicon-cache:ro \
+            "$IMAGE" \
+            bash /src/script/linux/release_container.sh
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: linux-${{ matrix.name }}
+          path: |
+            dist/Misstype-*
+            dist/MisstypeIBus-*
+          retention-days: 1
+          if-no-files-found: error
+
+  # Runs in parallel with linux; uses the Linux-cross-compiled macOS dylibs so
+  # 10x macOS minutes go only to lipo, Swift, signing, and notarization.
+  macos:
+    name: macOS package
+    needs: [prepare, zig-build]
+    runs-on: macos-26
+    timeout-minutes: 30
+    env:
+      VERSION: ${{ github.event_name == 'push' && github.ref_name || inputs.version }}
+      HAS_CERT: ${{ secrets.MACOS_CERT_P12_BASE64 != '' }}
+      HAS_NOTARY: ${{ secrets.NOTARY_KEY_ID != '' }}
+      HAS_SPARKLE: ${{ secrets.SPARKLE_ED_PRIVATE_KEY != '' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Restore public dictionary cache from main
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            .cache/mcbopomofo
+            .cache/naer
+            .cache/frequencywords
+          key: zig-lexicon-${{ hashFiles('third_party/*/sources.json', 'script/prepare_lexicon.py', 'Resources/reading_order.tsv') }}
+
+      - name: Restore SwiftPM build and Sparkle cache from main
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .build
+          key: swift-macos-${{ runner.arch }}-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**/*.swift', 'Sources/**/*.h', 'Sources/**/*.c') }}
+          restore-keys: |
+            swift-macos-${{ runner.arch }}-${{ hashFiles('Package.swift', 'Package.resolved') }}-
+            swift-macos-${{ runner.arch }}-
+
+      - name: Download prebuilt macOS x86_64 Zig C ABI
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: zig-macos-x86_64
+          path: prebuilt-macos-capi/macos-x86_64
+
+      - name: Download prebuilt macOS arm64 Zig C ABI
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: zig-macos-arm64
+          path: prebuilt-macos-capi/macos-arm64
+
+      - name: Assemble universal Zig dylib and test Swift UI side
+        run: |
+          find prebuilt-macos-capi -name libMisstypeCAPI.dylib -exec chmod a+rx {} +
+          MISSTYPE_PREBUILT_MACOS_CAPI_DIR="$PWD/prebuilt-macos-capi" script/zig/build_macos.sh
           swift test
 
       - name: Import signing certificate
@@ -186,9 +362,65 @@ jobs:
       - name: Package
         env:
           BUILD_NUMBER: ${{ github.run_number }}
+          MISSTYPE_SKIP_ZIG_BUILD: "1"
           NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
           NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
         run: ./script/package_release.sh "$VERSION"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: macos-release
+          path: |
+            dist/Misstype-*.dmg*
+            dist/MisstypeIME-*.zip*
+            dist/appcast.xml
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Clean up signing material
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/signing.keychain-db" 2>/dev/null || true
+          rm -f "$RUNNER_TEMP/notary.p8" "$RUNNER_TEMP/sparkle_ed.key"
+
+  # Attest and publish all macOS + Linux artifacts on a fast 1x Linux runner.
+  publish:
+    name: Attest and publish release
+    needs: [prepare, zig-test, linux, macos]
+    if: >-
+      !cancelled() &&
+      needs.prepare.result == 'success' &&
+      needs.linux.result == 'success' &&
+      needs.macos.result == 'success' &&
+      contains(fromJSON('["success","skipped"]'), needs.zig-test.result)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      VERSION: ${{ github.event_name == 'push' && github.ref_name || inputs.version }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # Match the source SHA in the OIDC certificate, even if the ref moves.
+          ref: ${{ github.sha }}
+
+      - name: Verify build source
+        env:
+          PUBLISH: ${{ github.event_name == 'push' || inputs.publish }}
+        run: |
+          if [[ "$(git rev-parse HEAD)" != "$GITHUB_SHA" ]]; then
+            echo '::error::Checkout does not match the attested source commit.'
+            exit 1
+          fi
+          if [[ "$PUBLISH" == 'true' && "$GITHUB_REF" != "refs/tags/$VERSION" ]]; then
+            echo '::error::Publishing requires dispatching at the version tag (--ref <tag> -f version=<tag>), not a branch.'
+            exit 1
+          fi
+
+      - name: Collect macOS release artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: macos-release
+          path: dist
 
       - name: Collect tested Linux packages
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
@@ -197,7 +429,6 @@ jobs:
           path: dist
           merge-multiple: true
 
-      # Package includes signing, notarization/stapling, and final checksums.
       # Attest these exact downloadable bytes; no packaging runs afterwards.
       - name: Attest final release artifacts
         # Native attestations are unavailable for user-owned private repos.
@@ -261,15 +492,9 @@ jobs:
             --draft --verify-tag --title "Misstype ${VERSION#v}" --generate-notes $PRERELEASE
           gh release edit "$VERSION" --draft=false
 
-      - name: Clean up signing material
-        if: always()
-        run: |
-          security delete-keychain "$RUNNER_TEMP/signing.keychain-db" 2>/dev/null || true
-          rm -f "$RUNNER_TEMP/notary.p8" "$RUNNER_TEMP/sparkle_ed.key"
-
   aur-bin:
     name: Verify and synchronize binary AUR packaging
-    needs: release
+    needs: publish
     if: >-
       github.repository == 'Yukaii/misstype' &&
       (github.event_name == 'push' || inputs.publish) &&
@@ -277,6 +502,7 @@ jobs:
       !contains(github.ref_name, '-')
     permissions:
       contents: read
+      packages: read
     uses: ./.github/workflows/aur-bin.yml
     with:
       tag: ${{ github.ref_name }}
@@ -287,7 +513,7 @@ jobs:
 
   aur:
     name: Synchronize AUR packaging
-    needs: release
+    needs: publish
     if: >-
       github.repository == 'Yukaii/misstype' &&
       (github.event_name == 'push' || inputs.publish) &&

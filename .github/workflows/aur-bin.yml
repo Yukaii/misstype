@@ -43,6 +43,7 @@ on:
 
 permissions:
   contents: read
+  packages: read
 
 jobs:
   prepare:
@@ -117,14 +118,35 @@ jobs:
           ref: ${{ steps.download.outputs.tag }}
           path: .cache/aur-release-source
           persist-credentials: false
-      - name: Import Arch Linux ARM rootfs
-        if: steps.download.outputs.skip != 'true' && matrix.arch == 'aarch64'
-        run: bash script/linux/import_alarm_rootfs.sh "${{ matrix.image }}"
+      - name: Select Arch container image
+        id: img
+        if: steps.download.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARCH: ${{ matrix.arch }}
+          FALLBACK_IMAGE: ${{ matrix.image }}
+        run: |
+          owner="${GITHUB_REPOSITORY%%/*}"
+          owner="${owner,,}"
+          ghcr_image="ghcr.io/${owner}/misstype-pkg-arch-${ARCH}:latest"
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin >/dev/null 2>&1 || true
+          if docker pull "$ghcr_image"; then
+            echo "image=$ghcr_image" >> "$GITHUB_OUTPUT"
+            echo "prebaked=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::Pre-baked image $ghcr_image unavailable; falling back to $FALLBACK_IMAGE"
+            echo "image=$FALLBACK_IMAGE" >> "$GITHUB_OUTPUT"
+            echo "prebaked=0" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Import Arch Linux ARM rootfs (fallback)
+        if: steps.download.outputs.skip != 'true' && matrix.arch == 'aarch64' && steps.img.outputs.prebaked != '1'
+        run: bash script/linux/import_alarm_rootfs.sh "${{ steps.img.outputs.image }}"
       - name: Repackage, install and check on current Arch without credentials
         if: steps.download.outputs.skip != 'true'
         env:
           AUR_MAINTAINER: ${{ secrets.AUR_MAINTAINER }}
           RECIPE: ${{ matrix.recipe }}
+          MISSTYPE_PKG_PREBAKED: ${{ steps.img.outputs.prebaked }}
         run: |
           python3 - <<'PY'
           import os
@@ -136,9 +158,10 @@ jobs:
           if maintainer:
               path.write_text('# Maintainer: ' + maintainer + '\n' + path.read_text())
           PY
-          docker run --rm -v "$PWD:/src:ro" -v "$RUNNER_TEMP/aur-package:/package" \
+          docker run --rm -e MISSTYPE_PKG_PREBAKED \
+            -v "$PWD:/src:ro" -v "$RUNNER_TEMP/aur-package:/package" \
             -v "$RUNNER_TEMP/assets:/assets:ro" \
-            -v "$PWD/.cache/aur-release-source:/release-src:ro" "${{ matrix.image }}" \
+            -v "$PWD/.cache/aur-release-source:/release-src:ro" "${{ steps.img.outputs.image }}" \
             bash /src/script/linux/test_aur_bin.sh /package /assets /release-src
           # Branch previews use the committed version; release jobs generate newer metadata.
           if [[ ( "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF" != refs/tags/* ) || "$GITHUB_EVENT_NAME" == pull_request ]]; then

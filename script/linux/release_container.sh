@@ -8,39 +8,64 @@ tar -C /src --exclude=./.git --exclude=./.cache --exclude=./.build \
     --exclude=./core-zig/zig-out -cf - . | tar -C /w -xf -
 # Arch makepkg clones the exact checkout, including its tag and commit history.
 cp -a /src/.git /w/.git
+# Optional pre-prepared lexicon cache and prebuilt Zig C ABI mounted by release.yml.
+if [[ -d /lexicon-cache ]]; then
+    mkdir -p /w/.cache
+    for d in mcbopomofo naer frequencywords; do
+        [[ -d "/lexicon-cache/$d" ]] && cp -a "/lexicon-cache/$d" "/w/.cache/$d"
+    done
+fi
+if [[ -d /prebuilt-capi ]]; then
+    export MISSTYPE_PREBUILT_CAPI_DIR=/prebuilt-capi
+fi
 cd /w
 case "$DISTRO" in
 ubuntu24.04)
-    apt-get update
-    apt-get install -y sudo git dpkg-dev fcitx5-config-qt fcitx5-frontend-gtk3 fcitx5-frontend-qt5
-    bash script/linux/bootstrap.sh
+    if [[ "${MISSTYPE_PKG_PREBAKED:-0}" != "1" ]]; then
+        apt-get update
+        apt-get install -y sudo git dpkg-dev fcitx5-config-qt fcitx5-frontend-gtk3 fcitx5-frontend-qt5
+        bash script/linux/bootstrap.sh
+    fi
     script/linux/test_all.sh
     script/linux/package_deb.sh "$VERSION"
     script/linux/package_deb.sh "$VERSION" ibus
     ;;
 arch)
-    if [[ $(uname -m) == aarch64 ]]; then
-        # Arch Linux ARM rootfs: trust its keyring, and skip free-space checks
-        # (no real disk behind the container) and the board kernel packages.
-        pacman-key --init
-        pacman-key --populate archlinuxarm
-        sed -i 's/^CheckSpace/#CheckSpace/' /etc/pacman.conf
-        # pacman's download sandbox needs Landlock, which the runner's container denies.
-        sed -i '/^\[options\]/a DisableSandbox' /etc/pacman.conf
-        pacman -Rdd --noconfirm linux-aarch64 linux-aarch64-headers 2>/dev/null || true
+    if [[ "${MISSTYPE_PKG_PREBAKED:-0}" == "1" ]]; then
+        # Keep rolling Arch ABI current against the latest repos (~5s incremental).
+        pacman -Syu --noconfirm
+    else
+        if [[ $(uname -m) == aarch64 ]]; then
+            # Arch Linux ARM rootfs: trust its keyring, and skip free-space checks
+            # (no real disk behind the container) and the board kernel/firmware packages.
+            pacman-key --init
+            pacman-key --populate archlinuxarm
+            sed -i 's/^CheckSpace/#CheckSpace/' /etc/pacman.conf
+            # pacman's download sandbox needs Landlock, which the runner's container denies.
+            sed -i '/^\[options\]/a DisableSandbox' /etc/pacman.conf
+            pacman -Qsq '^linux-(aarch64|firmware)' | xargs -r pacman -Rdd --noconfirm
+        fi
+        pacman -Syu --noconfirm --needed base-devel git cmake ninja python gtk4 fcitx5 fcitx5-configtool fcitx5-gtk fcitx5-qt ibus
     fi
-    pacman -Syu --noconfirm --needed base-devel git cmake ninja python gtk4 fcitx5 fcitx5-configtool fcitx5-gtk fcitx5-qt ibus
-    useradd -m builder
+    id builder >/dev/null 2>&1 || useradd -m builder
     chown -R builder:builder /w
     # The checkout is trusted only in this disposable build container.
     runuser -u builder -- git config --global --add safe.directory /w
-    runuser -u builder -- script/linux/package_arch.sh "$VERSION"
-    runuser -u builder -- script/linux/package_arch.sh "$VERSION" ibus
+    runuser -u builder -- env \
+        MISSTYPE_PREBUILT_CAPI_DIR="${MISSTYPE_PREBUILT_CAPI_DIR:-}" \
+        MISSTYPE_SKIP_ZIG_TESTS="${MISSTYPE_SKIP_ZIG_TESTS:-0}" \
+        script/linux/package_arch.sh "$VERSION"
+    runuser -u builder -- env \
+        MISSTYPE_PREBUILT_CAPI_DIR="${MISSTYPE_PREBUILT_CAPI_DIR:-}" \
+        MISSTYPE_SKIP_ZIG_TESTS="${MISSTYPE_SKIP_ZIG_TESTS:-0}" \
+        script/linux/package_arch.sh "$VERSION" ibus
     ;;
 fedora43)
-    dnf install -y git gcc gcc-c++ cmake make pkgconf-pkg-config extra-cmake-modules gettext python3 curl xz \
-        fcitx5 fcitx5-devel gtk4-devel rpm-build fcitx5-configtool fcitx5-gtk fcitx5-qt \
-        ibus ibus-devel glib2-devel xorg-x11-server-Xvfb dbus-x11 dbus-daemon
+    if [[ "${MISSTYPE_PKG_PREBAKED:-0}" != "1" ]]; then
+        dnf install -y git gcc gcc-c++ cmake make pkgconf-pkg-config extra-cmake-modules gettext python3 curl xz \
+            fcitx5 fcitx5-devel gtk4-devel rpm-build fcitx5-configtool fcitx5-gtk fcitx5-qt \
+            ibus ibus-devel glib2-devel xorg-x11-server-Xvfb dbus-x11 dbus-daemon
+    fi
     script/linux/test_all.sh
     script/linux/package_rpm.sh "$VERSION"
     script/linux/package_rpm.sh "$VERSION" ibus

@@ -7,8 +7,10 @@ APP_DIR="$ROOT_DIR/dist/$APP_NAME.app"
 if [[ "${1:-}" != "--build-only" ]] && pgrep -x "$APP_NAME" >/dev/null 2>&1; then killall "$APP_NAME" || true; fi
 python3 script/prepare_lexicon.py
 # The IMK target links the Zig C ABI; build its universal dylib before SwiftPM
-# resolves the macOS bridge target.
-script/zig/build_macos.sh
+# resolves the macOS bridge target (skip when caller already staged it).
+if [[ "${MISSTYPE_SKIP_ZIG_BUILD:-0}" != "1" || ! -f dist/zig/macos-universal/libMisstypeCAPI.dylib ]]; then
+  script/zig/build_macos.sh
+fi
 # SWIFT_BUILD_FLAGS lets release packaging add e.g. "--arch arm64 --arch x86_64".
 BUILD_FLAGS=(-c release ${=SWIFT_BUILD_FLAGS:-})
 swift build "${BUILD_FLAGS[@]}"

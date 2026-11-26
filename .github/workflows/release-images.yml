@@ -1,0 +1,68 @@
+name: Release packaging images
+
+# Pre-baked Linux distro images for release.yml and aur-bin.yml.
+# Refreshed weekly (right before aur-bin.yml's Monday rolling-ABI cron) and
+# whenever a packaging Dockerfile changes, so release and AUR jobs pull a warm
+# image instead of spending 1-2 minutes installing base packages and importing
+# the Arch Linux ARM rootfs from scratch.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "linux/packaging/**"
+      - "script/linux/import_alarm_rootfs.sh"
+      - ".github/workflows/release-images.yml"
+  schedule:
+    # Weekly Monday 06:00 UTC, ahead of aur-bin.yml's 07:23 UTC cron.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: release-images
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    name: packaging image (${{ matrix.name }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: ubuntu24.04
+            runner: ubuntu-24.04
+            dockerfile: linux/packaging/Dockerfile.ubuntu24.04
+          - name: fedora43
+            runner: ubuntu-24.04
+            dockerfile: linux/packaging/Dockerfile.fedora43
+          - name: arch-x86_64
+            runner: ubuntu-24.04
+            dockerfile: linux/packaging/Dockerfile.arch
+          - name: arch-aarch64
+            runner: ubuntu-24.04-arm
+            dockerfile: linux/packaging/Dockerfile.arch-aarch64
+            import_alarm: true
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Import Arch Linux ARM rootfs
+        if: matrix.import_alarm
+        run: bash script/linux/import_alarm_rootfs.sh archlinuxarm:latest
+      - name: Build and push packaging image
+        env:
+          IMAGE_NAME: ${{ matrix.name }}
+          DOCKERFILE: ${{ matrix.dockerfile }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          owner="${GITHUB_REPOSITORY%%/*}"
+          owner="${owner,,}"
+          tag="ghcr.io/${owner}/misstype-pkg-${IMAGE_NAME}:latest"
+          docker build \
+            --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
+            -f "$DOCKERFILE" -t "$tag" linux/packaging
+          docker push "$tag"

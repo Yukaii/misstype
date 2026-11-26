@@ -15,6 +15,17 @@ ibus) recipe=linux/aur-ibus; extra=(); prefix=MisstypeIBus ;;
 esac
 root=$PWD
 mkdir -p build dist
+export SRCDEST="${SRCDEST:-$root/build/arch-srcdest}"
+mkdir -p "$SRCDEST"
+# Pre-seed verified lexicon files from .cache/ when available so makepkg avoids
+# redundant downloads across fcitx5 and ibus runs.
+for f in BPMFBase.txt BPMFMappings.txt phrase.occ heterophony1.list heterophony2.list heterophony3.list; do
+    [[ -f "$root/.cache/mcbopomofo/$f" && ! -e "$SRCDEST/$f" ]] && cp "$root/.cache/mcbopomofo/$f" "$SRCDEST/$f"
+done
+[[ -f "$root/.cache/mcbopomofo/LICENSE.txt" && ! -e "$SRCDEST/mcbopomofo-LICENSE.txt" ]] && cp "$root/.cache/mcbopomofo/LICENSE.txt" "$SRCDEST/mcbopomofo-LICENSE.txt"
+[[ -f "$root/.cache/mcbopomofo/README.md" && ! -e "$SRCDEST/mcbopomofo-README.md" ]] && cp "$root/.cache/mcbopomofo/README.md" "$SRCDEST/mcbopomofo-README.md"
+[[ -f "$root/.cache/naer/frequency.tsv" && ! -e "$SRCDEST/frequency.tsv" ]] && cp "$root/.cache/naer/frequency.tsv" "$SRCDEST/frequency.tsv"
+[[ -f "$root/.cache/frequencywords/en_50k.txt" && ! -e "$SRCDEST/en_50k.txt" ]] && cp "$root/.cache/frequencywords/en_50k.txt" "$SRCDEST/en_50k.txt"
 work=$(mktemp -d "$PWD/build/arch-release.XXXXXX")
 trap 'rm -rf "$work"' EXIT
 cp "$recipe/PKGBUILD" "${extra[@]}" "$work/"

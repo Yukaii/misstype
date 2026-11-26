@@ -1,0 +1,10 @@
+# Pre-baked Arch Linux (x86_64) packaging and AUR verification image.
+# Refreshed weekly by release-images.yml; release and AUR jobs still run an
+# incremental `pacman -Syu` so rolling Arch ABI checks stay current.
+FROM archlinux:base
+RUN sed -i '/^NoExtract[[:space:]]*=/d' /etc/pacman.conf \
+    && pacman -Syu --noconfirm --needed \
+      base-devel git cmake ninja python gtk4 \
+      fcitx5 fcitx5-configtool fcitx5-gtk fcitx5-qt \
+      ibus extra-cmake-modules xorg-server-xvfb xorg-xauth dbus \
+    && pacman -Scc --noconfirm
