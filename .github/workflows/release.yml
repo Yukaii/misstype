@@ -496,6 +496,8 @@ jobs:
     name: Verify and synchronize binary AUR packaging
     needs: publish
     if: >-
+      !cancelled() &&
+      needs.publish.result == 'success' &&
       github.repository == 'Yukaii/misstype' &&
       (github.event_name == 'push' || inputs.publish) &&
       startsWith(github.ref, 'refs/tags/v') &&
@@ -515,6 +517,8 @@ jobs:
     name: Synchronize AUR packaging
     needs: publish
     if: >-
+      !cancelled() &&
+      needs.publish.result == 'success' &&
       github.repository == 'Yukaii/misstype' &&
       (github.event_name == 'push' || inputs.publish) &&
       startsWith(github.ref, 'refs/tags/v') &&
