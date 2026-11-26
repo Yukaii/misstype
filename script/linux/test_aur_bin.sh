@@ -16,18 +16,25 @@ fcitx5-misstype-bin) frontend=fcitx5 ;;
 ibus-misstype-bin) frontend=ibus ;;
 *) echo 'Unknown binary package' >&2; exit 1 ;;
 esac
-if [[ $(uname -m) == aarch64 ]]; then
-    # Arch Linux ARM rootfs: trust its keyring, skip free-space checks and the
-    # board kernel packages a container does not need.
-    pacman-key --init
-    pacman-key --populate archlinuxarm
-    sed -i 's/^CheckSpace/#CheckSpace/' /etc/pacman.conf
-    # pacman's download sandbox needs Landlock, which the runner's container denies.
-    sed -i '/^\[options\]/a DisableSandbox' /etc/pacman.conf
-    pacman -Rdd --noconfirm linux-aarch64 linux-aarch64-headers 2>/dev/null || true
+if [[ "${MISSTYPE_PKG_PREBAKED:-0}" == "1" ]]; then
+    # Pre-baked image already cleared NoExtract, initialized ALARM keyring and
+    # stripped kernel/firmware; run an incremental upgrade for rolling ABI checks.
+    pacman -Syu --noconfirm --needed base-devel python "$frontend" gtk4 cmake extra-cmake-modules \
+        xorg-server-xvfb xorg-xauth dbus
+else
+    if [[ $(uname -m) == aarch64 ]]; then
+        # Arch Linux ARM rootfs: trust its keyring, skip free-space checks and the
+        # board kernel/firmware packages a container does not need.
+        pacman-key --init
+        pacman-key --populate archlinuxarm
+        sed -i 's/^CheckSpace/#CheckSpace/' /etc/pacman.conf
+        # pacman's download sandbox needs Landlock, which the runner's container denies.
+        sed -i '/^\[options\]/a DisableSandbox' /etc/pacman.conf
+        pacman -Qsq '^linux-(aarch64|firmware)' | xargs -r pacman -Rdd --noconfirm
+    fi
+    pacman -Syu --noconfirm --needed base-devel python "$frontend" gtk4 cmake extra-cmake-modules \
+        xorg-server-xvfb xorg-xauth dbus
 fi
-pacman -Syu --noconfirm --needed base-devel python "$frontend" gtk4 cmake extra-cmake-modules \
-    xorg-server-xvfb xorg-xauth dbus
 id builder >/dev/null 2>&1 || useradd -m builder
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT

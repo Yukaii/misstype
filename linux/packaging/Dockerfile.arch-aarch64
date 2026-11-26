@@ -1,0 +1,15 @@
+# Pre-baked Arch Linux ARM (aarch64) packaging and AUR verification image.
+# Built on an aarch64 runner after script/linux/import_alarm_rootfs.sh imports
+# the signature-verified rootfs as `archlinuxarm:latest`.
+FROM archlinuxarm:latest
+RUN sed -i '/^NoExtract[[:space:]]*=/d' /etc/pacman.conf \
+    && sed -i 's/^CheckSpace/#CheckSpace/' /etc/pacman.conf \
+    && sed -i '/^\[options\]/a DisableSandbox' /etc/pacman.conf \
+    && pacman-key --init \
+    && pacman-key --populate archlinuxarm \
+    && (pacman -Qsq '^linux-(aarch64|firmware)' | xargs -r pacman -Rdd --noconfirm) \
+    && pacman -Syu --noconfirm --needed \
+      base-devel git cmake ninja python gtk4 \
+      fcitx5 fcitx5-configtool fcitx5-gtk fcitx5-qt \
+      ibus extra-cmake-modules xorg-server-xvfb xorg-xauth dbus \
+    && pacman -Scc --noconfirm

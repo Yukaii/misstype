@@ -36,8 +36,10 @@ EOF
     fi
 fi
 
-zig=$(script/zig/bootstrap.sh)
-(cd core-zig && "$zig" build test && "$zig" build test -Doptimize=ReleaseFast)
+if [ "${MISSTYPE_SKIP_ZIG_TESTS:-0}" != "1" ]; then
+    zig=$(script/zig/bootstrap.sh)
+    (cd core-zig && "$zig" build test && "$zig" build test -Doptimize=ReleaseFast)
+fi
 script/linux/test_capi.sh
 script/linux/test_fcitx5.sh
 script/linux/test_ibus.sh

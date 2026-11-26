@@ -7,7 +7,6 @@ set -euo pipefail
 # this mode on Apple Silicon and Intel Macs).
 ROOT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT_DIR"
-zig="$(script/zig/bootstrap.sh)"
 out="${MISSTYPE_ZIG_MACOS_OUT:-$ROOT_DIR/dist/zig/macos-universal}"
 requested_arch="${MISSTYPE_MACOS_ARCH:-universal}"
 rm -rf "$out" "$ROOT_DIR/dist/zig/macos-x86_64" "$ROOT_DIR/dist/zig/macos-arm64"
@@ -29,13 +28,36 @@ else
     esac
 fi
 
-for arch in "${archs[@]}"; do
-    case "$arch" in
-        x86_64) target=x86_64-macos.13.0; dir="$ROOT_DIR/dist/zig/macos-x86_64" ;;
-        arm64) target=aarch64-macos.13.0; dir="$ROOT_DIR/dist/zig/macos-arm64" ;;
-    esac
-    (cd "$ROOT_DIR/core-zig" && "$zig" build capi -Dtarget="$target" -Doptimize=ReleaseFast -p "$dir")
-done
+if [[ -n "${MISSTYPE_PREBUILT_MACOS_CAPI_DIR:-}" ]]; then
+    for arch in "${archs[@]}"; do
+        src="$MISSTYPE_PREBUILT_MACOS_CAPI_DIR/macos-$arch/lib/libMisstypeCAPI.dylib"
+        [[ -f "$src" ]] || src="$MISSTYPE_PREBUILT_MACOS_CAPI_DIR/macos-$arch/libMisstypeCAPI.dylib"
+        [[ -f "$src" ]] || { echo "build_macos: missing prebuilt $arch dylib under $MISSTYPE_PREBUILT_MACOS_CAPI_DIR" >&2; exit 1; }
+        mkdir -p "$ROOT_DIR/dist/zig/macos-$arch/lib"
+        cp "$src" "$ROOT_DIR/dist/zig/macos-$arch/lib/libMisstypeCAPI.dylib"
+    done
+else
+    zig="$(script/zig/bootstrap.sh)"
+    if (( ${#archs[@]} == 1 )); then
+        arch="${archs[0]}"
+        case "$arch" in
+            x86_64) target=x86_64-macos.13.0; dir="$ROOT_DIR/dist/zig/macos-x86_64" ;;
+            arm64) target=aarch64-macos.13.0; dir="$ROOT_DIR/dist/zig/macos-arm64" ;;
+        esac
+        (cd "$ROOT_DIR/core-zig" && "$zig" build capi -Dtarget="$target" -Doptimize=ReleaseFast -p "$dir")
+    else
+        pids=()
+        for arch in "${archs[@]}"; do
+            case "$arch" in
+                x86_64) target=x86_64-macos.13.0; dir="$ROOT_DIR/dist/zig/macos-x86_64" ;;
+                arm64) target=aarch64-macos.13.0; dir="$ROOT_DIR/dist/zig/macos-arm64" ;;
+            esac
+            (cd "$ROOT_DIR/core-zig" && "$zig" build capi -Dtarget="$target" -Doptimize=ReleaseFast --cache-dir ".zig-cache-$arch" -p "$dir") &
+            pids+=($!)
+        done
+        for pid in "${pids[@]}"; do wait "$pid"; done
+    fi
+fi
 
 if (( ${#archs[@]} == 1 )); then
     cp "$ROOT_DIR/dist/zig/macos-${archs[0]}/lib/libMisstypeCAPI.dylib" \

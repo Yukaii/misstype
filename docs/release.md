@@ -93,18 +93,28 @@ Linux data moves from `~/.local/share/mistype` to `~/.local/share/misstype`.
 
 ## Linux packages
 
+The `zig-build` job cross-compiles the Zig C ABI once per release target in
+parallel on Linux (`x86_64-linux-gnu.2.39`, `aarch64-linux-gnu.2.39`,
+`x86_64-macos.13.0`, `aarch64-macos.13.0`); `linux` and `macos` then run in
+parallel and hand their artifacts to a Linux `publish` job for attestation and
+GitHub Release publication.
+
 The `linux` job builds, installs and removes native packages per distro
 (`script/linux/release_container.sh`) for the fcitx5 addon (`Misstype-<v>-…`)
 and for the IBus engine (`MisstypeIBus-<v>-…`: `.deb`, `.rpm`, Arch
-`.pkg.tar.zst`, plus `.sha256`). The two conflict with each other, so the
-container installs and removes them one at a time. Arch is built twice: x86_64 on
-`archlinux:base` and aarch64 on an ARM runner in the Arch Linux ARM rootfs. After stable publication,
+`.pkg.tar.zst`, plus `.sha256`), pulling pre-baked GHCR images refreshed weekly
+by `.github/workflows/release-images.yml` (falling back to stock distro images
+and the signed Arch Linux ARM rootfs when unavailable). The two flavors conflict
+with each other, so the container installs and removes them one at a time. When
+CI is already green on the tagged commit, Linux and macOS skip repeating Zig's
+unit/behavior test suites while still running distro-specific C ABI, fcitx5,
+IBus, Swift UI, and install/remove checks. After stable publication,
 the AUR jobs synchronize VCS recipes (IBus requires initial authorization) and
 generate release-pinned `fcitx5-misstype-bin` / `ibus-misstype-bin` recipes from
 the published Arch x86_64 and aarch64 assets (aarch64 from the first release
 that carries them). Binary publication requires per-package
 initial authorization; checksums/provenance and current-Arch install/remove
-checks run before pushing. A daily binary compatibility check detects rolling
+checks run before pushing. A weekly binary compatibility check detects rolling
 Arch library changes. Setup: [binary AUR publication](arch-linux.md#binary-publication-and-rolling-arch-compatibility).
 
 ## npm package (`misstype-wasm`)

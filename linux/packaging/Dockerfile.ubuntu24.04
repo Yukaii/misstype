@@ -1,0 +1,9 @@
+# Pre-baked Ubuntu 24.04 packaging and verification image for release.yml.
+FROM ubuntu:24.04
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      ca-certificates sudo git dpkg-dev \
+      cmake make g++ pkg-config extra-cmake-modules gettext python3 curl xz-utils \
+      fcitx5 libfcitx5core-dev libfcitx5config-dev libfcitx5utils-dev fcitx5-modules-dev \
+      fcitx5-config-qt fcitx5-frontend-gtk3 fcitx5-frontend-qt5 \
+      libgtk-4-dev ibus libibus-1.0-dev libglib2.0-dev xvfb dbus-x11 \
+    && rm -rf /var/lib/apt/lists/*

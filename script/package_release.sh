@@ -74,8 +74,12 @@ rm -f "$ZIP"
 /usr/bin/ditto -c -k --keepParent "$APP_DIR" "$ZIP"
 
 # --- The installer app ------------------------------------------------------
-swift build -c release $=ARCHS --product MisstypeInstaller
+# build_and_run.sh already runs `swift build -c release` for every product; only
+# invoke swift build again if the installer binary is missing.
 INSTALLER_BIN="$(swift build -c release $=ARCHS --show-bin-path)/MisstypeInstaller"
+if [[ ! -x "$INSTALLER_BIN" ]]; then
+  swift build -c release $=ARCHS --product MisstypeInstaller
+fi
 rm -rf "$INSTALLER_DIR"
 mkdir -p "$INSTALLER_DIR/Contents/MacOS" "$INSTALLER_DIR/Contents/Resources"
 cp "$INSTALLER_BIN" "$INSTALLER_DIR/Contents/MacOS/MisstypeInstaller"
@@ -91,7 +95,7 @@ STAGING="$(mktemp -d)"
 trap 'rm -rf "$STAGING"' EXIT
 /usr/bin/ditto "$INSTALLER_DIR" "$STAGING/Install Misstype.app"
 rm -f "$DMG"
-hdiutil create -volname "Misstype $VERSION" -srcfolder "$STAGING" -format UDZO -ov "$DMG"
+hdiutil create -volname "Misstype $VERSION" -srcfolder "$STAGING" -format ULFO -ov "$DMG"
 if [[ "$IDENTITY" == "-" ]]; then
   /usr/bin/codesign --force --sign - "$DMG"
 else

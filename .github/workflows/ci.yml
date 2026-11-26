@@ -74,6 +74,14 @@ jobs:
           key: zig-macos-${{ runner.arch }}-${{ hashFiles('script/zig/bootstrap.sh') }}-${{ hashFiles('third_party/utf8proc/*', 'core-zig/src/**', 'core-zig/build.zig', 'core-zig/build.zig.zon') }}
           restore-keys: |
             zig-macos-${{ runner.arch }}-${{ hashFiles('script/zig/bootstrap.sh') }}-
+      - name: Cache SwiftPM build and Sparkle artifact
+        uses: actions/cache@v4
+        with:
+          path: .build
+          key: swift-macos-${{ runner.arch }}-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**/*.swift', 'Sources/**/*.h', 'Sources/**/*.c') }}
+          restore-keys: |
+            swift-macos-${{ runner.arch }}-${{ hashFiles('Package.swift', 'Package.resolved') }}-
+            swift-macos-${{ runner.arch }}-
       - name: Build native Zig C ABI
         run: script/zig/build_macos.sh
       - name: Build the IME and run the Swift UI-side tests

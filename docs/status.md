@@ -6,7 +6,7 @@ for working in the repository live in `AGENTS.md`; goals and milestones in
 [`project-outline.md`](project-outline.md); experiments and measurements in
 [`lab-notebook.md`](lab-notebook.md).
 
-Last reviewed: 2026-11-21 (latest release v0.5.5, 2026-10-14).
+Last reviewed: 2026-11-26 (latest release v0.6.0, 2026-11-21).
 
 ## Platforms
 
@@ -109,8 +109,11 @@ Last reviewed: 2026-11-21 (latest release v0.5.5, 2026-10-14).
 - CI runs the macOS job only when Swift-side inputs change and skips repeat
   suites on squash merges whose tree already passed as a PR
   (`script/ci/plan.sh`); `script/check.sh` runs the same layer mapping
-  locally. Releases: `vMAJOR.MINOR.PATCH` via the Tag release workflow
-  (`AGENTS.md`, Releases).
+  locally. Releases (`vMAJOR.MINOR.PATCH` via Tag release, `AGENTS.md`)
+  cross-compile the Zig C ABI once per target on Linux, run Linux and macOS
+  packaging in parallel using weekly pre-baked GHCR distro images
+  (`.github/workflows/release-images.yml`), and publish from a Linux job
+  (2026-11-26).
 - The repository is private; attestation enables itself once public.
 
 ## Next, in order
