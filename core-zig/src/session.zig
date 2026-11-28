@@ -1044,7 +1044,11 @@ pub const Session = struct {
             self.clear(true);
             return .handled;
         }
-        if (chord) return self.pass(true);
+        // Ctrl (± Shift) on a mark key types the mark (macOS Zhuyin parity);
+        // every other chord goes to the app.
+        const ctrl_mark = kind == .character and mods & (mod_command | mod_option) == 0 and
+            punctuation.output(event.label, shift, true) != null;
+        if (chord and !ctrl_mark) return self.pass(true);
         if (kind == .enter) {
             if (self.composition.isEmpty()) return self.pass(false);
             if (self.mark != null) return self.fileMark();

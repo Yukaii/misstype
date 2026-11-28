@@ -119,9 +119,10 @@ pub fn choices(literal: []const u8, out: *[16][]const u8) []const []const u8 {
 }
 
 /// `'` and Shift+`'` pair themselves within the composition: 「 opens, and
-/// stays 」 while a 「 is unclosed (Shift: 『 』).
+/// stays 」 while a 「 is unclosed (Shift: 『 』). Ctrl+Shift+`'` is the
+/// same as Shift+`'`; Ctrl+`'` alone is not a quote.
 pub fn smartQuote(label: []const u8, shift: bool, ctrl: bool, keys_literals: []const ?[]const u8) ?[]const u8 {
-    if (!std.mem.eql(u8, label, "'") or ctrl) return null;
+    if (!std.mem.eql(u8, label, "'") or (ctrl and !shift)) return null;
     const open: []const u8 = if (shift) "『" else "「";
     const close: []const u8 = if (shift) "』" else "」";
     var depth: usize = 0;
@@ -136,9 +137,20 @@ pub fn smartQuote(label: []const u8, shift: bool, ctrl: bool, keys_literals: []c
     return if (depth > 0) close else open;
 }
 
+/// Ctrl is a second way to reach the marks, as in the macOS Zhuyin IME:
+/// Ctrl+Shift+key equals Shift+key, and Ctrl alone gives the marks whose
+/// plain keys are Zhuyin (`,` ㄝ, `.` ㄡ, `/` ㄥ, `;` ㄤ). Ctrl+`;` is ；
+/// (Shift+`;` is ：). Other Ctrl keys stay with the app: Ctrl+`[` is Escape
+/// in terminals and Ctrl+digit switches Spaces.
 pub fn output(label: []const u8, shift: bool, ctrl: bool) ?[]const u8 {
-    if (ctrl and !shift and std.mem.eql(u8, label, ";")) return "；";
     if (label.len != 1) return null;
+    if (ctrl and !shift) return switch (label[0]) {
+        ',' => "，",
+        '.' => "。",
+        '/' => "？",
+        ';' => "；",
+        else => null,
+    };
     if (shift) {
         const s: ?[]const u8 = switch (label[0]) {
             '1' => "！",
