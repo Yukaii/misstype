@@ -574,6 +574,29 @@ test "smart quotes open then close and nest with shift" {
     try s.expectPreedit("「你好」『』『");
 }
 
+test "Ctrl reaches the marks alongside Shift" {
+    const s = try Harness.init(h.nihao);
+    defer s.deinit();
+    try s.typed("su3");
+    // Ctrl+, pins the pick and continues, like Shift+, (no commit).
+    try expectRes(.{ .consumed = true }, try s.chr(",", h.control, ","));
+    try s.expectPreedit("你，");
+    try s.typed("cl3");
+    _ = try s.chr(".", h.control, ".");
+    _ = try s.chr("/", h.control, "/");
+    _ = try s.chr(";", h.control | h.shift, ":");
+    try s.expectPreedit("你，好。？：");
+    // Other Ctrl chords still commit and pass through.
+    try expectRes(.{ .consumed = false, .commit = "你，好。？：" }, try s.chr("a", h.control, "\x01"));
+}
+
+test "Ctrl+, with nothing composed types the mark" {
+    const s = try Harness.init(h.nihao);
+    defer s.deinit();
+    try expectRes(.{ .consumed = true }, try s.chr(",", h.control, ","));
+    try s.expectPreedit("，");
+}
+
 test "the symbol menu steps, picks and accepts on any other key" {
     const s = try Harness.init(h.nihao);
     defer s.deinit();

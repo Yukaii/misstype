@@ -206,9 +206,34 @@ test "the CJK punctuation table" {
             try t.expectEqualStrings(want, got.?);
         } else try t.expect(got == null);
     }
-    try t.expectEqualStrings("；", P.output(";", false, true).?);
-    // Ctrl/Cmd must not hijack anything else; plain letters untouched.
-    try t.expect(P.output("a", false, true) == null);
+    // Ctrl alone reaches the marks whose plain keys are Zhuyin (macOS
+    // Zhuyin parity); Ctrl+Shift equals Shift.
+    const ctrl_cases = [_]struct { []const u8, bool, ?[]const u8 }{
+        .{ ",", false, "，" },
+        .{ ".", false, "。" },
+        .{ "/", false, "？" },
+        .{ ";", false, "；" },
+        .{ ",", true, "，" },
+        .{ ";", true, "：" },
+        .{ "1", true, "！" },
+        .{ "'", true, "」" },
+        // Ctrl must not hijack anything else: letters, digits, and Ctrl+[
+        // (Escape in terminals) stay with the app.
+        .{ "a", false, null },
+        .{ "1", false, null },
+        .{ "[", false, null },
+        .{ "'", false, null },
+        .{ "\\", false, null },
+    };
+    for (ctrl_cases) |c| {
+        const got = P.output(c[0], c[1], true);
+        if (c[2]) |want| {
+            try t.expect(got != null);
+            try t.expectEqualStrings(want, got.?);
+        } else try t.expect(got == null);
+    }
+    try t.expect(P.smartQuote("'", false, true, &.{}) == null);
+    try t.expectEqualStrings("『", P.smartQuote("'", true, true, &.{}).?);
 }
 
 test "the full-width Shift layer" {
